@@ -289,6 +289,7 @@ async def test_light_group_basic(
     # Test light group created
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
+
     assert_in_attribute(light_group_state, ATTR_ENTITY_ID, mock_light_entity_id)
 
     # Test light control switch created
@@ -381,6 +382,14 @@ async def test_light_group_blocking_state_turns_off(
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
+
+    # Losing a blocking state must also re-evaluate the group.
+    hass.states.async_set(sleep_sensor_entity_id, STATE_OFF)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+
+    light_group_state = hass.states.get(light_group_entity_id)
+    assert_state(light_group_state, STATE_ON)
 
 
 async def test_light_group_turns_off_when_bright(

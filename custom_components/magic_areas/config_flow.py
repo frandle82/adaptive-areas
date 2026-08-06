@@ -56,11 +56,8 @@ from .const import (
     CLIMATE_CONTROL_FEATURE_SCHEMA_PRESET_SELECT,
     CONF_ACCENT_ENTITY,
     CONF_ACCENT_LIGHTS,
-    CONF_ACCENT_LIGHTS_ACT_ON,
     CONF_ACCENT_LIGHTS_BLOCKING_STATES,
     CONF_ACCENT_LIGHTS_REQUIRE_DARK,
-    CONF_ACCENT_LIGHTS_STATE_RULES,
-    CONF_ACCENT_LIGHTS_STATES_LOGIC,
     CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_ACCENT_LIGHTS_STATES,
     CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
@@ -105,11 +102,8 @@ from .const import (
     CONF_NOTIFICATION_DEVICES,
     CONF_NOTIFY_STATES,
     CONF_OVERHEAD_LIGHTS,
-    CONF_OVERHEAD_LIGHTS_ACT_ON,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
     CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
-    CONF_OVERHEAD_LIGHTS_STATE_RULES,
-    CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_OVERHEAD_LIGHTS_STATES,
     CONF_PRESENCE_CONTROL_ENTITIES,
@@ -121,11 +115,8 @@ from .const import (
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_ENTITY,
     CONF_SLEEP_LIGHTS,
-    CONF_SLEEP_LIGHTS_ACT_ON,
     CONF_SLEEP_LIGHTS_BLOCKING_STATES,
     CONF_SLEEP_LIGHTS_REQUIRE_DARK,
-    CONF_SLEEP_LIGHTS_STATE_RULES,
-    CONF_SLEEP_LIGHTS_STATES_LOGIC,
     CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_SLEEP_LIGHTS_STATES,
     CONF_SLEEP_SWITCHES,
@@ -134,11 +125,8 @@ from .const import (
     CONF_SLEEP_SWITCHES_ACTION,
     CONF_SLEEP_TIMEOUT,
     CONF_TASK_LIGHTS,
-    CONF_TASK_LIGHTS_ACT_ON,
     CONF_TASK_LIGHTS_BLOCKING_STATES,
     CONF_TASK_LIGHTS_REQUIRE_DARK,
-    CONF_TASK_LIGHTS_STATE_RULES,
-    CONF_TASK_LIGHTS_STATES_LOGIC,
     CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_TASK_LIGHTS_STATES,
     CONF_TASK_SWITCHES,
@@ -159,8 +147,8 @@ from .const import (
     EMPTY_STRING,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
-    LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
     LIGHT_GROUP_FEATURE_SCHEMA,
+    LIGHT_GROUP_ROOM_STATE_OPTIONS,
     MAGICAREAS_UNIQUEID_PREFIX,
     META_AREA_BASIC_OPTIONS_SCHEMA,
     META_AREA_GLOBAL,
@@ -1020,347 +1008,83 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
     async def async_step_feature_conf_light_groups(self, user_input=None):
         """Configure the light groups feature."""
 
-        light_groups_config = self.area_options.get(CONF_ENABLED_FEATURES, {}).get(
-            CONF_FEATURE_LIGHT_GROUPS, {}
-        )
-
-        rule_slots = 3
-        state_rules_by_states_key = {
-            CONF_OVERHEAD_LIGHTS_STATES: CONF_OVERHEAD_LIGHTS_STATE_RULES,
-            CONF_SLEEP_LIGHTS_STATES: CONF_SLEEP_LIGHTS_STATE_RULES,
-            CONF_ACCENT_LIGHTS_STATES: CONF_ACCENT_LIGHTS_STATE_RULES,
-            CONF_TASK_LIGHTS_STATES: CONF_TASK_LIGHTS_STATE_RULES,
-        }
-
-        def _rule_field_name(state_rules_key: str, idx: int) -> str:
-            return f"{state_rules_key}_rule_{idx}"
-
-        def _prefilled_rule_blocks(
-            state_rules_key: str, states_key: str
-        ) -> list[list[str]]:
-            configured_rules = light_groups_config.get(state_rules_key, [])
-            if configured_rules:
-                cleaned_rules = [
-                    list(rule)
-                    for rule in configured_rules
-                    if isinstance(rule, list) and rule
-                ]
-            else:
-                legacy_states = light_groups_config.get(states_key, [])
-                cleaned_rules = [legacy_states] if legacy_states else []
-
-            cleaned_rules = cleaned_rules[:rule_slots]
-            while len(cleaned_rules) < rule_slots:
-                cleaned_rules.append([])
-            return cleaned_rules
-
-        available_states = BUILTIN_AREA_STATES.copy()
-        secondary_states_config = self.area_options.get(CONF_SECONDARY_STATES)
-        if not isinstance(secondary_states_config, dict):
-            secondary_states_config = {}
-
-        for extra_state, extra_state_entity in CONFIGURABLE_AREA_STATE_MAP.items():
-            if secondary_states_config.get(extra_state_entity, None):
-                available_states.append(extra_state)
-
-        rules_defaults = {
-            states_key: _prefilled_rule_blocks(state_rules_key, states_key)
-            for states_key, state_rules_key in state_rules_by_states_key.items()
-        }
-
-        light_group_options = []
-        hidden_logic_keys = {
+        state_keys = {
             CONF_OVERHEAD_LIGHTS_STATES,
             CONF_SLEEP_LIGHTS_STATES,
             CONF_ACCENT_LIGHTS_STATES,
             CONF_TASK_LIGHTS_STATES,
-            CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
-            CONF_SLEEP_LIGHTS_STATES_LOGIC,
-            CONF_ACCENT_LIGHTS_STATES_LOGIC,
-            CONF_TASK_LIGHTS_STATES_LOGIC,
-            CONF_OVERHEAD_LIGHTS_STATE_RULES,
-            CONF_SLEEP_LIGHTS_STATE_RULES,
-            CONF_ACCENT_LIGHTS_STATE_RULES,
-            CONF_TASK_LIGHTS_STATE_RULES,
         }
+        blocking_state_keys = {
+            CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+            CONF_SLEEP_LIGHTS_BLOCKING_STATES,
+            CONF_ACCENT_LIGHTS_BLOCKING_STATES,
+            CONF_TASK_LIGHTS_BLOCKING_STATES,
+        }
+        dynamic_validators = {
+            CONF_OVERHEAD_LIGHTS: cv.multi_select(self.all_lights),
+            CONF_SLEEP_LIGHTS: cv.multi_select(self.all_lights),
+            CONF_ACCENT_LIGHTS: cv.multi_select(self.all_lights),
+            CONF_TASK_LIGHTS: cv.multi_select(self.all_lights),
+            **{
+                key: cv.multi_select(LIGHT_GROUP_ROOM_STATE_OPTIONS)
+                for key in state_keys | blocking_state_keys
+            },
+        }
+        selectors = {
+            CONF_OVERHEAD_LIGHTS: self._build_selector_entity_simple(
+                self.all_lights, multiple=True
+            ),
+            CONF_SLEEP_LIGHTS: self._build_selector_entity_simple(
+                self.all_lights, multiple=True
+            ),
+            CONF_ACCENT_LIGHTS: self._build_selector_entity_simple(
+                self.all_lights, multiple=True
+            ),
+            CONF_TASK_LIGHTS: self._build_selector_entity_simple(
+                self.all_lights, multiple=True
+            ),
+            **{
+                key: self._build_selector_select(
+                    LIGHT_GROUP_ROOM_STATE_OPTIONS,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                )
+                for key in state_keys | blocking_state_keys
+            },
+        }
+        for key in (
+            CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
+            CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+            CONF_SLEEP_LIGHTS_REQUIRE_DARK,
+            CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+            CONF_ACCENT_LIGHTS_REQUIRE_DARK,
+            CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+            CONF_TASK_LIGHTS_REQUIRE_DARK,
+            CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+        ):
+            dynamic_validators[key] = cv.boolean
+            selectors[key] = self._build_selector_boolean()
 
-        for option_name, option_default, option_validation in OPTIONS_LIGHT_GROUP:
-            if option_name in state_rules_by_states_key:
-                state_rules_key = state_rules_by_states_key[option_name]
-                for idx in range(rule_slots):
-                    light_group_options.append(
-                        (
-                            _rule_field_name(state_rules_key, idx + 1),
-                            rules_defaults[option_name][idx],
-                            cv.ensure_list,
-                        )
+        def _validate_light_group_config(raw_input):
+            """Reject obsolete non-room states submitted by the simplified form."""
+            for key in state_keys | blocking_state_keys:
+                invalid_states = set(raw_input.get(key, [])) - set(
+                    LIGHT_GROUP_ROOM_STATE_OPTIONS
+                )
+                if invalid_states:
+                    raise vol.MultipleInvalid(
+                        [vol.Invalid("unsupported room state", path=[key])]
                     )
-                if option_name in hidden_logic_keys:
-                    continue
 
-            if option_name in hidden_logic_keys:
-                continue
-
-            light_group_options.append((option_name, option_default, option_validation))
-
-        def _light_groups_custom_schema(raw_input):
-            transformed = dict(light_groups_config)
-            for key, value in raw_input.items():
-                transformed[key] = value
-
-            # Collect UI rule blocks into compact persisted rule arrays.
-            for _states_key, state_rules_key in state_rules_by_states_key.items():
-                rule_blocks = []
-                for idx in range(rule_slots):
-                    field_name = _rule_field_name(state_rules_key, idx + 1)
-                    selected_states = raw_input.get(field_name, [])
-                    if selected_states:
-                        rule_blocks.append(selected_states)
-                    transformed.pop(field_name, None)
-
-                transformed[state_rules_key] = rule_blocks
-
-            return LIGHT_GROUP_FEATURE_SCHEMA(transformed)
+            return LIGHT_GROUP_FEATURE_SCHEMA(raw_input)
 
         return await self.do_feature_config(
             name=CONF_FEATURE_LIGHT_GROUPS,
-            options=light_group_options,
-            dynamic_validators={
-                CONF_OVERHEAD_LIGHTS: cv.multi_select(self.all_lights),
-                CONF_OVERHEAD_LIGHTS_STATES: cv.multi_select(available_states),
-                CONF_OVERHEAD_LIGHTS_ACT_ON: cv.multi_select(
-                    LIGHT_GROUP_ACT_ON_OPTIONS
-                ),
-                CONF_OVERHEAD_LIGHTS_BLOCKING_STATES: cv.multi_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS
-                ),
-                CONF_OVERHEAD_LIGHTS_REQUIRE_DARK: cv.boolean,
-                CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
-                CONF_SLEEP_LIGHTS: cv.multi_select(self.all_lights),
-                CONF_SLEEP_LIGHTS_STATES: cv.multi_select(available_states),
-                CONF_SLEEP_LIGHTS_ACT_ON: cv.multi_select(LIGHT_GROUP_ACT_ON_OPTIONS),
-                CONF_SLEEP_LIGHTS_BLOCKING_STATES: cv.multi_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS
-                ),
-                CONF_SLEEP_LIGHTS_REQUIRE_DARK: cv.boolean,
-                CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
-                CONF_ACCENT_LIGHTS: cv.multi_select(self.all_lights),
-                CONF_ACCENT_LIGHTS_STATES: cv.multi_select(available_states),
-                CONF_ACCENT_LIGHTS_ACT_ON: cv.multi_select(LIGHT_GROUP_ACT_ON_OPTIONS),
-                CONF_ACCENT_LIGHTS_BLOCKING_STATES: cv.multi_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS
-                ),
-                CONF_ACCENT_LIGHTS_REQUIRE_DARK: cv.boolean,
-                CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
-                CONF_TASK_LIGHTS: cv.multi_select(self.all_lights),
-                CONF_TASK_LIGHTS_STATES: cv.multi_select(available_states),
-                CONF_TASK_LIGHTS_ACT_ON: cv.multi_select(LIGHT_GROUP_ACT_ON_OPTIONS),
-                CONF_TASK_LIGHTS_BLOCKING_STATES: cv.multi_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS
-                ),
-                CONF_TASK_LIGHTS_REQUIRE_DARK: cv.boolean,
-                CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
-                _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 1): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 2): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 3): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_SLEEP_LIGHTS_STATE_RULES, 1): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_SLEEP_LIGHTS_STATE_RULES, 2): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_SLEEP_LIGHTS_STATE_RULES, 3): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_ACCENT_LIGHTS_STATE_RULES, 1): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_ACCENT_LIGHTS_STATE_RULES, 2): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_ACCENT_LIGHTS_STATE_RULES, 3): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_TASK_LIGHTS_STATE_RULES, 1): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_TASK_LIGHTS_STATE_RULES, 2): cv.multi_select(
-                    available_states
-                ),
-                _rule_field_name(CONF_TASK_LIGHTS_STATE_RULES, 3): cv.multi_select(
-                    available_states
-                ),
-            },
-            selectors={
-                CONF_OVERHEAD_LIGHTS: self._build_selector_entity_simple(
-                    self.all_lights, multiple=True
-                ),
-                CONF_OVERHEAD_LIGHTS_STATES: self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                CONF_OVERHEAD_LIGHTS_ACT_ON: self._build_selector_select(
-                    LIGHT_GROUP_ACT_ON_OPTIONS,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.CONTROL_ON,
-                ),
-                CONF_OVERHEAD_LIGHTS_BLOCKING_STATES: self._build_selector_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
-                    multiple=True,
-                ),
-                CONF_OVERHEAD_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
-                CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
-                CONF_SLEEP_LIGHTS: self._build_selector_entity_simple(
-                    self.all_lights, multiple=True
-                ),
-                CONF_SLEEP_LIGHTS_STATES: self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                CONF_SLEEP_LIGHTS_ACT_ON: self._build_selector_select(
-                    LIGHT_GROUP_ACT_ON_OPTIONS,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.CONTROL_ON,
-                ),
-                CONF_SLEEP_LIGHTS_BLOCKING_STATES: self._build_selector_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
-                    multiple=True,
-                ),
-                CONF_SLEEP_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
-                CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
-                CONF_ACCENT_LIGHTS: self._build_selector_entity_simple(
-                    self.all_lights, multiple=True
-                ),
-                CONF_ACCENT_LIGHTS_STATES: self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                CONF_ACCENT_LIGHTS_ACT_ON: self._build_selector_select(
-                    LIGHT_GROUP_ACT_ON_OPTIONS,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.CONTROL_ON,
-                ),
-                CONF_ACCENT_LIGHTS_BLOCKING_STATES: self._build_selector_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
-                    multiple=True,
-                ),
-                CONF_ACCENT_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
-                CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
-                CONF_TASK_LIGHTS: self._build_selector_entity_simple(
-                    self.all_lights, multiple=True
-                ),
-                CONF_TASK_LIGHTS_STATES: self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                CONF_TASK_LIGHTS_ACT_ON: self._build_selector_select(
-                    LIGHT_GROUP_ACT_ON_OPTIONS,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.CONTROL_ON,
-                ),
-                CONF_TASK_LIGHTS_BLOCKING_STATES: self._build_selector_select(
-                    LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
-                    multiple=True,
-                ),
-                CONF_TASK_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
-                CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
-                _rule_field_name(
-                    CONF_OVERHEAD_LIGHTS_STATE_RULES, 1
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_OVERHEAD_LIGHTS_STATE_RULES, 2
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_OVERHEAD_LIGHTS_STATE_RULES, 3
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_SLEEP_LIGHTS_STATE_RULES, 1
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_SLEEP_LIGHTS_STATE_RULES, 2
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_SLEEP_LIGHTS_STATE_RULES, 3
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_ACCENT_LIGHTS_STATE_RULES, 1
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_ACCENT_LIGHTS_STATE_RULES, 2
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_ACCENT_LIGHTS_STATE_RULES, 3
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_TASK_LIGHTS_STATE_RULES, 1
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_TASK_LIGHTS_STATE_RULES, 2
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-                _rule_field_name(
-                    CONF_TASK_LIGHTS_STATE_RULES, 3
-                ): self._build_selector_select(
-                    available_states,
-                    multiple=True,
-                    translation_key=SelectorTranslationKeys.AREA_STATES,
-                ),
-            },
+            options=OPTIONS_LIGHT_GROUP,
+            dynamic_validators=dynamic_validators,
+            selectors=selectors,
             user_input=user_input,
-            custom_schema=_light_groups_custom_schema,
+            custom_schema=_validate_light_group_config,
         )
 
     async def async_step_feature_conf_fan_groups(self, user_input=None):

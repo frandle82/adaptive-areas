@@ -563,9 +563,14 @@ AREA_PRIORITY_STATES = [AREA_STATE_SLEEP, AREA_STATE_ACCENT]
 BUILTIN_AREA_STATES = [AREA_STATE_OCCUPIED, AREA_STATE_EXTENDED]
 CONFIGURABLE_AREA_STATES = [AREA_STATE_DARK, AREA_STATE_ACCENT, AREA_STATE_SLEEP]
 
-LIGHT_GROUP_BLOCKING_STATE_OPTIONS = [
-    AREA_STATE_SLEEP,
+LIGHT_GROUP_ROOM_STATE_OPTIONS = [
+    AREA_STATE_OCCUPIED,
     AREA_STATE_EXTENDED,
+    AREA_STATE_SLEEP,
+]
+# Keep accepting former values while loading existing entries. The ConfigFlow only
+# offers LIGHT_GROUP_ROOM_STATE_OPTIONS for new configurations.
+LIGHT_GROUP_BLOCKING_STATE_OPTIONS = LIGHT_GROUP_ROOM_STATE_OPTIONS + [
     AREA_STATE_ACCENT,
     AREA_STATE_DARK,
     AREA_STATE_BRIGHT,
@@ -1044,18 +1049,7 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
         vol.Optional(CONF_OVERHEAD_LIGHTS, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_OVERHEAD_LIGHTS_STATES, default=[AREA_STATE_OCCUPIED]
-        ): cv.ensure_list,
-        vol.Optional(CONF_OVERHEAD_LIGHTS_STATE_RULES, default=[]): vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
-        ),
-        vol.Optional(
-            CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
-            default=True,
-        ): cv.boolean,
-        vol.Optional(
-            CONF_OVERHEAD_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
-        ): cv.ensure_list,
+        ): vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]),
         vol.Optional(CONF_OVERHEAD_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
@@ -1064,15 +1058,9 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
             cv.boolean
         ),
         vol.Optional(CONF_SLEEP_LIGHTS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_SLEEP_LIGHTS_STATES, default=[]): cv.ensure_list,
-        vol.Optional(CONF_SLEEP_LIGHTS_STATE_RULES, default=[]): vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
+        vol.Optional(CONF_SLEEP_LIGHTS_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]
         ),
-        vol.Optional(CONF_SLEEP_LIGHTS_STATES_LOGIC, default=True): cv.boolean,
-        vol.Optional(
-            CONF_SLEEP_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
-        ): cv.ensure_list,
         vol.Optional(CONF_SLEEP_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
@@ -1081,15 +1069,9 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
             cv.boolean
         ),
         vol.Optional(CONF_ACCENT_LIGHTS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_ACCENT_LIGHTS_STATES, default=[]): cv.ensure_list,
-        vol.Optional(CONF_ACCENT_LIGHTS_STATE_RULES, default=[]): vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
+        vol.Optional(CONF_ACCENT_LIGHTS_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]
         ),
-        vol.Optional(CONF_ACCENT_LIGHTS_STATES_LOGIC, default=True): cv.boolean,
-        vol.Optional(
-            CONF_ACCENT_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
-        ): cv.ensure_list,
         vol.Optional(CONF_ACCENT_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
@@ -1098,15 +1080,9 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
             cv.boolean
         ),
         vol.Optional(CONF_TASK_LIGHTS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_TASK_LIGHTS_STATES, default=[]): cv.ensure_list,
-        vol.Optional(CONF_TASK_LIGHTS_STATE_RULES, default=[]): vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
+        vol.Optional(CONF_TASK_LIGHTS_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]
         ),
-        vol.Optional(CONF_TASK_LIGHTS_STATES_LOGIC, default=True): cv.boolean,
-        vol.Optional(
-            CONF_TASK_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
-        ): cv.ensure_list,
         vol.Optional(CONF_TASK_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
@@ -1396,20 +1372,6 @@ OPTIONS_LIGHT_GROUP = [
     (CONF_OVERHEAD_LIGHTS, [], cv.entity_ids),
     (CONF_OVERHEAD_LIGHTS_STATES, [AREA_STATE_OCCUPIED], cv.ensure_list),
     (
-        CONF_OVERHEAD_LIGHTS_STATE_RULES,
-        [],
-        vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
-        ),
-    ),
-    (
-        CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
-        True,
-        cv.boolean,
-    ),
-    (CONF_OVERHEAD_LIGHTS_ACT_ON, DEFAULT_LIGHT_GROUP_ACT_ON, cv.ensure_list),
-    (
         CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
         [],
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
@@ -1418,20 +1380,6 @@ OPTIONS_LIGHT_GROUP = [
     (CONF_OVERHEAD_LIGHTS_REQUIRE_DARK, True, cv.boolean),
     (CONF_SLEEP_LIGHTS, [], cv.entity_ids),
     (CONF_SLEEP_LIGHTS_STATES, [], cv.ensure_list),
-    (
-        CONF_SLEEP_LIGHTS_STATE_RULES,
-        [],
-        vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
-        ),
-    ),
-    (
-        CONF_SLEEP_LIGHTS_STATES_LOGIC,
-        True,
-        cv.boolean,
-    ),
-    (CONF_SLEEP_LIGHTS_ACT_ON, DEFAULT_LIGHT_GROUP_ACT_ON, cv.ensure_list),
     (
         CONF_SLEEP_LIGHTS_BLOCKING_STATES,
         [],
@@ -1442,20 +1390,6 @@ OPTIONS_LIGHT_GROUP = [
     (CONF_ACCENT_LIGHTS, [], cv.entity_ids),
     (CONF_ACCENT_LIGHTS_STATES, [], cv.ensure_list),
     (
-        CONF_ACCENT_LIGHTS_STATE_RULES,
-        [],
-        vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
-        ),
-    ),
-    (
-        CONF_ACCENT_LIGHTS_STATES_LOGIC,
-        True,
-        cv.boolean,
-    ),
-    (CONF_ACCENT_LIGHTS_ACT_ON, DEFAULT_LIGHT_GROUP_ACT_ON, cv.ensure_list),
-    (
         CONF_ACCENT_LIGHTS_BLOCKING_STATES,
         [],
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
@@ -1464,20 +1398,6 @@ OPTIONS_LIGHT_GROUP = [
     (CONF_ACCENT_LIGHTS_REQUIRE_DARK, True, cv.boolean),
     (CONF_TASK_LIGHTS, [], cv.entity_ids),
     (CONF_TASK_LIGHTS_STATES, [], cv.ensure_list),
-    (
-        CONF_TASK_LIGHTS_STATE_RULES,
-        [],
-        vol.All(
-            cv.ensure_list,
-            [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
-        ),
-    ),
-    (
-        CONF_TASK_LIGHTS_STATES_LOGIC,
-        True,
-        cv.boolean,
-    ),
-    (CONF_TASK_LIGHTS_ACT_ON, DEFAULT_LIGHT_GROUP_ACT_ON, cv.ensure_list),
     (
         CONF_TASK_LIGHTS_BLOCKING_STATES,
         [],

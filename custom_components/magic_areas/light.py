@@ -19,22 +19,14 @@ from homeassistant.helpers.event import async_track_state_change_event
 from custom_components.magic_areas.base.entities import MagicEntity
 from custom_components.magic_areas.base.magic import MagicArea
 from custom_components.magic_areas.const import (
-    AREA_PRIORITY_STATES,
-    DEFAULT_LIGHT_GROUP_ACT_ON,
     EMPTY_STRING,
     EVENT_MAGICAREAS_AREA_STATE_CHANGED,
-    LIGHT_GROUP_ACT_ON,
-    LIGHT_GROUP_ACT_ON_DARK_CHANGE,
-    LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE,
-    LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
-    LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
-    LIGHT_GROUP_ACT_ON_STATE_CHANGE,
     LIGHT_GROUP_BLOCKING_STATES,
     LIGHT_GROUP_CATEGORIES,
     LIGHT_GROUP_DEFAULT_ICON,
     LIGHT_GROUP_ICONS,
     LIGHT_GROUP_REQUIRE_DARK,
-    LIGHT_GROUP_STATE_RULES,
+    LIGHT_GROUP_ROOM_STATE_OPTIONS,
     LIGHT_GROUP_STATES,
     LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT,
     AreaStates,
@@ -204,8 +196,6 @@ class AreaLightGroup(MagicLightGroup):
 
         self.category = category
         self.assigned_states = []
-        self.state_rules = []
-        self.act_on = []
         self.blocking_states = []
         self.require_dark = True
         self.turn_off_when_bright = False
@@ -226,16 +216,19 @@ class AreaLightGroup(MagicLightGroup):
             self.assigned_states = feature_config.get(
                 LIGHT_GROUP_STATES[self.category], []
             )
-            self.state_rules = feature_config.get(
-                LIGHT_GROUP_STATE_RULES[self.category], []
-            )
-            self.act_on = feature_config.get(
-                LIGHT_GROUP_ACT_ON[self.category], DEFAULT_LIGHT_GROUP_ACT_ON
-            )
-            self.act_on = self._normalize_act_on(self.act_on)
+            self.assigned_states = [
+                state
+                for state in self.assigned_states
+                if state in LIGHT_GROUP_ROOM_STATE_OPTIONS
+            ]
             self.blocking_states = feature_config.get(
                 LIGHT_GROUP_BLOCKING_STATES[self.category], []
             )
+            self.blocking_states = [
+                state
+                for state in self.blocking_states
+                if state in LIGHT_GROUP_ROOM_STATE_OPTIONS
+            ]
             self.require_dark = feature_config.get(
                 LIGHT_GROUP_REQUIRE_DARK[self.category], True
             )
@@ -374,274 +367,65 @@ class AreaLightGroup(MagicLightGroup):
 
         return False
 
-    def state_change_secondary(self, states_tuple):  # noqa: C901
-        """Handle secondary state change."""
+    def state_change_secondary(self, states_tuple):
+        """Re-evaluate a light group after every area state transition."""
         new_states, lost_states = states_tuple
-        configured_rule_states = self._configured_rule_states()
-        brightness_state_changed = self._brightness_state_changed(
-            new_states, lost_states
-        )
 
-        # Re-arm automatic control on meaningful area transitions.
-        # This prevents groups from staying permanently disabled after a manual override
-        # while the area remains occupied.
-        if not self.controlling and (
-            AreaStates.OCCUPIED in new_states
-            or AreaStates.DARK in new_states
-            or AreaStates.BRIGHT in new_states
-            or AreaStates.DARK in lost_states
-            or AreaStates.BRIGHT in lost_states
-            or AreaStates.EXTENDED in new_states
-            or AreaStates.SLEEP in new_states
-        ):
+        if not new_states and not lost_states:
+            return False
+
+        if not self.controlling:
             self.logger.debug(
-                "%s: Re-enabling automatic control due area state transition.",
+                "%s: Re-enabling automatic control after an area transition.",
                 self.name,
             )
             self.controlling = True
-            self._attr_extra_state_attributes["controlling"] = self.controlling
+            self._attr_extra_state_attributes["controlling"] = True
             self.schedule_update_ha_state()
 
         if AreaStates.CLEAR in new_states:
-            self.logger.debug(
-                "%s: Area is clear, reset control state and Noop!", self.name
-            )
             self.reset_control()
             return False
 
-        if self.turn_off_when_bright and AreaStates.BRIGHT in new_states:
-            if self.manual_override:
+        if not self.assigned_states:
+            self.logger.debug("%s: No controlling room states configured.", self.name)
+            return False
+
+        active_blockers = self._active_blocking_states()
+        if active_blockers:
+            self.logger.debug(
+                "%s: Blocking room states active: %s.", self.name, active_blockers
+            )
+            self.controlled = True
+            return self._turn_off()
+
+        room_state_matches = any(
+            self.area.has_state(state) for state in self.assigned_states
+        )
+        if not room_state_matches:
+            self.logger.debug("%s: No controlling room state is active.", self.name)
+            self.controlled = True
+            return self._turn_off()
+
+        if self.area.has_state(AreaStates.BRIGHT):
+            if self.turn_off_when_bright:
+                self.logger.debug("%s: Area is bright; turning group off.", self.name)
+                self.controlled = True
+                return self._turn_off(force=True)
+
+            if self.require_dark:
                 self.logger.debug(
-                    "%s: Manual override active, skipping turn_off_when_bright.",
+                    "%s: Area is bright; preserving group state because dark-on is enabled.",
                     self.name,
                 )
                 return False
 
-            self.logger.debug(
-                "%s: Area transitioned to bright and turn_off_when_bright is enabled, turning off.",
-                self.name,
-            )
-            self.controlled = True
-            return self._turn_off(force=True)
-
-        if self.manual_override and self._turn_on_conditions_match():
-            self.logger.debug(
-                "%s: Manual override reset because turn-on conditions match.",
-                self.name,
-            )
+        if self.manual_override:
             self._set_manual_override(False)
 
-        active_blocking_states = self._active_blocking_states()
-        if active_blocking_states:
-            self.logger.debug(
-                "%s: Blocking states active (%s), turning group off.",
-                self.name,
-                str(active_blocking_states),
-            )
-            self.controlled = True
-            return self._turn_off()
-
-        # Only react to actual secondary state changes
-        if not new_states and not lost_states:
-            self.logger.debug("%s: No new or lost states, noop.", self.name)
-            return False
-
-        # Do not handle lights that are not tied to a state.
-        if not self.assigned_states and not self.state_rules:
-            self.logger.debug("%s: No assigned states/state rules. noop.", self.name)
-            return False
-
-        # If area clear, do nothing (main group will)
-        if not self.area.is_occupied():
-            self.logger.debug("%s: Area not occupied, ignoring.", self.name)
-            return False
-
-        self.logger.debug(
-            "%s: Assigned states: %s. State rules: %s. New states: %s / Lost states %s",
-            self.name,
-            str(self.assigned_states),
-            str(self.state_rules),
-            str(new_states),
-            str(lost_states),
-        )
-
-        # Calculate valid states (if area has states we listen to)
-        # and check if area is under one or more priority state
-        valid_states = [
-            state for state in self.assigned_states if self.area.has_state(state)
-        ]
-        has_priority_states = any(
-            self.area.has_state(state) for state in AREA_PRIORITY_STATES
-        )
-        non_priority_states = [
-            state for state in valid_states if state not in AREA_PRIORITY_STATES
-        ]
-
-        self.logger.debug(
-            "%s: Has priority states? %s. Non-priority states: %s",
-            self.name,
-            has_priority_states,
-            str(non_priority_states),
-        )
-
-        # ACT ON Control
-        # Evaluate all relevant trigger changes first, then skip only if none are allowed.
-        # This avoids combined state changes being blocked by a single non-configured trigger.
-        occupancy_changed = AreaStates.OCCUPIED in new_states
-        extended_changed = AreaStates.EXTENDED in new_states
-        sleep_changed = AreaStates.SLEEP in new_states
-
-        trigger_changes = [
-            (
-                "occupancy",
-                occupancy_changed,
-                LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE in self.act_on
-                or AreaStates.OCCUPIED in configured_rule_states,
-            ),
-            (
-                "brightness",
-                brightness_state_changed,
-                LIGHT_GROUP_ACT_ON_DARK_CHANGE in self.act_on
-                or AreaStates.DARK in configured_rule_states
-                or AreaStates.BRIGHT in configured_rule_states,
-            ),
-            (
-                "extended",
-                extended_changed,
-                LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE in self.act_on
-                or AreaStates.EXTENDED in configured_rule_states,
-            ),
-            (
-                "sleep",
-                sleep_changed,
-                LIGHT_GROUP_ACT_ON_SLEEP_CHANGE in self.act_on
-                or AreaStates.SLEEP in configured_rule_states,
-            ),
-        ]
-        relevant_changes = [name for name, changed, _ in trigger_changes if changed]
-        allowed_changes = [
-            name
-            for name, changed, is_allowed in trigger_changes
-            if changed and is_allowed
-        ]
-
-        if relevant_changes and not allowed_changes:
-            self.logger.debug(
-                "%s: Relevant state changes %s detected but none are configured in act_on/rules. Skipping.",
-                self.name,
-                str(relevant_changes),
-            )
-            return False
-
-        # Keep backward compatibility for old "state" trigger values.
-        if (
-            not relevant_changes
-            and LIGHT_GROUP_ACT_ON_STATE_CHANGE not in self.act_on
-            and not self.state_rules
-        ):
-            self.logger.debug(
-                "Area state change detected but not configured to act on. Skipping."
-            )
-            return False
-
-        # Prefer priority states when present
-        if has_priority_states:
-            for non_priority_state in non_priority_states:
-                valid_states.remove(non_priority_state)
-
-        if self.state_rules:
-            rules_to_evaluate = [list(rule) for rule in self.state_rules if rule]
-
-            if has_priority_states:
-                priority_rules = []
-                for rule in rules_to_evaluate:
-                    priority_rule = [
-                        state for state in rule if state in AREA_PRIORITY_STATES
-                    ]
-                    if priority_rule:
-                        priority_rules.append(priority_rule)
-                if priority_rules:
-                    rules_to_evaluate = priority_rules
-
-            if self.matches_state_rules(rules_to_evaluate):
-                active_blocking_states = self._active_blocking_states()
-                if active_blocking_states:
-                    self.logger.debug(
-                        "%s: Blocking states active (%s), rule result discarded.",
-                        self.name,
-                        str(active_blocking_states),
-                    )
-                    return False
-
-                self.logger.debug(
-                    "%s: State rules matched (%s), Group should turn on!",
-                    self.name,
-                    str(rules_to_evaluate),
-                )
-                self.controlled = True
-                return self._turn_on()
-
-            self.logger.debug(
-                "%s: State rules not matched (%s), Group should turn off!",
-                self.name,
-                str(rules_to_evaluate),
-            )
-            self.controlled = True
-            return self._turn_off()
-
-        if valid_states:
-            active_blocking_states = self._active_blocking_states()
-            if active_blocking_states:
-                self.logger.debug(
-                    "%s: Blocking states active (%s), state match discarded.",
-                    self.name,
-                    str(active_blocking_states),
-                )
-                return False
-
-            self.logger.debug(
-                "%s: Area has valid states (%s), Group should turn on!",
-                self.name,
-                str(valid_states),
-            )
-            self.controlled = True
-            return self._turn_on()
-
-        # Only turn lights off if not going into dark state
-        if AreaStates.DARK in new_states:
-            self.logger.debug(
-                "%s: Entering %s state, noop.", self.name, AreaStates.DARK
-            )
-            return False
-
-        # Keep lights on while the area is dark unless blocked/clear/bright logic above applies.
-        if self.area.has_state(AreaStates.DARK):
-            self.logger.debug(
-                "%s: Area is dark, skipping turn-off logic for secondary group.",
-                self.name,
-            )
-            return False
-
-        # Turn off if we're a PRIORITY_STATE and we're coming out of it
-        out_of_priority_states = [
-            state
-            for state in AREA_PRIORITY_STATES
-            if state in self.assigned_states and state in lost_states
-        ]
-        if out_of_priority_states:
-            self.controlled = True
-            return self._turn_off()
-
-        # Do not turn off if no new PRIORITY_STATES
-        new_priority_states = [
-            state for state in AREA_PRIORITY_STATES if state in new_states
-        ]
-        if not new_priority_states:
-            self.logger.debug("%s: No new priority states. Noop.", self.name)
-            return False
-
+        self.logger.debug("%s: Controlling room state is active.", self.name)
         self.controlled = True
-        return self._turn_off()
+        return self._turn_on()
 
     def relevant_states(self):
         """Return relevant states and remove irrelevant ones (opinionated)."""
@@ -651,58 +435,6 @@ class AreaLightGroup(MagicLightGroup):
             relevant_states.append(AreaStates.OCCUPIED)
 
         return relevant_states
-
-    @staticmethod
-    def _normalize_act_on(act_on: list[str] | str | None) -> list[str]:
-        """Normalize configured triggers and map legacy state trigger."""
-        if not act_on:
-            return []
-
-        if isinstance(act_on, str):
-            act_on = [act_on]
-
-        normalized = []
-        for trigger in act_on:
-            if trigger == LIGHT_GROUP_ACT_ON_STATE_CHANGE:
-                normalized.extend(
-                    [
-                        LIGHT_GROUP_ACT_ON_DARK_CHANGE,
-                        LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE,
-                        LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
-                    ]
-                )
-                continue
-            normalized.append(trigger)
-
-        # Keep insertion order while removing duplicates.
-        return list(dict.fromkeys(normalized))
-
-    def matches_state_rules(self, state_rules: list[list[str]]) -> bool:
-        """Return True when any non-empty rule block is fully matched."""
-        return any(
-            all(self.area.has_state(state) for state in rule)
-            for rule in state_rules
-            if rule
-        )
-
-    def _configured_rule_states(self) -> set[str]:
-        """Return flattened set of states used by configured rule blocks."""
-        return {
-            state
-            for rule in self.state_rules
-            if isinstance(rule, list)
-            for state in rule
-        }
-
-    @staticmethod
-    def _brightness_state_changed(
-        new_states: list[str], lost_states: list[str]
-    ) -> bool:
-        """Return True when area brightness changed in either direction."""
-        return any(
-            state in (AreaStates.DARK, AreaStates.BRIGHT)
-            for state in [*new_states, *lost_states]
-        )
 
     def _active_blocking_states(self) -> list[str]:
         """Return configured blocking states that are currently active."""
@@ -714,17 +446,6 @@ class AreaLightGroup(MagicLightGroup):
             for blocking_state in self.blocking_states
             if self.area.has_state(blocking_state)
         ]
-
-    def _turn_on_conditions_match(self) -> bool:
-        """Return True if configured rules or legacy assigned states currently match."""
-        if self._active_blocking_states():
-            return False
-
-        if self.state_rules:
-            rules_to_evaluate = [list(rule) for rule in self.state_rules if rule]
-            return self.matches_state_rules(rules_to_evaluate)
-
-        return any(self.area.has_state(state) for state in self.assigned_states)
 
     # Light Handling
 
