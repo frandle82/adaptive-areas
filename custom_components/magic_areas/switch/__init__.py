@@ -23,7 +23,10 @@ from custom_components.magic_areas.const import (
     DEFAULT_LIGHT_GROUP_ACT_ON,
     EMPTY_STRING,
     EVENT_MAGICAREAS_AREA_STATE_CHANGED,
+    LIGHT_GROUP_ACT_ON_DARK_CHANGE,
+    LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE,
     LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
+    LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
     LIGHT_GROUP_ACT_ON_STATE_CHANGE,
     SWITCH_GROUP_ACTION,
     SWITCH_GROUP_ACTION_TURN_ON,
@@ -140,6 +143,7 @@ def _build_switch_groups(area: MagicArea) -> list["AreaSwitchGroup"]:
     available_switches = [e["entity_id"] for e in area.entities[SWITCH_DOMAIN]]
     switch_groups: list[AreaSwitchGroup] = []
     child_groups: list[AreaSwitchGroup] = []
+    assigned_switches: list[str] = []
 
     for category in SWITCH_GROUP_CATEGORIES:
         category_switches = [
@@ -155,12 +159,14 @@ def _build_switch_groups(area: MagicArea) -> list["AreaSwitchGroup"]:
         switch_group = AreaSwitchGroup(area, category_switches, category)
         switch_groups.append(switch_group)
         child_groups.append(switch_group)
+        assigned_switches.extend(category_switches)
 
-    if available_switches:
+    unique_assigned_switches = list(dict.fromkeys(assigned_switches))
+    if unique_assigned_switches:
         switch_groups.append(
             AreaSwitchGroup(
                 area,
-                available_switches,
+                unique_assigned_switches,
                 category=SwitchGroupCategory.ALL,
                 child_groups=child_groups,
             )
@@ -221,6 +227,7 @@ class AreaSwitchGroup(MagicSwitchGroup):
             self.act_on = feature_config.get(
                 SWITCH_GROUP_ACT_ON[self.category], DEFAULT_LIGHT_GROUP_ACT_ON
             )
+            self.act_on = self._normalize_act_on(self.act_on)
             self.action = feature_config.get(
                 SWITCH_GROUP_ACTION[self.category], SWITCH_GROUP_ACTION_TURN_ON
             )
@@ -296,8 +303,20 @@ class AreaSwitchGroup(MagicSwitchGroup):
             return False
 
         if (
-            AreaStates.OCCUPIED not in new_states
-            and LIGHT_GROUP_ACT_ON_STATE_CHANGE not in self.act_on
+            AreaStates.DARK in new_states
+            and LIGHT_GROUP_ACT_ON_DARK_CHANGE not in self.act_on
+        ):
+            return False
+
+        if (
+            AreaStates.EXTENDED in new_states
+            and LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE not in self.act_on
+        ):
+            return False
+
+        if (
+            AreaStates.SLEEP in new_states
+            and LIGHT_GROUP_ACT_ON_SLEEP_CHANGE not in self.act_on
         ):
             return False
 
@@ -322,6 +341,30 @@ class AreaSwitchGroup(MagicSwitchGroup):
         if should_turn_on:
             return self._turn_on()
         return self._turn_off()
+
+    @staticmethod
+    def _normalize_act_on(act_on: list[str] | str | None) -> list[str]:
+        """Normalize configured triggers and map legacy state trigger."""
+        if not act_on:
+            return []
+
+        if isinstance(act_on, str):
+            act_on = [act_on]
+
+        normalized = []
+        for trigger in act_on:
+            if trigger == LIGHT_GROUP_ACT_ON_STATE_CHANGE:
+                normalized.extend(
+                    [
+                        LIGHT_GROUP_ACT_ON_DARK_CHANGE,
+                        LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE,
+                        LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
+                    ]
+                )
+                continue
+            normalized.append(trigger)
+
+        return list(dict.fromkeys(normalized))
 
     def _turn_on(self):
         """Turn switch group on if controllable."""

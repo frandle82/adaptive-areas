@@ -19,7 +19,17 @@ from homeassistant.helpers.entity_registry import (
 
 from custom_components.magic_areas.base.magic import MagicArea
 from custom_components.magic_areas.const import (
+    CONF_ENABLED_FEATURES,
+    CONF_FEATURE_SWITCH_GROUPS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
+    CONF_SLEEP_SWITCHES,
+    CONF_SLEEP_SWITCHES_ACTION,
+    CONF_SLEEP_SWITCHES_ACT_ON,
+    CONF_SLEEP_SWITCHES_STATES,
+    CONF_TASK_SWITCHES,
+    CONF_TASK_SWITCHES_ACTION,
+    CONF_TASK_SWITCHES_ACT_ON,
+    CONF_TASK_SWITCHES_STATES,
     DATA_AREA_OBJECT,
     DATA_TRACKED_LISTENERS,
     DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
@@ -31,8 +41,54 @@ from custom_components.magic_areas.helpers.area import get_magic_area_for_config
 _LOGGER = logging.getLogger(__name__)
 
 
+def _sanitize_switch_groups_options(
+    options: dict[str, Any] | None,
+) -> tuple[dict[str, Any], bool]:
+    """Remove persisted switch-group related settings from options."""
+    if not isinstance(options, dict):
+        return {}, False
+
+    cleaned_options = dict(options)
+    changed = False
+
+    enabled_features = cleaned_options.get(CONF_ENABLED_FEATURES, {})
+    if isinstance(enabled_features, dict) and CONF_FEATURE_SWITCH_GROUPS in enabled_features:
+        updated_enabled_features = dict(enabled_features)
+        updated_enabled_features.pop(CONF_FEATURE_SWITCH_GROUPS, None)
+        cleaned_options[CONF_ENABLED_FEATURES] = updated_enabled_features
+        changed = True
+
+    # Legacy safety net: remove any old top-level switch-group keys if present.
+    switch_group_keys = (
+        CONF_SLEEP_SWITCHES,
+        CONF_SLEEP_SWITCHES_STATES,
+        CONF_SLEEP_SWITCHES_ACT_ON,
+        CONF_SLEEP_SWITCHES_ACTION,
+        CONF_TASK_SWITCHES,
+        CONF_TASK_SWITCHES_STATES,
+        CONF_TASK_SWITCHES_ACT_ON,
+        CONF_TASK_SWITCHES_ACTION,
+    )
+    for key in switch_group_keys:
+        if key in cleaned_options:
+            cleaned_options.pop(key)
+            changed = True
+
+    return cleaned_options, changed
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Set up the component."""
+
+    cleaned_options, options_changed = _sanitize_switch_groups_options(
+        dict(config_entry.options)
+    )
+    if options_changed:
+        _LOGGER.info(
+            "%s: Removing persisted switch groups settings from config entry options.",
+            config_entry.data[ATTR_NAME],
+        )
+        hass.config_entries.async_update_entry(config_entry, options=cleaned_options)
 
     @callback
     async def _async_reload_entry(*args, **kwargs) -> None:

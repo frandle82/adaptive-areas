@@ -35,6 +35,7 @@ from custom_components.magic_areas.const import (
     CONF_EXTENDED_TIME,
     CONF_EXTENDED_TIMEOUT,
     CONF_KEEP_ONLY_ENTITIES,
+    CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_SECONDARY_STATES,
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_TIMEOUT,
@@ -48,6 +49,7 @@ from custom_components.magic_areas.const import (
     EMPTY_STRING,
     INVALID_STATES,
     ONE_MINUTE,
+    PRESENCE_CONTROL_VALID_ON_STATES,
     PRESENCE_SENSOR_VALID_ON_STATES,
     UPDATE_INTERVAL,
     AreaStates,
@@ -78,6 +80,9 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
         self._clear_timeout_callback: Callable[[], None] | None = None
 
         self._sensors: list[str] = []
+        self._presence_control_entities: list[str] = self.area.config.get(
+            CONF_PRESENCE_CONTROL_ENTITIES, []
+        )
         self._active_sensors: list[str] = []
         self._last_active_sensors: list[str] = []
 
@@ -92,6 +97,20 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
                 self.hass, self._sensors, self._sensor_state_change
             )
         )
+
+        if self._presence_control_entities:
+            _LOGGER.debug(
+                "%s: Presence control entity tracking: %s",
+                self.area.name,
+                str(self._presence_control_entities),
+            )
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass,
+                    self._presence_control_entities,
+                    self._presence_control_state_change,
+                )
+            )
 
         # Track secondary states
         secondary_state_entities: list[str] = []
@@ -233,6 +252,29 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
                 to_state,
             )
             return None
+
+        self.hass.loop.call_soon_threadsafe(self._update_state, datetime.now(UTC))
+
+    def _presence_control_state_change(
+        self, event: Event[EventStateChangedData]
+    ) -> None:
+        """Handle state changes on entities that gate normal presence sensors."""
+        if event.data["new_state"] is None:
+            return
+
+        if (
+            self.ignore_non_state_change
+            and event.data["old_state"]
+            and event.data["new_state"].state == event.data["old_state"].state
+        ):
+            return
+
+        _LOGGER.debug(
+            "%s: Presence control entity '%s' changed to %s",
+            self.area.name,
+            event.data["entity_id"],
+            event.data["new_state"].state,
+        )
 
         self.hass.loop.call_soon_threadsafe(self._update_state, datetime.now(UTC))
 
@@ -480,6 +522,16 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
             ",".join(valid_states),
         )
 
+        if not self._presence_control_enabled():
+            _LOGGER.debug(
+                "%s: Presence control entities are inactive, ignoring presence sensors.",
+                self.area.name,
+            )
+            if self._active_sensors:
+                self._last_active_sensors = self._active_sensors
+            self._active_sensors = []
+            return False
+
         active_sensors = []
         available_sensors = self._sensors.copy()
 
@@ -539,6 +591,35 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
         self._active_sensors = active_sensors
 
         return len(active_sensors) > 0
+
+    def _presence_control_enabled(self) -> bool:
+        """Return True when the optional presence-control gate is open."""
+        if not self._presence_control_entities:
+            return True
+
+        for entity_id in self._presence_control_entities:
+            entity = self.hass.states.get(entity_id)
+
+            if not entity:
+                _LOGGER.debug(
+                    "%s: Presence control entity '%s' not found, skipping",
+                    self.area.name,
+                    entity_id,
+                )
+                continue
+
+            if entity.state in INVALID_STATES:
+                _LOGGER.debug(
+                    "%s: Presence control entity '%s' is unavailable, skipping",
+                    self.area.name,
+                    entity_id,
+                )
+                continue
+
+            if entity.state in PRESENCE_CONTROL_VALID_ON_STATES:
+                return True
+
+        return False
 
     # Clear timeout
 

@@ -70,39 +70,75 @@
                 "data": {
                     "overhead_lights": "Deckenleuchten",
                     "overhead_lights_states": "In welchen Zuständen sollen Deckenleuchten eingeschaltet werden",
+                    "overhead_lights_state_rules": "Zustandsregeln",
+                    "overhead_lights_state_rules_rule_1": "Regel 1",
+                    "overhead_lights_state_rules_rule_2": "Regel 2",
+                    "overhead_lights_state_rules_rule_3": "Regel 3",
+                    "overhead_lights_states_logic": "Zustandslogik",
                     "overhead_lights_blocking_states": "In welchen Zuständen sollen Deckenleuchten blockiert werden",
                     "overhead_lights_act_on": "Wann sollen die Deckenleuchten gesteuert werden?",
                     "overhead_lights_turn_off_when_bright": "Deckenleuchten bei Helligkeit ausschalten",
                     "sleep_lights": "Schlaflichter",
                     "sleep_lights_states": "In welchen Zuständen sollen Schlaflichter eingeschaltet werden",
+                    "sleep_lights_state_rules": "Zustandsregeln",
+                    "sleep_lights_state_rules_rule_1": "Regel 1",
+                    "sleep_lights_state_rules_rule_2": "Regel 2",
+                    "sleep_lights_state_rules_rule_3": "Regel 3",
+                    "sleep_lights_states_logic": "Zustandslogik",
                     "sleep_lights_blocking_states": "In welchen Zuständen sollen Schlaflichter blockiert werden",
                     "sleep_lights_act_on": "Wann sollen Schlaflichter gesteuert werden?",
                     "sleep_lights_turn_off_when_bright": "Schlaflichter bei Helligkeit ausschalten",
                     "accent_lights": "Akzentlichter",
                     "accent_lights_states": "In welchen Zuständen sollen Akzentlichter eingeschaltet werden",
+                    "accent_lights_state_rules": "Zustandsregeln",
+                    "accent_lights_state_rules_rule_1": "Regel 1",
+                    "accent_lights_state_rules_rule_2": "Regel 2",
+                    "accent_lights_state_rules_rule_3": "Regel 3",
+                    "accent_lights_states_logic": "Zustandslogik",
                     "accent_lights_blocking_states": "In welchen Zuständen sollen Akzentlichter blockiert werden",
                     "accent_lights_act_on": "Wann sollen die Akzentlichter gesteuert werden?",
                     "accent_lights_turn_off_when_bright": "Akzentlichter bei Helligkeit ausschalten",
                     "task_lights": "Arbeitslichter",
                     "task_lights_states": "In welchen Zuständen sollen Arbeitslichter eingeschaltet werden",
+                    "task_lights_state_rules": "Zustandsregeln",
+                    "task_lights_state_rules_rule_1": "Regel 1",
+                    "task_lights_state_rules_rule_2": "Regel 2",
+                    "task_lights_state_rules_rule_3": "Regel 3",
+                    "task_lights_states_logic": "Zustandslogik",
                     "task_lights_blocking_states": "In welchen Zuständen sollen Arbeitslichter blockiert werden",
                     "task_lights_act_on": "Wann sollen die Arbeitslichter gesteuert werden?",
                     "task_lights_turn_off_when_bright": "Arbeitslichter bei Helligkeit ausschalten"
                 },
                 "data_description": {
                     "overhead_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+                    "overhead_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "overhead_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "overhead_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "overhead_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "overhead_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "overhead_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
                     "overhead_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "sleep_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+                    "sleep_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "sleep_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "sleep_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "sleep_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "sleep_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "sleep_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
                     "sleep_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "accent_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+                    "accent_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "accent_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "accent_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "accent_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "accent_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "accent_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
                     "accent_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "task_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+                    "task_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "task_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "task_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+                    "task_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "task_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
                     "task_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "task_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird."
@@ -200,13 +236,15 @@
                     "preset_clear": "Frei",
                     "preset_occupied": "Belegt",
                     "preset_sleep": "Schlaf",
-                    "preset_extended": "Erweitert"
+                    "preset_extended": "Erweitert",
+                    "climate_occupancy_threshold": "Heizen erst nach Anwesenheit von ... Minuten"
                 },
                 "data_description": {
                     "preset_clear": "Preset, das beim Zustand `Frei` gesetzt wird",
                     "preset_occupied": "Preset, das beim Zustand `Belegt` gesetzt wird",
                     "preset_sleep": "Preset, das beim Zustand `Schlaf` gesetzt wird",
-                    "preset_extended": "Preset, das beim Zustand `Erweitert` gesetzt wird"
+                    "preset_extended": "Preset, das beim Zustand `Erweitert` gesetzt wird",
+                    "climate_occupancy_threshold": "Verhindert, dass kurzes Betreten eines Raumes sofort einen Heizvorgang auslöst."
                 }
             },
             "feature_conf_ble_trackers": {
@@ -261,6 +299,7 @@
                 "data": {
                     "include_entities": "Entitäten in die Analyse einschließen",
                     "exclude_entities": "Entitäten von der Analyse ausschließen",
+                    "presence_control_entities": "Anwesenheitsfreigabe durch Entitäten",
                     "type": "Bereichsart (innen/außen)",
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
                     "ignore_diagnostic_entities": "Ignoriere diagnostische und Konfigurationseinheiten."
@@ -268,6 +307,7 @@
                 "data_description": {
                     "include_entities": "Magic Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer magischer Entitäten. Dies kann verwendet werden, um den binären Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs fungieren zu lassen.",
                     "exclude_entities": "Die hier aufgeführten Entitäten werden von Magic Areas vollständig ignoriert. Diese Option verwenden, wenn Entitäten die Daten verfälschen würden, wie z.B. Temperatursensoren von Geräten.",
+                    "presence_control_entities": "Optional. Wenn Entitäten gesetzt sind, wird Bewegung im Raum nur ausgewertet, wenn mindestens eine dieser Entitäten aktiv ist. Die Entitäten setzen den Raum nicht selbst auf belegt.",
                     "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
                     "reload_on_registry_change": "Magischen Bereich automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
                     "ignore_diagnostic_entities": "Magische Bereiche können diagnostische und Konfigurationseinheiten ignorieren, die normalerweise nicht relevant sind."
@@ -473,6 +513,7 @@
         "options": {
           "clear": "Frei",
           "occupied": "Belegt",
+          "dark": "Dunkel",
           "extended": "Erweitert",
           "sleep": "Schlaf"
         }
@@ -480,7 +521,15 @@
       "control_on": {
         "options": {
           "occupancy": "Wenn der Bereich von `Frei` auf `Belegt` wechselt",
-          "state": "Wenn sich der sekundäre Zustand ändert"
+          "dark": "Wenn der Bereich zwischen `Hell` und `Dunkel` wechselt",
+          "extended": "Wenn der Bereich von `Belegt` auf `Erweitert` wechselt",
+          "sleep": "Wenn der Bereich auf `Schlaf` wechselt"
+        }
+      },
+      "states_logic": {
+        "options": {
+          "any": "Mindestens ein Zustand erfüllt",
+          "all": "Alle Zustände müssen erfüllt sein"
         }
       },
       "calculation_mode": {

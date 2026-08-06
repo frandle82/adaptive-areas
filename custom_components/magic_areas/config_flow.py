@@ -58,6 +58,8 @@ from .const import (
     CONF_ACCENT_LIGHTS,
     CONF_ACCENT_LIGHTS_ACT_ON,
     CONF_ACCENT_LIGHTS_BLOCKING_STATES,
+    CONF_ACCENT_LIGHTS_STATE_RULES,
+    CONF_ACCENT_LIGHTS_STATES_LOGIC,
     CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_ACCENT_LIGHTS_STATES,
     CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
@@ -68,6 +70,7 @@ from .const import (
     CONF_BLE_TRACKER_ENTITIES,
     CONF_CLEAR_TIMEOUT,
     CONF_CLIMATE_CONTROL_ENTITY_ID,
+    CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
     CONF_CLIMATE_CONTROL_PRESET_CLEAR,
     CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
     CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
@@ -103,8 +106,11 @@ from .const import (
     CONF_OVERHEAD_LIGHTS,
     CONF_OVERHEAD_LIGHTS_ACT_ON,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+    CONF_OVERHEAD_LIGHTS_STATE_RULES,
+    CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_OVERHEAD_LIGHTS_STATES,
+    CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_HOLD_TIMEOUT,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
@@ -115,6 +121,8 @@ from .const import (
     CONF_SLEEP_LIGHTS,
     CONF_SLEEP_LIGHTS_ACT_ON,
     CONF_SLEEP_LIGHTS_BLOCKING_STATES,
+    CONF_SLEEP_LIGHTS_STATE_RULES,
+    CONF_SLEEP_LIGHTS_STATES_LOGIC,
     CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_SLEEP_LIGHTS_STATES,
     CONF_SLEEP_SWITCHES,
@@ -125,6 +133,8 @@ from .const import (
     CONF_TASK_LIGHTS,
     CONF_TASK_LIGHTS_ACT_ON,
     CONF_TASK_LIGHTS_BLOCKING_STATES,
+    CONF_TASK_LIGHTS_STATE_RULES,
+    CONF_TASK_LIGHTS_STATES_LOGIC,
     CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_TASK_LIGHTS_STATES,
     CONF_TASK_SWITCHES,
@@ -146,6 +156,7 @@ from .const import (
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
+    LIGHT_GROUP_FEATURE_SCHEMA,
     MAGICAREAS_UNIQUEID_PREFIX,
     META_AREA_BASIC_OPTIONS_SCHEMA,
     META_AREA_GLOBAL,
@@ -171,6 +182,7 @@ from .const import (
     OPTIONS_SECONDARY_STATES,
     OPTIONS_SECONDARY_STATES_META,
     OPTIONS_WASP_IN_A_BOX,
+    PRESENCE_CONTROL_ENTITY_DOMAINS,
     REGULAR_AREA_BASIC_OPTIONS_SCHEMA,
     REGULAR_AREA_PRESENCE_TRACKING_OPTIONS_SCHEMA,
     REGULAR_AREA_SCHEMA,
@@ -496,6 +508,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         if self.area.id == META_AREA_GLOBAL.lower():
             feature_list = CONF_FEATURE_LIST_GLOBAL
 
+        # Hide switch groups from UI feature selection.
+        feature_list = [
+            feature
+            for feature in feature_list
+            if feature != CONF_FEATURE_SWITCH_GROUPS
+        ]
+
         return feature_list
 
     def _get_configurable_features(self) -> list[str]:
@@ -506,10 +525,46 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 if feature in filtered_configurable_features:
                     filtered_configurable_features.remove(feature)
 
+        # Hide switch groups from UI feature configuration menu.
+        if CONF_FEATURE_SWITCH_GROUPS in filtered_configurable_features:
+            filtered_configurable_features.remove(CONF_FEATURE_SWITCH_GROUPS)
+
         return filtered_configurable_features
+
+    def _remove_switch_groups_settings(self) -> bool:
+        """Remove persisted switch-groups settings from current options."""
+        changed = False
+
+        enabled_features = self.area_options.get(CONF_ENABLED_FEATURES, {})
+        if (
+            isinstance(enabled_features, dict)
+            and CONF_FEATURE_SWITCH_GROUPS in enabled_features
+        ):
+            updated_enabled_features = dict(enabled_features)
+            updated_enabled_features.pop(CONF_FEATURE_SWITCH_GROUPS, None)
+            self.area_options[CONF_ENABLED_FEATURES] = updated_enabled_features
+            changed = True
+
+        # Legacy safety net: drop old top-level switch-group keys if present.
+        for key in (
+            CONF_SLEEP_SWITCHES,
+            CONF_SLEEP_SWITCHES_STATES,
+            CONF_SLEEP_SWITCHES_ACT_ON,
+            CONF_SLEEP_SWITCHES_ACTION,
+            CONF_TASK_SWITCHES,
+            CONF_TASK_SWITCHES_STATES,
+            CONF_TASK_SWITCHES_ACT_ON,
+            CONF_TASK_SWITCHES_ACTION,
+        ):
+            if key in self.area_options:
+                self.area_options.pop(key)
+                changed = True
+
+        return changed
 
     async def _update_options(self):
         """Update config entry options."""
+        self._remove_switch_groups_settings()
         return self.async_create_entry(title="", data=dict(self.area_options))
 
     async def async_step_init(self, user_input=None):
@@ -605,6 +660,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
         area_schema = META_AREA_SCHEMA if self.area.is_meta() else REGULAR_AREA_SCHEMA
         self.area_options = area_schema(dict(self.config_entry.options))
+        self._remove_switch_groups_settings()
 
         _LOGGER.debug(
             "%s: Loaded area options: %s", self.area.name, str(self.area_options)
@@ -690,6 +746,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
                 return await self.async_step_show_menu()
 
+        presence_control_entities = [
+            entity_id
+            for domain in PRESENCE_CONTROL_ENTITY_DOMAINS
+            for entity_id in self.hass.states.async_entity_ids(domain)
+        ]
+
         all_selectors = {
             CONF_TYPE: self._build_selector_select(
                 sorted([AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR]),
@@ -700,6 +762,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             ),
             CONF_EXCLUDE_ENTITIES: self._build_selector_entity_simple(
                 self.all_area_entities, multiple=True
+            ),
+            CONF_PRESENCE_CONTROL_ENTITIES: self._build_selector_entity_simple(
+                sorted(presence_control_entities), multiple=True
             ),
             CONF_RELOAD_ON_REGISTRY_CHANGE: self._build_selector_boolean(),
             CONF_IGNORE_DIAGNOSTIC_ENTITIES: self._build_selector_boolean(),
@@ -953,23 +1018,109 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
     async def async_step_feature_conf_light_groups(self, user_input=None):
         """Configure the light groups feature."""
 
+        light_groups_config = self.area_options.get(CONF_ENABLED_FEATURES, {}).get(
+            CONF_FEATURE_LIGHT_GROUPS, {}
+        )
+
+        rule_slots = 3
+        state_rules_by_states_key = {
+            CONF_OVERHEAD_LIGHTS_STATES: CONF_OVERHEAD_LIGHTS_STATE_RULES,
+            CONF_SLEEP_LIGHTS_STATES: CONF_SLEEP_LIGHTS_STATE_RULES,
+            CONF_ACCENT_LIGHTS_STATES: CONF_ACCENT_LIGHTS_STATE_RULES,
+            CONF_TASK_LIGHTS_STATES: CONF_TASK_LIGHTS_STATE_RULES,
+        }
+
+        def _rule_field_name(state_rules_key: str, idx: int) -> str:
+            return f"{state_rules_key}_rule_{idx}"
+
+        def _prefilled_rule_blocks(state_rules_key: str, states_key: str) -> list[list[str]]:
+            configured_rules = light_groups_config.get(state_rules_key, [])
+            if configured_rules:
+                cleaned_rules = [
+                    list(rule)
+                    for rule in configured_rules
+                    if isinstance(rule, list) and rule
+                ]
+            else:
+                legacy_states = light_groups_config.get(states_key, [])
+                cleaned_rules = [legacy_states] if legacy_states else []
+
+            cleaned_rules = cleaned_rules[:rule_slots]
+            while len(cleaned_rules) < rule_slots:
+                cleaned_rules.append([])
+            return cleaned_rules
+
         available_states = BUILTIN_AREA_STATES.copy()
         secondary_states_config = self.area_options.get(CONF_SECONDARY_STATES)
         if not isinstance(secondary_states_config, dict):
             secondary_states_config = {}
 
-        light_group_state_exempt = [AREA_STATE_DARK]
         for extra_state, extra_state_entity in CONFIGURABLE_AREA_STATE_MAP.items():
-            # Skip AREA_STATE_DARK because lights can't be tied to this state
-            if extra_state in light_group_state_exempt:
-                continue
-
             if secondary_states_config.get(extra_state_entity, None):
                 available_states.append(extra_state)
 
+        rules_defaults = {
+            states_key: _prefilled_rule_blocks(state_rules_key, states_key)
+            for states_key, state_rules_key in state_rules_by_states_key.items()
+        }
+
+        light_group_options = []
+        hidden_logic_keys = {
+            CONF_OVERHEAD_LIGHTS_STATES,
+            CONF_SLEEP_LIGHTS_STATES,
+            CONF_ACCENT_LIGHTS_STATES,
+            CONF_TASK_LIGHTS_STATES,
+            CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
+            CONF_SLEEP_LIGHTS_STATES_LOGIC,
+            CONF_ACCENT_LIGHTS_STATES_LOGIC,
+            CONF_TASK_LIGHTS_STATES_LOGIC,
+            CONF_OVERHEAD_LIGHTS_STATE_RULES,
+            CONF_SLEEP_LIGHTS_STATE_RULES,
+            CONF_ACCENT_LIGHTS_STATE_RULES,
+            CONF_TASK_LIGHTS_STATE_RULES,
+        }
+
+        for option_name, option_default, option_validation in OPTIONS_LIGHT_GROUP:
+            if option_name in state_rules_by_states_key:
+                state_rules_key = state_rules_by_states_key[option_name]
+                for idx in range(rule_slots):
+                    light_group_options.append(
+                        (
+                            _rule_field_name(state_rules_key, idx + 1),
+                            rules_defaults[option_name][idx],
+                            cv.ensure_list,
+                        )
+                    )
+                if option_name in hidden_logic_keys:
+                    continue
+
+            if option_name in hidden_logic_keys:
+                continue
+
+            light_group_options.append((option_name, option_default, option_validation))
+
+        def _light_groups_custom_schema(raw_input):
+            transformed = dict(light_groups_config)
+            for key, value in raw_input.items():
+                transformed[key] = value
+
+            # Collect UI rule blocks into compact persisted rule arrays.
+            for states_key, state_rules_key in state_rules_by_states_key.items():
+                rule_blocks = []
+                for idx in range(rule_slots):
+                    field_name = _rule_field_name(state_rules_key, idx + 1)
+                    selected_states = raw_input.get(field_name, [])
+                    if selected_states:
+                        rule_blocks.append(selected_states)
+                    transformed.pop(field_name, None)
+
+                transformed[state_rules_key] = rule_blocks
+
+            return LIGHT_GROUP_FEATURE_SCHEMA(transformed)
+
         return await self.do_feature_config(
             name=CONF_FEATURE_LIGHT_GROUPS,
-            options=OPTIONS_LIGHT_GROUP,
+            options=light_group_options,
             dynamic_validators={
                 CONF_OVERHEAD_LIGHTS: cv.multi_select(self.all_lights),
                 CONF_OVERHEAD_LIGHTS_STATES: cv.multi_select(available_states),
@@ -1001,6 +1152,42 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS
                 ),
                 CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
+                _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 1): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 2): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 3): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_SLEEP_LIGHTS_STATE_RULES, 1): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_SLEEP_LIGHTS_STATE_RULES, 2): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_SLEEP_LIGHTS_STATE_RULES, 3): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_ACCENT_LIGHTS_STATE_RULES, 1): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_ACCENT_LIGHTS_STATE_RULES, 2): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_ACCENT_LIGHTS_STATE_RULES, 3): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_TASK_LIGHTS_STATE_RULES, 1): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_TASK_LIGHTS_STATE_RULES, 2): cv.multi_select(
+                    available_states
+                ),
+                _rule_field_name(CONF_TASK_LIGHTS_STATE_RULES, 3): cv.multi_select(
+                    available_states
+                ),
             },
             selectors={
                 CONF_OVERHEAD_LIGHTS: self._build_selector_entity_simple(
@@ -1075,8 +1262,93 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     multiple=True,
                 ),
                 CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
+                _rule_field_name(
+                    CONF_OVERHEAD_LIGHTS_STATE_RULES, 1
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_OVERHEAD_LIGHTS_STATE_RULES, 2
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_OVERHEAD_LIGHTS_STATE_RULES, 3
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_SLEEP_LIGHTS_STATE_RULES, 1
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_SLEEP_LIGHTS_STATE_RULES, 2
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_SLEEP_LIGHTS_STATE_RULES, 3
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_ACCENT_LIGHTS_STATE_RULES, 1
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_ACCENT_LIGHTS_STATE_RULES, 2
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_ACCENT_LIGHTS_STATE_RULES, 3
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_TASK_LIGHTS_STATE_RULES, 1
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_TASK_LIGHTS_STATE_RULES, 2
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
+                _rule_field_name(
+                    CONF_TASK_LIGHTS_STATE_RULES, 3
+                ): self._build_selector_select(
+                    available_states,
+                    multiple=True,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
+                ),
             },
             user_input=user_input,
+            custom_schema=_light_groups_custom_schema,
         )
 
     async def async_step_feature_conf_fan_groups(self, user_input=None):
@@ -1264,6 +1536,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 EMPTY_ENTRY + available_preset_modes,
                 translation_key=SelectorTranslationKeys.CLIMATE_PRESET_LIST,
             ),
+            CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD: self._build_selector_number(
+                unit_of_measurement="minutes"
+            ),
         }
 
         return await self.do_feature_config(
@@ -1285,6 +1560,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 CONF_CLIMATE_CONTROL_PRESET_EXTENDED: vol.In(
                     EMPTY_ENTRY + available_preset_modes
                 ),
+                CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD: cv.positive_int,
             },
             selectors=selectors,
             user_input=user_input,

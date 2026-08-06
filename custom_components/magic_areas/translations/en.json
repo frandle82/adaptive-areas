@@ -70,39 +70,71 @@
         "data": {
           "overhead_lights": "Overhead lights",
           "overhead_lights_states": "States which overhead lights are turned on",
+          "overhead_lights_state_rules": "State rules",
+          "overhead_lights_state_rules_rule_1": "Rule 1",
+          "overhead_lights_state_rules_rule_2": "Rule 2",
+          "overhead_lights_state_rules_rule_3": "Rule 3",
           "overhead_lights_act_on": "When should overhead lights be controlled?",
           "overhead_lights_blocking_states": "Blocking states for overhead lights",
           "overhead_lights_turn_off_when_bright": "Turn overhead lights off when area is bright",
           "sleep_lights": "Sleep lights",
           "sleep_lights_states": "States which sleep lights are turned on",
+          "sleep_lights_state_rules": "State rules",
+          "sleep_lights_state_rules_rule_1": "Rule 1",
+          "sleep_lights_state_rules_rule_2": "Rule 2",
+          "sleep_lights_state_rules_rule_3": "Rule 3",
           "sleep_lights_act_on": "When should sleep lights be controlled?",
           "sleep_lights_blocking_states": "Blocking states for sleep lights",
           "sleep_lights_turn_off_when_bright": "Turn sleep lights off when area is bright",
           "accent_lights": "Accent lights",
           "accent_lights_states": "States which accent lights are turned on",
+          "accent_lights_state_rules": "State rules",
+          "accent_lights_state_rules_rule_1": "Rule 1",
+          "accent_lights_state_rules_rule_2": "Rule 2",
+          "accent_lights_state_rules_rule_3": "Rule 3",
           "accent_lights_act_on": "When should accent lights be controlled?",
           "accent_lights_blocking_states": "Blocking states for accent lights",
           "accent_lights_turn_off_when_bright": "Turn accent lights off when area is bright",
           "task_lights": "Task lights",
           "task_lights_states": "States which task lights are turned on",
+          "task_lights_state_rules": "State rules",
+          "task_lights_state_rules_rule_1": "Rule 1",
+          "task_lights_state_rules_rule_2": "Rule 2",
+          "task_lights_state_rules_rule_3": "Rule 3",
           "task_lights_act_on": "When should task lights be controlled?",
           "task_lights_blocking_states": "Blocking states for task lights",
           "task_lights_turn_off_when_bright": "Turn task lights off when area is bright"
         },
         "data_description": {
           "overhead_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
+          "overhead_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "overhead_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "overhead_lights_state_rules_rule_3": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "overhead_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "overhead_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "overhead_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
           "overhead_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "sleep_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
+          "sleep_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "sleep_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "sleep_lights_state_rules_rule_3": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "sleep_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "sleep_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "sleep_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
           "sleep_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "accent_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
+          "accent_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "accent_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "accent_lights_state_rules_rule_3": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "accent_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "accent_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "accent_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
           "accent_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "task_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
+          "task_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "task_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "task_lights_state_rules_rule_3": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
+          "task_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "task_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "task_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
           "task_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`."
@@ -186,13 +218,15 @@
           "preset_clear": "Clear",
           "preset_occupied": "Occupied",
           "preset_sleep": "Sleep",
-          "preset_extended": "Extended"
+          "preset_extended": "Extended",
+          "climate_occupancy_threshold": "Heat after presence of ... minutes"
         },
         "data_description": {
           "preset_clear": "Preset to be changed when on `clear` state.",
           "preset_occupied": "Preset to be changed when on `occupied` state.",
           "preset_sleep": "Preset to be changed when on `sleep` state.",
-          "preset_extended": "Preset to be changed when on `extended` state."
+          "preset_extended": "Preset to be changed when on `extended` state.",
+          "climate_occupancy_threshold": "Prevents brief room visits from immediately starting a heating cycle."
         }
       },
       "feature_conf_ble_trackers": {
@@ -247,6 +281,7 @@
         "data": {
           "include_entities": "Include entities to this area",
           "exclude_entities": "Exclude entities from being analyzed",
+          "presence_control_entities": "Presence control entities",
           "type": "Area type (interior/exterior)",
           "reload_on_registry_change": "Automatically reload this Magic Area on registry updates",
           "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities"
@@ -254,6 +289,7 @@
         "data_description": {
           "include_entities": "Magic Areas can consider entities from other areas including other Magic entities. You can use this to make a room's presence binary sensor to act as another room's presence sensor as well.",
           "exclude_entities": "Entities listed here will be completely ignored by Magic Areas. Use this if you have entities throwing your data off like device temperature sensors.",
+          "presence_control_entities": "Optional. If entities are set, room motion is only evaluated when at least one of these entities is active. These entities do not mark the room occupied by themselves.",
           "type": "Defining an area type allows Meta areas for Interior/Exterior to be created.",
           "reload_on_registry_change": "Automatically reload this Magic Area when any entity or device is assigned or moved to an area.",
           "ignore_diagnostic_entities": "Magic Areas can ignore diagnostic and configuration entities which are usually not relevant."
@@ -471,6 +507,7 @@
       "options": {
         "clear": "Clear",
         "occupied": "Occupied",
+        "dark": "Dark",
         "extended": "Extended",
         "sleep": "Sleep"
       }
@@ -478,7 +515,9 @@
     "control_on": {
       "options": {
         "occupancy": "When area goes from clear to occupied",
-        "state": "When secondary state changes"
+        "dark": "When area changes between bright and dark",
+        "extended": "When area goes from occupied to extended",
+        "sleep": "When area enters sleep"
       }
     },
     "calculation_mode": {

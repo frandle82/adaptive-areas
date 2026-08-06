@@ -1,6 +1,7 @@
 """Climate control feature switch."""
 
 import logging
+from time import monotonic
 
 from homeassistant.components.climate.const import (
     ATTR_PRESET_MODE,
@@ -8,17 +9,21 @@ from homeassistant.components.climate.const import (
     SERVICE_SET_PRESET_MODE,
 )
 from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
+from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.event import async_call_later
 
 from custom_components.magic_areas.base.magic import MagicArea
 from custom_components.magic_areas.const import (
     CONF_CLIMATE_CONTROL_ENTITY_ID,
+    CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
     CONF_CLIMATE_CONTROL_PRESET_CLEAR,
     CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
     CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
     CONF_CLIMATE_CONTROL_PRESET_SLEEP,
     DEFAULT_CLIMATE_CONTROL_PRESET_CLEAR,
     DEFAULT_CLIMATE_CONTROL_PRESET_EXTENDED,
+    DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
     DEFAULT_CLIMATE_CONTROL_PRESET_OCCUPIED,
     DEFAULT_CLIMATE_CONTROL_PRESET_SLEEP,
     AreaStates,
@@ -44,38 +49,37 @@ class ClimateControlSwitch(SwitchBase):
         """Initialize the Climate control switch."""
 
         SwitchBase.__init__(self, area)
+        feature_config = self.area.feature_config(MagicAreasFeatures.CLIMATE_CONTROL)
 
-        self.climate_entity_id = self.area.feature_config(
-            MagicAreasFeatures.CLIMATE_CONTROL
-        ).get(CONF_CLIMATE_CONTROL_ENTITY_ID, None)
+        self.climate_entity_id = feature_config.get(
+            CONF_CLIMATE_CONTROL_ENTITY_ID, None
+        )
 
         if not self.climate_entity_id:
             raise ValueError("Climate entity not set")
 
         self.preset_map = {
-            AreaStates.CLEAR: self.area.feature_config(
-                MagicAreasFeatures.CLIMATE_CONTROL
-            ).get(
+            AreaStates.CLEAR: feature_config.get(
                 CONF_CLIMATE_CONTROL_PRESET_CLEAR, DEFAULT_CLIMATE_CONTROL_PRESET_CLEAR
             ),
-            AreaStates.OCCUPIED: self.area.feature_config(
-                MagicAreasFeatures.CLIMATE_CONTROL
-            ).get(
+            AreaStates.OCCUPIED: feature_config.get(
                 CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
                 DEFAULT_CLIMATE_CONTROL_PRESET_OCCUPIED,
             ),
-            AreaStates.SLEEP: self.area.feature_config(
-                MagicAreasFeatures.CLIMATE_CONTROL
-            ).get(
+            AreaStates.SLEEP: feature_config.get(
                 CONF_CLIMATE_CONTROL_PRESET_SLEEP, DEFAULT_CLIMATE_CONTROL_PRESET_SLEEP
             ),
-            AreaStates.EXTENDED: self.area.feature_config(
-                MagicAreasFeatures.CLIMATE_CONTROL
-            ).get(
+            AreaStates.EXTENDED: feature_config.get(
                 CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
                 DEFAULT_CLIMATE_CONTROL_PRESET_EXTENDED,
             ),
         }
+        self.occupancy_threshold_minutes = feature_config.get(
+            CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+            DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+        )
+        self._occupied_since: float | None = None
+        self._occupancy_threshold_callback: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:
         """Call when entity about to be added to hass."""
@@ -86,6 +90,7 @@ class ClimateControlSwitch(SwitchBase):
                 self.hass, MagicAreasEvents.AREA_STATE_CHANGED, self.area_state_changed
             )
         )
+        self.async_on_remove(self._clear_occupancy_threshold_timer)
 
     async def area_state_changed(self, area_id, states_tuple):
         """Handle area state change event."""
@@ -103,6 +108,13 @@ class ClimateControlSwitch(SwitchBase):
             )
             return
 
+        if self.area.has_state(AreaStates.OCCUPIED):
+            if self._occupied_since is None:
+                self._occupied_since = monotonic()
+                self._set_occupancy_threshold_timer()
+        else:
+            self._reset_occupancy_tracking()
+
         priority_states: list[str] = [
             AreaStates.SLEEP,
             AreaStates.EXTENDED,
@@ -111,14 +123,65 @@ class ClimateControlSwitch(SwitchBase):
 
         # Handle area clear because the other states doesn't matter
         if self.area.has_state(AreaStates.CLEAR):
+            self._reset_occupancy_tracking()
             if self.preset_map[AreaStates.CLEAR]:
                 await self.apply_preset(AreaStates.CLEAR)
             return
 
         # Handle each state top priority to last, returning early
         for p_state in priority_states:
+            if p_state == AreaStates.OCCUPIED and not self._occupancy_threshold_met():
+                self.logger.debug(
+                    "%s: Occupancy threshold not met. Skipping occupied preset.",
+                    self.name,
+                )
+                continue
+
             if self.area.has_state(p_state) and self.preset_map[p_state]:
                 return await self.apply_preset(p_state)
+
+    def _occupancy_threshold_met(self) -> bool:
+        """Return True if the room has been occupied long enough to heat."""
+        if self.occupancy_threshold_minutes <= 0:
+            return True
+        if self._occupied_since is None:
+            return False
+
+        occupied_duration = (monotonic() - self._occupied_since) / 60
+        return occupied_duration >= self.occupancy_threshold_minutes
+
+    def _set_occupancy_threshold_timer(self) -> None:
+        """Schedule a local re-check when the occupancy threshold expires."""
+        self._clear_occupancy_threshold_timer()
+
+        if self.occupancy_threshold_minutes <= 0:
+            return
+
+        self._occupancy_threshold_callback = async_call_later(
+            self.hass,
+            self.occupancy_threshold_minutes * 60,
+            self._occupancy_threshold_elapsed,
+        )
+
+    def _clear_occupancy_threshold_timer(self) -> None:
+        """Clear the local occupancy threshold timer."""
+        if self._occupancy_threshold_callback is None:
+            return
+
+        self._occupancy_threshold_callback()
+        self._occupancy_threshold_callback = None
+
+    def _reset_occupancy_tracking(self) -> None:
+        """Reset occupancy timing state."""
+        self._occupied_since = None
+        self._clear_occupancy_threshold_timer()
+
+    def _occupancy_threshold_elapsed(self, _now) -> None:
+        """Re-evaluate climate presets after a short occupancy delay."""
+        self._occupancy_threshold_callback = None
+        self.hass.async_create_task(
+            self.area_state_changed(self.area.id, (self.area.states, []))
+        )
 
     async def apply_preset(self, state_name: str):
         """Set climate entity to given preset."""
