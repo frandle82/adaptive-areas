@@ -20,7 +20,10 @@ from homeassistant.helpers.device_registry import (
     EventDeviceRegistryUpdatedData,
     async_get as devicereg_async_get,
 )
-from homeassistant.helpers.dispatcher import async_dispatcher_connect, dispatcher_send
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.entity_registry import (
     EventEntityRegistryUpdatedData,
     RegistryEntry,
@@ -133,7 +136,7 @@ class MagicArea:
         async def _async_notify_load(*args, **kwargs) -> None:
             """Notify that area is loaded."""
             # Announce area type loaded
-            dispatcher_send(
+            async_dispatcher_send(
                 self.hass,
                 MagicAreasEvents.AREA_LOADED,
                 self.area_type,

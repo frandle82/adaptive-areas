@@ -1,5 +1,5 @@
 [tool.black]
-target-version = ["py312"]
+target-version = ["py314"]
 extend-exclude = "/generated/"
 
 [tool.isort]
@@ -13,7 +13,7 @@ forced_separate = ["tests"]
 combine_as_imports = true
 
 [tool.pylint.MAIN]
-py-version = "3.12"
+py-version = "3.14"
 ignore = ["tests"]
 # Use a conservative default here; 2 should speed up most setups and not hurt
 # any too bad. Override on command line as appropriate.
@@ -139,7 +139,7 @@ log_cli = false
 asyncio_mode = "auto"
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 
 select = [
     "C",       # complexity

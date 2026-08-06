@@ -24,6 +24,7 @@ from homeassistant.core import (
 )
 from homeassistant.helpers.area_registry import async_get as async_get_ar
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_component import DATA_INSTANCES
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get as async_get_er
 from homeassistant.helpers.floor_registry import async_get as async_get_fr
@@ -259,9 +260,21 @@ async def setup_mock_entities(
             all_entities.append(entity)
             entity_area_map[entity.unique_id] = area_id
 
-    # Setup entities
-    setup_test_component_platform(hass, domain, all_entities)
-    assert await async_setup_component(hass, domain, {domain: {CONF_PLATFORM: "test"}})
+    # Set up the platform once, then add entities to the existing test platform.
+    # Home Assistant 2026.8 no longer runs setup again for a loaded component.
+    component = hass.data.get(DATA_INSTANCES, {}).get(domain)
+    if component is None:
+        setup_test_component_platform(hass, domain, all_entities)
+        assert await async_setup_component(
+            hass, domain, {domain: {CONF_PLATFORM: "test"}}
+        )
+    else:
+        test_platform = next(
+            platform
+            for key, platform in component._platforms.items()
+            if isinstance(key, tuple) and key[0] == "test"
+        )
+        await test_platform.async_add_entities(all_entities)
     await hass.async_block_till_done()
 
     # Update area IDs

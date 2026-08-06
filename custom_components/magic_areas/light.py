@@ -367,7 +367,7 @@ class AreaLightGroup(MagicLightGroup):
 
         return False
 
-    def state_change_secondary(self, states_tuple):
+    def state_change_secondary(self, states_tuple):  # noqa: C901
         """Handle secondary state change."""
         new_states, lost_states = states_tuple
         configured_rule_states = self._configured_rule_states()
@@ -423,6 +423,16 @@ class AreaLightGroup(MagicLightGroup):
                 self.name,
             )
             self._set_manual_override(False)
+
+        active_blocking_states = self._active_blocking_states()
+        if active_blocking_states:
+            self.logger.debug(
+                "%s: Blocking states active (%s), turning group off.",
+                self.name,
+                str(active_blocking_states),
+            )
+            self.controlled = True
+            return self._turn_off()
 
         # Only react to actual secondary state changes
         if not new_states and not lost_states:

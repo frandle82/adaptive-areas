@@ -12,7 +12,7 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_ON,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
@@ -132,6 +132,10 @@ class SwitchGroupControlSwitch(SwitchBase):
 
     feature_info = MagicAreasFeatureInfoSwitchGroups()
     _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, area: MagicArea) -> None:
+        """Initialize switch group control."""
+        super().__init__(area, translation_key="switch_group_control")
 
 
 def _build_switch_groups(area: MagicArea) -> list["AreaSwitchGroup"]:
@@ -271,6 +275,7 @@ class AreaSwitchGroup(MagicSwitchGroup):
             async_track_state_change_event(self.hass, [self.entity_id], self.group_state_changed)
         )
 
+    @callback
     def area_state_changed(self, area_id, states_tuple):
         """Handle area state changes."""
         if area_id != self.area.id or not self.is_control_enabled():
@@ -371,8 +376,14 @@ class AreaSwitchGroup(MagicSwitchGroup):
         if not self.controlling or self.is_on:
             return False
 
-        self.hass.services.call(
-            SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: self.entity_id}
+        self.controlled = True
+        self.hass.async_create_task(
+            self.hass.services.async_call(
+                SWITCH_DOMAIN,
+                SERVICE_TURN_ON,
+                {ATTR_ENTITY_ID: self.entity_id},
+                blocking=True,
+            )
         )
         return True
 
@@ -381,8 +392,14 @@ class AreaSwitchGroup(MagicSwitchGroup):
         if not self.controlling or not self.is_on:
             return False
 
-        self.hass.services.call(
-            SWITCH_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: self.entity_id}
+        self.controlled = True
+        self.hass.async_create_task(
+            self.hass.services.async_call(
+                SWITCH_DOMAIN,
+                SERVICE_TURN_OFF,
+                {ATTR_ENTITY_ID: self.entity_id},
+                blocking=True,
+            )
         )
         return True
 
@@ -400,6 +417,7 @@ class AreaSwitchGroup(MagicSwitchGroup):
         self._attr_extra_state_attributes["controlling"] = self.controlling
         self.schedule_update_ha_state()
 
+    @callback
     def group_state_changed(self, _):
         """Handle manual intervention."""
         if not self.area.is_occupied():

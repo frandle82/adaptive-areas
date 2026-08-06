@@ -373,6 +373,7 @@ class MockLight(MockToggleEntity, LightEntity):
 
     _attr_max_color_temp_kelvin = 6500
     _attr_min_color_temp_kelvin = 2000
+    _attr_supported_color_modes = {ColorMode.ONOFF}
 
     def __init__(
         self,
@@ -384,6 +385,7 @@ class MockLight(MockToggleEntity, LightEntity):
         """Initialize the mock light."""
         super().__init__(name, state, unique_id)
         if dimmable:
+            self._attr_supported_color_modes = {ColorMode.RGBWW}
             self.color_mode = ColorMode.RGBWW
             self.hs_color = None  # Should be ignored
             self.rgb_color = None  # Should be ignored

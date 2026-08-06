@@ -15,9 +15,11 @@ class SwitchBase(MagicEntity, SwitchEntity):
 
     _attr_state: str
 
-    def __init__(self, area: MagicArea) -> None:
+    def __init__(self, area: MagicArea, translation_key: str | None = None) -> None:
         """Initialize the base switch bits, basic just a mixin for the two types."""
-        MagicEntity.__init__(self, area, domain=SWITCH_DOMAIN)
+        MagicEntity.__init__(
+            self, area, domain=SWITCH_DOMAIN, translation_key=translation_key
+        )
         SwitchEntity.__init__(self)
         self._attr_device_class = SwitchDeviceClass.SWITCH
         self._attr_should_poll = False

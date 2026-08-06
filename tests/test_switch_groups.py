@@ -39,7 +39,7 @@ from tests.mocks import MockBinarySensor, MockSwitch
 def mock_config_entry_switch_groups() -> MockConfigEntry:
     """Fixture for switch groups configuration."""
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
-    options = {
+    data.update({
         CONF_SECONDARY_STATES: {
             CONF_SLEEP_ENTITY: "binary_sensor.sleep_sensor",
         },
@@ -50,8 +50,8 @@ def mock_config_entry_switch_groups() -> MockConfigEntry:
                 CONF_SLEEP_SWITCHES_ACTION: SWITCH_GROUP_ACTION_TURN_OFF,
             }
         },
-    }
-    return MockConfigEntry(domain=DOMAIN, data=data, options=options)
+    })
+    return MockConfigEntry(domain=DOMAIN, data=data)
 
 
 @pytest.fixture(name="_setup_integration_switch_groups")

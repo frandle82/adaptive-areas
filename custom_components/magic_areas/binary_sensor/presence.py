@@ -14,7 +14,10 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.components.sun.const import STATE_ABOVE_HORIZON
 from homeassistant.const import STATE_ON
 from homeassistant.core import Event, EventStateChangedData, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect, dispatcher_send
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -229,6 +232,7 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
         self._sensors = self.area.get_presence_sensors()
 
     # Entity state tracking & reporting
+    @callback
     def _secondary_state_change(self, event: Event[EventStateChangedData]) -> None:
         """Handle area secondary state change event."""
         if event.data["new_state"] is None:
@@ -253,8 +257,9 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
             )
             return None
 
-        self.hass.loop.call_soon_threadsafe(self._update_state, datetime.now(UTC))
+        self.hass.async_create_task(self._async_update_state(0))
 
+    @callback
     def _presence_control_state_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
@@ -276,8 +281,9 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
             event.data["new_state"].state,
         )
 
-        self.hass.loop.call_soon_threadsafe(self._update_state, datetime.now(UTC))
+        self.hass.async_create_task(self._async_update_state(0))
 
+    @callback
     def _sensor_state_change(self, event: Event[EventStateChangedData]) -> None:
         """Actions when the sensor state has changed."""
         if event.data["new_state"] is None:
@@ -320,7 +326,7 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
             # Clear the timeout
             self._remove_clear_timeout()
 
-        self.hass.loop.call_soon_threadsafe(self._update_state, datetime.now(UTC))
+        self.hass.async_create_task(self._async_update_state(0))
 
     async def _async_update_state(self, timeout: int) -> None:
         await asyncio.sleep(timeout)
@@ -362,7 +368,7 @@ class AreaStateTrackerEntity(BinaryMagicEntity):
             str(new_states),
             str(lost_states),
         )
-        dispatcher_send(
+        async_dispatcher_send(
             self.hass, MagicAreasEvents.AREA_STATE_CHANGED, self.area.id, states_tuple
         )
 
@@ -722,7 +728,7 @@ class AreaStateBinarySensor(AreaStateTrackerEntity, BinarySensorEntity):
         # Setup the listeners
         await self._setup_listeners()
 
-        self.hass.loop.call_soon_threadsafe(self._update_state, datetime.now(UTC))
+        self._update_state(datetime.now(UTC))
 
         _LOGGER.debug("%s: area presence binary sensor initialized", self.area.name)
 

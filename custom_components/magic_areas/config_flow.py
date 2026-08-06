@@ -477,7 +477,7 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
@@ -485,7 +485,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
     area: MagicArea
 
-    def __init__(self, config_entry: config_entries.ConfigEntry):
+    def __init__(self):
         """Initialize options flow."""
         self.data: dict[str, Any] = {}
         self.all_entities = []
@@ -1105,7 +1105,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 transformed[key] = value
 
             # Collect UI rule blocks into compact persisted rule arrays.
-            for states_key, state_rules_key in state_rules_by_states_key.items():
+            for _states_key, state_rules_key in state_rules_by_states_key.items():
                 rule_blocks = []
                 for idx in range(rule_slots):
                     field_name = _rule_field_name(state_rules_key, idx + 1)
