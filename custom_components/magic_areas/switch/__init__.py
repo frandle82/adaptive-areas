@@ -138,7 +138,7 @@ class SwitchGroupControlSwitch(SwitchBase):
         super().__init__(area, translation_key="switch_group_control")
 
 
-def _build_switch_groups(area: MagicArea) -> list["AreaSwitchGroup"]:
+def _build_switch_groups(area: MagicArea) -> list[AreaSwitchGroup]:
     """Build switch group entities for a regular area."""
     if not area.has_entities(SWITCH_DOMAIN):
         _LOGGER.debug("%s: No switch entities for switch groups.", area.name)

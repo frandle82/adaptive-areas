@@ -27,6 +27,7 @@ from custom_components.magic_areas.const import (
     CONF_OVERHEAD_LIGHTS,
     CONF_OVERHEAD_LIGHTS_ACT_ON,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+    CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
     CONF_OVERHEAD_LIGHTS_STATES,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_SECONDARY_STATES,
@@ -425,6 +426,7 @@ async def test_light_group_turns_off_when_bright(
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
 
+
 async def test_light_group_turns_back_on_when_dark_again(
     hass: HomeAssistant,
     entities_light_one: list[MockLight],
@@ -515,6 +517,78 @@ async def test_light_group_stays_on_when_bright_if_not_configured(
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
+
+
+async def test_light_group_does_not_turn_on_when_occupied_and_bright(
+    hass: HomeAssistant,
+    entities_light_one: list[MockLight],
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    entities_light_secondary_states: list[MockBinarySensor],
+    _setup_integration_light_groups_bright,
+) -> None:
+    """Test darkness-required groups stay off when startup state is bright."""
+    light_group_entity_id = (
+        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    )
+    light_control_entity_id = (
+        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    )
+
+    motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
+    light_level_entity_id = entities_light_secondary_states[1].entity_id
+
+    hass.states.async_set(light_control_entity_id, STATE_ON)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: light_control_entity_id}
+    )
+    await hass.async_block_till_done()
+
+    # Reproduce startup ordering: brightness is known before occupancy is restored.
+    hass.states.async_set(light_level_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    hass.states.async_set(motion_sensor_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+
+    light_group_state = hass.states.get(light_group_entity_id)
+    assert_state(light_group_state, STATE_OFF)
+
+
+async def test_light_group_can_turn_on_when_bright_if_darkness_not_required(
+    hass: HomeAssistant,
+    entities_light_one: list[MockLight],
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    entities_light_secondary_states: list[MockBinarySensor],
+    light_groups_bright_config_entry: MockConfigEntry,
+) -> None:
+    """Test darkness requirement can be disabled per group."""
+    light_groups_bright_config_entry.options[CONF_ENABLED_FEATURES][
+        CONF_FEATURE_LIGHT_GROUPS
+    ][CONF_OVERHEAD_LIGHTS_REQUIRE_DARK] = False
+    await init_integration(hass, [light_groups_bright_config_entry])
+
+    light_group_entity_id = (
+        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    )
+    light_control_entity_id = (
+        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    )
+    motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
+    light_level_entity_id = entities_light_secondary_states[1].entity_id
+
+    hass.states.async_set(light_control_entity_id, STATE_ON)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: light_control_entity_id}
+    )
+    hass.states.async_set(light_level_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    hass.states.async_set(motion_sensor_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+
+    light_group_state = hass.states.get(light_group_entity_id)
+    assert_state(light_group_state, STATE_ON)
+    await shutdown_integration(hass, [light_groups_bright_config_entry])
 
 
 async def test_light_group_all_contains_valid_child_ids_for_multiple_groups(

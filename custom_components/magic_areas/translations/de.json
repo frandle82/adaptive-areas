@@ -24,7 +24,7 @@
                 "data": {
                     "fan_groups": "Lüftergruppen",
                     "climate_control": "Klimasteuerung",
-                    "media_player_groups": "Media Player Gruppen",
+                    "media_player_groups": "Media-Player-Gruppen erstellen",
                     "light_groups": "Lichtgruppen",
                     "cover_groups": "Abdeckungsgruppen",
                     "area_aware_media_player": "Bereichsabhängiger Media Player",
@@ -76,6 +76,7 @@
                     "overhead_lights_state_rules_rule_3": "Regel 3",
                     "overhead_lights_states_logic": "Zustandslogik",
                     "overhead_lights_blocking_states": "In welchen Zuständen sollen Deckenleuchten blockiert werden",
+                    "overhead_lights_require_dark": "Deckenleuchten nur bei Dunkelheit einschalten",
                     "overhead_lights_act_on": "Wann sollen die Deckenleuchten gesteuert werden?",
                     "overhead_lights_turn_off_when_bright": "Deckenleuchten bei Helligkeit ausschalten",
                     "sleep_lights": "Schlaflichter",
@@ -86,6 +87,7 @@
                     "sleep_lights_state_rules_rule_3": "Regel 3",
                     "sleep_lights_states_logic": "Zustandslogik",
                     "sleep_lights_blocking_states": "In welchen Zuständen sollen Schlaflichter blockiert werden",
+                    "sleep_lights_require_dark": "Schlaflichter nur bei Dunkelheit einschalten",
                     "sleep_lights_act_on": "Wann sollen Schlaflichter gesteuert werden?",
                     "sleep_lights_turn_off_when_bright": "Schlaflichter bei Helligkeit ausschalten",
                     "accent_lights": "Akzentlichter",
@@ -96,6 +98,7 @@
                     "accent_lights_state_rules_rule_3": "Regel 3",
                     "accent_lights_states_logic": "Zustandslogik",
                     "accent_lights_blocking_states": "In welchen Zuständen sollen Akzentlichter blockiert werden",
+                    "accent_lights_require_dark": "Akzentlichter nur bei Dunkelheit einschalten",
                     "accent_lights_act_on": "Wann sollen die Akzentlichter gesteuert werden?",
                     "accent_lights_turn_off_when_bright": "Akzentlichter bei Helligkeit ausschalten",
                     "task_lights": "Arbeitslichter",
@@ -106,6 +109,7 @@
                     "task_lights_state_rules_rule_3": "Regel 3",
                     "task_lights_states_logic": "Zustandslogik",
                     "task_lights_blocking_states": "In welchen Zuständen sollen Arbeitslichter blockiert werden",
+                    "task_lights_require_dark": "Arbeitslichter nur bei Dunkelheit einschalten",
                     "task_lights_act_on": "Wann sollen die Arbeitslichter gesteuert werden?",
                     "task_lights_turn_off_when_bright": "Arbeitslichter bei Helligkeit ausschalten"
                 },
@@ -117,6 +121,7 @@
                     "overhead_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "overhead_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "overhead_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
+                    "overhead_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "overhead_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "sleep_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "sleep_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -125,6 +130,7 @@
                     "sleep_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "sleep_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "sleep_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
+                    "sleep_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "sleep_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "accent_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "accent_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -133,6 +139,7 @@
                     "accent_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "accent_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "accent_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
+                    "accent_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "accent_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "task_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "task_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -140,6 +147,7 @@
                     "task_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
                     "task_lights_states_logic": "Schalter aktiv: Alle ausgewählten Zustände müssen erfüllt sein (`all`). Schalter inaktiv: Mindestens ein ausgewählter Zustand reicht (`any`).",
                     "task_lights_blocking_states": "Wenn der Bereich in einem dieser Zustände ist, wird diese Lichtgruppe nicht eingeschaltet.",
+                    "task_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "task_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
                     "task_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird."
                 }
@@ -181,7 +189,7 @@
             },
             "feature_conf_area_aware_media_player": {
                 "title": "Funktion: Bereichsabhängiger Media Player",
-                "description": "Erstellt einen Media Player, der Wiedergabeaufrufe nur an Media Player in besetzten Bereichen weiterleitet. Dies ist nützlich, wenn TTS-Benachrichtigungen nur in belegten Bereichen abgespielt werden sollen. Diese Funktion verfügt über Konfigurationsoptionen in jedem Bereich. Achtung: der Media Player wird nur erstellt, wenn ein `globaler` Metabereich eingerichtet wurde.",
+                "description": "Erstellt einen Media Player, der Wiedergabeaufrufe nur an Media Player in besetzten Bereichen weiterleitet. Dies ist nützlich, wenn TTS-Benachrichtigungen nur in belegten Bereichen abgespielt werden sollen. Diese Funktion ist unabhängig von `Media-Player-Gruppen`; nur Media-Player-Gruppen erstellen eine Gruppensteuerung im Raum. Diese Funktion verfügt über Konfigurationsoptionen in jedem Bereich. Achtung: der Media Player wird nur erstellt, wenn ein `globaler` Metabereich eingerichtet wurde.",
                 "data": {
                     "notification_devices": "Für die Übertragung verwendete Media Player",
                     "notification_states": "Benachrichtigungen nur in diesen Zuständen abspielen"
@@ -492,7 +500,7 @@
                 "name": "Lichtsteuerung"
             },
             "media_player_control": {
-                "name": "Media Player Steuerung"
+                "name": "Media-Player-Gruppensteuerung"
             },
             "climate_control": {
                 "name": "Klimasteuerung"

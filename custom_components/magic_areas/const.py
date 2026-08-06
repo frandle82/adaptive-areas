@@ -77,12 +77,16 @@ CONF_TASK_LIGHTS_STATE_RULES = "task_lights_state_rules"
 CONF_TASK_LIGHTS_STATES_LOGIC = "task_lights_states_logic"
 CONF_TASK_LIGHTS_ACT_ON = "task_lights_act_on"
 CONF_OVERHEAD_LIGHTS_BLOCKING_STATES = "overhead_lights_blocking_states"
+CONF_OVERHEAD_LIGHTS_REQUIRE_DARK = "overhead_lights_require_dark"
 CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT = "overhead_lights_turn_off_when_bright"
 CONF_SLEEP_LIGHTS_BLOCKING_STATES = "sleep_lights_blocking_states"
+CONF_SLEEP_LIGHTS_REQUIRE_DARK = "sleep_lights_require_dark"
 CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT = "sleep_lights_turn_off_when_bright"
 CONF_ACCENT_LIGHTS_BLOCKING_STATES = "accent_lights_blocking_states"
+CONF_ACCENT_LIGHTS_REQUIRE_DARK = "accent_lights_require_dark"
 CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT = "accent_lights_turn_off_when_bright"
 CONF_TASK_LIGHTS_BLOCKING_STATES = "task_lights_blocking_states"
+CONF_TASK_LIGHTS_REQUIRE_DARK = "task_lights_require_dark"
 CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT = "task_lights_turn_off_when_bright"
 
 # Switch group options
@@ -97,7 +101,10 @@ CONF_TASK_SWITCHES_ACTION = "task_switches_action"
 
 SWITCH_GROUP_ACTION_TURN_ON = "turn_on"
 SWITCH_GROUP_ACTION_TURN_OFF = "turn_off"
-SWITCH_GROUP_ACTION_OPTIONS = [SWITCH_GROUP_ACTION_TURN_ON, SWITCH_GROUP_ACTION_TURN_OFF]
+SWITCH_GROUP_ACTION_OPTIONS = [
+    SWITCH_GROUP_ACTION_TURN_ON,
+    SWITCH_GROUP_ACTION_TURN_OFF,
+]
 
 LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE = "occupancy"
 # Legacy trigger value kept for backwards compatibility with existing configs.
@@ -165,6 +172,13 @@ LIGHT_GROUP_BLOCKING_STATES = {
     CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_BLOCKING_STATES,
     CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_BLOCKING_STATES,
     CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_BLOCKING_STATES,
+}
+
+LIGHT_GROUP_REQUIRE_DARK = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_REQUIRE_DARK,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_REQUIRE_DARK,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_REQUIRE_DARK,
 }
 
 LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT = {
@@ -1045,6 +1059,7 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
         vol.Optional(CONF_OVERHEAD_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
+        vol.Optional(CONF_OVERHEAD_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
         vol.Optional(CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): (
             cv.boolean
         ),
@@ -1054,15 +1069,14 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
             cv.ensure_list,
             [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
         ),
-        vol.Optional(
-            CONF_SLEEP_LIGHTS_STATES_LOGIC, default=True
-        ): cv.boolean,
+        vol.Optional(CONF_SLEEP_LIGHTS_STATES_LOGIC, default=True): cv.boolean,
         vol.Optional(
             CONF_SLEEP_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
         ): cv.ensure_list,
         vol.Optional(CONF_SLEEP_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
+        vol.Optional(CONF_SLEEP_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
         vol.Optional(CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): (
             cv.boolean
         ),
@@ -1072,15 +1086,14 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
             cv.ensure_list,
             [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
         ),
-        vol.Optional(
-            CONF_ACCENT_LIGHTS_STATES_LOGIC, default=True
-        ): cv.boolean,
+        vol.Optional(CONF_ACCENT_LIGHTS_STATES_LOGIC, default=True): cv.boolean,
         vol.Optional(
             CONF_ACCENT_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
         ): cv.ensure_list,
         vol.Optional(CONF_ACCENT_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
+        vol.Optional(CONF_ACCENT_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
         vol.Optional(CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): (
             cv.boolean
         ),
@@ -1090,15 +1103,14 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
             cv.ensure_list,
             [vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)])],
         ),
-        vol.Optional(
-            CONF_TASK_LIGHTS_STATES_LOGIC, default=True
-        ): cv.boolean,
+        vol.Optional(CONF_TASK_LIGHTS_STATES_LOGIC, default=True): cv.boolean,
         vol.Optional(
             CONF_TASK_LIGHTS_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
         ): cv.ensure_list,
         vol.Optional(CONF_TASK_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
+        vol.Optional(CONF_TASK_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
         vol.Optional(CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): cv.boolean,
     },
     extra=vol.REMOVE_EXTRA,
@@ -1403,6 +1415,7 @@ OPTIONS_LIGHT_GROUP = [
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
     (CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
+    (CONF_OVERHEAD_LIGHTS_REQUIRE_DARK, True, cv.boolean),
     (CONF_SLEEP_LIGHTS, [], cv.entity_ids),
     (CONF_SLEEP_LIGHTS_STATES, [], cv.ensure_list),
     (
@@ -1425,6 +1438,7 @@ OPTIONS_LIGHT_GROUP = [
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
     (CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
+    (CONF_SLEEP_LIGHTS_REQUIRE_DARK, True, cv.boolean),
     (CONF_ACCENT_LIGHTS, [], cv.entity_ids),
     (CONF_ACCENT_LIGHTS_STATES, [], cv.ensure_list),
     (
@@ -1447,6 +1461,7 @@ OPTIONS_LIGHT_GROUP = [
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
     (CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
+    (CONF_ACCENT_LIGHTS_REQUIRE_DARK, True, cv.boolean),
     (CONF_TASK_LIGHTS, [], cv.entity_ids),
     (CONF_TASK_LIGHTS_STATES, [], cv.ensure_list),
     (
@@ -1469,6 +1484,7 @@ OPTIONS_LIGHT_GROUP = [
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
     (CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
+    (CONF_TASK_LIGHTS_REQUIRE_DARK, True, cv.boolean),
 ]
 
 OPTIONS_SWITCH_GROUP = [

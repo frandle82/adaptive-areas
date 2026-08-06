@@ -58,6 +58,7 @@ from .const import (
     CONF_ACCENT_LIGHTS,
     CONF_ACCENT_LIGHTS_ACT_ON,
     CONF_ACCENT_LIGHTS_BLOCKING_STATES,
+    CONF_ACCENT_LIGHTS_REQUIRE_DARK,
     CONF_ACCENT_LIGHTS_STATE_RULES,
     CONF_ACCENT_LIGHTS_STATES_LOGIC,
     CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
@@ -106,6 +107,7 @@ from .const import (
     CONF_OVERHEAD_LIGHTS,
     CONF_OVERHEAD_LIGHTS_ACT_ON,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+    CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
     CONF_OVERHEAD_LIGHTS_STATE_RULES,
     CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
@@ -121,6 +123,7 @@ from .const import (
     CONF_SLEEP_LIGHTS,
     CONF_SLEEP_LIGHTS_ACT_ON,
     CONF_SLEEP_LIGHTS_BLOCKING_STATES,
+    CONF_SLEEP_LIGHTS_REQUIRE_DARK,
     CONF_SLEEP_LIGHTS_STATE_RULES,
     CONF_SLEEP_LIGHTS_STATES_LOGIC,
     CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
@@ -133,6 +136,7 @@ from .const import (
     CONF_TASK_LIGHTS,
     CONF_TASK_LIGHTS_ACT_ON,
     CONF_TASK_LIGHTS_BLOCKING_STATES,
+    CONF_TASK_LIGHTS_REQUIRE_DARK,
     CONF_TASK_LIGHTS_STATE_RULES,
     CONF_TASK_LIGHTS_STATES_LOGIC,
     CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
@@ -510,9 +514,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
         # Hide switch groups from UI feature selection.
         feature_list = [
-            feature
-            for feature in feature_list
-            if feature != CONF_FEATURE_SWITCH_GROUPS
+            feature for feature in feature_list if feature != CONF_FEATURE_SWITCH_GROUPS
         ]
 
         return feature_list
@@ -1033,7 +1035,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         def _rule_field_name(state_rules_key: str, idx: int) -> str:
             return f"{state_rules_key}_rule_{idx}"
 
-        def _prefilled_rule_blocks(state_rules_key: str, states_key: str) -> list[list[str]]:
+        def _prefilled_rule_blocks(
+            state_rules_key: str, states_key: str
+        ) -> list[list[str]]:
             configured_rules = light_groups_config.get(state_rules_key, [])
             if configured_rules:
                 cleaned_rules = [
@@ -1130,6 +1134,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 CONF_OVERHEAD_LIGHTS_BLOCKING_STATES: cv.multi_select(
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS
                 ),
+                CONF_OVERHEAD_LIGHTS_REQUIRE_DARK: cv.boolean,
                 CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
                 CONF_SLEEP_LIGHTS: cv.multi_select(self.all_lights),
                 CONF_SLEEP_LIGHTS_STATES: cv.multi_select(available_states),
@@ -1137,6 +1142,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 CONF_SLEEP_LIGHTS_BLOCKING_STATES: cv.multi_select(
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS
                 ),
+                CONF_SLEEP_LIGHTS_REQUIRE_DARK: cv.boolean,
                 CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
                 CONF_ACCENT_LIGHTS: cv.multi_select(self.all_lights),
                 CONF_ACCENT_LIGHTS_STATES: cv.multi_select(available_states),
@@ -1144,6 +1150,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 CONF_ACCENT_LIGHTS_BLOCKING_STATES: cv.multi_select(
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS
                 ),
+                CONF_ACCENT_LIGHTS_REQUIRE_DARK: cv.boolean,
                 CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
                 CONF_TASK_LIGHTS: cv.multi_select(self.all_lights),
                 CONF_TASK_LIGHTS_STATES: cv.multi_select(available_states),
@@ -1151,6 +1158,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 CONF_TASK_LIGHTS_BLOCKING_STATES: cv.multi_select(
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS
                 ),
+                CONF_TASK_LIGHTS_REQUIRE_DARK: cv.boolean,
                 CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT: cv.boolean,
                 _rule_field_name(CONF_OVERHEAD_LIGHTS_STATE_RULES, 1): cv.multi_select(
                     available_states
@@ -1207,6 +1215,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
                     multiple=True,
                 ),
+                CONF_OVERHEAD_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
                 CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
                 CONF_SLEEP_LIGHTS: self._build_selector_entity_simple(
                     self.all_lights, multiple=True
@@ -1225,6 +1234,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
                     multiple=True,
                 ),
+                CONF_SLEEP_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
                 CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
                 CONF_ACCENT_LIGHTS: self._build_selector_entity_simple(
                     self.all_lights, multiple=True
@@ -1243,6 +1253,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
                     multiple=True,
                 ),
+                CONF_ACCENT_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
                 CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
                 CONF_TASK_LIGHTS: self._build_selector_entity_simple(
                     self.all_lights, multiple=True
@@ -1261,6 +1272,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
                     multiple=True,
                 ),
+                CONF_TASK_LIGHTS_REQUIRE_DARK: self._build_selector_boolean(),
                 CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT: self._build_selector_boolean(),
                 _rule_field_name(
                     CONF_OVERHEAD_LIGHTS_STATE_RULES, 1

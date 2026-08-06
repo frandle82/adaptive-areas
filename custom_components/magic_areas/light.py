@@ -33,6 +33,7 @@ from custom_components.magic_areas.const import (
     LIGHT_GROUP_CATEGORIES,
     LIGHT_GROUP_DEFAULT_ICON,
     LIGHT_GROUP_ICONS,
+    LIGHT_GROUP_REQUIRE_DARK,
     LIGHT_GROUP_STATE_RULES,
     LIGHT_GROUP_STATES,
     LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT,
@@ -206,6 +207,7 @@ class AreaLightGroup(MagicLightGroup):
         self.state_rules = []
         self.act_on = []
         self.blocking_states = []
+        self.require_dark = True
         self.turn_off_when_bright = False
 
         self.controlling = True
@@ -221,7 +223,9 @@ class AreaLightGroup(MagicLightGroup):
         # Get assigned states
         if self.category and self.category != LightGroupCategory.ALL:
             feature_config = area.feature_config(MagicAreasFeatures.LIGHT_GROUPS)
-            self.assigned_states = feature_config.get(LIGHT_GROUP_STATES[self.category], [])
+            self.assigned_states = feature_config.get(
+                LIGHT_GROUP_STATES[self.category], []
+            )
             self.state_rules = feature_config.get(
                 LIGHT_GROUP_STATE_RULES[self.category], []
             )
@@ -231,6 +235,9 @@ class AreaLightGroup(MagicLightGroup):
             self.act_on = self._normalize_act_on(self.act_on)
             self.blocking_states = feature_config.get(
                 LIGHT_GROUP_BLOCKING_STATES[self.category], []
+            )
+            self.require_dark = feature_config.get(
+                LIGHT_GROUP_REQUIRE_DARK[self.category], True
             )
             self.turn_off_when_bright = feature_config.get(
                 LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT[self.category],
@@ -513,7 +520,9 @@ class AreaLightGroup(MagicLightGroup):
         ]
         relevant_changes = [name for name, changed, _ in trigger_changes if changed]
         allowed_changes = [
-            name for name, changed, is_allowed in trigger_changes if changed and is_allowed
+            name
+            for name, changed, is_allowed in trigger_changes
+            if changed and is_allowed
         ]
 
         if relevant_changes and not allowed_changes:
@@ -725,6 +734,13 @@ class AreaLightGroup(MagicLightGroup):
             return False
 
         if self.is_on:
+            return False
+
+        if self.require_dark and self.area.has_state(AreaStates.BRIGHT):
+            self.logger.debug(
+                "%s: Area is bright and this group requires darkness, skipping turn-on.",
+                self.name,
+            )
             return False
 
         self.controlled = True

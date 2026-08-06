@@ -76,6 +76,7 @@
           "overhead_lights_state_rules_rule_3": "Rule 3",
           "overhead_lights_act_on": "When should overhead lights be controlled?",
           "overhead_lights_blocking_states": "Blocking states for overhead lights",
+          "overhead_lights_require_dark": "Only turn on overhead lights when dark",
           "overhead_lights_turn_off_when_bright": "Turn overhead lights off when area is bright",
           "sleep_lights": "Sleep lights",
           "sleep_lights_states": "States which sleep lights are turned on",
@@ -85,6 +86,7 @@
           "sleep_lights_state_rules_rule_3": "Rule 3",
           "sleep_lights_act_on": "When should sleep lights be controlled?",
           "sleep_lights_blocking_states": "Blocking states for sleep lights",
+          "sleep_lights_require_dark": "Only turn on sleep lights when dark",
           "sleep_lights_turn_off_when_bright": "Turn sleep lights off when area is bright",
           "accent_lights": "Accent lights",
           "accent_lights_states": "States which accent lights are turned on",
@@ -94,6 +96,7 @@
           "accent_lights_state_rules_rule_3": "Rule 3",
           "accent_lights_act_on": "When should accent lights be controlled?",
           "accent_lights_blocking_states": "Blocking states for accent lights",
+          "accent_lights_require_dark": "Only turn on accent lights when dark",
           "accent_lights_turn_off_when_bright": "Turn accent lights off when area is bright",
           "task_lights": "Task lights",
           "task_lights_states": "States which task lights are turned on",
@@ -103,6 +106,7 @@
           "task_lights_state_rules_rule_3": "Rule 3",
           "task_lights_act_on": "When should task lights be controlled?",
           "task_lights_blocking_states": "Blocking states for task lights",
+          "task_lights_require_dark": "Only turn on task lights when dark",
           "task_lights_turn_off_when_bright": "Turn task lights off when area is bright"
         },
         "data_description": {
@@ -113,6 +117,7 @@
           "overhead_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "overhead_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "overhead_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
+          "overhead_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "overhead_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "sleep_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "sleep_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -121,6 +126,7 @@
           "sleep_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "sleep_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "sleep_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
+          "sleep_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "sleep_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "accent_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "accent_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -129,6 +135,7 @@
           "accent_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "accent_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "accent_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
+          "accent_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "accent_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "task_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "task_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -137,6 +144,7 @@
           "task_lights_states_logic": "Toggle on: all selected states must match (`all`). Toggle off: at least one selected state must match (`any`).",
           "task_lights_act_on": "Select if this light group should be controlled only when an area first gets occupied, only on area state changes or both.",
           "task_lights_blocking_states": "When any selected blocker is active (`sleep`, `extended`, `accented`, `dark`, or `bright`), this light group will not turn on and will be turned off if already on.",
+          "task_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "task_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`."
         }
       },
@@ -163,7 +171,7 @@
       },
       "feature_conf_area_aware_media_player": {
         "title": "Feature: Area-aware media player",
-        "description": "Creates a media player device that will forward play calls to other media players in occupied areas only. This is useful if you want to use TTS notifications but only want to notify areas that are occupied to avoid notifying media players in vacant areas. This feature has configuration options in each area but it is only created if you have a `Global` meta area.",
+        "description": "Creates a media player device that will forward play calls to other media players in occupied areas only. This is useful if you want to use TTS notifications but only want to notify areas that are occupied to avoid notifying media players in vacant areas. This feature is independent of `Media player groups`; only media player groups create an area group-control switch. This feature has configuration options in each area but it is only created if you have a `Global` meta area.",
         "data": {
           "notification_devices": "Media Player devices used for broadcasting",
           "notification_states": "Play notifications devices only when on these states"
@@ -483,7 +491,7 @@
         "name": "Light Control"
       },
       "media_player_control": {
-        "name": "Media Player Control"
+        "name": "Media Player Group Control"
       },
       "climate_control": {
         "name": "Climate Control"
