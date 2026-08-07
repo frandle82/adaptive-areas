@@ -45,6 +45,7 @@ from .const import (
     ALL_PRESENCE_DEVICE_PLATFORMS,
     ALL_SENSOR_DEVICE_CLASSES,
     AREA_STATE_DARK,
+    AREA_STATE_ACCENT,
     AREA_STATE_EXTENDED,
     AREA_STATE_OCCUPIED,
     AREA_STATE_SLEEP,
@@ -56,10 +57,9 @@ from .const import (
     CLIMATE_CONTROL_FEATURE_SCHEMA_PRESET_SELECT,
     CONF_ACCENT_ENTITY,
     CONF_ACCENT_LIGHTS,
+    CONF_ACCENT_LIGHTS_ACTIVATION,
     CONF_ACCENT_LIGHTS_BLOCKING_STATES,
-    CONF_ACCENT_LIGHTS_REQUIRE_DARK,
-    CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-    CONF_ACCENT_LIGHTS_STATES,
+    CONF_ACCENT_LIGHTS_BRIGHTNESS,
     CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
     CONF_AGGREGATES_ILLUMINANCE_THRESHOLD,
     CONF_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
@@ -102,10 +102,9 @@ from .const import (
     CONF_NOTIFICATION_DEVICES,
     CONF_NOTIFY_STATES,
     CONF_OVERHEAD_LIGHTS,
+    CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
-    CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
-    CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-    CONF_OVERHEAD_LIGHTS_STATES,
+    CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_HOLD_TIMEOUT,
@@ -115,20 +114,18 @@ from .const import (
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_ENTITY,
     CONF_SLEEP_LIGHTS,
+    CONF_SLEEP_LIGHTS_ACTIVATION,
     CONF_SLEEP_LIGHTS_BLOCKING_STATES,
-    CONF_SLEEP_LIGHTS_REQUIRE_DARK,
-    CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-    CONF_SLEEP_LIGHTS_STATES,
+    CONF_SLEEP_LIGHTS_BRIGHTNESS,
     CONF_SLEEP_SWITCHES,
     CONF_SLEEP_SWITCHES_ACT_ON,
     CONF_SLEEP_SWITCHES_STATES,
     CONF_SLEEP_SWITCHES_ACTION,
     CONF_SLEEP_TIMEOUT,
     CONF_TASK_LIGHTS,
+    CONF_TASK_LIGHTS_ACTIVATION,
     CONF_TASK_LIGHTS_BLOCKING_STATES,
-    CONF_TASK_LIGHTS_REQUIRE_DARK,
-    CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-    CONF_TASK_LIGHTS_STATES,
+    CONF_TASK_LIGHTS_BRIGHTNESS,
     CONF_TASK_SWITCHES,
     CONF_TASK_SWITCHES_ACT_ON,
     CONF_TASK_SWITCHES_STATES,
@@ -147,8 +144,9 @@ from .const import (
     EMPTY_STRING,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
+    LIGHT_GROUP_ACTIVATION_DISABLED,
+    LIGHT_GROUP_BRIGHTNESS_OPTIONS,
     LIGHT_GROUP_FEATURE_SCHEMA,
-    LIGHT_GROUP_ROOM_STATE_OPTIONS,
     MAGICAREAS_UNIQUEID_PREFIX,
     META_AREA_BASIC_OPTIONS_SCHEMA,
     META_AREA_GLOBAL,
@@ -1008,11 +1006,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
     async def async_step_feature_conf_light_groups(self, user_input=None):
         """Configure the light groups feature."""
 
-        state_keys = {
-            CONF_OVERHEAD_LIGHTS_STATES,
-            CONF_SLEEP_LIGHTS_STATES,
-            CONF_ACCENT_LIGHTS_STATES,
-            CONF_TASK_LIGHTS_STATES,
+        activation_keys = {
+            CONF_OVERHEAD_LIGHTS_ACTIVATION,
+            CONF_SLEEP_LIGHTS_ACTIVATION,
+            CONF_ACCENT_LIGHTS_ACTIVATION,
+            CONF_TASK_LIGHTS_ACTIVATION,
         }
         blocking_state_keys = {
             CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
@@ -1020,15 +1018,41 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             CONF_ACCENT_LIGHTS_BLOCKING_STATES,
             CONF_TASK_LIGHTS_BLOCKING_STATES,
         }
+        brightness_keys = {
+            CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+            CONF_SLEEP_LIGHTS_BRIGHTNESS,
+            CONF_ACCENT_LIGHTS_BRIGHTNESS,
+            CONF_TASK_LIGHTS_BRIGHTNESS,
+        }
+
+        secondary_states = self.area_options.get(CONF_SECONDARY_STATES, {})
+        if not isinstance(secondary_states, dict):
+            secondary_states = {}
+
+        available_activation_modes = [
+            LIGHT_GROUP_ACTIVATION_DISABLED,
+            AREA_STATE_OCCUPIED,
+            AREA_STATE_EXTENDED,
+        ]
+        available_blocking_states = [AREA_STATE_EXTENDED]
+        if secondary_states.get(CONF_SLEEP_ENTITY):
+            available_activation_modes.append(AREA_STATE_SLEEP)
+            available_blocking_states.append(AREA_STATE_SLEEP)
+        if secondary_states.get(CONF_ACCENT_ENTITY):
+            available_activation_modes.append(AREA_STATE_ACCENT)
+            available_blocking_states.append(AREA_STATE_ACCENT)
+
         dynamic_validators = {
             CONF_OVERHEAD_LIGHTS: cv.multi_select(self.all_lights),
             CONF_SLEEP_LIGHTS: cv.multi_select(self.all_lights),
             CONF_ACCENT_LIGHTS: cv.multi_select(self.all_lights),
             CONF_TASK_LIGHTS: cv.multi_select(self.all_lights),
+            **{key: vol.In(available_activation_modes) for key in activation_keys},
             **{
-                key: cv.multi_select(LIGHT_GROUP_ROOM_STATE_OPTIONS)
-                for key in state_keys | blocking_state_keys
+                key: cv.multi_select(available_blocking_states)
+                for key in blocking_state_keys
             },
+            **{key: vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS) for key in brightness_keys},
         }
         selectors = {
             CONF_OVERHEAD_LIGHTS: self._build_selector_entity_simple(
@@ -1045,35 +1069,58 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             ),
             **{
                 key: self._build_selector_select(
-                    LIGHT_GROUP_ROOM_STATE_OPTIONS,
+                    available_activation_modes,
+                    translation_key=SelectorTranslationKeys.LIGHT_ACTIVATION,
+                )
+                for key in activation_keys
+            },
+            **{
+                key: self._build_selector_select(
+                    available_blocking_states,
                     multiple=True,
                     translation_key=SelectorTranslationKeys.AREA_STATES,
                 )
-                for key in state_keys | blocking_state_keys
+                for key in blocking_state_keys
+            },
+            **{
+                key: self._build_selector_select(
+                    LIGHT_GROUP_BRIGHTNESS_OPTIONS,
+                    translation_key=SelectorTranslationKeys.LIGHT_BRIGHTNESS,
+                )
+                for key in brightness_keys
             },
         }
-        for key in (
-            CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
-            CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-            CONF_SLEEP_LIGHTS_REQUIRE_DARK,
-            CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-            CONF_ACCENT_LIGHTS_REQUIRE_DARK,
-            CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-            CONF_TASK_LIGHTS_REQUIRE_DARK,
-            CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
-        ):
-            dynamic_validators[key] = cv.boolean
-            selectors[key] = self._build_selector_boolean()
 
         def _validate_light_group_config(raw_input):
-            """Reject obsolete non-room states submitted by the simplified form."""
-            for key in state_keys | blocking_state_keys:
-                invalid_states = set(raw_input.get(key, [])) - set(
-                    LIGHT_GROUP_ROOM_STATE_OPTIONS
-                )
-                if invalid_states:
+            """Reject unavailable and self-contradictory room-state rules."""
+            for activation_key in activation_keys:
+                if (
+                    activation_key in raw_input
+                    and raw_input[activation_key] not in available_activation_modes
+                ):
                     raise vol.MultipleInvalid(
-                        [vol.Invalid("unsupported room state", path=[key])]
+                        [vol.Invalid("unavailable activation", path=[activation_key])]
+                    )
+            for blockers_key in blocking_state_keys:
+                invalid_blockers = set(raw_input.get(blockers_key, [])) - set(
+                    available_blocking_states
+                )
+                if invalid_blockers:
+                    raise vol.MultipleInvalid(
+                        [vol.Invalid("unavailable blocker", path=[blockers_key])]
+                    )
+
+            activation_blocking_pairs = (
+                (CONF_OVERHEAD_LIGHTS_ACTIVATION, CONF_OVERHEAD_LIGHTS_BLOCKING_STATES),
+                (CONF_SLEEP_LIGHTS_ACTIVATION, CONF_SLEEP_LIGHTS_BLOCKING_STATES),
+                (CONF_ACCENT_LIGHTS_ACTIVATION, CONF_ACCENT_LIGHTS_BLOCKING_STATES),
+                (CONF_TASK_LIGHTS_ACTIVATION, CONF_TASK_LIGHTS_BLOCKING_STATES),
+            )
+            for activation_key, blockers_key in activation_blocking_pairs:
+                activation = raw_input.get(activation_key)
+                if activation in raw_input.get(blockers_key, []):
+                    raise vol.MultipleInvalid(
+                        [vol.Invalid("activation is blocked", path=[blockers_key])]
                     )
 
             return LIGHT_GROUP_FEATURE_SCHEMA(raw_input)

@@ -392,6 +392,39 @@ async def test_light_group_blocking_state_turns_off(
     assert_state(light_group_state, STATE_ON)
 
 
+async def test_sleep_activation_does_not_turn_on_in_clear_area(
+    hass: HomeAssistant,
+    entities_light_one: list[MockLight],
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    entities_light_secondary_states: list[MockBinarySensor],
+    light_groups_advanced_config_entry: MockConfigEntry,
+) -> None:
+    """Sleep activation still requires the area to be occupied."""
+    light_groups_advanced_config_entry.options[CONF_ENABLED_FEATURES][
+        CONF_FEATURE_LIGHT_GROUPS
+    ][CONF_OVERHEAD_LIGHTS_STATES] = [AreaStates.SLEEP]
+    await init_integration(hass, [light_groups_advanced_config_entry])
+
+    light_group_entity_id = (
+        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    )
+    light_control_entity_id = (
+        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    )
+    sleep_sensor_entity_id = entities_light_secondary_states[0].entity_id
+
+    hass.states.async_set(light_control_entity_id, STATE_ON)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: light_control_entity_id}
+    )
+    hass.states.async_set(sleep_sensor_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+
+    assert_state(hass.states.get(light_group_entity_id), STATE_OFF)
+    await shutdown_integration(hass, [light_groups_advanced_config_entry])
+
+
 async def test_light_group_turns_off_when_bright(
     hass: HomeAssistant,
     entities_light_one: list[MockLight],

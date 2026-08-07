@@ -88,6 +88,14 @@ CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT = "accent_lights_turn_off_when_bright"
 CONF_TASK_LIGHTS_BLOCKING_STATES = "task_lights_blocking_states"
 CONF_TASK_LIGHTS_REQUIRE_DARK = "task_lights_require_dark"
 CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT = "task_lights_turn_off_when_bright"
+CONF_OVERHEAD_LIGHTS_ACTIVATION = "overhead_lights_activation"
+CONF_SLEEP_LIGHTS_ACTIVATION = "sleep_lights_activation"
+CONF_ACCENT_LIGHTS_ACTIVATION = "accent_lights_activation"
+CONF_TASK_LIGHTS_ACTIVATION = "task_lights_activation"
+CONF_OVERHEAD_LIGHTS_BRIGHTNESS = "overhead_lights_brightness"
+CONF_SLEEP_LIGHTS_BRIGHTNESS = "sleep_lights_brightness"
+CONF_ACCENT_LIGHTS_BRIGHTNESS = "accent_lights_brightness"
+CONF_TASK_LIGHTS_BRIGHTNESS = "task_lights_brightness"
 
 # Switch group options
 CONF_SLEEP_SWITCHES = "sleep_switches"
@@ -130,6 +138,28 @@ STATES_LOGIC_ALL = "all"
 LIGHT_GROUP_STATES_LOGIC_OPTIONS = [STATES_LOGIC_ANY, STATES_LOGIC_ALL]
 DEFAULT_LIGHT_GROUP_STATES_LOGIC = STATES_LOGIC_ALL
 
+LIGHT_GROUP_ACTIVATION_DISABLED = "disabled"
+LIGHT_GROUP_ACTIVATION_OCCUPIED = "occupied"
+LIGHT_GROUP_ACTIVATION_EXTENDED = "extended"
+LIGHT_GROUP_ACTIVATION_SLEEP = "sleep"
+LIGHT_GROUP_ACTIVATION_ACCENT = "accented"
+LIGHT_GROUP_ACTIVATION_OPTIONS = [
+    LIGHT_GROUP_ACTIVATION_DISABLED,
+    LIGHT_GROUP_ACTIVATION_OCCUPIED,
+    LIGHT_GROUP_ACTIVATION_EXTENDED,
+    LIGHT_GROUP_ACTIVATION_SLEEP,
+    LIGHT_GROUP_ACTIVATION_ACCENT,
+]
+
+LIGHT_GROUP_BRIGHTNESS_IGNORE = "ignore"
+LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK = "require_dark"
+LIGHT_GROUP_BRIGHTNESS_TURN_OFF = "turn_off"
+LIGHT_GROUP_BRIGHTNESS_OPTIONS = [
+    LIGHT_GROUP_BRIGHTNESS_IGNORE,
+    LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+    LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
+]
+
 LIGHT_GROUP_DEFAULT_ICON = "mdi:lightbulb-group"
 
 LIGHT_GROUP_ICONS = {
@@ -144,6 +174,27 @@ LIGHT_GROUP_STATES = {
     CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_STATES,
     CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_STATES,
     CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_STATES,
+}
+
+LIGHT_GROUP_ACTIVATION = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_ACTIVATION,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_ACTIVATION,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_ACTIVATION,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_ACTIVATION,
+}
+
+LIGHT_GROUP_ACTIVATION_DEFAULTS = {
+    CONF_OVERHEAD_LIGHTS: LIGHT_GROUP_ACTIVATION_OCCUPIED,
+    CONF_SLEEP_LIGHTS: LIGHT_GROUP_ACTIVATION_DISABLED,
+    CONF_ACCENT_LIGHTS: LIGHT_GROUP_ACTIVATION_DISABLED,
+    CONF_TASK_LIGHTS: LIGHT_GROUP_ACTIVATION_DISABLED,
+}
+
+LIGHT_GROUP_BRIGHTNESS = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_BRIGHTNESS,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_BRIGHTNESS,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_BRIGHTNESS,
 }
 
 LIGHT_GROUP_STATE_RULES = {
@@ -314,7 +365,7 @@ class MagicConfigEntryVersion(IntEnum):
     """Magic Area config entry version."""
 
     MAJOR = 2
-    MINOR = 1
+    MINOR = 2
 
 
 class MagicAreasFeatureInfo:
@@ -487,6 +538,8 @@ class SelectorTranslationKeys(StrEnum):
     STATES_LOGIC = auto()
     CONTROL_ON = auto()
     CALCULATION_MODE = auto()
+    LIGHT_ACTIVATION = auto()
+    LIGHT_BRIGHTNESS = auto()
 
 
 ALL_BINARY_SENSOR_DEVICE_CLASSES = [cls.value for cls in BinarySensorDeviceClass]
@@ -568,9 +621,12 @@ LIGHT_GROUP_ROOM_STATE_OPTIONS = [
     AREA_STATE_EXTENDED,
     AREA_STATE_SLEEP,
 ]
-# Keep accepting former values while loading existing entries. The ConfigFlow only
-# offers LIGHT_GROUP_ROOM_STATE_OPTIONS for new configurations.
-LIGHT_GROUP_BLOCKING_STATE_OPTIONS = LIGHT_GROUP_ROOM_STATE_OPTIONS + [
+LIGHT_GROUP_BLOCKING_STATE_OPTIONS = [
+    AREA_STATE_EXTENDED,
+    AREA_STATE_SLEEP,
+    AREA_STATE_ACCENT,
+]
+LIGHT_GROUP_LEGACY_BLOCKING_STATE_OPTIONS = LIGHT_GROUP_ROOM_STATE_OPTIONS + [
     AREA_STATE_ACCENT,
     AREA_STATE_DARK,
     AREA_STATE_BRIGHT,
@@ -1048,46 +1104,52 @@ LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_OVERHEAD_LIGHTS, default=[]): cv.entity_ids,
         vol.Optional(
-            CONF_OVERHEAD_LIGHTS_STATES, default=[AREA_STATE_OCCUPIED]
-        ): vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]),
+            CONF_OVERHEAD_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_OCCUPIED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
         vol.Optional(CONF_OVERHEAD_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
-        vol.Optional(CONF_OVERHEAD_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
-        vol.Optional(CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): (
-            cv.boolean
-        ),
+        vol.Optional(
+            CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
         vol.Optional(CONF_SLEEP_LIGHTS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_SLEEP_LIGHTS_STATES, default=[]): vol.All(
-            cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]
-        ),
+        vol.Optional(
+            CONF_SLEEP_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_DISABLED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
         vol.Optional(CONF_SLEEP_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
-        vol.Optional(CONF_SLEEP_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
-        vol.Optional(CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): (
-            cv.boolean
-        ),
+        vol.Optional(
+            CONF_SLEEP_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
         vol.Optional(CONF_ACCENT_LIGHTS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_ACCENT_LIGHTS_STATES, default=[]): vol.All(
-            cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]
-        ),
+        vol.Optional(
+            CONF_ACCENT_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_DISABLED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
         vol.Optional(CONF_ACCENT_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
-        vol.Optional(CONF_ACCENT_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
-        vol.Optional(CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): (
-            cv.boolean
-        ),
+        vol.Optional(
+            CONF_ACCENT_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
         vol.Optional(CONF_TASK_LIGHTS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_TASK_LIGHTS_STATES, default=[]): vol.All(
-            cv.ensure_list, [vol.In(LIGHT_GROUP_RULE_ALLOWED_STATES)]
-        ),
+        vol.Optional(
+            CONF_TASK_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_DISABLED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
         vol.Optional(CONF_TASK_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
             cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
         ),
-        vol.Optional(CONF_TASK_LIGHTS_REQUIRE_DARK, default=True): cv.boolean,
-        vol.Optional(CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT, default=False): cv.boolean,
+        vol.Optional(
+            CONF_TASK_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1370,41 +1432,69 @@ OPTIONS_SECONDARY_STATES_META = [
 
 OPTIONS_LIGHT_GROUP = [
     (CONF_OVERHEAD_LIGHTS, [], cv.entity_ids),
-    (CONF_OVERHEAD_LIGHTS_STATES, [AREA_STATE_OCCUPIED], cv.ensure_list),
+    (
+        CONF_OVERHEAD_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_OCCUPIED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
     (
         CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
         [],
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
-    (CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
-    (CONF_OVERHEAD_LIGHTS_REQUIRE_DARK, True, cv.boolean),
+    (
+        CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
     (CONF_SLEEP_LIGHTS, [], cv.entity_ids),
-    (CONF_SLEEP_LIGHTS_STATES, [], cv.ensure_list),
+    (
+        CONF_SLEEP_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_DISABLED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
     (
         CONF_SLEEP_LIGHTS_BLOCKING_STATES,
         [],
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
-    (CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
-    (CONF_SLEEP_LIGHTS_REQUIRE_DARK, True, cv.boolean),
+    (
+        CONF_SLEEP_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
     (CONF_ACCENT_LIGHTS, [], cv.entity_ids),
-    (CONF_ACCENT_LIGHTS_STATES, [], cv.ensure_list),
+    (
+        CONF_ACCENT_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_DISABLED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
     (
         CONF_ACCENT_LIGHTS_BLOCKING_STATES,
         [],
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
-    (CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
-    (CONF_ACCENT_LIGHTS_REQUIRE_DARK, True, cv.boolean),
+    (
+        CONF_ACCENT_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
     (CONF_TASK_LIGHTS, [], cv.entity_ids),
-    (CONF_TASK_LIGHTS_STATES, [], cv.ensure_list),
+    (
+        CONF_TASK_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_DISABLED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
     (
         CONF_TASK_LIGHTS_BLOCKING_STATES,
         [],
         vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
     ),
-    (CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT, False, cv.boolean),
-    (CONF_TASK_LIGHTS_REQUIRE_DARK, True, cv.boolean),
+    (
+        CONF_TASK_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
 ]
 
 OPTIONS_SWITCH_GROUP = [

@@ -37,6 +37,9 @@ from custom_components.magic_areas.const import (
     MagicConfigEntryVersion,
 )
 from custom_components.magic_areas.helpers.area import get_magic_area_for_config_entry
+from custom_components.magic_areas.helpers.light_groups import (
+    migrate_light_groups_in_config,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +55,10 @@ def _sanitize_switch_groups_options(
     changed = False
 
     enabled_features = cleaned_options.get(CONF_ENABLED_FEATURES, {})
-    if isinstance(enabled_features, dict) and CONF_FEATURE_SWITCH_GROUPS in enabled_features:
+    if (
+        isinstance(enabled_features, dict)
+        and CONF_FEATURE_SWITCH_GROUPS in enabled_features
+    ):
         updated_enabled_features = dict(enabled_features)
         updated_enabled_features.pop(CONF_FEATURE_SWITCH_GROUPS, None)
         cleaned_options[CONF_ENABLED_FEATURES] = updated_enabled_features
@@ -253,11 +259,23 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
 
         return False
 
-    hass.config_entries.async_update_entry(
-        config_entry,
-        minor_version=MagicConfigEntryVersion.MINOR,
-        version=MagicConfigEntryVersion.MAJOR,
+    migrated_data, data_changed = migrate_light_groups_in_config(
+        dict(config_entry.data)
     )
+    migrated_options, options_changed = migrate_light_groups_in_config(
+        dict(config_entry.options)
+    )
+
+    update: dict[str, Any] = {
+        "minor_version": MagicConfigEntryVersion.MINOR,
+        "version": MagicConfigEntryVersion.MAJOR,
+    }
+    if data_changed:
+        update["data"] = migrated_data
+    if options_changed:
+        update["options"] = migrated_options
+
+    hass.config_entries.async_update_entry(config_entry, **update)
 
     _LOGGER.info(
         "Migration to configuration version %s.%s successful: %s",

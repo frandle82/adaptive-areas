@@ -22,19 +22,24 @@ from custom_components.magic_areas.const import (
     EMPTY_STRING,
     EVENT_MAGICAREAS_AREA_STATE_CHANGED,
     LIGHT_GROUP_BLOCKING_STATES,
+    LIGHT_GROUP_ACTIVATION,
+    LIGHT_GROUP_ACTIVATION_DISABLED,
+    LIGHT_GROUP_ACTIVATION_OCCUPIED,
+    LIGHT_GROUP_BRIGHTNESS,
+    LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+    LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
     LIGHT_GROUP_CATEGORIES,
     LIGHT_GROUP_DEFAULT_ICON,
     LIGHT_GROUP_ICONS,
-    LIGHT_GROUP_REQUIRE_DARK,
-    LIGHT_GROUP_ROOM_STATE_OPTIONS,
-    LIGHT_GROUP_STATES,
-    LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT,
     AreaStates,
     LightGroupCategory,
     MagicAreasFeatureInfoLightGroups,
     MagicAreasFeatures,
 )
 from custom_components.magic_areas.helpers.area import get_area_from_config_entry
+from custom_components.magic_areas.helpers.light_groups import (
+    migrate_light_group_feature_config,
+)
 from custom_components.magic_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
@@ -195,7 +200,7 @@ class AreaLightGroup(MagicLightGroup):
         self._child_groups = child_groups or []
 
         self.category = category
-        self.assigned_states = []
+        self.activation = LIGHT_GROUP_ACTIVATION_DISABLED
         self.blocking_states = []
         self.require_dark = True
         self.turn_off_when_bright = False
@@ -212,30 +217,16 @@ class AreaLightGroup(MagicLightGroup):
 
         # Get assigned states
         if self.category and self.category != LightGroupCategory.ALL:
-            feature_config = area.feature_config(MagicAreasFeatures.LIGHT_GROUPS)
-            self.assigned_states = feature_config.get(
-                LIGHT_GROUP_STATES[self.category], []
+            feature_config, _ = migrate_light_group_feature_config(
+                area.feature_config(MagicAreasFeatures.LIGHT_GROUPS)
             )
-            self.assigned_states = [
-                state
-                for state in self.assigned_states
-                if state in LIGHT_GROUP_ROOM_STATE_OPTIONS
-            ]
+            self.activation = feature_config[LIGHT_GROUP_ACTIVATION[self.category]]
             self.blocking_states = feature_config.get(
                 LIGHT_GROUP_BLOCKING_STATES[self.category], []
             )
-            self.blocking_states = [
-                state
-                for state in self.blocking_states
-                if state in LIGHT_GROUP_ROOM_STATE_OPTIONS
-            ]
-            self.require_dark = feature_config.get(
-                LIGHT_GROUP_REQUIRE_DARK[self.category], True
-            )
-            self.turn_off_when_bright = feature_config.get(
-                LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT[self.category],
-                False,
-            )
+            brightness = feature_config[LIGHT_GROUP_BRIGHTNESS[self.category]]
+            self.require_dark = brightness == LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK
+            self.turn_off_when_bright = brightness == LIGHT_GROUP_BRIGHTNESS_TURN_OFF
         elif self.category == LightGroupCategory.ALL:
             # Parent group should not inherit "turn_off_when_bright" from child
             # categories, otherwise it can immediately turn off lights that a
@@ -387,9 +378,14 @@ class AreaLightGroup(MagicLightGroup):
             self.reset_control()
             return False
 
-        if not self.assigned_states:
-            self.logger.debug("%s: No controlling room states configured.", self.name)
+        if self.activation == LIGHT_GROUP_ACTIVATION_DISABLED:
+            self.logger.debug("%s: Automatic activation is disabled.", self.name)
             return False
+
+        if not self.area.is_occupied():
+            self.logger.debug("%s: Area is not occupied.", self.name)
+            self.controlled = True
+            return self._turn_off()
 
         active_blockers = self._active_blocking_states()
         if active_blockers:
@@ -399,11 +395,12 @@ class AreaLightGroup(MagicLightGroup):
             self.controlled = True
             return self._turn_off()
 
-        room_state_matches = any(
-            self.area.has_state(state) for state in self.assigned_states
+        activation_matches = (
+            self.activation == LIGHT_GROUP_ACTIVATION_OCCUPIED
+            or self.area.has_state(self.activation)
         )
-        if not room_state_matches:
-            self.logger.debug("%s: No controlling room state is active.", self.name)
+        if not activation_matches:
+            self.logger.debug("%s: Activation condition is not active.", self.name)
             self.controlled = True
             return self._turn_off()
 

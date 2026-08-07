@@ -69,6 +69,8 @@
         "description": "Magic Areas creates these four (plus a global one) [light groups](https://github.com/jseidl/hass-magic_areas/wiki/Light-Groups) (if you assign lights to them) for you to use. These by default are plain light groups but can be automatically controlled if you assign them to area states and enable the light control switch (that will be created when you enable this feature). All lights will be turned off when an area is cleared. Additional states can be unlocked by configuring `Advanced area state tracking`.",
         "data": {
           "overhead_lights": "Overhead lights",
+          "overhead_lights_activation": "Automatically turn overhead lights on while",
+          "overhead_lights_brightness": "Overhead-light brightness behavior",
           "overhead_lights_states": "States which overhead lights are turned on",
           "overhead_lights_state_rules": "State rules",
           "overhead_lights_state_rules_rule_1": "Rule 1",
@@ -79,6 +81,8 @@
           "overhead_lights_require_dark": "Only turn on overhead lights when dark",
           "overhead_lights_turn_off_when_bright": "Turn overhead lights off when area is bright",
           "sleep_lights": "Sleep lights",
+          "sleep_lights_activation": "Automatically turn sleep lights on while",
+          "sleep_lights_brightness": "Sleep-light brightness behavior",
           "sleep_lights_states": "States which sleep lights are turned on",
           "sleep_lights_state_rules": "State rules",
           "sleep_lights_state_rules_rule_1": "Rule 1",
@@ -89,6 +93,8 @@
           "sleep_lights_require_dark": "Only turn on sleep lights when dark",
           "sleep_lights_turn_off_when_bright": "Turn sleep lights off when area is bright",
           "accent_lights": "Accent lights",
+          "accent_lights_activation": "Automatically turn accent lights on while",
+          "accent_lights_brightness": "Accent-light brightness behavior",
           "accent_lights_states": "States which accent lights are turned on",
           "accent_lights_state_rules": "State rules",
           "accent_lights_state_rules_rule_1": "Rule 1",
@@ -99,6 +105,8 @@
           "accent_lights_require_dark": "Only turn on accent lights when dark",
           "accent_lights_turn_off_when_bright": "Turn accent lights off when area is bright",
           "task_lights": "Task lights",
+          "task_lights_activation": "Automatically turn task lights on while",
+          "task_lights_brightness": "Task-light brightness behavior",
           "task_lights_states": "States which task lights are turned on",
           "task_lights_state_rules": "State rules",
           "task_lights_state_rules_rule_1": "Rule 1",
@@ -110,6 +118,8 @@
           "task_lights_turn_off_when_bright": "Turn task lights off when area is bright"
         },
         "data_description": {
+          "overhead_lights_activation": "Select one unambiguous condition for automatic turn-on.",
+          "overhead_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
           "overhead_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "overhead_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "overhead_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -119,6 +129,8 @@
           "overhead_lights_blocking_states": "While any selected room state is active, this light group stays off and is turned off if necessary.",
           "overhead_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "overhead_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
+          "sleep_lights_activation": "Select one unambiguous condition for automatic turn-on.",
+          "sleep_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
           "sleep_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "sleep_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "sleep_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -128,6 +140,8 @@
           "sleep_lights_blocking_states": "While any selected room state is active, this light group stays off and is turned off if necessary.",
           "sleep_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "sleep_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
+          "accent_lights_activation": "Select one unambiguous condition for automatic turn-on.",
+          "accent_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
           "accent_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "accent_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "accent_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -137,6 +151,8 @@
           "accent_lights_blocking_states": "While any selected room state is active, this light group stays off and is turned off if necessary.",
           "accent_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "accent_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
+          "task_lights_activation": "Select one unambiguous condition for automatic turn-on.",
+          "task_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
           "task_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "task_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "task_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -517,9 +533,26 @@
         "occupied": "Occupied",
         "dark": "Dark",
         "extended": "Extended",
-        "sleep": "Sleep"
-      }
-    },
+          "sleep": "Sleep",
+          "accented": "Accent mode"
+        }
+      },
+      "light_activation": {
+        "options": {
+          "disabled": "No automatic control",
+          "occupied": "Area occupied",
+          "extended": "Only after extended occupancy",
+          "sleep": "Sleep mode",
+          "accented": "Accent mode"
+        }
+      },
+      "light_brightness": {
+        "options": {
+          "ignore": "Ignore brightness",
+          "require_dark": "Only turn on when dark",
+          "turn_off": "Actively turn off when bright"
+        }
+      },
     "control_on": {
       "options": {
         "occupancy": "When area goes from clear to occupied",
