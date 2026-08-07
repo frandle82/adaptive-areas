@@ -27,6 +27,7 @@ from custom_components.magic_areas.const import (
     CONF_OVERHEAD_LIGHTS,
     CONF_OVERHEAD_LIGHTS_ACT_ON,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+    CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
     CONF_OVERHEAD_LIGHTS_STATES,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
@@ -35,6 +36,7 @@ from custom_components.magic_areas.const import (
     DOMAIN,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     AreaStates,
 )
 
@@ -517,6 +519,55 @@ async def test_light_group_turns_back_on_when_dark_again(
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
+
+
+async def test_light_group_combined_brightness_behavior(
+    hass: HomeAssistant,
+    entities_light_one: list[MockLight],
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    entities_light_secondary_states: list[MockBinarySensor],
+    light_groups_bright_config_entry: MockConfigEntry,
+) -> None:
+    """Combined mode requires darkness and turns an active group off when bright."""
+    light_groups_bright_config_entry.options[CONF_ENABLED_FEATURES][
+        CONF_FEATURE_LIGHT_GROUPS
+    ][CONF_OVERHEAD_LIGHTS_BRIGHTNESS] = LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF
+    await init_integration(hass, [light_groups_bright_config_entry])
+
+    light_group_entity_id = (
+        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    )
+    light_control_entity_id = (
+        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    )
+    motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
+    light_level_entity_id = entities_light_secondary_states[1].entity_id
+
+    hass.states.async_set(light_control_entity_id, STATE_ON)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: light_control_entity_id}
+    )
+
+    # Occupancy while bright must not switch the group on.
+    hass.states.async_set(light_level_entity_id, STATE_ON)
+    hass.states.async_set(motion_sensor_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+    assert_state(hass.states.get(light_group_entity_id), STATE_OFF)
+
+    # Becoming dark switches the group on while the area remains occupied.
+    hass.states.async_set(light_level_entity_id, STATE_OFF)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+    assert_state(hass.states.get(light_group_entity_id), STATE_ON)
+
+    # Becoming bright again actively switches the group off.
+    hass.states.async_set(light_level_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+    assert_state(hass.states.get(light_group_entity_id), STATE_OFF)
+
+    await shutdown_integration(hass, [light_groups_bright_config_entry])
 
 
 async def test_light_group_stays_on_when_bright_if_not_configured(

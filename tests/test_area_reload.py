@@ -1,10 +1,12 @@
 """Test for the logic on automatically reloading areas."""
 
-import asyncio
 from datetime import datetime
 import logging
 
-from homeassistant.core import HomeAssistant
+import pytest
+
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     _EventEntityRegistryUpdatedData_CreateRemove,
@@ -15,10 +17,10 @@ from custom_components.magic_areas.base.magic import MagicArea
 from custom_components.magic_areas.const import (
     DATA_AREA_OBJECT,
     MODULE_DATA,
-    MetaAreaAutoReloadSettings,
 )
 
 from tests.const import MockAreaIds
+from tests.helpers import init_integration, shutdown_integration
 from tests.mocks import MockBinarySensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,6 +43,20 @@ FLOOR_META_AREAS = [
     MockAreaIds.SECOND_FLOOR.value,
 ]
 ALL_AREAS = NORMAL_AREAS + REGULAR_META_AREAS + FLOOR_META_AREAS
+
+
+@pytest.fixture(autouse=True)
+def immediate_meta_reload(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run coalesced meta-area reload callbacks on the next loop iteration."""
+
+    def _call_later(_hass, _delay, callback):
+        handle = hass.loop.call_soon(callback, None)
+        return handle.cancel
+
+    monkeypatch.setattr(
+        "custom_components.magic_areas.base.magic.async_call_later", _call_later
+    )
+
 
 # Helpers
 
@@ -98,10 +114,7 @@ async def test_reload_on_entity_area_change(
     hass.bus.async_fire(EVENT_ENTITY_REGISTRY_UPDATED, event_data)
     await hass.async_block_till_done()
 
-    # Sleep so we handle the reload delay
-    await asyncio.sleep(
-        MetaAreaAutoReloadSettings.DELAY * MetaAreaAutoReloadSettings.DELAY_MULTIPLIER
-    )
+    await hass.async_block_till_done()
 
     # Check all areas' timestamp against the previous map
     for area in NORMAL_AREAS:
@@ -151,10 +164,7 @@ async def test_meta_reload_from_single_reload(
         assert area_object
         assert area_object.timestamp == area_timestamp_map[area_name]
 
-    # Sleep so we handle the reload delay
-    await asyncio.sleep(
-        MetaAreaAutoReloadSettings.DELAY * MetaAreaAutoReloadSettings.DELAY_MULTIPLIER
-    )
+    await hass.async_block_till_done()
 
     # Check corresponding area reloaded
     _assert_has_reloaded(MockAreaIds.KITCHEN.value)
@@ -170,3 +180,42 @@ async def test_meta_reload_from_single_reload(
     _assert_has_not_reloaded(MockAreaIds.EXTERIOR.value)
     _assert_has_not_reloaded(MockAreaIds.SECOND_FLOOR.value)
     _assert_has_not_reloaded(MockAreaIds.GROUND_LEVEL.value)
+
+
+async def test_start_event_does_not_reload_regular_area(
+    hass: HomeAssistant,
+    basic_config_entry,
+) -> None:
+    """Do not perform a second full setup when Home Assistant starts."""
+    hass.set_state(CoreState.starting)
+    await init_integration(hass, [basic_config_entry])
+    area = get_entry_by_area_name(hass, basic_config_entry.data["id"])
+    assert area is not None
+    initial_timestamp = area.timestamp
+
+    hass.set_state(CoreState.running)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+
+    current_area = get_entry_by_area_name(hass, basic_config_entry.data["id"])
+    assert current_area is area
+    assert current_area.timestamp == initial_timestamp
+
+    await shutdown_integration(hass, [basic_config_entry])
+
+
+async def test_magic_entity_reload_is_idempotent(
+    hass: HomeAssistant,
+    _setup_integration_basic,
+) -> None:
+    """Repeated registry refreshes must not duplicate generated entities."""
+    area = get_entry_by_area_name(hass, MockAreaIds.KITCHEN.value)
+    assert area is not None
+
+    area.load_magic_entities()
+    first_load = {
+        domain: list(entities) for domain, entities in area.magic_entities.items()
+    }
+    area.load_magic_entities()
+
+    assert area.magic_entities == first_load

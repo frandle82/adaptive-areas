@@ -26,6 +26,7 @@ from custom_components.magic_areas.const import (
     LIGHT_GROUP_ACTIVATION_DISABLED,
     LIGHT_GROUP_ACTIVATION_OCCUPIED,
     LIGHT_GROUP_BRIGHTNESS,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
     LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
     LIGHT_GROUP_CATEGORIES,
@@ -225,8 +226,14 @@ class AreaLightGroup(MagicLightGroup):
                 LIGHT_GROUP_BLOCKING_STATES[self.category], []
             )
             brightness = feature_config[LIGHT_GROUP_BRIGHTNESS[self.category]]
-            self.require_dark = brightness == LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK
-            self.turn_off_when_bright = brightness == LIGHT_GROUP_BRIGHTNESS_TURN_OFF
+            self.require_dark = brightness in (
+                LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+                LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+            )
+            self.turn_off_when_bright = brightness in (
+                LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
+                LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+            )
         elif self.category == LightGroupCategory.ALL:
             # Parent group should not inherit "turn_off_when_bright" from child
             # categories, otherwise it can immediately turn off lights that a

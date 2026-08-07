@@ -123,7 +123,7 @@
                 },
                 "data_description": {
                     "overhead_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "overhead_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert oder eingeschaltete Lichter aktiv ausgeschaltet werden.",
+                    "overhead_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
                     "overhead_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "overhead_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
                     "overhead_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -134,7 +134,7 @@
                     "overhead_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "overhead_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "sleep_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "sleep_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert oder eingeschaltete Lichter aktiv ausgeschaltet werden.",
+                    "sleep_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
                     "sleep_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "sleep_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
                     "sleep_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -145,7 +145,7 @@
                     "sleep_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "sleep_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "accent_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "accent_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert oder eingeschaltete Lichter aktiv ausgeschaltet werden.",
+                    "accent_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
                     "accent_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "accent_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
                     "accent_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -156,7 +156,7 @@
                     "accent_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
                     "accent_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
                     "task_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "task_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert oder eingeschaltete Lichter aktiv ausgeschaltet werden.",
+                    "task_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
                     "task_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
                     "task_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
                     "task_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
@@ -556,7 +556,8 @@
         "options": {
           "ignore": "Helligkeit ignorieren",
           "require_dark": "Nur einschalten, wenn dunkel",
-          "turn_off": "Bei Helligkeit aktiv ausschalten"
+          "turn_off": "Bei Helligkeit aktiv ausschalten",
+          "dark_on_bright_off": "Einschalten, wenn dunkel, und ausschalten, wenn hell"
         }
       },
       "control_on": {

@@ -16,7 +16,8 @@ from custom_components.magic_areas.const import (
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     DOMAIN,
     LIGHT_GROUP_ACTIVATION_EXTENDED,
-    LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+    LIGHT_GROUP_BRIGHTNESS_OPTIONS,
 )
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -55,7 +56,8 @@ async def test_options_flow_migrates_legacy_light_group_options(hass) -> None:
     light_config = flow.area_options[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
     assert light_config[CONF_OVERHEAD_LIGHTS_BLOCKING_STATES] == []
     assert (
-        light_config[CONF_OVERHEAD_LIGHTS_BRIGHTNESS] == LIGHT_GROUP_BRIGHTNESS_TURN_OFF
+        light_config[CONF_OVERHEAD_LIGHTS_BRIGHTNESS]
+        == LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF
     )
     assert CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT not in light_config
 
@@ -91,6 +93,7 @@ async def test_light_group_form_only_exposes_room_state_rules(hass) -> None:
     assert "overhead_lights_act_on" not in field_names
     assert "overhead_lights_state_rules_rule_1" not in field_names
     assert "overhead_lights_states_logic" not in field_names
+    assert LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF in LIGHT_GROUP_BRIGHTNESS_OPTIONS
 
     invalid_result = await flow.async_step_feature_conf_light_groups(
         {CONF_OVERHEAD_LIGHTS_BLOCKING_STATES: [AREA_STATE_BRIGHT]}

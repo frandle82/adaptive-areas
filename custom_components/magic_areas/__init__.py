@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_NAME, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.const import ATTR_NAME
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import (
     EVENT_DEVICE_REGISTRY_UPDATED,
@@ -16,6 +16,7 @@ from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     EventEntityRegistryUpdatedData,
 )
+from homeassistant.helpers.event import async_call_later
 
 from custom_components.magic_areas.base.magic import MagicArea
 from custom_components.magic_areas.const import (
@@ -86,6 +87,8 @@ def _sanitize_switch_groups_options(
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Set up the component."""
 
+    remove_reload_timer: Callable[[], None] | None = None
+
     cleaned_options, options_changed = _sanitize_switch_groups_options(
         dict(config_entry.options)
     )
@@ -97,18 +100,33 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         hass.config_entries.async_update_entry(config_entry, options=cleaned_options)
 
     @callback
-    async def _async_reload_entry(*args, **kwargs) -> None:
-        # Prevent reloads if we're not fully loaded yet
-        if not hass.is_running:
+    def _async_reload_entry(*args, **kwargs) -> None:
+        """Coalesce registry events into one config entry reload."""
+        nonlocal remove_reload_timer
+
+        if not hass.is_running or remove_reload_timer is not None:
             return
 
-        hass.config_entries.async_update_entry(
-            config_entry,
-            data={**config_entry.data, "entity_ts": datetime.now(UTC)},
-        )
+        @callback
+        def _reload(_now=None) -> None:
+            nonlocal remove_reload_timer
+            remove_reload_timer = None
+            hass.config_entries.async_update_entry(
+                config_entry,
+                data={**config_entry.data, "entity_ts": datetime.now(UTC)},
+            )
+
+        remove_reload_timer = async_call_later(hass, 0, _reload)
 
     @callback
-    async def _async_registry_updated(
+    def _cancel_scheduled_reload() -> None:
+        nonlocal remove_reload_timer
+        if remove_reload_timer is not None:
+            remove_reload_timer()
+            remove_reload_timer = None
+
+    @callback
+    def _async_registry_updated(
         event: (
             Event[EventEntityRegistryUpdatedData]
             | Event[EventDeviceRegistryUpdatedData]
@@ -135,7 +153,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
             config_entry.data[ATTR_NAME],
         )
 
-        await _async_reload_entry()
+        _async_reload_entry()
 
     async def _async_setup_integration(*args, **kwargs) -> None:
         """Load integration when Hass has finished starting."""
@@ -157,6 +175,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         # Setup config uptate listener
         tracked_listeners: list[Callable] = []
         tracked_listeners.append(config_entry.add_update_listener(async_update_options))
+        tracked_listeners.append(_cancel_scheduled_reload)
 
         # Watch for area changes.
         if not magic_area.is_meta():
@@ -174,9 +193,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
                     magic_area.make_device_registry_filter(),
                 )
             )
-            # Reload once Home Assistant has finished starting to make sure we have all entities.
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _async_reload_entry)
-
         hass.data[MODULE_DATA][config_entry.entry_id] = {
             DATA_AREA_OBJECT: magic_area,
             DATA_TRACKED_LISTENERS: tracked_listeners,
@@ -226,6 +242,8 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     all_unloaded = await hass.config_entries.async_unload_platforms(
         config_entry, area.available_platforms()
     )
+
+    area.unload()
 
     for tracked_listener in area_data[DATA_TRACKED_LISTENERS]:
         tracked_listener()

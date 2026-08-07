@@ -18,6 +18,7 @@ from custom_components.magic_areas.const import (
     CONF_SLEEP_LIGHTS_STATES,
     LIGHT_GROUP_ACTIVATION_OCCUPIED,
     LIGHT_GROUP_ACTIVATION_DISABLED,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
 )
 from custom_components.magic_areas.helpers.light_groups import (
@@ -83,3 +84,24 @@ def test_light_group_migration_is_idempotent() -> None:
 
     assert changed_again is False
     assert migrated_again == migrated
+
+
+def test_migrate_combined_legacy_brightness_behavior() -> None:
+    """Legacy dark-on and bright-off flags retain both behaviors."""
+    config = {
+        CONF_ENABLED_FEATURES: {
+            CONF_FEATURE_LIGHT_GROUPS: {
+                CONF_OVERHEAD_LIGHTS_REQUIRE_DARK: True,
+                CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT: True,
+            }
+        }
+    }
+
+    migrated, changed = migrate_light_groups_in_config(config)
+    light_config = migrated[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
+
+    assert changed is True
+    assert (
+        light_config[CONF_OVERHEAD_LIGHTS_BRIGHTNESS]
+        == LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF
+    )

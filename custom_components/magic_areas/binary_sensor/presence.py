@@ -777,6 +777,7 @@ class AreaStateBinarySensor(AreaStateTrackerEntity, BinarySensorEntity):
         )
 
     # Area change handlers
+    @callback
     def _area_state_changed(
         self, area_id: str, states_tuple: tuple[list[str], list[str]]
     ) -> None:
@@ -800,7 +801,7 @@ class AreaStateBinarySensor(AreaStateTrackerEntity, BinarySensorEntity):
 
         self._attr_is_on = self.area.is_occupied()
         self._attr_extra_state_attributes.update(self.get_metadata())
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
 
 
 class MetaAreaStateBinarySensor(AreaStateBinarySensor):
@@ -837,7 +838,9 @@ class MetaAreaStateBinarySensor(AreaStateBinarySensor):
         states_list: list[AreaStates] = []
 
         for area_slug in child_areas:
-            area_entity_id: str = f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_{area_slug}_area_state"
+            area_entity_id: str = (
+                f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_{area_slug}_area_state"
+            )
             area_state = self.hass.states.get(area_entity_id)
 
             if not area_state:

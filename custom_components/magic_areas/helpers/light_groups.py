@@ -21,6 +21,7 @@ from custom_components.magic_areas.const import (
     LIGHT_GROUP_BLOCKING_STATES,
     LIGHT_GROUP_BLOCKING_STATE_OPTIONS,
     LIGHT_GROUP_BRIGHTNESS,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_IGNORE,
     LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
     LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
@@ -106,12 +107,16 @@ def migrate_light_group_feature_config(
         )
 
         if brightness_key not in migrated:
-            if (
+            turn_off_when_bright = (
                 migrated.get(legacy_turn_off_key, False)
                 or AREA_STATE_BRIGHT in blockers
-            ):
+            )
+            require_dark = migrated.get(legacy_require_dark_key, True)
+            if turn_off_when_bright and require_dark:
+                brightness = LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF
+            elif turn_off_when_bright:
                 brightness = LIGHT_GROUP_BRIGHTNESS_TURN_OFF
-            elif migrated.get(legacy_require_dark_key, True):
+            elif require_dark:
                 brightness = LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK
             else:
                 brightness = LIGHT_GROUP_BRIGHTNESS_IGNORE

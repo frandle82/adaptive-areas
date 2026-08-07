@@ -1,9 +1,8 @@
 """Classes for Magic Areas and Meta Areas."""
 
-import asyncio
-from datetime import UTC, datetime, timedelta
+from collections.abc import Callable
+from datetime import UTC, datetime
 import logging
-import random
 
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
@@ -24,12 +23,13 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
 )
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.entity_registry import (
     EventEntityRegistryUpdatedData,
     RegistryEntry,
     async_get as entityreg_async_get,
 )
-from homeassistant.util import Throttle, slugify
+from homeassistant.util import slugify
 
 from custom_components.magic_areas.const import (
     AREA_STATE_OCCUPIED,
@@ -107,6 +107,9 @@ class MagicArea:
         # Timestamp for initialization / reload tests
         self.timestamp: datetime = datetime.now(UTC)
         self.reloading: bool = False
+        self._remove_load_listener: Callable[[], None] | None = None
+        self._remove_dispatcher_listener: Callable[[], None] | None = None
+        self._remove_reload_timer: Callable[[], None] | None = None
 
         # Merged options
         area_config = dict(config.data)
@@ -133,8 +136,9 @@ class MagicArea:
         )
 
         @callback
-        async def _async_notify_load(*args, **kwargs) -> None:
+        def _notify_load(initial_load: bool) -> None:
             """Notify that area is loaded."""
+            self._remove_load_listener = None
             # Announce area type loaded
             async_dispatcher_send(
                 self.hass,
@@ -142,15 +146,28 @@ class MagicArea:
                 self.area_type,
                 self.floor_id,
                 self.id,
+                initial_load,
             )
 
         # Wait for Hass to have started before announcing load events.
         if self.hass.is_running:
-            self.hass.create_task(_async_notify_load())
+            _notify_load(False)
         else:
-            self.hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STARTED, _async_notify_load
+            self._remove_load_listener = self.hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED, lambda _: _notify_load(True)
             )
+
+    def unload(self) -> None:
+        """Remove listeners and scheduled work owned by the area."""
+        for remove_callback_name in (
+            "_remove_load_listener",
+            "_remove_dispatcher_listener",
+            "_remove_reload_timer",
+        ):
+            remove_callback = getattr(self, remove_callback_name)
+            if remove_callback is not None:
+                remove_callback()
+                setattr(self, remove_callback_name, None)
 
     def is_occupied(self) -> bool:
         """Return if area is occupied."""
@@ -319,6 +336,7 @@ class MagicArea:
         """Load magic areas-generated entities."""
 
         entity_registry = entityreg_async_get(self.hass)
+        self.magic_entities = {}
 
         # Add magic are entities
         entities_for_config_id = (
@@ -470,12 +488,6 @@ class MagicArea:
             if entity_part.startswith(MAGICAREAS_UNIQUEID_PREFIX):
                 return False
 
-            # Ignore if too soon
-            if datetime.now(UTC) - self.timestamp < timedelta(
-                seconds=MetaAreaAutoReloadSettings.THROTTLE
-            ):
-                return False
-
             action = event_data["action"]
             entity_registry = entityreg_async_get(self.hass)
             entity_entry = entity_registry.async_get(entity_id)
@@ -513,12 +525,6 @@ class MagicArea:
 
             # Ignore our own stuff
             if event_data["device_id"].startswith(MAGIC_DEVICE_ID_PREFIX):
-                return False
-
-            # Ignore if too soon
-            if datetime.now(UTC) - self.timestamp < timedelta(
-                seconds=MetaAreaAutoReloadSettings.THROTTLE
-            ):
                 return False
 
             action = event_data["action"]
@@ -684,13 +690,18 @@ class MagicMetaArea(MagicArea):
     def finalize_init(self) -> None:
         """Finalize Meta-Area initialization."""
 
-        async_dispatcher_connect(
+        self.initialized = True
+        self._remove_dispatcher_listener = async_dispatcher_connect(
             self.hass, MagicAreasEvents.AREA_LOADED, self._handle_loaded_area
         )
 
     @callback
-    async def _handle_loaded_area(
-        self, area_type: str, floor_id: int | None, area_id: str
+    def _handle_loaded_area(
+        self,
+        area_type: str,
+        floor_id: int | None,
+        area_id: str,
+        initial_load: bool = False,
     ) -> None:
         """Handle area loaded signals."""
 
@@ -712,7 +723,8 @@ class MagicMetaArea(MagicArea):
 
         # Handle Global
         if self.slug == MetaAreaType.GLOBAL:
-            return await self.reload()
+            self.schedule_reload(initial_load)
+            return
 
         # Handle all non-Global meta-areas including floors
         self.logger.info(
@@ -723,30 +735,20 @@ class MagicMetaArea(MagicArea):
             str(self.child_areas),
         )
         if area_type == self.slug or area_id in self.child_areas:
-            return await self.reload()
+            self.schedule_reload(initial_load)
 
-    @Throttle(min_time=timedelta(seconds=MetaAreaAutoReloadSettings.THROTTLE))
-    async def reload(self) -> None:
-        """Reload current entry."""
-        self.logger.info("%s: Reloading entry.", self.name)
+    def schedule_reload(self, initial_load: bool = False) -> None:
+        """Schedule one reload after related area-load events settle."""
+        if self.reloading:
+            return
 
-        # Give some time for areas to finish loading,
-        # randomize to prevent staggering the CPU with
-        # stacked reloads.
-        max_delay: float = (
-            MetaAreaAutoReloadSettings.DELAY_MULTIPLIER
-            * MetaAreaAutoReloadSettings.DELAY
-        )
-        delay: float = random.uniform(
-            MetaAreaAutoReloadSettings.DELAY,
-            max_delay,
-        )
-
-        # Make Global load last
-        if self.slug == MetaAreaType.GLOBAL:
-            delay = max_delay
-
+        delay = 0 if initial_load else MetaAreaAutoReloadSettings.DELAY
         self.reloading = True
-        await asyncio.sleep(delay)
 
-        self.hass.config_entries.async_schedule_reload(self.hass_config.entry_id)
+        @callback
+        def _reload(_now=None) -> None:
+            self._remove_reload_timer = None
+            self.logger.info("%s: Reloading entry.", self.name)
+            self.hass.config_entries.async_schedule_reload(self.hass_config.entry_id)
+
+        self._remove_reload_timer = async_call_later(self.hass, delay, _reload)

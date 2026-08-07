@@ -119,7 +119,7 @@
         },
         "data_description": {
           "overhead_lights_activation": "Select one unambiguous condition for automatic turn-on.",
-          "overhead_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
+          "overhead_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, actively turns lights off, or applies both rules.",
           "overhead_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "overhead_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "overhead_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -130,7 +130,7 @@
           "overhead_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "overhead_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "sleep_lights_activation": "Select one unambiguous condition for automatic turn-on.",
-          "sleep_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
+          "sleep_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, actively turns lights off, or applies both rules.",
           "sleep_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "sleep_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "sleep_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -141,7 +141,7 @@
           "sleep_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "sleep_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "accent_lights_activation": "Select one unambiguous condition for automatic turn-on.",
-          "accent_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
+          "accent_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, actively turns lights off, or applies both rules.",
           "accent_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "accent_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "accent_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -152,7 +152,7 @@
           "accent_lights_require_dark": "Prevents automatic turn-on while the area is `bright`. Lights that are already on stay on.",
           "accent_lights_turn_off_when_bright": "If enabled, this light group is actively turned off when the area enters `bright`.",
           "task_lights_activation": "Select one unambiguous condition for automatic turn-on.",
-          "task_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, or actively turns lights off.",
+          "task_lights_brightness": "Choose whether brightness is ignored, only prevents turn-on, actively turns lights off, or applies both rules.",
           "task_lights_states": "Configure which area states will trigger this light group. Light groups will be turned `on` while area is on this state and `off` if the area loses these states. For example, if you want the light to stay `on` after an extended period of time, you need to select the `extended` state too.",
           "task_lights_state_rules_rule_1": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
           "task_lights_state_rules_rule_2": "Rule blocks: within a rule all states must match (AND), across rules any block may match (OR). Empty rules are ignored.",
@@ -550,7 +550,8 @@
         "options": {
           "ignore": "Ignore brightness",
           "require_dark": "Only turn on when dark",
-          "turn_off": "Actively turn off when bright"
+          "turn_off": "Actively turn off when bright",
+          "dark_on_bright_off": "Turn on when dark and turn off when bright"
         }
       },
     "control_on": {
