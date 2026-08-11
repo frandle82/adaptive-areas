@@ -1,5 +1,5 @@
 {
-    "name": "jseidl/hass-magic_areas",
+    "name": "frandle82/adaptive-areas",
     "image": "mcr.microsoft.com/devcontainers/python:3.13",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [

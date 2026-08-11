@@ -3,12 +3,12 @@
 Have you ever noticed that your temperature sensors don’t match how your home actually feels?
 After some research, I found that even when my HVAC setpoint was consistent, the same setpoint **felt colder at night than during the day**, which intrigued me and prompted a deeper look.
 
-This tutorial walks through my approach to measuring a more realistic **“Indoor Feels Like” temperature** using Home Assistant, Magic Areas aggregates, and template sensors — and how this lets us tune HVAC presets for better comfort and energy efficiency.
+This tutorial walks through my approach to measuring a more realistic **“Indoor Feels Like” temperature** using Home Assistant, Adaptive Areas aggregates, and template sensors — and how this lets us tune HVAC presets for better comfort and energy efficiency.
 
 !!! info
     If all your areas are conditioned and you don’t have upstairs exterior spaces or unconditioned rooms, most of this can be skipped. You can jump straight to the **Indoor Feels Like** section.
 
-    Using Magic Areas aggregates makes this easier, but you can do it with manually created sensors as well. The goal is to have more meaningful humidity and temperature readings for interior and each floor.
+    Using Adaptive Areas aggregates makes this easier, but you can do it with manually created sensors as well. The goal is to have more meaningful humidity and temperature readings for interior and each floor.
 
 ## ❓ The problem
 
@@ -36,7 +36,7 @@ Next, I created template sensors for **humidity and temperature** for each floor
 Example: **Downstairs Conditioned Areas Humidity**
 
 ```jinja
-{% set downstairs = expand('sensor.magic_areas_aggregates_downstairs_aggregate_humidity') %}
+{% set downstairs = expand('sensor.adaptive_areas_aggregates_downstairs_aggregate_humidity') %}
 {% set unconditioned = expand('sensor.unconditioned_areas_humidity') %}
 {% set conditioned = downstairs | rejectattr('entity_id', 'in', unconditioned | map(attribute='entity_id') | list) | list %}
 {% set temps = conditioned | map(attribute='state') | map('float', default=none) | select('!=', none) | list %}
@@ -73,7 +73,7 @@ Finally, I created a template sensor to calculate **Indoor Feels Like**, based o
 {% endif %}
 
 {% set temperature_modifier = 0 %}
-{% set exterior_temperature = states('sensor.magic_areas_aggregates_exterior_aggregate_temperature')|float(0) %}
+{% set exterior_temperature = states('sensor.adaptive_areas_aggregates_exterior_aggregate_temperature')|float(0) %}
 {% if exterior_temperature >= 85 %}
   {% set temperature_modifier = modifier %}
 {% elif exterior_temperature <= 50 %}
@@ -93,7 +93,7 @@ Finally, I created a template sensor to calculate **Indoor Feels Like**, based o
 - Filtering out unconditioned areas (garage, laundry) and exterior upstairs areas (balcony) gives a much more realistic interior temperature and humidity.
 - Using the **Indoor Feels Like** sensor explained why the same HVAC setpoint felt colder at night than during the day.
 - Users with all conditioned interior areas and no exterior upstairs areas can skip directly to the Indoor Feels Like calculation.
-- Magic Areas aggregates make this easier, but the same principle can be applied manually.
+- Adaptive Areas aggregates make this easier, but the same principle can be applied manually.
 - Now, I have **more meaningful humidity and temperature sensors** for interior and each floor, which improves comfort analysis and automation.
 
 ## ⚙️ HVAC Presets and Automation

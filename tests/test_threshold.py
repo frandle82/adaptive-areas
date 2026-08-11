@@ -17,7 +17,7 @@ from homeassistant.components.threshold.const import ATTR_HYSTERESIS, ATTR_UPPER
 from homeassistant.const import LIGHT_LUX, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_ILLUMINANCE_THRESHOLD,
     CONF_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
     CONF_AGGREGATES_MIN_ENTITIES,
@@ -113,11 +113,11 @@ async def test_threshold_sensor_light(
     """Test the light from illuminance threshold sensor."""
 
     threshold_sensor_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_threshold_kitchen_threshold_light"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_threshold_kitchen_threshold_light"
     )
 
     aggregate_sensor_id = (
-        f"{SENSOR_DOMAIN}.magic_areas_aggregates_kitchen_aggregate_illuminance"
+        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_illuminance"
     )
 
     # Ensure aggregate sensor was created

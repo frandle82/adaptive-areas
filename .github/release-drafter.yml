@@ -1,24 +1,112 @@
-name-template: $NEXT_PATCH_VERSION
-tag-template: $NEXT_PATCH_VERSION
+name-template: "$RESOLVED_VERSION"
+tag-template: "$RESOLVED_VERSION"
 categories:
+  - type: pre-exclude
+    when:
+      label: skip-changelog
+  - type: version-resolver
+    semver-increment: major
+    when:
+      labels:
+        - breaking
+        - major
+  - type: version-resolver
+    semver-increment: minor
+    when:
+      labels:
+        - feature
+        - enhancement
+        - minor
+  - type: version-resolver
+    semver-increment: patch
+  - title: "💥 Breaking Changes"
+    semver-increment: major
+    when:
+      labels:
+        - breaking
+        - major
   - title: 🚀 Features
-    labels:
-       - feature
-       - enhancement
+    semver-increment: minor
+    when:
+      labels:
+        - feature
+        - enhancement
   - title: 🐛 Bug Fixes
-    labels:
-       - fix
-       - hotfix
-       - bug
+    semver-increment: patch
+    when:
+      labels:
+        - fix
+        - hotfix
+        - bug
+  - title: ⬆️ Dependencies
+    semver-increment: patch
+    collapse-after: 5
+    when:
+      label: dependencies
   - title: 🧰 Maintenance
+    when:
+      labels:
+        - chore
+        - ci
+        - documentation
+        - refactor
+        - tests
+        - maintenance
+  - title: 📦 Other Changes
+change-template: "- $TITLE (#$NUMBER) $AUTHORS"
+change-title-escapes: '\\<*_&'
+version-resolver:
+  major:
     labels:
-       - chore
-       - ci
-       - workflow
-       - tests
-       - maintenance
-change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+      - breaking
+      - major
+  minor:
+    labels:
+      - feature
+      - enhancement
+      - minor
+  patch:
+    labels:
+      - fix
+      - hotfix
+      - bug
+      - dependencies
+      - patch
+  default: patch
 template: |
-  ## Changes
+  ## What's Changed
 
   $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS
+autolabeler:
+  - label: breaking
+    title:
+      - '/^[a-z]+(?:\([^)]+\))?!:/'
+  - label: feature
+    title:
+      - '/^feat(?:\([^)]+\))?!?:/'
+  - label: fix
+    title:
+      - '/^fix(?:\([^)]+\))?!?:/'
+  - label: documentation
+    title:
+      - '/^docs(?:\([^)]+\))?!?:/'
+  - label: refactor
+    title:
+      - '/^refactor(?:\([^)]+\))?!?:/'
+  - label: tests
+    title:
+      - '/^test(?:\([^)]+\))?!?:/'
+  - label: ci
+    title:
+      - '/^(?:ci|build)(?:\([^)]+\))?!?:/'
+  - label: chore
+    title:
+      - '/^(?:chore|style|perf)(?:\([^)]+\))?!?:/'
+  - label: dependencies
+    files:
+      - requirements*.txt
+      - .github/dependabot.yml

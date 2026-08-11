@@ -4,7 +4,7 @@ from datetime import datetime
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.helpers.timer import ReusableTimer
+from custom_components.adaptive_areas.helpers.timer import ReusableTimer
 
 
 async def test_timer_fires(hass: HomeAssistant, patch_async_call_later):

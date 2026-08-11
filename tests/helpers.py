@@ -32,7 +32,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.setup import async_setup_component
 from homeassistant.util.dt import utcnow
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_CLEAR_TIMEOUT,
     CONF_ENABLED_FEATURES,
     CONF_EXCLUDE_ENTITIES,

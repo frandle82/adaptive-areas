@@ -1,6 +1,6 @@
 """Tests for light-group configuration migration."""
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     AREA_STATE_ACCENT,
     AREA_STATE_BRIGHT,
     AREA_STATE_EXTENDED,
@@ -21,7 +21,7 @@ from custom_components.magic_areas.const import (
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
 )
-from custom_components.magic_areas.helpers.light_groups import (
+from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
 

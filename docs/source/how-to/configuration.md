@@ -1,6 +1,6 @@
 # ⚙️ Configuration
 
-Magic Areas configuration is divided into four main sections, plus additional configuration options for enabled features.
+Adaptive Areas configuration is divided into four main sections, plus additional configuration options for enabled features.
 
 Each section allows you to fine-tune how areas behave, how presence is detected, and how states are managed.
 
@@ -12,9 +12,9 @@ These options control the general behavior of the area.
 |--------|------|---------|-------------|
 | **Area type** | `string` | `interior` | Defines the area type. Options: `interior`, `exterior`. Used for meta-area calculations. |
 | **Include entities** | `list<entity>` | `[]` | Force-add entities to the area, even if not assigned to it in Home Assistant. |
-| **Exclude entities** | `list<entity>` | `[]` | Force-remove entities from the area. Useful if you want them in Home Assistant but excluded from Magic Areas calculations. |
+| **Exclude entities** | `list<entity>` | `[]` | Force-remove entities from the area. Useful if you want them in Home Assistant but excluded from Adaptive Areas calculations. |
 | **Automatic reload on registry updates** | `bool` | `true` | Automatically reloads the area if a new device or entity is added/removed. |
-| **Ignore diagnostic/config entities** | `bool` | `true` | Prevents Magic Areas from using diagnostic/config sensors (e.g., CPU temperature) that could skew aggregates. |
+| **Ignore diagnostic/config entities** | `bool` | `true` | Prevents Adaptive Areas from using diagnostic/config sensors (e.g., CPU temperature) that could skew aggregates. |
 
 ## 🚶 Presence Tracking Options
 
@@ -42,7 +42,7 @@ Area states go beyond basic presence (`occupied`/`clear`) and allow secondary st
 
 ## ✨ Feature Selection
 
-This section provides checkboxes in the UI for enabling or disabling specific Magic Areas features.
+This section provides checkboxes in the UI for enabling or disabling specific Adaptive Areas features.
 
 !!! info
     📖 See the [Features](../features/index.md) page for the full list of available features.

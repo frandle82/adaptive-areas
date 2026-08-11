@@ -1,15 +1,15 @@
 # Implementation ideas for every room
 
-This is the "meta" cookbook which condenses the multiple features and tricks of [Magic Areas](https://github.com/jseidl/magic-areas) to magically and accurately (YMMV) track presence in every room of your house!
+This is the "meta" cookbook which condenses the multiple features and tricks of [Adaptive Areas](https://github.com/frandle82/adaptive-areas) to magically and accurately (YMMV) track presence in every room of your house!
 
 !!! warning
-    Magic Areas strength is on stacking multiple somewhat-reliable sources of presence into a nice solid and reliable presence tracking system. You will likely need to use multiple sources of presence that will be good at one situation (static vs moving, for example) but bad at others until you cover all the situations. Magic Areas has features (such as "Keep-only sensors") that allow you to use even flappy or slow sensors.
+    Adaptive Areas strength is on stacking multiple somewhat-reliable sources of presence into a nice solid and reliable presence tracking system. You will likely need to use multiple sources of presence that will be good at one situation (static vs moving, for example) but bad at others until you cover all the situations. Adaptive Areas has features (such as "Keep-only sensors") that allow you to use even flappy or slow sensors.
 
 ## General considerations
 
 ### mmWave sensors
 
-mmWave sensors are the absolute GOAT of human sensing. Some can be finicky to set up but once up and running they're reliable. mmWave sensors are not very good for exterior areas as there are lots of moving things, winds and animals. "Keep-only" functionality on Magic Areas allows us to bypass false-positives with curtains moving and animals but still might not be ideal.
+mmWave sensors are the absolute GOAT of human sensing. Some can be finicky to set up but once up and running they're reliable. mmWave sensors are not very good for exterior areas as there are lots of moving things, winds and animals. "Keep-only" functionality on Adaptive Areas allows us to bypass false-positives with curtains moving and animals but still might not be ideal.
 
 !!! tip
     I recommend putting mmWave sensors in the "keep-only sensors" list and having a PIR motion sensor in the area alongside to avoid false-triggers.
@@ -33,13 +33,13 @@ PIR sensors are reliable and fast but they only detect movement, not people stan
 These can be pointed wide in a corner as their FoV is usually wide and deep. You will need to tweak its settings until you're covering the room and not the other adjacent rooms as well. Prefer pointing mmWave sensors towards exterior walls rather than interior walls, when possible.
 
 !!! note
-    As you can see, PIR and mmWave have different positioning requirements and while PIR+mmWave combo sensors might be good for themselves on reducing false positives, they lose where their positioning is the same for both sensors. Magic Areas has the "keep-only sensors" functionality that will take care of reducing false-positives for you.
+    As you can see, PIR and mmWave have different positioning requirements and while PIR+mmWave combo sensors might be good for themselves on reducing false positives, they lose where their positioning is the same for both sensors. Adaptive Areas has the "keep-only sensors" functionality that will take care of reducing false-positives for you.
 
 ### Sensing presence on dumb devices
 
 A quick and dirty way to detect a device being in use (and thus using this information to trigger presence) is to use a power-metering smart outlets. There are a plethora of those on the market for very little. Unless you need to actually control the outlet, you can find metering-only smart outlets (with no relay). These can be cheaper and you don't risk accidentally turning off the device.
 
-Plug your device into the outlet, see how much it draws when in use, add a [Threshold sensor](https://www.home-assistant.io/integrations/threshold/) and set its device class to `presence` and add this entity to the area in question. Magic Areas will automatically pick it up and start using it as a presence source.
+Plug your device into the outlet, see how much it draws when in use, add a [Threshold sensor](https://www.home-assistant.io/integrations/threshold/) and set its device class to `presence` and add this entity to the area in question. Adaptive Areas will automatically pick it up and start using it as a presence source.
 
 This is particularly useful for detecting workstation use through monitor power consumption, gym equipment use (e.g. treadmills), appliance use in the kitchen, knowing if an IR-controlled (not smart) light is actually on etc. Make sure the smart outlet is rated for the device you're plugging in! If you're plugging in anything with a motor or a heating element on it, do not skip this step.
 
@@ -67,7 +67,7 @@ If you can safely deploy cloudless/fully-local/isolated cameras, then I recommen
 
 I use [Adaptive Lighting](https://github.com/basnijholt/adaptive-lighting) in all my rooms as most of my lights are at least dimmable. Adaptive Lighting provide a `switch` called "Sleep Mode" which is used by that integration to control your lights brightness and color in a different way.
 
-Magic Areas can use those switches as "Sleep State" sensors. You can use any binary-state entity (`input_boolean`, `switch`, `binary_sensor`, etc) but it's very convenient to just reuse Adaptive Lighting's "Sleep Mode" switch. I like to make a `group` of switches with all the "Sleep Mode" switches from the common areas (basically everything that is not a bedroom) in the `all` mode. That way I can control the sleep state of all those areas at once via automations.
+Adaptive Areas can use those switches as "Sleep State" sensors. You can use any binary-state entity (`input_boolean`, `switch`, `binary_sensor`, etc) but it's very convenient to just reuse Adaptive Lighting's "Sleep Mode" switch. I like to make a `group` of switches with all the "Sleep Mode" switches from the common areas (basically everything that is not a bedroom) in the `all` mode. That way I can control the sleep state of all those areas at once via automations.
 
 #### Automating sleep states
 
@@ -78,11 +78,11 @@ For each bedroom there's a different automation. My kid's room is triggered by h
 
 #### Sleep lights
 
-I highly recommend having in every room possible a light source that is faint (or can be made faint) and small. These are great for when you're walking around the house in pitch black and you surely don't want bright lights being turned on by Magic Areas. Most ceiling lights will be either too bright at the minimum level or not even turn on when you dim them too low. It's best to use smaller lamps or decorative lights that can be run ~20-25% and give a good faint glow that is enough to light your path without hurting your eyes or disturbing nearby areas (for example, in the US, usually internal doors are required to have a significant gap behind them and light will leak from these gaps into the room).
+I highly recommend having in every room possible a light source that is faint (or can be made faint) and small. These are great for when you're walking around the house in pitch black and you surely don't want bright lights being turned on by Adaptive Areas. Most ceiling lights will be either too bright at the minimum level or not even turn on when you dim them too low. It's best to use smaller lamps or decorative lights that can be run ~20-25% and give a good faint glow that is enough to light your path without hurting your eyes or disturbing nearby areas (for example, in the US, usually internal doors are required to have a significant gap behind them and light will leak from these gaps into the room).
 
 ### Timeouts and extended state
 
-Magic Areas uses timeout settings to release the occupancy state of an area after not seeing any presence states for a while. These timeouts are configurable for regular occupancy, extended and sleep states. Extended state is gained after presence is held in an area after a configurable amount of time. This state can be used for light control but also overrides the regular timeout, allowing one to configure a longer timeout if an area has been occupied for this extended time.
+Adaptive Areas uses timeout settings to release the occupancy state of an area after not seeing any presence states for a while. These timeouts are configurable for regular occupancy, extended and sleep states. Extended state is gained after presence is held in an area after a configurable amount of time. This state can be used for light control but also overrides the regular timeout, allowing one to configure a longer timeout if an area has been occupied for this extended time.
 
 !!! warning
     Fine-tuning those timeouts are **key** for consistent presence tracking. Prefer slower (bigger) timeouts and only pull back after you have more presence sources. Reliable presence sources such as mmWave, BLE Trackers or Wasp in a box might allow you to live with shorter "clear timeouts".
@@ -221,7 +221,7 @@ If you use powered machines like treadmills, bikes, plug them into power-meterin
 
 ## Meta-Areas
 
-Meta-Areas are areas that are not Home Assistant areas but rather represent logical groups of areas. In Magic Areas, you can specify whether the area is an interior or exterior area. This allows 3 meta-areas to be created: One for all interior areas, one for all exterior areas and a "Global" meta-area for all areas.
+Meta-Areas are areas that are not Home Assistant areas but rather represent logical groups of areas. In Adaptive Areas, you can specify whether the area is an interior or exterior area. This allows 3 meta-areas to be created: One for all interior areas, one for all exterior areas and a "Global" meta-area for all areas.
 
 This allows you to have things like:
 * Average temperature of your home's interior. (and all other aggregates)

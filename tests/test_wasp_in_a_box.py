@@ -16,11 +16,11 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.binary_sensor.wasp_in_a_box import (
+from custom_components.adaptive_areas.binary_sensor.wasp_in_a_box import (
     ATTR_BOX,
     ATTR_WASP,
 )
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     ATTR_ACTIVE_SENSORS,
     ATTR_PRESENCE_SENSORS,
     CONF_AGGREGATES_MIN_ENTITIES,
@@ -117,10 +117,10 @@ async def test_wasp_in_a_box_logic(
     door_sensor_entity_id = entities_wasp_in_a_box[1].entity_id
 
     wasp_in_a_box_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
     )
-    motion_aggregate_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{DEFAULT_MOCK_AREA}_aggregate_motion"
-    door_aggregate_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{DEFAULT_MOCK_AREA}_aggregate_door"
+    motion_aggregate_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{DEFAULT_MOCK_AREA}_aggregate_motion"
+    door_aggregate_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{DEFAULT_MOCK_AREA}_aggregate_door"
 
     # Ensure source entities are loaded
     motion_sensor_state = hass.states.get(motion_sensor_entity_id)
@@ -218,9 +218,9 @@ async def test_wasp_in_a_box_as_presence(
     motion_sensor_entity_id = entities_wasp_in_a_box[0].entity_id
     door_sensor_entity_id = entities_wasp_in_a_box[1].entity_id
     wasp_in_a_box_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
     )
-    area_state_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
+    area_state_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
 
     # Set initial values
     hass.states.async_set(motion_sensor_entity_id, STATE_OFF)
@@ -283,7 +283,7 @@ async def test_wasp_timeout_triggers_forget(
     door_sensor_entity_id = entities_wasp_in_a_box[1].entity_id
 
     wasp_in_a_box_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
     )
 
     # Ensure initial wasp present: motion ON, box closed
@@ -321,7 +321,7 @@ async def test_open_box_cancels_timer(
     door_sensor_entity_id = entities_wasp_in_a_box[1].entity_id
 
     wasp_in_a_box_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
     )
 
     # Initial: wasp present
@@ -342,7 +342,7 @@ async def test_open_box_cancels_timer(
         return lambda: None  # dummy cancel
 
     with patch(
-        "custom_components.magic_areas.helpers.timer.async_call_later",
+        "custom_components.adaptive_areas.helpers.timer.async_call_later",
         side_effect=capture_callback,
     ):
         hass.states.async_set(motion_sensor_entity_id, STATE_OFF)
@@ -388,7 +388,7 @@ async def test_wasp_seen_cancels_timer(
     door_sensor_entity_id = entities_wasp_in_a_box[1].entity_id
 
     wasp_in_a_box_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_wasp_in_a_box_{DEFAULT_MOCK_AREA}"
     )
 
     # Initial: wasp present

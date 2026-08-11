@@ -13,7 +13,7 @@ from homeassistant.components.cover.const import DOMAIN as COVER_DOMAIN
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_ENTITY_ID, STATE_OPEN
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_COVER_GROUPS,
     DOMAIN,
@@ -92,7 +92,7 @@ async def test_cover_group_basic(
     """Test cover group."""
 
     cover_group_entity_id_base = (
-        f"{COVER_DOMAIN}.magic_areas_cover_groups_kitchen_cover_group_"
+        f"{COVER_DOMAIN}.adaptive_areas_cover_groups_kitchen_cover_group_"
     )
     entity_map = defaultdict(list)
 

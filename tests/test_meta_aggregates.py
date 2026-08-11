@@ -24,12 +24,12 @@ async def test_meta_aggregates_binary_sensor(
     """Test aggregation of binary sensor states."""
 
     # Entity Ids
-    interior_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{MockAreaIds.INTERIOR.value}_aggregate_motion"
-    exterior_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{MockAreaIds.EXTERIOR.value}_aggregate_motion"
-    global_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{MockAreaIds.GLOBAL.value}_aggregate_motion"
-    ground_level_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{MockAreaIds.GROUND_LEVEL.value}_aggregate_motion"
-    first_floor_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{MockAreaIds.FIRST_FLOOR.value}_aggregate_motion"
-    second_floor_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_{MockAreaIds.SECOND_FLOOR.value}_aggregate_motion"
+    interior_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{MockAreaIds.INTERIOR.value}_aggregate_motion"
+    exterior_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{MockAreaIds.EXTERIOR.value}_aggregate_motion"
+    global_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{MockAreaIds.GLOBAL.value}_aggregate_motion"
+    ground_level_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{MockAreaIds.GROUND_LEVEL.value}_aggregate_motion"
+    first_floor_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{MockAreaIds.FIRST_FLOOR.value}_aggregate_motion"
+    second_floor_aggregate_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{MockAreaIds.SECOND_FLOOR.value}_aggregate_motion"
 
     # First Floor + Interior + Global
     kitchen_motion_sensor_id = entities_binary_sensor_motion_all_areas_with_meta[

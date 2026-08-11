@@ -1,12 +1,12 @@
 # 🌍 Meta-Areas
 
-**Meta-Areas** are smart, virtual areas that group multiple regular areas together based on their type or location. Meta-areas are created and configured like any other Magic Area through the UI.
+**Meta-Areas** are smart, virtual areas that group multiple regular areas together based on their type or location. Meta-areas are created and configured like any other Adaptive Area through the UI.
 
 They are perfect for creating higher-level automations that span entire sections of your home — like controlling all lights on a floor, or monitoring the overall air quality inside your house.
 
 ## 🏗️ Types of Meta-Areas
 
-Magic Areas supports the following types of meta-areas:
+Adaptive Areas supports the following types of meta-areas:
 
 | Meta-Area       | Description |
 |-----------------|-------------|
@@ -17,7 +17,7 @@ Magic Areas supports the following types of meta-areas:
 
 ## ⚙️ Features Compatible with Meta-Areas
 
-Many Magic Areas features are fully compatible with meta-areas, allowing you to apply automations across broader zones of your home:
+Many Adaptive Areas features are fully compatible with meta-areas, allowing you to apply automations across broader zones of your home:
 
 * **[Light Groups](../features/light-groups.md)**
   Control lighting for an entire floor or your whole house.

@@ -26,7 +26,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     ATTR_STATES,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
@@ -134,11 +134,11 @@ async def test_area_aware_media_player(
     """Test the area aware media player."""
 
     area_aware_media_player_id = (
-        f"{MEDIA_PLAYER_DOMAIN}.magic_areas_area_aware_media_player_global"
+        f"{MEDIA_PLAYER_DOMAIN}.adaptive_areas_area_aware_media_player_global"
     )
 
     area_sensor_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_kitchen_area_state"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
     )
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
 
@@ -154,7 +154,7 @@ async def test_area_aware_media_player(
 
     # AAMP and media-player groups are independent features. AAMP alone must not
     # create the media-player group automation switch.
-    media_player_control_id = f"{SWITCH_DOMAIN}.magic_areas_media_player_groups_{DEFAULT_MOCK_AREA}_media_player_control"
+    media_player_control_id = f"{SWITCH_DOMAIN}.adaptive_areas_media_player_groups_{DEFAULT_MOCK_AREA}_media_player_control"
     assert hass.states.get(media_player_control_id) is None
 
     # Test area clear

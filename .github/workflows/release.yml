@@ -1,0 +1,95 @@
+name: "Create Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version without a leading v (for example 1.2.3 or 1.2.3-rc.1)"
+        required: true
+        type: string
+      release_type:
+        description: "Release state"
+        required: true
+        default: draft
+        type: choice
+        options:
+          - draft
+          - prerelease
+          - release
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: "Create ${{ inputs.release_type }} ${{ inputs.version }}"
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout main"
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: "Check release does not already exist"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if release_data=$(gh release view "$VERSION" --json isDraft 2>/dev/null); then
+            if ! jq -e '.isDraft' <<<"$release_data" >/dev/null; then
+              echo "Release $VERSION has already been published."
+              exit 1
+            fi
+          fi
+
+      - name: "Update integration version"
+        id: version
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          python3 scripts/set_version.py "$VERSION" --release-type "$RELEASE_TYPE"
+
+          if ! git diff --quiet -- custom_components/adaptive_areas/manifest.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add custom_components/adaptive_areas/manifest.json
+            git commit -m "chore(release): $VERSION"
+            git push origin HEAD:main
+          fi
+
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: "Create or publish release"
+        id: release
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          name: ${{ inputs.version }}
+          tag: ${{ inputs.version }}
+          version: ${{ inputs.version }}
+          commitish: ${{ steps.version.outputs.sha }}
+          publish: ${{ inputs.release_type != 'draft' }}
+          prerelease: ${{ inputs.release_type == 'prerelease' }}
+          latest: ${{ inputs.release_type == 'release' }}
+
+      - name: "Write summary"
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          RELEASE_URL: ${{ steps.release.outputs.html_url }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          echo "## $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Created **$RELEASE_TYPE**: $RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"

@@ -13,7 +13,7 @@ It’s based on a simple concept:
 
 > 🧪 This helps avoid false clears due to motion sensors timing out after you’ve already left the room—preserving presence state more accurately.
 
-When enabled, Magic Areas will:
+When enabled, Adaptive Areas will:
 
 - Create a `binary_sensor` for each area using this logic.
 - Automatically use it for presence tracking (replacing or supplementing your regular motion sensors).
@@ -71,9 +71,9 @@ These are automatically detected during setup — no configuration needed.
 
 ## ✅ Presence Integration
 
-Once enabled, Magic Areas will:
+Once enabled, Adaptive Areas will:
 
-- Automatically create a `binary_sensor.magic_areas_wiab_$area`
+- Automatically create a `binary_sensor.adaptive_areas_wiab_$area`
 - Use it for **presence tracking** in that area
 
 !!! tip

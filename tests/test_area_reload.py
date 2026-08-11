@@ -13,8 +13,8 @@ from homeassistant.helpers.entity_registry import (
     _EventEntityRegistryUpdatedData_Update,
 )
 
-from custom_components.magic_areas.base.magic import MagicArea
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.const import (
     DATA_AREA_OBJECT,
     MODULE_DATA,
 )
@@ -54,7 +54,7 @@ def immediate_meta_reload(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch) 
         return handle.cancel
 
     monkeypatch.setattr(
-        "custom_components.magic_areas.base.magic.async_call_later", _call_later
+        "custom_components.adaptive_areas.base.adaptive.async_call_later", _call_later
     )
 
 
@@ -72,8 +72,8 @@ def get_config_entry_by_area_name(hass: HomeAssistant, area_name: str) -> str | 
     return None
 
 
-def get_entry_by_area_name(hass: HomeAssistant, area_name: str) -> MagicArea | None:
-    """Fetch MagicArea object from an area's name."""
+def get_entry_by_area_name(hass: HomeAssistant, area_name: str) -> AdaptiveArea | None:
+    """Fetch AdaptiveArea object from an area's name."""
     config_entry_id = get_config_entry_by_area_name(hass, area_name)
     if not config_entry_id:
         return None
@@ -105,7 +105,7 @@ async def test_reload_on_entity_area_change(
         assert area_object
         area_timestamp_map[area] = area_object.timestamp
 
-    # Simulate entity changing area_id (this triggers "all areas reload" logic in MagicArea)
+    # Simulate entity changing area_id (this triggers "all areas reload" logic in AdaptiveArea)
     event_data: _EventEntityRegistryUpdatedData_Update = {
         "action": "update",
         "entity_id": "sensor.test",
@@ -142,7 +142,7 @@ async def test_meta_reload_from_single_reload(
         assert area_object
         area_timestamp_map[area] = area_object.timestamp
 
-    # Simulate entity changing area_id (this triggers "all areas reload" logic in MagicArea)
+    # Simulate entity changing area_id (this triggers "all areas reload" logic in AdaptiveArea)
     kitchen_motion_sensor_id = entities_binary_sensor_motion_all_areas_with_meta[
         MockAreaIds.KITCHEN
     ][0].entity_id
@@ -204,7 +204,7 @@ async def test_start_event_does_not_reload_regular_area(
     await shutdown_integration(hass, [basic_config_entry])
 
 
-async def test_magic_entity_reload_is_idempotent(
+async def test_adaptive_entity_reload_is_idempotent(
     hass: HomeAssistant,
     _setup_integration_basic,
 ) -> None:
@@ -212,10 +212,10 @@ async def test_magic_entity_reload_is_idempotent(
     area = get_entry_by_area_name(hass, MockAreaIds.KITCHEN.value)
     assert area is not None
 
-    area.load_magic_entities()
+    area.load_adaptive_entities()
     first_load = {
-        domain: list(entities) for domain, entities in area.magic_entities.items()
+        domain: list(entities) for domain, entities in area.adaptive_entities.items()
     }
-    area.load_magic_entities()
+    area.load_adaptive_entities()
 
-    assert area.magic_entities == first_load
+    assert area.adaptive_entities == first_load

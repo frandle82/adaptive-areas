@@ -26,7 +26,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_AGGREGATION,
@@ -166,7 +166,7 @@ async def test_aggregates_binary_sensor_regular(
     """Test binary sensor aggregates with all=False."""
 
     aggregate_sensor_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_kitchen_aggregate_motion"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_motion"
     )
 
     # Init test & individual ON/OFF flip
@@ -222,9 +222,7 @@ async def test_aggregates_binary_sensor_all(
 ) -> None:
     """Test binary sensor aggregates with all=True."""
 
-    aggregate_sensor_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_aggregates_kitchen_aggregate_connectivity"
-    )
+    aggregate_sensor_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_connectivity"
 
     # Init test
     aggregate_sensor_state = hass.states.get(aggregate_sensor_id)
@@ -281,7 +279,7 @@ async def test_aggregates_sensor_avg(
     """Test sensor aggregates with average mode."""
 
     aggregate_sensor_id = (
-        f"{SENSOR_DOMAIN}.magic_areas_aggregates_kitchen_aggregate_temperature"
+        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_temperature"
     )
 
     _LOGGER.warning(entities_sensor_temperature_multiple)
@@ -332,7 +330,7 @@ async def test_aggregates_sensor_sum(
     """Test sensor aggregates with sum mode."""
 
     aggregate_sensor_id = (
-        f"{SENSOR_DOMAIN}.magic_areas_aggregates_kitchen_aggregate_current"
+        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_current"
     )
 
     _LOGGER.warning(entities_sensor_current_multiple)

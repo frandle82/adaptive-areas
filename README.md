@@ -1,15 +1,11 @@
-![Build Status][ci-status] [![GitHub Release][releases-shield]][releases] [![License][license-shield]](LICENSE) [![GitHub Last Commit][last-commit-shield]][commits]
-![Project Maintenance][maintenance-shield] [![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
+[![Build Status][ci-status]][actions] [![GitHub Release][releases-shield]][releases] [![License][license-shield]](LICENSE)
+[![HACS][hacs-shield]][hacs]
 
-[![HACS][hacs-shield]][hacs] ![integration-usage-shield] [![Discord][discord-shield]][discord]
+# Adaptive Areas for Home Assistant: Your areas so smart it's almost magic! 🪄
 
-# Magic Areas for Home Assistant: Your areas so smart it's almost magic! 🪄
+Adaptive Areas is a Home Assistant custom integration that makes your smart home think for itself through rock-solid presence tracking — the foundation for a truly smart home.
 
-![ma-logo]
-
-Magic Areas is a Home Assistant custom integration that makes your smart home think for itself through rock-solid presence tracking — the foundation for a truly smart home.
-
-Magic Areas knows when a room is occupied (and when it’s not) and reacts automatically. It turns Home Assistant’s Areas into dependable, presence-aware zones so your home feels alive without you lifting a finger. Instead of building dozens of manual automations, let Magic Areas control your lights, climate, and other devices so that they do just right thing, at the right time.
+Adaptive Areas knows when a room is occupied (and when it’s not) and reacts automatically. It turns Home Assistant’s Areas into dependable, presence-aware zones so your home feels alive without you lifting a finger. Instead of building dozens of manual automations, let Adaptive Areas control your lights, climate, and other devices so that they do just right thing, at the right time.
 
 ### What this means for you:
 
@@ -19,13 +15,13 @@ Magic Areas knows when a room is occupied (and when it’s not) and reacts autom
 - 🌀 Fans that respond automatically to heat, humidity, or CO₂
 - 🎶 Media and alerts routed only to occupied spaces
 
-Smart areas that just works, everytime, out of the box. Fully customizable if you want it.
+Smart areas that just work, every time, out of the box. Fully customizable if you want it.
 
 #### Download and install through [HACS (Home Assistant Community Store)](https://hacs.xyz/):
 
-[![Open your Home Assistant instance and open the Adaptive Lighting integration inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jseidl&repository=magic-areas&category=integration)
+[![Open your Home Assistant instance and add the Adaptive Areas repository to HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=frandle82&repository=adaptive-areas&category=integration)
 
-## ✨ What Magic Areas Does
+## ✨ What Adaptive Areas Does
 
 * Detects presence in each area using multiple sources (motion sensors, media players, device trackers, BLE beacons, and more).
 * Creates smart groups (lights, fans, climate, media players) that respond to an area’s state automatically.
@@ -34,7 +30,7 @@ Smart areas that just works, everytime, out of the box. Fully customizable if yo
 * Includes built-in, automation-like features: light control, fan groups, climate preset switching, and more
 
 > [!NOTE]
-> Check out our [magic concepts on our documentation](https://magicareas.io/concepts/).
+> Check out the [core concepts](docs/source/concepts/index.md) in the documentation.
 
 ## Features
 
@@ -46,7 +42,7 @@ Smart areas that just works, everytime, out of the box. Fully customizable if yo
     * `sleep`: Tracked by any entity
     * `extended`: When a room has been occupied beyond a set time
     * `accented`: Track presence based on entertainment like media players
-* **🏠 Meta-Areas and Hierarchies:** Set areas as **interior**, **exterior** and assign them to **floors**. Magic Areas will create meta-areas to track grouped presence (e.g., upstairs occupied). Presence logic and secondary states are inherited and calculated automatically.
+* **🏠 Meta-Areas and Hierarchies:** Set areas as **interior**, **exterior** and assign them to **floors**. Adaptive Areas will create meta-areas to track grouped presence (e.g., upstairs occupied). Presence logic and secondary states are inherited and calculated automatically.
 
 ### Smart Control
 * **💡 Smart Light Groups**: Automatically groups your lights by purpose — overhead, task, accent, and sleep — and controls them based on presence state. Lights can be set to trigger only in the dark or after extended occupancy.
@@ -57,65 +53,45 @@ Smart areas that just works, everytime, out of the box. Fully customizable if yo
 * **🧮 Sensor Aggregates:** Aggregates all `sensor` and `binary_sensor` entities in the area by `device_class` and `unit_of_measurement`. Great for dashboards, alerts, and logic.
 * **🚨 Health Sensor:** Auto-aggregated binary sensors for safety-related device classes:
     * `gas`, `smoke`, `moisture` (leaks), `problem`, `safety`
-* **📡 BLE Tracker Integration:** Track text-based BLE sensors (like ESPresense, Bermuda, or Room Assistant) directly. Magic Areas will convert their values into usable presence sensors automatically.
+* **📡 BLE Tracker Integration:** Track text-based BLE sensors (like ESPresense, Bermuda, or Room Assistant) directly. Adaptive Areas will convert their values into usable presence sensors automatically.
 
 > [!TIP]
-> Learn more about all features on [our documentation](https://magicareas.io/features/).
+> Learn more about all features in the [documentation](docs/source/features/index.md).
 
-## 🧙 Demo / How can Magic Areas help me?
+## 🧙 Demo / How can Adaptive Areas help me?
 
-Check out the [Implementation Ideas](https://magicareas.io/how-to/library/implementation-ideas-for-every-room/) documentation to see how you can apply Magic Areas to make every room in your house, magic!
+Check out the [Implementation Ideas](docs/source/how-to/library/implementation-ideas-for-every-room.md) documentation to see how you can apply Adaptive Areas to every room in your house.
 
 ## 🚀 Getting Started
 
-Go to the documentation [Quick Start](https://magicareas.io/how-to/getting-started/) for installation instruction.
+Go to the documentation [Quick Start](docs/source/how-to/getting-started.md) for installation instructions.
 
-📖 Visit the [documentation](https://magicareas.io/how-to/library/implementation-ideas-for-every-room/) for complete guides, examples, and tips.
+📖 Visit the [documentation](docs/source/index.md) for complete guides, examples, and tips.
 
 Enjoy smarter automations — and areas that finally understand you're still in the room ✨
 
 ## 🛠️ Problems/bugs, questions, feature requests?
 
-Visit the [Troubleshooting](https://magicareas.io/how-to/troubleshooting/) documentation for instructions on getting help.
+Visit the [Troubleshooting](docs/source/how-to/troubleshooting.md) documentation for instructions on getting help.
 
-## 🌐 Magic Areas in your language!
+## 🌐 Adaptive Areas in your language!
 
-Magic Areas has full translation support, meaning even your entities will be translated and is available in the following languages:
+Adaptive Areas has full translation support, meaning even your entities will be translated and is available in the following languages:
 
-<a href="https://hosted.weblate.org/engage/magic-areas/">
-<img src="https://hosted.weblate.org/widget/magic-areas/multi-auto.svg" alt="Translation status" />
-</a>
+Translations live in [`custom_components/adaptive_areas/translations`](custom_components/adaptive_areas/translations). Contributions are welcome through pull requests.
 
-Help to translate Magic Areas into your language from your web browser! We use [Hosted Weblate](https://hosted.weblate.org/engage/magic-areas/) so you don't need to fool around with pull requests nor JSON files!
+## Attribution
 
-## ❤️ Love Magic Areas?
+Adaptive Areas is based on [Magic Areas](https://github.com/jseidl/magic-areas). The original copyright and license terms remain available in [LICENSE](LICENSE).
 
-Magic Areas is a passion project built and maintained with countless hours of development, testing, documentation, and supporting our amazing community.
-If you’ve found it useful and want to show some love, consider buying me a beer! 🍻
+## Development
 
-Your support helps keep the project alive and is **hugely appreciated**.  ❤️
+Commit messages follow Conventional Commits. After staging the intended files, run `scripts/commit "type(scope): description"` to validate and commit them. Release drafts are maintained automatically; maintainers can create drafts, pre-releases, and final releases through the **Create Release** GitHub Actions workflow. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-[![BuyMeCoffee][buymecoffeebadgebig]][buymecoffee]
-
-
-***
-
-[magic_areas]: https://github.com/jseidl/hass-magic_areas
-[buymecoffee]: https://www.buymeacoffee.com/janseidl
-[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
-[buymecoffeebadgebig]: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
-[commits-shield]: https://img.shields.io/github/commit-activity/y/jseidl/hass-magic_areas.svg?style=for-the-badge
-[commits]: https://github.com/jseidl/hass-magic_areas/commits/main
-[discord]: https://discord.gg/3yu2F7bSaT
+[actions]: https://github.com/frandle82/adaptive-areas/actions
 [hacs]: https://github.com/hacs/integration
-[discord-shield]: https://img.shields.io/discord/928386239789400065?style=for-the-badge&label=Discord
-[license-shield]: https://img.shields.io/github/license/jseidl/hass-magic_areas.svg?style=for-the-badge
-[maintenance-shield]: https://img.shields.io/badge/maintainer-Jan%20Seidl%20%40jseidl-blue.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/release/jseidl/hass-magic_areas.svg?style=for-the-badge
-[releases]: https://github.com/jseidl/hass-magic_areas/releases
-[ci-status]: https://img.shields.io/github/actions/workflow/status/jseidl/hass-magic_areas/validation.yaml?style=for-the-badge
-[last-commit-shield]: https://img.shields.io/github/last-commit/jseidl/hass-magic_areas?style=for-the-badge
-[ma-logo]: https://raw.githubusercontent.com/home-assistant/brands/master/custom_integrations/magic_areas/logo.png
-[contributors-badge]: https://flat.badgen.net/github/contributors/jseidl/hass-magic_areas
-[integration-usage-shield]: https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=integration%20usage&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.magic_areas.total&style=for-the-badge
-[hacs-shield]: https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/frandle82/adaptive-areas.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/frandle82/adaptive-areas.svg?style=for-the-badge
+[releases]: https://github.com/frandle82/adaptive-areas/releases
+[ci-status]: https://img.shields.io/github/actions/workflow/status/frandle82/adaptive-areas/validation.yaml?style=for-the-badge
+[hacs-shield]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge

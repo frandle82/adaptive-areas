@@ -12,7 +12,7 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_ON, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_SECONDARY_STATES,
@@ -39,18 +39,20 @@ from tests.mocks import MockBinarySensor, MockSwitch
 def mock_config_entry_switch_groups() -> MockConfigEntry:
     """Fixture for switch groups configuration."""
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
-    data.update({
-        CONF_SECONDARY_STATES: {
-            CONF_SLEEP_ENTITY: "binary_sensor.sleep_sensor",
-        },
-        CONF_ENABLED_FEATURES: {
-            CONF_FEATURE_SWITCH_GROUPS: {
-                CONF_SLEEP_SWITCHES: ["switch.mock_tv"],
-                CONF_SLEEP_SWITCHES_STATES: [AreaStates.SLEEP],
-                CONF_SLEEP_SWITCHES_ACTION: SWITCH_GROUP_ACTION_TURN_OFF,
-            }
-        },
-    })
+    data.update(
+        {
+            CONF_SECONDARY_STATES: {
+                CONF_SLEEP_ENTITY: "binary_sensor.sleep_sensor",
+            },
+            CONF_ENABLED_FEATURES: {
+                CONF_FEATURE_SWITCH_GROUPS: {
+                    CONF_SLEEP_SWITCHES: ["switch.mock_tv"],
+                    CONF_SLEEP_SWITCHES_STATES: [AreaStates.SLEEP],
+                    CONF_SLEEP_SWITCHES_ACTION: SWITCH_GROUP_ACTION_TURN_OFF,
+                }
+            },
+        }
+    )
     return MockConfigEntry(domain=DOMAIN, data=data)
 
 
@@ -70,7 +72,9 @@ async def setup_entities_switch_and_sleep(
     hass: HomeAssistant,
 ) -> list[Any]:
     """Create switch and sleep entities."""
-    mock_switch_entities = [MockSwitch(name="mock_tv", state="off", unique_id="switch_1")]
+    mock_switch_entities = [
+        MockSwitch(name="mock_tv", state="off", unique_id="switch_1")
+    ]
     mock_binary_sensor_entities = [
         MockBinarySensor(name="sleep_sensor", state="off", unique_id="sleep_1")
     ]
@@ -90,12 +94,8 @@ async def test_switch_group_action_is_applied(
     _setup_integration_switch_groups,
 ) -> None:
     """Test switch group can execute configured off-action while state is active."""
-    switch_group_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_switch_groups_{DEFAULT_MOCK_AREA}_sleep_switches"
-    )
-    switch_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_switch_groups_{DEFAULT_MOCK_AREA}_switch_group_control"
-    )
+    switch_group_entity_id = f"{SWITCH_DOMAIN}.adaptive_areas_switch_groups_{DEFAULT_MOCK_AREA}_sleep_switches"
+    switch_control_entity_id = f"{SWITCH_DOMAIN}.adaptive_areas_switch_groups_{DEFAULT_MOCK_AREA}_switch_group_control"
     sleep_sensor_entity_id = "binary_sensor.sleep_sensor"
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
 

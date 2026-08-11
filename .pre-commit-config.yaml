@@ -49,6 +49,11 @@ repos:
       - id: isort
   - repo: local
     hooks:
+      - id: conventional-commit
+        name: conventional commit message
+        entry: python3 scripts/validate_commit.py
+        language: system
+        stages: [commit-msg]
       - id: pylint
         name: pylint
         entry: pylint

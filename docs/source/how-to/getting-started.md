@@ -1,7 +1,7 @@
 # Getting Started
 
-You’ve already [installed](installation.md) Magic Areas—awesome! 🎉
-Now let’s walk through how to set up your home with Magic Areas to make every room *magical*.
+You’ve already [installed](installation.md) Adaptive Areas—awesome! 🎉
+Now let’s walk through how to set up your home with Adaptive Areas to make every room *magical*.
 
 ## 🏠 Step 1: Define Your Areas
 
@@ -9,32 +9,32 @@ If you haven’t paid much attention to Home Assistant’s **Area Registry** bef
 
 Go to **Settings > Areas** and make sure every room or zone in your home is represented as an area. Since you're here, if your home is multi-story, configure the each Floor and assign areas to them.
 
-Once you’ve created your areas, go to **Settings > Devices & Services > Integrations**, click **+ Add Integration**, search for **Magic Areas**, and create a Magic Area for each of your defined areas.
+Once you’ve created your areas, go to **Settings > Devices & Services > Integrations**, click **+ Add Integration**, search for **Adaptive Areas**, and create a Adaptive Area for each of your defined areas.
 
-## ⚙️ Step 2: Configure Each Magic Area
+## ⚙️ Step 2: Configure Each Adaptive Area
 
-After creating a Magic Area, go back to the **Integrations** page, find the Magic Areas entry for that area, and click **Configure**.
+After creating a Adaptive Area, go back to the **Integrations** page, find the Adaptive Areas entry for that area, and click **Configure**.
 
 All options are available in the UI, and every setting includes a helpful description.
 
 !!! question "Struggling to understand how a setting works?"
-    💬 Join us on [Discord](https://discord.gg/3yu2F7bSaT)—we’d love to help!
+    💬 Ask for help in [GitHub Discussions](https://github.com/frandle82/adaptive-areas/discussions).
 
 ## 📥 Step 3: Include or Exclude Entities
 
-Magic Areas uses entities assigned to areas in Home Assistant to determine presence and apply features.
+Adaptive Areas uses entities assigned to areas in Home Assistant to determine presence and apply features.
 
 However, not all entities can be assigned to areas (e.g., those without a `unique_id`). No worries! You can:
 
-- Use the `Include Entities` setting to manually assign unsupported entities to your Magic Area.
-- Use the `Exclude Entities` setting to remove entities from *all* Magic Areas features (useful if something is incorrectly triggering presence or behavior).
+- Use the `Include Entities` setting to manually assign unsupported entities to your Adaptive Area.
+- Use the `Exclude Entities` setting to remove entities from *all* Adaptive Areas features (useful if something is incorrectly triggering presence or behavior).
 
 !!! note
     Includes/excludes apply globally across all features. Feature-specific exclusions are not currently supported.
 
 ## ✨ Step 4: Enable Features
 
-Magic Areas includes many powerful [features](../features/index.md)—from presence-based lighting to climate control and media routing.
+Adaptive Areas includes many powerful [features](../features/index.md)—from presence-based lighting to climate control and media routing.
 
 After the basic configuration, you’ll be prompted to select which features you want to enable for the area. The next screens will let you customize them in detail. Each setting includes descriptions to help you choose what fits best.
 
@@ -43,9 +43,9 @@ After the basic configuration, you’ll be prompted to select which features you
 No worries! Try the following:
 
 - Visit our [Troubleshooting](troubleshooting.md) guide
-- Join our [Discord server](https://discord.gg/3yu2F7bSaT) for real-time help
-- Or [open an issue](https://github.com/jseidl/magic-areas/issues) on GitHub
+- Ask a question in [GitHub Discussions](https://github.com/frandle82/adaptive-areas/discussions)
+- Or [open an issue](https://github.com/frandle82/adaptive-areas/issues) on GitHub
 
 ---
 
-Now go forth and bring your house to life—with Magic Areas ✨
+Now go forth and bring your house to life—with Adaptive Areas ✨

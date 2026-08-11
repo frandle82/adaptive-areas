@@ -1,0 +1,1629 @@
+"""Constants for Adaptive Areas."""
+
+from enum import IntEnum, StrEnum, auto
+from itertools import chain
+
+import voluptuous as vol
+
+from homeassistant.components.alarm_control_panel.const import AlarmControlPanelState
+from homeassistant.components.binary_sensor import (
+    DOMAIN as BINARY_SENSOR_DOMAIN,
+    BinarySensorDeviceClass,
+)
+from homeassistant.components.climate.const import DOMAIN as CLIMATE_DOMAIN
+from homeassistant.components.cover.const import DOMAIN as COVER_DOMAIN
+from homeassistant.components.device_tracker.const import (
+    DOMAIN as DEVICE_TRACKER_DOMAIN,
+)
+from homeassistant.components.fan import DOMAIN as FAN_DOMAIN
+from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
+from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
+from homeassistant.components.media_player.const import DOMAIN as MEDIA_PLAYER_DOMAIN
+from homeassistant.components.remote import DOMAIN as REMOTE_DOMAIN
+from homeassistant.components.sensor.const import (
+    DOMAIN as SENSOR_DOMAIN,
+    SensorDeviceClass,
+)
+from homeassistant.components.sun.const import DOMAIN as SUN_DOMAIN
+from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
+from homeassistant.const import (
+    STATE_ON,
+    STATE_OPEN,
+    STATE_PLAYING,
+    STATE_PROBLEM,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+from homeassistant.helpers import config_validation as cv
+
+ONE_MINUTE = 60  # seconds, for conversion
+EMPTY_STRING = ""
+
+DOMAIN = "adaptive_areas"
+MODULE_DATA = f"{DOMAIN}_data"
+
+ADDITIONAL_LIGHT_TRACKING_ENTITIES = ["sun.sun"]
+DEFAULT_SENSOR_PRECISION = 2
+UPDATE_INTERVAL = ONE_MINUTE
+
+
+class MetaAreaAutoReloadSettings(IntEnum):
+    """Settings for Meta-Area Auto Reload functionality."""
+
+    DELAY = 3
+
+
+# Light group options
+CONF_OVERHEAD_LIGHTS = "overhead_lights"  # cv.entity_ids
+CONF_OVERHEAD_LIGHTS_STATES = "overhead_lights_states"  # cv.ensure_list
+CONF_OVERHEAD_LIGHTS_STATE_RULES = "overhead_lights_state_rules"
+CONF_OVERHEAD_LIGHTS_STATES_LOGIC = "overhead_lights_states_logic"
+CONF_OVERHEAD_LIGHTS_ACT_ON = "overhead_lights_act_on"  # cv.ensure_list
+CONF_SLEEP_LIGHTS = "sleep_lights"
+CONF_SLEEP_LIGHTS_STATES = "sleep_lights_states"
+CONF_SLEEP_LIGHTS_STATE_RULES = "sleep_lights_state_rules"
+CONF_SLEEP_LIGHTS_STATES_LOGIC = "sleep_lights_states_logic"
+CONF_SLEEP_LIGHTS_ACT_ON = "sleep_lights_act_on"
+CONF_ACCENT_LIGHTS = "accent_lights"
+CONF_ACCENT_LIGHTS_STATES = "accent_lights_states"
+CONF_ACCENT_LIGHTS_STATE_RULES = "accent_lights_state_rules"
+CONF_ACCENT_LIGHTS_STATES_LOGIC = "accent_lights_states_logic"
+CONF_ACCENT_LIGHTS_ACT_ON = "accent_lights_act_on"
+CONF_TASK_LIGHTS = "task_lights"
+CONF_TASK_LIGHTS_STATES = "task_lights_states"
+CONF_TASK_LIGHTS_STATE_RULES = "task_lights_state_rules"
+CONF_TASK_LIGHTS_STATES_LOGIC = "task_lights_states_logic"
+CONF_TASK_LIGHTS_ACT_ON = "task_lights_act_on"
+CONF_OVERHEAD_LIGHTS_BLOCKING_STATES = "overhead_lights_blocking_states"
+CONF_OVERHEAD_LIGHTS_REQUIRE_DARK = "overhead_lights_require_dark"
+CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT = "overhead_lights_turn_off_when_bright"
+CONF_SLEEP_LIGHTS_BLOCKING_STATES = "sleep_lights_blocking_states"
+CONF_SLEEP_LIGHTS_REQUIRE_DARK = "sleep_lights_require_dark"
+CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT = "sleep_lights_turn_off_when_bright"
+CONF_ACCENT_LIGHTS_BLOCKING_STATES = "accent_lights_blocking_states"
+CONF_ACCENT_LIGHTS_REQUIRE_DARK = "accent_lights_require_dark"
+CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT = "accent_lights_turn_off_when_bright"
+CONF_TASK_LIGHTS_BLOCKING_STATES = "task_lights_blocking_states"
+CONF_TASK_LIGHTS_REQUIRE_DARK = "task_lights_require_dark"
+CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT = "task_lights_turn_off_when_bright"
+CONF_OVERHEAD_LIGHTS_ACTIVATION = "overhead_lights_activation"
+CONF_SLEEP_LIGHTS_ACTIVATION = "sleep_lights_activation"
+CONF_ACCENT_LIGHTS_ACTIVATION = "accent_lights_activation"
+CONF_TASK_LIGHTS_ACTIVATION = "task_lights_activation"
+CONF_OVERHEAD_LIGHTS_BRIGHTNESS = "overhead_lights_brightness"
+CONF_SLEEP_LIGHTS_BRIGHTNESS = "sleep_lights_brightness"
+CONF_ACCENT_LIGHTS_BRIGHTNESS = "accent_lights_brightness"
+CONF_TASK_LIGHTS_BRIGHTNESS = "task_lights_brightness"
+
+# Switch group options
+CONF_SLEEP_SWITCHES = "sleep_switches"
+CONF_SLEEP_SWITCHES_STATES = "sleep_switches_states"
+CONF_SLEEP_SWITCHES_ACT_ON = "sleep_switches_act_on"
+CONF_SLEEP_SWITCHES_ACTION = "sleep_switches_action"
+CONF_TASK_SWITCHES = "task_switches"
+CONF_TASK_SWITCHES_STATES = "task_switches_states"
+CONF_TASK_SWITCHES_ACT_ON = "task_switches_act_on"
+CONF_TASK_SWITCHES_ACTION = "task_switches_action"
+
+SWITCH_GROUP_ACTION_TURN_ON = "turn_on"
+SWITCH_GROUP_ACTION_TURN_OFF = "turn_off"
+SWITCH_GROUP_ACTION_OPTIONS = [
+    SWITCH_GROUP_ACTION_TURN_ON,
+    SWITCH_GROUP_ACTION_TURN_OFF,
+]
+
+LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE = "occupancy"
+# Legacy trigger value kept for backwards compatibility with existing configs.
+LIGHT_GROUP_ACT_ON_STATE_CHANGE = "state"
+LIGHT_GROUP_ACT_ON_DARK_CHANGE = "dark"
+LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE = "extended"
+LIGHT_GROUP_ACT_ON_SLEEP_CHANGE = "sleep"
+DEFAULT_LIGHT_GROUP_ACT_ON = [
+    LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
+    LIGHT_GROUP_ACT_ON_DARK_CHANGE,
+    LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE,
+    LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
+]
+LIGHT_GROUP_ACT_ON_OPTIONS = [
+    LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
+    LIGHT_GROUP_ACT_ON_DARK_CHANGE,
+    LIGHT_GROUP_ACT_ON_EXTENDED_CHANGE,
+    LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
+]
+LIGHT_GROUP_STATES_LOGIC = "states_logic"
+STATES_LOGIC_ANY = "any"
+STATES_LOGIC_ALL = "all"
+LIGHT_GROUP_STATES_LOGIC_OPTIONS = [STATES_LOGIC_ANY, STATES_LOGIC_ALL]
+DEFAULT_LIGHT_GROUP_STATES_LOGIC = STATES_LOGIC_ALL
+
+LIGHT_GROUP_ACTIVATION_DISABLED = "disabled"
+LIGHT_GROUP_ACTIVATION_OCCUPIED = "occupied"
+LIGHT_GROUP_ACTIVATION_EXTENDED = "extended"
+LIGHT_GROUP_ACTIVATION_SLEEP = "sleep"
+LIGHT_GROUP_ACTIVATION_ACCENT = "accented"
+LIGHT_GROUP_ACTIVATION_OPTIONS = [
+    LIGHT_GROUP_ACTIVATION_DISABLED,
+    LIGHT_GROUP_ACTIVATION_OCCUPIED,
+    LIGHT_GROUP_ACTIVATION_EXTENDED,
+    LIGHT_GROUP_ACTIVATION_SLEEP,
+    LIGHT_GROUP_ACTIVATION_ACCENT,
+]
+
+LIGHT_GROUP_BRIGHTNESS_IGNORE = "ignore"
+LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK = "require_dark"
+LIGHT_GROUP_BRIGHTNESS_TURN_OFF = "turn_off"
+LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF = "dark_on_bright_off"
+LIGHT_GROUP_BRIGHTNESS_OPTIONS = [
+    LIGHT_GROUP_BRIGHTNESS_IGNORE,
+    LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+    LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+]
+
+LIGHT_GROUP_DEFAULT_ICON = "mdi:lightbulb-group"
+
+LIGHT_GROUP_ICONS = {
+    CONF_OVERHEAD_LIGHTS: "mdi:ceiling-light",
+    CONF_SLEEP_LIGHTS: "mdi:sleep",
+    CONF_ACCENT_LIGHTS: "mdi:outdoor-lamp",
+    CONF_TASK_LIGHTS: "mdi:desk-lamp",
+}
+
+LIGHT_GROUP_STATES = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_STATES,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_STATES,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_STATES,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_STATES,
+}
+
+LIGHT_GROUP_ACTIVATION = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_ACTIVATION,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_ACTIVATION,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_ACTIVATION,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_ACTIVATION,
+}
+
+LIGHT_GROUP_ACTIVATION_DEFAULTS = {
+    CONF_OVERHEAD_LIGHTS: LIGHT_GROUP_ACTIVATION_OCCUPIED,
+    CONF_SLEEP_LIGHTS: LIGHT_GROUP_ACTIVATION_DISABLED,
+    CONF_ACCENT_LIGHTS: LIGHT_GROUP_ACTIVATION_DISABLED,
+    CONF_TASK_LIGHTS: LIGHT_GROUP_ACTIVATION_DISABLED,
+}
+
+LIGHT_GROUP_BRIGHTNESS = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_BRIGHTNESS,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_BRIGHTNESS,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_BRIGHTNESS,
+}
+
+LIGHT_GROUP_STATE_RULES = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_STATE_RULES,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_STATE_RULES,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_STATE_RULES,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_STATE_RULES,
+}
+
+LIGHT_GROUP_STATES_LOGIC_MAP = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_STATES_LOGIC,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_STATES_LOGIC,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_STATES_LOGIC,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_STATES_LOGIC,
+}
+
+LIGHT_GROUP_ACT_ON = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_ACT_ON,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_ACT_ON,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_ACT_ON,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_ACT_ON,
+}
+
+LIGHT_GROUP_BLOCKING_STATES = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_BLOCKING_STATES,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_BLOCKING_STATES,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_BLOCKING_STATES,
+}
+
+LIGHT_GROUP_REQUIRE_DARK = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_REQUIRE_DARK,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_REQUIRE_DARK,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_REQUIRE_DARK,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_REQUIRE_DARK,
+}
+
+LIGHT_GROUP_TURN_OFF_WHEN_BRIGHT = {
+    CONF_OVERHEAD_LIGHTS: CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+    CONF_SLEEP_LIGHTS: CONF_SLEEP_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+    CONF_ACCENT_LIGHTS: CONF_ACCENT_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+    CONF_TASK_LIGHTS: CONF_TASK_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+}
+
+
+class CalculationMode(StrEnum):
+    """Modes for calculating values."""
+
+    ANY = auto()
+    ALL = auto()
+    MAJORITY = auto()
+
+
+class LightGroupCategory(StrEnum):
+    """Categories of light groups."""
+
+    ALL = "all_lights"
+    OVERHEAD = "overhead_lights"
+    TASK = "task_lights"
+    ACCENT = "accent_lights"
+    SLEEP = "sleep_lights"
+
+
+LIGHT_GROUP_CATEGORIES = [
+    CONF_OVERHEAD_LIGHTS,
+    CONF_SLEEP_LIGHTS,
+    CONF_ACCENT_LIGHTS,
+    CONF_TASK_LIGHTS,
+]
+
+SWITCH_GROUP_DEFAULT_ICON = "mdi:toggle-switch-variant"
+
+SWITCH_GROUP_ICONS = {
+    CONF_SLEEP_SWITCHES: "mdi:sleep",
+    CONF_TASK_SWITCHES: "mdi:remote-tv",
+}
+
+SWITCH_GROUP_STATES = {
+    CONF_SLEEP_SWITCHES: CONF_SLEEP_SWITCHES_STATES,
+    CONF_TASK_SWITCHES: CONF_TASK_SWITCHES_STATES,
+}
+
+SWITCH_GROUP_ACT_ON = {
+    CONF_SLEEP_SWITCHES: CONF_SLEEP_SWITCHES_ACT_ON,
+    CONF_TASK_SWITCHES: CONF_TASK_SWITCHES_ACT_ON,
+}
+
+SWITCH_GROUP_ACTION = {
+    CONF_SLEEP_SWITCHES: CONF_SLEEP_SWITCHES_ACTION,
+    CONF_TASK_SWITCHES: CONF_TASK_SWITCHES_ACTION,
+}
+
+
+class SwitchGroupCategory(StrEnum):
+    """Categories of switch groups."""
+
+    ALL = "all_switches"
+    TASK = "task_switches"
+    SLEEP = "sleep_switches"
+
+
+SWITCH_GROUP_CATEGORIES = [
+    CONF_SLEEP_SWITCHES,
+    CONF_TASK_SWITCHES,
+]
+
+AGGREGATE_BINARY_SENSOR_CLASSES = [
+    BinarySensorDeviceClass.WINDOW,
+    BinarySensorDeviceClass.DOOR,
+    BinarySensorDeviceClass.MOTION,
+    BinarySensorDeviceClass.MOISTURE,
+    BinarySensorDeviceClass.LIGHT,
+]
+
+AGGREGATE_MODE_ALL = [
+    BinarySensorDeviceClass.CONNECTIVITY,
+    BinarySensorDeviceClass.PLUG,
+]
+
+# Health related
+DISTRESS_SENSOR_CLASSES = [
+    BinarySensorDeviceClass.PROBLEM,
+    BinarySensorDeviceClass.SMOKE,
+    BinarySensorDeviceClass.MOISTURE,
+    BinarySensorDeviceClass.SAFETY,
+    BinarySensorDeviceClass.GAS,
+]  # @todo make configurable
+DISTRESS_STATES = [AlarmControlPanelState.TRIGGERED, STATE_ON, STATE_PROBLEM]
+
+# Wasp in a Box
+WASP_IN_A_BOX_WASP_DEVICE_CLASSES = [
+    BinarySensorDeviceClass.MOTION,
+    BinarySensorDeviceClass.OCCUPANCY,
+    BinarySensorDeviceClass.PRESENCE,
+]
+WASP_IN_A_BOX_BOX_DEVICE_CLASSES = [
+    BinarySensorDeviceClass.DOOR,
+    BinarySensorDeviceClass.GARAGE_DOOR,
+]
+
+# Aggregates
+AGGREGATE_SENSOR_CLASSES = (
+    SensorDeviceClass.CURRENT,
+    SensorDeviceClass.ENERGY,
+    SensorDeviceClass.HUMIDITY,
+    SensorDeviceClass.ILLUMINANCE,
+    SensorDeviceClass.POWER,
+    SensorDeviceClass.TEMPERATURE,
+)
+
+AGGREGATE_MODE_SUM = [
+    SensorDeviceClass.POWER,
+    SensorDeviceClass.CURRENT,
+    SensorDeviceClass.ENERGY,
+]
+
+AGGREGATE_MODE_TOTAL_SENSOR = [
+    SensorDeviceClass.ENERGY,
+]
+
+AGGREGATE_MODE_TOTAL_INCREASING_SENSOR = [
+    SensorDeviceClass.GAS,
+    SensorDeviceClass.WATER,
+]
+
+
+class AdaptiveConfigEntryVersion(IntEnum):
+    """Adaptive Area config entry version."""
+
+    MAJOR = 2
+    MINOR = 2
+
+
+class AdaptiveAreasFeatureInfo:
+    """Base class for feature information."""
+
+    id: str
+    translation_keys: dict[str, str | None]
+    icons: dict[str, str] = {}
+
+
+class AdaptiveAreasFeatureInfoPresenceTracking(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Presence Tracking."""
+
+    id = "presence_tracking"
+    translation_keys = {BINARY_SENSOR_DOMAIN: "area_state"}
+    icons = {BINARY_SENSOR_DOMAIN: "mdi:texture-box"}
+
+
+class AdaptiveAreasFeatureInfoPresenceHold(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Presence hold."""
+
+    id = "presence_hold"
+    translation_keys = {SWITCH_DOMAIN: "presence_hold"}
+    icons = {SWITCH_DOMAIN: "mdi:car-brake-hold"}
+
+
+class AdaptiveAreasFeatureInfoBLETrackers(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: BLE Trackers."""
+
+    id = "ble_trackers"
+    translation_keys = {BINARY_SENSOR_DOMAIN: "ble_tracker_monitor"}
+    icons = {BINARY_SENSOR_DOMAIN: "mdi:bluetooth"}
+
+
+class AdaptiveAreasFeatureInfoWaspInABox(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Wasp in a box."""
+
+    id = "wasp_in_a_box"
+    translation_keys = {BINARY_SENSOR_DOMAIN: "wasp_in_a_box"}
+    icons = {BINARY_SENSOR_DOMAIN: "mdi:bee"}
+
+
+class AdaptiveAreasFeatureInfoAggregates(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Aggregates."""
+
+    id = "aggregates"
+    translation_keys = {
+        BINARY_SENSOR_DOMAIN: "aggregate",
+        SENSOR_DOMAIN: "aggregate",
+    }
+
+
+class AdaptiveAreasFeatureInfoThrehsold(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Aggregate Threshold Sensors."""
+
+    id = "threshold"
+    translation_keys = {BINARY_SENSOR_DOMAIN: "threshold"}
+
+
+class AdaptiveAreasFeatureInfoHealth(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Health sensors."""
+
+    id = "health"
+    translation_keys = {BINARY_SENSOR_DOMAIN: "health"}
+
+
+class AdaptiveAreasFeatureInfoLightGroups(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Light groups."""
+
+    id = "light_groups"
+    translation_keys = {
+        LIGHT_DOMAIN: None,  # let light category be appended to it
+        SWITCH_DOMAIN: "light_control",
+    }
+    icons = {SWITCH_DOMAIN: "mdi:lightbulb-auto-outline"}
+
+
+class AdaptiveAreasFeatureInfoSwitchGroups(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Switch groups."""
+
+    id = "switch_groups"
+    translation_keys = {
+        SWITCH_DOMAIN: None,
+    }
+
+
+class AdaptiveAreasFeatureInfoClimateControl(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Climate control."""
+
+    id = "climate_control"
+    translation_keys = {
+        SWITCH_DOMAIN: "climate_control",
+    }
+    icons = {SWITCH_DOMAIN: "mdi:thermostat-auto"}
+
+
+class AdaptiveAreasFeatureInfoFanGroups(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Fan groups."""
+
+    id = "fan_groups"
+    translation_keys = {
+        FAN_DOMAIN: "fan_group",
+        SWITCH_DOMAIN: "fan_control",
+    }
+    icons = {SWITCH_DOMAIN: "mdi:fan-auto"}
+
+
+class AdaptiveAreasFeatureInfoMediaPlayerGroups(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Media player groups."""
+
+    id = "media_player_groups"
+    translation_keys = {
+        MEDIA_PLAYER_DOMAIN: "media_player_group",
+        SWITCH_DOMAIN: "media_player_control",
+    }
+    icons = {SWITCH_DOMAIN: "mdi:auto-mode"}
+
+
+class AdaptiveAreasFeatureInfoCoverGroups(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Cover groups."""
+
+    id = "cover_groups"
+    translation_keys = {COVER_DOMAIN: "cover_group"}
+
+
+class AdaptiveAreasFeatureInfoAreaAwareMediaPlayer(AdaptiveAreasFeatureInfo):
+    """Feature information for feature: Area-aware media player."""
+
+    id = "area_aware_media_player"
+    translation_keys = {MEDIA_PLAYER_DOMAIN: "area_aware_media_player"}
+
+
+class AdaptiveAreasFeatures(StrEnum):
+    """Adaptive Areas features."""
+
+    AREA = "area"  # Default feature
+    PRESENCE_HOLD = "presence_hold"
+    LIGHT_GROUPS = "light_groups"
+    SWITCH_GROUPS = "switch_groups"
+    CLIMATE_CONTROL = "climate_control"
+    COVER_GROUPS = "cover_groups"
+    MEDIA_PLAYER_GROUPS = "media_player_groups"
+    AREA_AWARE_MEDIA_PLAYER = "area_aware_media_player"
+    AGGREGATES = "aggregates"
+    HEALTH = "health"
+    THRESHOLD = "threshold"
+    FAN_GROUPS = "fan_groups"
+    WASP_IN_A_BOX = "wasp_in_a_box"
+    BLE_TRACKER = "ble_trackers"
+
+
+# Adaptive Areas Events
+class AdaptiveAreasEvents(StrEnum):
+    """Adaptive Areas events."""
+
+    AREA_STATE_CHANGED = "adaptiveareas_area_state_changed"
+    AREA_LOADED = "adaptiveareas_area_loaded"
+
+
+EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED = "adaptiveareas_area_state_changed"
+
+
+# SelectorTranslationKeys
+class SelectorTranslationKeys(StrEnum):
+    """Translation keys for config flow UI selectors."""
+
+    CLIMATE_PRESET_LIST = auto()
+    AREA_TYPE = auto()
+    AREA_STATES = auto()
+    STATES_LOGIC = auto()
+    CONTROL_ON = auto()
+    CALCULATION_MODE = auto()
+    LIGHT_ACTIVATION = auto()
+    LIGHT_BRIGHTNESS = auto()
+
+
+ALL_BINARY_SENSOR_DEVICE_CLASSES = [cls.value for cls in BinarySensorDeviceClass]
+ALL_SENSOR_DEVICE_CLASSES = [cls.value for cls in SensorDeviceClass]
+
+# Data Items
+DATA_AREA_OBJECT = "area_object"
+DATA_TRACKED_LISTENERS = "tracked_listeners"
+
+# Attributes
+ATTR_STATES = "states"
+ATTR_AREAS = "areas"
+ATTR_ACTIVE_AREAS = "active_areas"
+ATTR_TYPE = "type"
+ATTR_CLEAR_TIMEOUT = "clear_timeout"
+ATTR_ACTIVE_SENSORS = "active_sensors"
+ATTR_LAST_ACTIVE_SENSORS = "last_active_sensors"
+ATTR_FEATURES = "features"
+ATTR_PRESENCE_SENSORS = "presence_sensors"
+
+PRESENCE_SENSOR_VALID_ON_STATES = [STATE_ON, STATE_OPEN, STATE_PLAYING]
+PRESENCE_CONTROL_ENTITY_DOMAINS = [
+    "person",
+    DEVICE_TRACKER_DOMAIN,
+    BINARY_SENSOR_DOMAIN,
+]
+PRESENCE_CONTROL_VALID_ON_STATES = ["home", STATE_ON]
+
+# Icons
+ICON_PRESENCE_HOLD = "mdi:car-brake-hold"
+ICON_LIGHT_CONTROL = "mdi:lightbulb-auto-outline"
+
+
+class MetaAreaIcons(StrEnum):
+    """Meta area icons."""
+
+    INTERIOR = "mdi:home-import-outline"
+    EXTERIOR = "mdi:home-export-outline"
+    GLOBAL = "mdi:home"
+
+
+class FeatureIcons(StrEnum):
+    """Feature related icons."""
+
+    PRESENCE_HOLD_SWITCH = "mdi:car-brake-hold"
+    LIGHT_CONTROL_SWITCH = "mdi:lightbulb-auto-outline"
+    MEDIA_CONTROL_SWITCH = "mdi:auto-mode"
+    CLIMATE_CONTROL_SWITCH = "mdi:thermostat-auto"
+
+
+class AreaStates(StrEnum):
+    """Adaptive area states."""
+
+    CLEAR = "clear"
+    OCCUPIED = "occupied"
+    EXTENDED = "extended"
+    DARK = "dark"
+    BRIGHT = "bright"
+    SLEEP = "sleep"
+    ACCENT = "accented"
+
+
+# Area States
+AREA_STATE_CLEAR = "clear"
+AREA_STATE_OCCUPIED = "occupied"
+AREA_STATE_EXTENDED = "extended"
+AREA_STATE_DARK = "dark"
+AREA_STATE_BRIGHT = "bright"
+AREA_STATE_SLEEP = "sleep"
+AREA_STATE_ACCENT = "accented"
+
+AREA_PRIORITY_STATES = [AREA_STATE_SLEEP, AREA_STATE_ACCENT]
+
+BUILTIN_AREA_STATES = [AREA_STATE_OCCUPIED, AREA_STATE_EXTENDED]
+CONFIGURABLE_AREA_STATES = [AREA_STATE_DARK, AREA_STATE_ACCENT, AREA_STATE_SLEEP]
+
+LIGHT_GROUP_ROOM_STATE_OPTIONS = [
+    AREA_STATE_OCCUPIED,
+    AREA_STATE_EXTENDED,
+    AREA_STATE_SLEEP,
+]
+LIGHT_GROUP_BLOCKING_STATE_OPTIONS = [
+    AREA_STATE_EXTENDED,
+    AREA_STATE_SLEEP,
+    AREA_STATE_ACCENT,
+]
+LIGHT_GROUP_LEGACY_BLOCKING_STATE_OPTIONS = LIGHT_GROUP_ROOM_STATE_OPTIONS + [
+    AREA_STATE_ACCENT,
+    AREA_STATE_DARK,
+    AREA_STATE_BRIGHT,
+]
+LIGHT_GROUP_RULE_ALLOWED_STATES = BUILTIN_AREA_STATES + CONFIGURABLE_AREA_STATES
+
+# AdaptiveAreas Components
+ADAPTIVE_AREAS_COMPONENTS = [
+    BINARY_SENSOR_DOMAIN,
+    MEDIA_PLAYER_DOMAIN,
+    COVER_DOMAIN,
+    SWITCH_DOMAIN,
+    SENSOR_DOMAIN,
+    LIGHT_DOMAIN,
+    FAN_DOMAIN,
+]
+
+ADAPTIVE_AREAS_COMPONENTS_META = [
+    BINARY_SENSOR_DOMAIN,
+    MEDIA_PLAYER_DOMAIN,
+    COVER_DOMAIN,
+    SENSOR_DOMAIN,
+    LIGHT_DOMAIN,
+    SWITCH_DOMAIN,
+]
+
+ADAPTIVE_AREAS_COMPONENTS_GLOBAL = ADAPTIVE_AREAS_COMPONENTS_META
+
+ADAPTIVEAREAS_UNIQUEID_PREFIX = "adaptive_areas"
+ADAPTIVE_DEVICE_ID_PREFIX = "adaptive_area_device_"
+
+
+class AreaType(StrEnum):
+    """Regular area types."""
+
+    INTERIOR = "interior"
+    EXTERIOR = "exterior"
+    META = "meta"
+
+
+# Meta Areas
+class MetaAreaType(StrEnum):
+    """Meta area types."""
+
+    GLOBAL = "global"
+    INTERIOR = "interior"
+    EXTERIOR = "exterior"
+    FLOOR = "floor"
+
+
+META_AREA_GLOBAL = "Global"
+META_AREA_INTERIOR = "Interior"
+META_AREA_EXTERIOR = "Exterior"
+META_AREAS = [META_AREA_GLOBAL, META_AREA_INTERIOR, META_AREA_EXTERIOR]
+
+# Area Types
+AREA_TYPE_META = "meta"
+AREA_TYPE_INTERIOR = "interior"
+AREA_TYPE_EXTERIOR = "exterior"
+AREA_TYPES = [AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR, AREA_TYPE_META]
+
+INVALID_STATES = [STATE_UNAVAILABLE, STATE_UNKNOWN]
+
+# Configuration parameters
+CONF_ID = "id"
+CONF_NAME, DEFAULT_NAME = "name", ""  # cv.string
+CONF_TYPE, DEFAULT_TYPE = "type", AREA_TYPE_INTERIOR  # cv.string
+CONF_ENABLED_FEATURES, DEFAULT_ENABLED_FEATURES = "features", {}  # cv.ensure_list
+CONF_SECONDARY_STATES, DEFAULT_AREA_STATES = "secondary_states", {}  # cv.ensure_list
+CONF_INCLUDE_ENTITIES = "include_entities"  # cv.entity_ids
+CONF_EXCLUDE_ENTITIES = "exclude_entities"  # cv.entity_ids
+CONF_KEEP_ONLY_ENTITIES = "keep_only_entities"  # cv.entity_ids
+CONF_PRESENCE_CONTROL_ENTITIES = "presence_control_entities"  # cv.entity_ids
+(
+    CONF_PRESENCE_DEVICE_PLATFORMS,
+    DEFAULT_PRESENCE_DEVICE_PLATFORMS,
+) = (
+    "presence_device_platforms",
+    [
+        MEDIA_PLAYER_DOMAIN,
+        BINARY_SENSOR_DOMAIN,
+    ],
+)  # cv.ensure_list
+ALL_PRESENCE_DEVICE_PLATFORMS = [
+    MEDIA_PLAYER_DOMAIN,
+    BINARY_SENSOR_DOMAIN,
+    REMOTE_DOMAIN,
+    DEVICE_TRACKER_DOMAIN,
+]
+(
+    CONF_PRESENCE_SENSOR_DEVICE_CLASS,
+    DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS,
+) = (
+    "presence_sensor_device_class",
+    [
+        BinarySensorDeviceClass.MOTION,
+        BinarySensorDeviceClass.OCCUPANCY,
+        BinarySensorDeviceClass.PRESENCE,
+    ],
+)  # cv.ensure_list
+CONF_AGGREGATES_MIN_ENTITIES, DEFAULT_AGGREGATES_MIN_ENTITIES = (
+    "aggregates_min_entities",
+    2,
+)  # cv.positive_int
+(
+    CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+    DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+) = (
+    "aggregates_binary_sensor_device_classes",
+    [
+        BinarySensorDeviceClass.CONNECTIVITY,
+        BinarySensorDeviceClass.DOOR,
+        BinarySensorDeviceClass.GARAGE_DOOR,
+        BinarySensorDeviceClass.GAS,
+        BinarySensorDeviceClass.HEAT,
+        BinarySensorDeviceClass.LIGHT,
+        BinarySensorDeviceClass.LOCK,
+        BinarySensorDeviceClass.MOISTURE,
+        BinarySensorDeviceClass.MOTION,
+        BinarySensorDeviceClass.MOVING,
+        BinarySensorDeviceClass.OCCUPANCY,
+        BinarySensorDeviceClass.PRESENCE,
+        BinarySensorDeviceClass.PROBLEM,
+        BinarySensorDeviceClass.SAFETY,
+        BinarySensorDeviceClass.SMOKE,
+        BinarySensorDeviceClass.SOUND,
+        BinarySensorDeviceClass.TAMPER,
+        BinarySensorDeviceClass.UPDATE,
+        BinarySensorDeviceClass.VIBRATION,
+        BinarySensorDeviceClass.WINDOW,
+    ],
+)  # cv.ensure_list
+CONF_AGGREGATES_SENSOR_DEVICE_CLASSES, DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES = (
+    "aggregates_sensor_device_classes",
+    [
+        SensorDeviceClass.AQI,
+        SensorDeviceClass.ATMOSPHERIC_PRESSURE,
+        SensorDeviceClass.CO,
+        SensorDeviceClass.CO2,
+        SensorDeviceClass.CURRENT,
+        SensorDeviceClass.ENERGY,
+        SensorDeviceClass.ENERGY_STORAGE,
+        SensorDeviceClass.GAS,
+        SensorDeviceClass.HUMIDITY,
+        SensorDeviceClass.ILLUMINANCE,
+        SensorDeviceClass.IRRADIANCE,
+        SensorDeviceClass.MOISTURE,
+        SensorDeviceClass.NITROGEN_DIOXIDE,
+        SensorDeviceClass.NITROGEN_MONOXIDE,
+        SensorDeviceClass.NITROUS_OXIDE,
+        SensorDeviceClass.OZONE,
+        SensorDeviceClass.POWER,
+        SensorDeviceClass.PRESSURE,
+        SensorDeviceClass.SULPHUR_DIOXIDE,
+        SensorDeviceClass.TEMPERATURE,
+        SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+        SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    ],
+)  # cv.ensure_list
+CONF_AGGREGATES_ILLUMINANCE_THRESHOLD, DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD = (
+    "aggregates_illuminance_threshold",
+    0,  # 0 = disabled
+)  # cv.positive_int
+(
+    CONF_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
+    DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
+) = (
+    "aggregates_illuminance_threshold_hysteresis",
+    0,  # 0 = disabled
+)  # cv.positive_int
+
+CONF_HEALTH_SENSOR_DEVICE_CLASSES, DEFAULT_HEALTH_SENSOR_DEVICE_CLASSES = (
+    "health_binary_sensor_device_classes",
+    DISTRESS_SENSOR_CLASSES,
+)
+
+CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE = (
+    "reload_on_registry_change",
+    True,
+)
+
+CONF_IGNORE_DIAGNOSTIC_ENTITIES, DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES = (
+    "ignore_diagnostic_entities",
+    True,
+)
+
+
+CONF_CLEAR_TIMEOUT, DEFAULT_CLEAR_TIMEOUT, DEFAULT_CLEAR_TIMEOUT_META = (
+    "clear_timeout",
+    1,
+    0,
+)  # cv.positive_int
+CONF_NOTIFICATION_DEVICES, DEFAULT_NOTIFICATION_DEVICES = (
+    "notification_devices",
+    [],
+)  # cv.entity_ids
+CONF_NOTIFY_STATES, DEFAULT_NOTIFY_STATES = (
+    "notification_states",
+    [
+        AREA_STATE_EXTENDED,
+    ],
+)  # cv.ensure_list
+
+# Secondary states options
+CONF_DARK_ENTITY = "dark_entity"
+CONF_ACCENT_ENTITY = "accent_entity"
+CONF_SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT = (
+    "sleep_timeout",
+    DEFAULT_CLEAR_TIMEOUT,
+)  # int
+CONF_SLEEP_ENTITY = "sleep_entity"
+CONF_EXTENDED_TIME, DEFAULT_EXTENDED_TIME = "extended_time", 5  # cv.positive_int
+CONF_EXTENDED_TIMEOUT, DEFAULT_EXTENDED_TIMEOUT = "extended_timeout", 10  # int
+
+CONF_BLE_TRACKER_ENTITIES, DEFAULT_BLE_TRACKER_ENTITIES = (
+    "ble_tracker_entities",
+    [],
+)  # cv.entity_ids
+
+CONF_WASP_IN_A_BOX_DELAY, DEFAULT_WASP_IN_A_BOX_DELAY = (
+    "delay",
+    90,
+)  # cv.positive_int
+CONF_WASP_IN_A_BOX_WASP_TIMEOUT, DEFAULT_WASP_IN_A_BOX_WASP_TIMEOUT = (
+    "wasp_timeout",
+    0,  # 0 = disabled
+)  # cv.positive_int
+CONF_WASP_IN_A_BOX_WASP_DEVICE_CLASSES, DEFAULT_WASP_IN_A_BOX_WASP_DEVICE_CLASSES = (
+    "wasp_device_classes",
+    [BinarySensorDeviceClass.MOTION, BinarySensorDeviceClass.OCCUPANCY],
+)  # cv.ensure_list
+
+CONFIGURABLE_AREA_STATE_MAP = {
+    AREA_STATE_SLEEP: CONF_SLEEP_ENTITY,
+    AREA_STATE_DARK: CONF_DARK_ENTITY,
+    AREA_STATE_ACCENT: CONF_ACCENT_ENTITY,
+}
+
+# features
+CONF_FEATURE_CLIMATE_CONTROL = "climate_control"
+CONF_FEATURE_FAN_GROUPS = "fan_groups"
+CONF_FEATURE_MEDIA_PLAYER_GROUPS = "media_player_groups"
+CONF_FEATURE_LIGHT_GROUPS = "light_groups"
+CONF_FEATURE_SWITCH_GROUPS = "switch_groups"
+CONF_FEATURE_COVER_GROUPS = "cover_groups"
+CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER = "area_aware_media_player"
+CONF_FEATURE_AGGREGATION = "aggregates"
+CONF_FEATURE_HEALTH = "health"
+CONF_FEATURE_PRESENCE_HOLD = "presence_hold"
+CONF_FEATURE_BLE_TRACKERS = "ble_trackers"
+CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
+
+CONF_FEATURE_LIST_META = [
+    CONF_FEATURE_MEDIA_PLAYER_GROUPS,
+    CONF_FEATURE_LIGHT_GROUPS,
+    CONF_FEATURE_COVER_GROUPS,
+    CONF_FEATURE_CLIMATE_CONTROL,
+    CONF_FEATURE_AGGREGATION,
+    CONF_FEATURE_HEALTH,
+]
+
+CONF_FEATURE_LIST = CONF_FEATURE_LIST_META + [
+    CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
+    CONF_FEATURE_PRESENCE_HOLD,
+    CONF_FEATURE_BLE_TRACKERS,
+    CONF_FEATURE_FAN_GROUPS,
+    CONF_FEATURE_SWITCH_GROUPS,
+    CONF_FEATURE_WASP_IN_A_BOX,
+]
+
+CONF_FEATURE_LIST_GLOBAL = CONF_FEATURE_LIST_META
+
+# Presence Hold options
+CONF_PRESENCE_HOLD_TIMEOUT, DEFAULT_PRESENCE_HOLD_TIMEOUT = (
+    "presence_hold_timeout",
+    0,
+)  # cv.int
+
+# Climate control options
+CONF_CLIMATE_CONTROL_ENTITY_ID, DEFAULT_CLIMATE_CONTROL_ENTITY_ID = ("entity_id", None)
+CONF_CLIMATE_CONTROL_PRESET_CLEAR, DEFAULT_CLIMATE_CONTROL_PRESET_CLEAR = (
+    "preset_clear",
+    EMPTY_STRING,
+)
+CONF_CLIMATE_CONTROL_PRESET_OCCUPIED, DEFAULT_CLIMATE_CONTROL_PRESET_OCCUPIED = (
+    "preset_occupied",
+    EMPTY_STRING,
+)
+CONF_CLIMATE_CONTROL_PRESET_EXTENDED, DEFAULT_CLIMATE_CONTROL_PRESET_EXTENDED = (
+    "preset_extended",
+    EMPTY_STRING,
+)
+CONF_CLIMATE_CONTROL_PRESET_SLEEP, DEFAULT_CLIMATE_CONTROL_PRESET_SLEEP = (
+    "preset_sleep",
+    EMPTY_STRING,
+)
+(
+    CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+    DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+) = ("climate_occupancy_threshold", 10)
+
+# Fan Group options
+CONF_FAN_GROUPS_REQUIRED_STATE, DEFAULT_FAN_GROUPS_REQUIRED_STATE = (
+    "required_state",
+    AREA_STATE_EXTENDED,
+)
+CONF_FAN_GROUPS_TRACKED_DEVICE_CLASS, DEFAULT_FAN_GROUPS_TRACKED_DEVICE_CLASS = (
+    "tracked_device_class",
+    SensorDeviceClass.TEMPERATURE,
+)
+CONF_FAN_GROUPS_SETPOINT, DEFAULT_FAN_GROUPS_SETPOINT = ("setpoint", 0.0)
+FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS = [
+    SensorDeviceClass.TEMPERATURE,
+    SensorDeviceClass.HUMIDITY,
+    SensorDeviceClass.CO,
+    SensorDeviceClass.CO2,
+    SensorDeviceClass.AQI,
+    SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+    SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    SensorDeviceClass.NITROGEN_DIOXIDE,
+    SensorDeviceClass.NITROGEN_MONOXIDE,
+    SensorDeviceClass.GAS,
+    SensorDeviceClass.OZONE,
+    SensorDeviceClass.PM1,
+    SensorDeviceClass.PM10,
+    SensorDeviceClass.PM25,
+    SensorDeviceClass.SULPHUR_DIOXIDE,
+]
+
+# Config Schema
+
+AGGREGATE_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_AGGREGATES_MIN_ENTITIES, default=DEFAULT_AGGREGATES_MIN_ENTITIES
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+            default=DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
+            default=DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_AGGREGATES_ILLUMINANCE_THRESHOLD,
+            default=DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD,
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
+            default=DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+HEALTH_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_HEALTH_SENSOR_DEVICE_CLASSES,
+            default=DEFAULT_HEALTH_SENSOR_DEVICE_CLASSES,
+        ): cv.ensure_list,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+PRESENCE_HOLD_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_PRESENCE_HOLD_TIMEOUT, default=DEFAULT_PRESENCE_HOLD_TIMEOUT
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+BLE_TRACKER_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_BLE_TRACKER_ENTITIES, default=DEFAULT_BLE_TRACKER_ENTITIES
+        ): cv.entity_ids,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+WASP_IN_A_BOX_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_WASP_IN_A_BOX_DELAY, default=DEFAULT_WASP_IN_A_BOX_DELAY
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_WASP_IN_A_BOX_WASP_TIMEOUT, default=DEFAULT_WASP_IN_A_BOX_WASP_TIMEOUT
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_WASP_IN_A_BOX_WASP_DEVICE_CLASSES,
+            default=DEFAULT_WASP_IN_A_BOX_WASP_DEVICE_CLASSES,
+        ): cv.ensure_list,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+CLIMATE_CONTROL_FEATURE_SCHEMA_ENTITY_SELECT = vol.Schema(
+    {
+        vol.Required(CONF_CLIMATE_CONTROL_ENTITY_ID): cv.entity_id,
+    }
+)
+CLIMATE_CONTROL_FEATURE_SCHEMA_PRESET_SELECT = vol.Schema(
+    {
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_CLEAR,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_CLEAR,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_OCCUPIED,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_SLEEP,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_SLEEP,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_EXTENDED,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+            default=DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+CLIMATE_CONTROL_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_CLIMATE_CONTROL_ENTITY_ID): cv.entity_id,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_CLEAR,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_CLEAR,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_OCCUPIED,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_SLEEP,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_SLEEP,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
+            default=DEFAULT_CLIMATE_CONTROL_PRESET_EXTENDED,
+        ): str,
+        vol.Optional(
+            CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+            default=DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+FAN_GROUP_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_FAN_GROUPS_REQUIRED_STATE, default=DEFAULT_FAN_GROUPS_REQUIRED_STATE
+        ): str,
+        vol.Optional(
+            CONF_FAN_GROUPS_TRACKED_DEVICE_CLASS,
+            default=DEFAULT_FAN_GROUPS_TRACKED_DEVICE_CLASS,
+        ): str,
+        vol.Optional(
+            CONF_FAN_GROUPS_SETPOINT, default=DEFAULT_FAN_GROUPS_SETPOINT
+        ): float,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_OVERHEAD_LIGHTS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_OVERHEAD_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_OCCUPIED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+        vol.Optional(CONF_OVERHEAD_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
+        ),
+        vol.Optional(
+            CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+        vol.Optional(CONF_SLEEP_LIGHTS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_SLEEP_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_DISABLED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+        vol.Optional(CONF_SLEEP_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
+        ),
+        vol.Optional(
+            CONF_SLEEP_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+        vol.Optional(CONF_ACCENT_LIGHTS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_ACCENT_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_DISABLED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+        vol.Optional(CONF_ACCENT_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
+        ),
+        vol.Optional(
+            CONF_ACCENT_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+        vol.Optional(CONF_TASK_LIGHTS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_TASK_LIGHTS_ACTIVATION,
+            default=LIGHT_GROUP_ACTIVATION_DISABLED,
+        ): vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+        vol.Optional(CONF_TASK_LIGHTS_BLOCKING_STATES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]
+        ),
+        vol.Optional(
+            CONF_TASK_LIGHTS_BRIGHTNESS,
+            default=LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        ): vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+SWITCH_GROUP_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_SLEEP_SWITCHES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_SLEEP_SWITCHES_STATES, default=[]): cv.ensure_list,
+        vol.Optional(
+            CONF_SLEEP_SWITCHES_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_SLEEP_SWITCHES_ACTION, default=SWITCH_GROUP_ACTION_TURN_ON
+        ): vol.In(SWITCH_GROUP_ACTION_OPTIONS),
+        vol.Optional(CONF_TASK_SWITCHES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_TASK_SWITCHES_STATES, default=[]): cv.ensure_list,
+        vol.Optional(
+            CONF_TASK_SWITCHES_ACT_ON, default=DEFAULT_LIGHT_GROUP_ACT_ON
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_TASK_SWITCHES_ACTION, default=SWITCH_GROUP_ACTION_TURN_ON
+        ): vol.In(SWITCH_GROUP_ACTION_OPTIONS),
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+AREA_AWARE_MEDIA_PLAYER_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_NOTIFICATION_DEVICES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_NOTIFY_STATES, default=DEFAULT_NOTIFY_STATES): cv.ensure_list,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+ALL_FEATURES = set(CONF_FEATURE_LIST) | set(CONF_FEATURE_LIST_GLOBAL)
+
+CONFIGURABLE_FEATURES = {
+    CONF_FEATURE_LIGHT_GROUPS: LIGHT_GROUP_FEATURE_SCHEMA,
+    CONF_FEATURE_SWITCH_GROUPS: SWITCH_GROUP_FEATURE_SCHEMA,
+    CONF_FEATURE_CLIMATE_CONTROL: CLIMATE_CONTROL_FEATURE_SCHEMA,
+    CONF_FEATURE_FAN_GROUPS: FAN_GROUP_FEATURE_SCHEMA,
+    CONF_FEATURE_AGGREGATION: AGGREGATE_FEATURE_SCHEMA,
+    CONF_FEATURE_HEALTH: HEALTH_FEATURE_SCHEMA,
+    CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER: AREA_AWARE_MEDIA_PLAYER_FEATURE_SCHEMA,
+    CONF_FEATURE_PRESENCE_HOLD: PRESENCE_HOLD_FEATURE_SCHEMA,
+    CONF_FEATURE_BLE_TRACKERS: BLE_TRACKER_FEATURE_SCHEMA,
+    CONF_FEATURE_WASP_IN_A_BOX: WASP_IN_A_BOX_FEATURE_SCHEMA,
+}
+
+NON_CONFIGURABLE_FEATURES_META = [
+    CONF_FEATURE_LIGHT_GROUPS,
+    CONF_FEATURE_FAN_GROUPS,
+]
+
+NON_CONFIGURABLE_FEATURES = {
+    feature: {} for feature in ALL_FEATURES if feature not in CONFIGURABLE_FEATURES
+}
+
+FEATURES_SCHEMA = vol.Schema(
+    {
+        vol.Optional(feature): feature_schema
+        for feature, feature_schema in chain(
+            CONFIGURABLE_FEATURES.items(), NON_CONFIGURABLE_FEATURES.items()
+        )
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+SECONDARY_STATES_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_DARK_ENTITY, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(CONF_ACCENT_ENTITY, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(CONF_SLEEP_ENTITY, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(
+            CONF_SLEEP_TIMEOUT, default=DEFAULT_SLEEP_TIMEOUT
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_EXTENDED_TIME, default=DEFAULT_EXTENDED_TIME
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_EXTENDED_TIMEOUT, default=DEFAULT_EXTENDED_TIMEOUT
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+CONF_SECONDARY_STATES_CALCULATION_MODE, DEFAULT_SECONDARY_STATES_CALCULATION_MODE = (
+    "calculation_mode",
+    CalculationMode.MAJORITY,
+)
+
+META_AREA_SECONDARY_STATES_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_SLEEP_TIMEOUT, default=DEFAULT_SLEEP_TIMEOUT
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_EXTENDED_TIME, default=DEFAULT_EXTENDED_TIME
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_EXTENDED_TIMEOUT, default=DEFAULT_EXTENDED_TIMEOUT
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_SECONDARY_STATES_CALCULATION_MODE,
+            default=DEFAULT_SECONDARY_STATES_CALCULATION_MODE,
+        ): vol.In(CalculationMode),
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+
+# Basic Area Options Schema
+REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_TYPE, default=DEFAULT_TYPE): vol.In(
+            [AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR]
+        ),
+        vol.Optional(CONF_INCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_PRESENCE_CONTROL_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
+        ): cv.boolean,
+        vol.Optional(
+            CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
+        ): cv.boolean,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+META_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_TYPE, default=AREA_TYPE_META): AREA_TYPE_META,
+        vol.Optional(CONF_ENABLED_FEATURES, default={}): FEATURES_SCHEMA,
+        vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
+        ): cv.boolean,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+# Presence Tracking Schema
+REGULAR_AREA_PRESENCE_TRACKING_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_PRESENCE_DEVICE_PLATFORMS,
+            default=DEFAULT_PRESENCE_DEVICE_PLATFORMS,
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_PRESENCE_SENSOR_DEVICE_CLASS,
+            default=DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS,
+        ): cv.ensure_list,
+        vol.Optional(CONF_KEEP_ONLY_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_CLEAR_TIMEOUT, default=DEFAULT_CLEAR_TIMEOUT
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+META_AREA_PRESENCE_TRACKING_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_CLEAR_TIMEOUT, default=DEFAULT_CLEAR_TIMEOUT_META
+        ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+# Adaptive Areas
+REGULAR_AREA_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_TYPE, default=DEFAULT_TYPE): vol.In(
+            [AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR]
+        ),
+        vol.Optional(CONF_INCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_PRESENCE_CONTROL_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
+        ): cv.boolean,
+        vol.Optional(
+            CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
+        ): cv.boolean,
+        vol.Optional(CONF_KEEP_ONLY_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_PRESENCE_DEVICE_PLATFORMS,
+            default=DEFAULT_PRESENCE_DEVICE_PLATFORMS,
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_PRESENCE_SENSOR_DEVICE_CLASS,
+            default=DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS,
+        ): cv.ensure_list,
+        vol.Optional(
+            CONF_CLEAR_TIMEOUT, default=DEFAULT_CLEAR_TIMEOUT
+        ): cv.positive_int,
+        vol.Optional(CONF_ENABLED_FEATURES, default={}): FEATURES_SCHEMA,
+        vol.Optional(CONF_SECONDARY_STATES, default={}): SECONDARY_STATES_SCHEMA,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+META_AREA_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_TYPE, default=AREA_TYPE_META): AREA_TYPE_META,
+        vol.Optional(CONF_ENABLED_FEATURES, default={}): FEATURES_SCHEMA,
+        vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
+        ): cv.boolean,
+        vol.Optional(
+            CONF_CLEAR_TIMEOUT, default=DEFAULT_CLEAR_TIMEOUT_META
+        ): cv.positive_int,
+        vol.Optional(
+            CONF_SECONDARY_STATES, default={}
+        ): META_AREA_SECONDARY_STATES_SCHEMA,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+AREA_SCHEMA = vol.Schema(
+    vol.Any(REGULAR_AREA_SCHEMA, META_AREA_SCHEMA), extra=vol.REMOVE_EXTRA
+)
+
+_DOMAIN_SCHEMA = vol.Schema(
+    {cv.slug: vol.Any(AREA_SCHEMA, None)}, extra=vol.REMOVE_EXTRA
+)
+
+# VALIDATION_TUPLES
+OPTIONS_AREA = [
+    (CONF_TYPE, DEFAULT_TYPE, vol.In([AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR])),
+    (CONF_INCLUDE_ENTITIES, [], cv.entity_ids),
+    (CONF_EXCLUDE_ENTITIES, [], cv.entity_ids),
+    (CONF_PRESENCE_CONTROL_ENTITIES, [], cv.entity_ids),
+    (CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE, cv.boolean),
+    (CONF_IGNORE_DIAGNOSTIC_ENTITIES, DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES, cv.boolean),
+]
+OPTIONS_PRESENCE_TRACKING = [
+    (
+        CONF_PRESENCE_DEVICE_PLATFORMS,
+        DEFAULT_PRESENCE_DEVICE_PLATFORMS,
+        cv.ensure_list,
+    ),
+    (
+        CONF_PRESENCE_SENSOR_DEVICE_CLASS,
+        DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS,
+        cv.ensure_list,
+    ),
+    (CONF_KEEP_ONLY_ENTITIES, [], cv.entity_ids),
+    (CONF_CLEAR_TIMEOUT, DEFAULT_CLEAR_TIMEOUT, int),
+]
+
+OPTIONS_AREA_META = [
+    (CONF_EXCLUDE_ENTITIES, [], cv.entity_ids),
+    (CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE, cv.boolean),
+]
+OPTIONS_PRESENCE_TRACKING_META = [
+    (CONF_CLEAR_TIMEOUT, DEFAULT_CLEAR_TIMEOUT, int),
+]
+
+OPTIONS_SECONDARY_STATES = [
+    (CONF_DARK_ENTITY, "", cv.entity_id),
+    (CONF_ACCENT_ENTITY, "", cv.entity_id),
+    (CONF_SLEEP_ENTITY, "", cv.entity_id),
+    (CONF_SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT, int),
+    (CONF_EXTENDED_TIME, DEFAULT_EXTENDED_TIME, int),
+    (CONF_EXTENDED_TIMEOUT, DEFAULT_EXTENDED_TIMEOUT, int),
+]
+
+OPTIONS_SECONDARY_STATES_META = [
+    (CONF_SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT, int),
+    (CONF_EXTENDED_TIME, DEFAULT_EXTENDED_TIME, int),
+    (CONF_EXTENDED_TIMEOUT, DEFAULT_EXTENDED_TIMEOUT, int),
+    (
+        CONF_SECONDARY_STATES_CALCULATION_MODE,
+        DEFAULT_SECONDARY_STATES_CALCULATION_MODE,
+        str,
+    ),
+]
+
+OPTIONS_LIGHT_GROUP = [
+    (CONF_OVERHEAD_LIGHTS, [], cv.entity_ids),
+    (
+        CONF_OVERHEAD_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_OCCUPIED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
+    (
+        CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
+        [],
+        vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
+    ),
+    (
+        CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
+    (CONF_SLEEP_LIGHTS, [], cv.entity_ids),
+    (
+        CONF_SLEEP_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_DISABLED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
+    (
+        CONF_SLEEP_LIGHTS_BLOCKING_STATES,
+        [],
+        vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
+    ),
+    (
+        CONF_SLEEP_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
+    (CONF_ACCENT_LIGHTS, [], cv.entity_ids),
+    (
+        CONF_ACCENT_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_DISABLED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
+    (
+        CONF_ACCENT_LIGHTS_BLOCKING_STATES,
+        [],
+        vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
+    ),
+    (
+        CONF_ACCENT_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
+    (CONF_TASK_LIGHTS, [], cv.entity_ids),
+    (
+        CONF_TASK_LIGHTS_ACTIVATION,
+        LIGHT_GROUP_ACTIVATION_DISABLED,
+        vol.In(LIGHT_GROUP_ACTIVATION_OPTIONS),
+    ),
+    (
+        CONF_TASK_LIGHTS_BLOCKING_STATES,
+        [],
+        vol.All(cv.ensure_list, [vol.In(LIGHT_GROUP_BLOCKING_STATE_OPTIONS)]),
+    ),
+    (
+        CONF_TASK_LIGHTS_BRIGHTNESS,
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        vol.In(LIGHT_GROUP_BRIGHTNESS_OPTIONS),
+    ),
+]
+
+OPTIONS_SWITCH_GROUP = [
+    (CONF_SLEEP_SWITCHES, [], cv.entity_ids),
+    (CONF_SLEEP_SWITCHES_STATES, [], cv.ensure_list),
+    (CONF_SLEEP_SWITCHES_ACT_ON, DEFAULT_LIGHT_GROUP_ACT_ON, cv.ensure_list),
+    (
+        CONF_SLEEP_SWITCHES_ACTION,
+        SWITCH_GROUP_ACTION_TURN_ON,
+        vol.In(SWITCH_GROUP_ACTION_OPTIONS),
+    ),
+    (CONF_TASK_SWITCHES, [], cv.entity_ids),
+    (CONF_TASK_SWITCHES_STATES, [], cv.ensure_list),
+    (CONF_TASK_SWITCHES_ACT_ON, DEFAULT_LIGHT_GROUP_ACT_ON, cv.ensure_list),
+    (
+        CONF_TASK_SWITCHES_ACTION,
+        SWITCH_GROUP_ACTION_TURN_ON,
+        vol.In(SWITCH_GROUP_ACTION_OPTIONS),
+    ),
+]
+
+OPTIONS_AGGREGATES = [
+    (CONF_AGGREGATES_MIN_ENTITIES, DEFAULT_AGGREGATES_MIN_ENTITIES, int),
+    (
+        CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+        DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+        cv.ensure_list,
+    ),
+    (
+        CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
+        DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
+        cv.ensure_list,
+    ),
+    (
+        CONF_AGGREGATES_ILLUMINANCE_THRESHOLD,
+        DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD,
+        int,
+    ),
+    (
+        CONF_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
+        DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
+        int,
+    ),
+]
+
+OPTIONS_HEALTH_SENSOR = [
+    (
+        CONF_HEALTH_SENSOR_DEVICE_CLASSES,
+        DEFAULT_HEALTH_SENSOR_DEVICE_CLASSES,
+        cv.ensure_list,
+    ),
+]
+
+OPTIONS_PRESENCE_HOLD = [
+    (CONF_PRESENCE_HOLD_TIMEOUT, DEFAULT_PRESENCE_HOLD_TIMEOUT, int),
+]
+
+OPTIONS_BLE_TRACKERS = [
+    (CONF_BLE_TRACKER_ENTITIES, DEFAULT_BLE_TRACKER_ENTITIES, cv.entity_ids),
+]
+
+OPTIONS_WASP_IN_A_BOX = [
+    (CONF_WASP_IN_A_BOX_DELAY, DEFAULT_WASP_IN_A_BOX_DELAY, cv.positive_int),
+    (
+        CONF_WASP_IN_A_BOX_WASP_TIMEOUT,
+        DEFAULT_WASP_IN_A_BOX_WASP_TIMEOUT,
+        cv.positive_int,
+    ),
+    (
+        CONF_WASP_IN_A_BOX_WASP_DEVICE_CLASSES,
+        DEFAULT_WASP_IN_A_BOX_WASP_DEVICE_CLASSES,
+        vol.In(WASP_IN_A_BOX_WASP_DEVICE_CLASSES),
+    ),
+]
+OPTIONS_CLIMATE_CONTROL_ENTITY_SELECT = [
+    (CONF_CLIMATE_CONTROL_ENTITY_ID, None, cv.entity_id),
+]
+OPTIONS_CLIMATE_CONTROL = [
+    (CONF_CLIMATE_CONTROL_PRESET_CLEAR, DEFAULT_CLIMATE_CONTROL_PRESET_CLEAR, str),
+    (
+        CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
+        DEFAULT_CLIMATE_CONTROL_PRESET_OCCUPIED,
+        str,
+    ),
+    (CONF_CLIMATE_CONTROL_PRESET_SLEEP, DEFAULT_CLIMATE_CONTROL_PRESET_SLEEP, str),
+    (
+        CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
+        DEFAULT_CLIMATE_CONTROL_PRESET_EXTENDED,
+        str,
+    ),
+    (
+        CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+        DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+        int,
+    ),
+]
+
+
+OPTIONS_FAN_GROUP = [
+    (CONF_FAN_GROUPS_REQUIRED_STATE, DEFAULT_FAN_GROUPS_REQUIRED_STATE, str),
+    (
+        CONF_FAN_GROUPS_TRACKED_DEVICE_CLASS,
+        DEFAULT_FAN_GROUPS_TRACKED_DEVICE_CLASS,
+        str,
+    ),
+    (CONF_FAN_GROUPS_SETPOINT, DEFAULT_FAN_GROUPS_SETPOINT, float),
+]
+
+OPTIONS_AREA_AWARE_MEDIA_PLAYER = [
+    (CONF_NOTIFICATION_DEVICES, [], cv.entity_ids),
+    (CONF_NOTIFY_STATES, DEFAULT_NOTIFY_STATES, cv.ensure_list),
+]
+
+# Config Flow filters
+CONFIG_FLOW_ENTITY_FILTER = [
+    BINARY_SENSOR_DOMAIN,
+    SENSOR_DOMAIN,
+    SWITCH_DOMAIN,
+    INPUT_BOOLEAN_DOMAIN,
+]
+CONFIG_FLOW_ENTITY_FILTER_BOOL = [
+    BINARY_SENSOR_DOMAIN,
+    SWITCH_DOMAIN,
+    INPUT_BOOLEAN_DOMAIN,
+]
+CONFIG_FLOW_ENTITY_FILTER_EXT = CONFIG_FLOW_ENTITY_FILTER + [
+    LIGHT_DOMAIN,
+    MEDIA_PLAYER_DOMAIN,
+    CLIMATE_DOMAIN,
+    SUN_DOMAIN,
+    FAN_DOMAIN,
+]

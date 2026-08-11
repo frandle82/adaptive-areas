@@ -1,0 +1,30 @@
+{
+  "domain": "adaptive_areas",
+  "name": "Adaptive Areas",
+  "after_dependencies": [
+    "template",
+    "group",
+    "fan",
+    "climate",
+    "binary_sensor",
+    "sensor",
+    "light",
+    "media_player",
+    "device_tracker",
+    "discovery",
+    "switch",
+    "mqtt",
+    "zwavejs",
+    "zigbee2mqtt"
+  ],
+  "codeowners": [
+    "@frandle82"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/frandle82/adaptive-areas/wiki",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/frandle82/adaptive-areas/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

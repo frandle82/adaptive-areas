@@ -4,8 +4,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.const import ATTR_NAME
 
-from custom_components.magic_areas.config_flow import OptionsFlowHandler
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.config_flow import OptionsFlowHandler
+from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
     AREA_STATE_EXTENDED,
     CONF_OVERHEAD_LIGHTS_ACTIVATION,

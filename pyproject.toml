@@ -8,7 +8,7 @@ profile = "black"
 # will group `import x` and `from x import` of the same module.
 force_sort_within_sections = true
 known_first_party = ["homeassistant", "tests"]
-known_local_folder = ["custom_components.magic_areas"]
+known_local_folder = ["custom_components.adaptive_areas"]
 forced_separate = ["tests"]
 combine_as_imports = true
 
@@ -153,6 +153,7 @@ tests = ["B108", "B306", "B307", "B313", "B314", "B315", "B316", "B317", "B318",
 [tool.ruff]
 target-version = "py314"
 
+[tool.ruff.lint]
 select = [
     "B007",    # Loop control variable {name} not used within loop body
     "B014",    # Exception handler with duplicate exception
@@ -189,15 +190,15 @@ ignore = [
     "E731", # do not assign a lambda expression, use a def
 ]
 
-[tool.ruff.flake8-pytest-style]
+[tool.ruff.lint.flake8-pytest-style]
 fixture-parentheses = false
 
-[tool.ruff.pyupgrade]
+[tool.ruff.lint.pyupgrade]
 keep-runtime-typing = true
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # Allow scripts to write to stdout
-"script/*" = ["T20"]
+"scripts/*" = ["T20"]
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 25

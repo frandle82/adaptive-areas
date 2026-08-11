@@ -1,1 +1,1 @@
-"""Tests for Magic Areas."""
+"""Tests for Adaptive Areas."""

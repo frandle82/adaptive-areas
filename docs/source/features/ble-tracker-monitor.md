@@ -2,7 +2,7 @@
 
 The **BLE Tracker Monitor** feature streamlines presence detection using **text-based BLE sensors**, such as those from [Bermuda](https://github.com/agittins/bermuda), [ESPresence](https://espresense.com/), or [Room Assistant](https://github.com/mKeRix/room-assistant).
 
-Instead of manually creating [template binary sensors](https://www.home-assistant.io/integrations/template/) for each area, Magic Areas does it **automatically**.
+Instead of manually creating [template binary sensors](https://www.home-assistant.io/integrations/template/) for each area, Adaptive Areas does it **automatically**.
 
 ## ⚙️ Configuration Options
 
@@ -12,7 +12,7 @@ Instead of manually creating [template binary sensors](https://www.home-assistan
 
 ## 🚀 How It Works
 
-When you add a BLE tracker sensor to the area config, Magic Areas will:
+When you add a BLE tracker sensor to the area config, Adaptive Areas will:
 
 1. **Create a binary presence sensor** automatically.
 2. **Check its state** against the area’s name, ID, or slug (all compared in lowercase).
@@ -41,7 +41,7 @@ This way, their presence signal is only *added* to the logic and not used as the
 ## 💡 Example Use Case
 
 Imagine your Bermuda tracker reports `"living_room"` when it detects someone there.
-Magic Areas will:
+Adaptive Areas will:
 
 - Detect that `living_room` matches the area’s slug
 - Set the Living Room area to `occupied`

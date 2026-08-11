@@ -17,7 +17,7 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_ON, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_ACCENT_LIGHTS,
     CONF_ACCENT_LIGHTS_ACT_ON,
     CONF_ACCENT_LIGHTS_STATES,
@@ -276,13 +276,11 @@ async def test_light_group_basic(
 
     mock_light_entity_id = entities_light_one[0].entity_id
     mock_motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
-    area_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
+    area_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
 
     # Test mock entity created
     mock_light_state = hass.states.get(mock_light_entity_id)
@@ -355,11 +353,9 @@ async def test_light_group_blocking_state_turns_off(
     _setup_integration_light_groups_advanced,
 ) -> None:
     """Test that a configured blocking state turns a group off."""
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
 
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
@@ -407,11 +403,9 @@ async def test_sleep_activation_does_not_turn_on_in_clear_area(
     ][CONF_OVERHEAD_LIGHTS_STATES] = [AreaStates.SLEEP]
     await init_integration(hass, [light_groups_advanced_config_entry])
 
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
     sleep_sensor_entity_id = entities_light_secondary_states[0].entity_id
 
@@ -435,11 +429,9 @@ async def test_light_group_turns_off_when_bright(
     _setup_integration_light_groups_advanced,
 ) -> None:
     """Test that turn_off_when_bright actively turns lights off."""
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
 
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
@@ -479,11 +471,9 @@ async def test_light_group_turns_back_on_when_dark_again(
     _setup_integration_light_groups_advanced,
 ) -> None:
     """Test lights recover when transitioning from bright back to dark."""
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
 
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
@@ -534,11 +524,9 @@ async def test_light_group_combined_brightness_behavior(
     ][CONF_OVERHEAD_LIGHTS_BRIGHTNESS] = LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF
     await init_integration(hass, [light_groups_bright_config_entry])
 
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
     light_level_entity_id = entities_light_secondary_states[1].entity_id
@@ -578,11 +566,9 @@ async def test_light_group_stays_on_when_bright_if_not_configured(
     _setup_integration_light_groups_bright,
 ) -> None:
     """Test bright transitions do not turn off lights unless configured."""
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
 
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
@@ -620,11 +606,9 @@ async def test_light_group_does_not_turn_on_when_occupied_and_bright(
     _setup_integration_light_groups_bright,
 ) -> None:
     """Test darkness-required groups stay off when startup state is bright."""
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
 
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
@@ -660,11 +644,9 @@ async def test_light_group_can_turn_on_when_bright_if_darkness_not_required(
     ][CONF_OVERHEAD_LIGHTS_REQUIRE_DARK] = False
     await init_integration(hass, [light_groups_bright_config_entry])
 
-    light_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
     )
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
     light_level_entity_id = entities_light_secondary_states[1].entity_id
@@ -693,13 +675,11 @@ async def test_light_group_all_contains_valid_child_ids_for_multiple_groups(
     del entities_light_two
 
     all_lights_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_all_lights"
+        f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_all_lights"
     )
-    overhead_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
-    )
+    overhead_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     accent_group_entity_id = (
-        f"{LIGHT_DOMAIN}.magic_areas_light_groups_{DEFAULT_MOCK_AREA}_accent_lights"
+        f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_accent_lights"
     )
 
     all_lights_group_state = hass.states.get(all_lights_group_entity_id)

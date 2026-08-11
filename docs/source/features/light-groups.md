@@ -1,6 +1,6 @@
 # 💡 Light Groups
 
-The **Light Groups** feature in Magic Areas helps you organize and automate your lights intelligently and contextually—starting with automatic [light group](https://www.home-assistant.io/integrations/light.group/) creation and adding state-aware behavior for smarter automation.
+The **Light Groups** feature in Adaptive Areas helps you organize and automate your lights intelligently and contextually—starting with automatic [light group](https://www.home-assistant.io/integrations/light.group/) creation and adding state-aware behavior for smarter automation.
 
 ## ✅ Basic Functionality
 
@@ -22,7 +22,7 @@ Each of these groups—when populated—automatically gets a dedicated `light.gr
 They can also be linked to an area's **secondary states** (e.g., `sleep`, `accented`, `extended`) for smarter automation.
 
 !!! warning
-    🧠 To enable automation, turn on the `Light Control ($Area)` switch created by Magic Areas.
+    🧠 To enable automation, turn on the `Light Control ($Area)` switch created by Adaptive Areas.
 
 ## ⚙️ Configuration Options
 
@@ -48,7 +48,7 @@ They can also be linked to an area's **secondary states** (e.g., `sleep`, `accen
 
 ## 🔁 Automatic Control
 
-Magic Areas can automatically turn lights on or off based on:
+Adaptive Areas can automatically turn lights on or off based on:
 
 - **Primary presence state**: `occupied` or `clear`
 - **Secondary states**: `dark`, `extended`, `sleep`, etc.
@@ -108,10 +108,10 @@ Light groups are tied to area states:
 
 ## 🎚️ Brightness and Color Temperature
 
-Magic Areas **does not control brightness or color temperature**.
+Adaptive Areas **does not control brightness or color temperature**.
 Use integrations like:
 
 - [Adaptive Lighting](https://github.com/basnijholt/adaptive-lighting/)
 - [Circadian Lighting](https://github.com/claytonjn/hass-circadian_lighting)
 
-These handle brightness/temperature better and are fully compatible with Magic Areas.
+These handle brightness/temperature better and are fully compatible with Adaptive Areas.

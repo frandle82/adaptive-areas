@@ -17,7 +17,7 @@ Add this to your `configuration.yaml`:
 logger:
   default: warning
   logs:
-    custom_components.magic_areas: info
+    custom_components.adaptive_areas: info
 ```
 
 ### 🎯 Debug a Specific Feature
@@ -28,27 +28,27 @@ If you’re debugging a specific platform (like `media_player` for [Media Player
 logger:
   default: warning
   logs:
-    custom_components.magic_areas.media_player: debug
+    custom_components.adaptive_areas.media_player: debug
 ```
 
 ### 🧱 Debug Area Initialization / Load Issues
 
-To debug area loading and avoid noisy output from other features, you can enable debug globally for `magic_areas` while silencing the individual platforms:
+To debug area loading and avoid noisy output from other features, you can enable debug globally for `adaptive_areas` while silencing the individual platforms:
 
 ```yaml
 logger:
   default: warn
   logs:
-    custom_components.magic_areas: debug
-    custom_components.magic_areas.base: warn
-    custom_components.magic_areas.binary_sensor: warn
-    custom_components.magic_areas.light: warn
-    custom_components.magic_areas.climate: warn
-    custom_components.magic_areas.media_player: warn
-    custom_components.magic_areas.sensor: warn
-    custom_components.magic_areas.switch: warn
-    custom_components.magic_areas.cover: warn
-    custom_components.magic_areas.config_flow: warn
+    custom_components.adaptive_areas: debug
+    custom_components.adaptive_areas.base: warn
+    custom_components.adaptive_areas.binary_sensor: warn
+    custom_components.adaptive_areas.light: warn
+    custom_components.adaptive_areas.climate: warn
+    custom_components.adaptive_areas.media_player: warn
+    custom_components.adaptive_areas.sensor: warn
+    custom_components.adaptive_areas.switch: warn
+    custom_components.adaptive_areas.cover: warn
+    custom_components.adaptive_areas.config_flow: warn
 ```
 
 Once enabled, restart Home Assistant and check the **Logs** section under **Developer Tools**. Most errors are self-explanatory.
@@ -57,7 +57,7 @@ Once enabled, restart Home Assistant and check the **Logs** section under **Deve
 
 ### 🚫 Entity Not Being Added to an Area
 
-If an entity doesn’t seem to be included in a Magic Area:
+If an entity doesn’t seem to be included in a Adaptive Area:
 
 1. Go to **Developer Tools > States** or use the **Entity Filter** menu.
 2. Check that the entity:
@@ -65,15 +65,15 @@ If an entity doesn’t seem to be included in a Magic Area:
     - ✅ (If it’s a `binary_sensor`) Has a `device_class` that is [supported for presence sensing](../concepts/presence-sensing.md/#default-binary_sensor-device-classes)
     - ✅ Is actually assigned to an area in Home Assistant
 
-If any of the above isn’t true, the entity may not be recognized by Magic Areas. Use `Include Entities` in the configuration to override it if needed.
+If any of the above isn’t true, the entity may not be recognized by Adaptive Areas. Use `Include Entities` in the configuration to override it if needed.
 
 ## 🆘 Still Stuck?
 
 No worries! You can:
 
-- Open a [GitHub issue](https://github.com/jseidl/magic-areas/issues) with:
+- Open a [GitHub issue](https://github.com/frandle82/adaptive-areas/issues) with:
     - A **clear description** of your setup and what’s going wrong
     - A **log excerpt** showing the problem (please format it!)
-- Join our [Discord community](https://discord.gg/3yu2F7bSaT) for help from other Magic Area users
+- Ask in [GitHub Discussions](https://github.com/frandle82/adaptive-areas/discussions) for help from other Adaptive Areas users
 
 We’re happy to help you get everything working! 💫

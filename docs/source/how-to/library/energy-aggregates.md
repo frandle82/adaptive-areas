@@ -13,7 +13,7 @@ Every time you add a smart plug, a lamp, or any energy-reporting device, you’d
 - add it to the Energy Dashboard manually
 
 With **Aggregation**, you don’t need to do that.
-When a device is assigned to an area, it’s automatically included in that area’s aggregate sensor.magic_areas_aggraggregate_egates_
+When a device is assigned to an area, it’s automatically included in that area’s aggregate sensor.adaptive_areas_aggraggregate_egates_
 
 Your dashboard stays up to date on its own.
 
@@ -22,15 +22,15 @@ Your dashboard stays up to date on its own.
 1. Make sure **Aggregation** is enabled.
 2. Ensure your devices expose energy consumption sensors.
 3. Aggregates will appear automatically, e.g.:
-   - `sensor.magic_areas_aggregates_living_room_aggregate_energy`
-   - `sensor.magic_areas_aggregates_kitchen_aggregate_energy`
-4. Add these Magic Area device to the Area (to enable hierarchical view). Magic Areas will not include it's own entities on its logic so it's safe.
+   - `sensor.adaptive_areas_aggregates_living_room_aggregate_energy`
+   - `sensor.adaptive_areas_aggregates_kitchen_aggregate_energy`
+4. Add these Adaptive Area device to the Area (to enable hierarchical view). Adaptive Areas will not include it's own entities on its logic so it's safe.
 5. In **Settings → Dashboards → Energy**, select these aggregate sensors instead of individual devices.
 
 From this point on, any new energy-reporting device you add to an area is included automatically.
 
 !!! tip
-   You can still individually track devices, just select the Magic Area energy sensor as the `Upstream device` for those sensors in the energy configuration. This will visually let you know if you have untracked devices as Magic Areas' energy sensor will automatically start counting them and will show up on your dashboard as "untracked consumption".
+   You can still individually track devices, just select the Adaptive Area energy sensor as the `Upstream device` for those sensors in the energy configuration. This will visually let you know if you have untracked devices as Adaptive Areas' energy sensor will automatically start counting them and will show up on your dashboard as "untracked consumption".
 
 ## 👀 Things to keep in mind
 

@@ -14,7 +14,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     ATTR_PRESENCE_SENSORS,
     ATTR_STATES,
     CONF_ACCENT_ENTITY,
@@ -132,7 +132,7 @@ async def test_area_primary_state_change(
 
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
     area_sensor_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_kitchen_area_state"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
     )
 
     # Validate the right enties were created.
@@ -178,7 +178,7 @@ async def test_area_secondary_state_change(
     """Test secondary area state changes."""
 
     area_sensor_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_kitchen_area_state"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
     )
 
     secondary_state_map = {
@@ -247,7 +247,7 @@ async def test_keep_only_sensors(
     motion_sensor_entity_id = entities_binary_sensor_motion_multiple[0].entity_id
     flappy_sensor_entity_id = entities_binary_sensor_motion_multiple[1].entity_id
     area_sensor_entity_id = (
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_kitchen_area_state"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
     )
 
     # Validate the right enties were created.

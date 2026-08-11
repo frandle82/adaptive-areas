@@ -20,7 +20,7 @@ async def test_init_default_config(
 
     # Validate the right enties were created.
     area_binary_sensor = hass.states.get(
-        f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_kitchen_area_state"
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
     )
 
     assert_state(area_binary_sensor, STATE_OFF)

@@ -1,10 +1,10 @@
 # 🏠 Area States
 
-Magic Areas’ primary goal is to understand and track an **area’s presence state** — that is, whether someone is currently there. But it doesn’t stop there: Magic Areas also monitors a set of **secondary states** that enrich how automations behave in each area.
+Adaptive Areas’ primary goal is to understand and track an **area’s presence state** — that is, whether someone is currently there. But it doesn’t stop there: Adaptive Areas also monitors a set of **secondary states** that enrich how automations behave in each area.
 
 ## 🟢 Presence State
 
-For each area you make it magic, Magic Areas does the following:
+For each area you make it magic, Adaptive Areas does the following:
 
 1. Scans the area for all associated entities.
 2. Identifies which entities are valid **presence sensors** (see: [Presence Sensing](presence-sensing.md)).
@@ -14,16 +14,16 @@ For each area you make it magic, Magic Areas does the following:
 This sensor reflects the **presence state** of the area:
 
 - When any presence entity enters a **presence state** (`on`, `home`, `playing`), the area is considered **occupied** (`on`).
-- Once all presence entities leave those states, Magic Areas waits for a short delay (configured via `Clear Timeout`) before marking the area as **clear** (`off`).
+- Once all presence entities leave those states, Adaptive Areas waits for a short delay (configured via `Clear Timeout`) before marking the area as **clear** (`off`).
 
 !!! note
-    Magic Areas automatically listen for area changes on entities.
-    Changing an entity's area will cause Magic Areas to reload.
+    Adaptive Areas automatically listen for area changes on entities.
+    Changing an entity's area will cause Adaptive Areas to reload.
 
 
 ## 🌙 Secondary States
 
-In addition to presence, Magic Areas tracks a set of **secondary states** that provide context about the area. These are based on specific configurable entities:
+In addition to presence, Adaptive Areas tracks a set of **secondary states** that provide context about the area. These are based on specific configurable entities:
 
 | Secondary State | Triggered by...             |
 |-----------------|-----------------------------|
@@ -36,7 +36,7 @@ Secondary states are optional but very useful — especially when layering autom
 
 ## 💡 How Secondary States Are Used
 
-Several Magic Areas features take advantage of these secondary states to fine-tune their behavior:
+Several Adaptive Areas features take advantage of these secondary states to fine-tune their behavior:
 
 - **[Light Groups](../features/light-groups.md)**
   Use both presence and secondary states to determine which lights to turn on (e.g. only accent lighting when sleeping or dark).
@@ -49,4 +49,4 @@ Several Magic Areas features take advantage of these secondary states to fine-tu
 
 ---
 
-By layering **presence** with **secondary states**, Magic Areas gives you fine-grained, context-aware control over your automations — making each room react more intelligently to how it's being used.
+By layering **presence** with **secondary states**, Adaptive Areas gives you fine-grained, context-aware control over your automations — making each room react more intelligently to how it's being used.

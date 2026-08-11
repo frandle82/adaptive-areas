@@ -22,14 +22,14 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_ON, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_CLIMATE_CONTROL_ENTITY_ID,
     CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
     CONF_CLIMATE_CONTROL_PRESET_CLEAR,
     CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
     CONF_ENABLED_FEATURES,
     DOMAIN,
-    MagicAreasFeatures,
+    AdaptiveAreasFeatures,
 )
 
 from tests.const import DEFAULT_MOCK_AREA
@@ -50,9 +50,9 @@ _LOGGER = logging.getLogger(__name__)
 
 MOCK_CLIMATE_ENTITY_ID = f"{CLIMATE_DOMAIN}.mock_climate"
 CLIMATE_CONTROL_SWITCH_ENTITY_ID = (
-    f"{SWITCH_DOMAIN}.magic_areas_climate_control_{DEFAULT_MOCK_AREA}"
+    f"{SWITCH_DOMAIN}.adaptive_areas_climate_control_{DEFAULT_MOCK_AREA}"
 )
-AREA_SENSOR_ENTITY_ID = f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
+AREA_SENSOR_ENTITY_ID = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
 
 
 # Fixtures
@@ -65,7 +65,7 @@ def mock_config_entry_climate_control() -> MockConfigEntry:
     data.update(
         {
             CONF_ENABLED_FEATURES: {
-                MagicAreasFeatures.CLIMATE_CONTROL: {
+                AdaptiveAreasFeatures.CLIMATE_CONTROL: {
                     CONF_CLIMATE_CONTROL_ENTITY_ID: MOCK_CLIMATE_ENTITY_ID,
                     CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD: 0,
                     CONF_CLIMATE_CONTROL_PRESET_OCCUPIED: PRESET_NONE,

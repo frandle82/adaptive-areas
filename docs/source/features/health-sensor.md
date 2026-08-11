@@ -12,7 +12,7 @@ These sensors work similarly to [aggregate sensors](aggregation.md) but specific
 
 ## 🚀 How it Works
 
-The Area Health feature combines the following `binary_sensor.device_class` types into a single entity: `binary_sensor.magic_areas_health_$area_health_problem`
+The Area Health feature combines the following `binary_sensor.device_class` types into a single entity: `binary_sensor.adaptive_areas_health_$area_health_problem`
 
 - `gas` – Detects gas leaks (natural gas, propane, etc.)
 - `smoke` – Detects smoke or fire
@@ -36,21 +36,21 @@ alias: Notify on degraded area health
 description: ""
 triggers:
   - platform: state
-    entity_id: binary_sensor.magic_areas_health_global_health_problem
+    entity_id: binary_sensor.adaptive_areas_health_global_health_problem
     from: "off"
     to: "on"
   - platform: time_pattern
     hours: "/1"
 conditions:
   - condition: state
-    entity_id: binary_sensor.magic_areas_health_global_health_problem
+    entity_id: binary_sensor.adaptive_areas_health_global_health_problem
     state: "on"
 actions:
   - service: notify.residents_mobile_app
     data:
       title: Area Issue!
       message: >-
-        {% for m_entity in state_attr('binary_sensor.magic_areas_health_global_health_problem', 'entity_id') %}
+        {% for m_entity in state_attr('binary_sensor.adaptive_areas_health_global_health_problem', 'entity_id') %}
         {%- if 'health_problem' not in m_entity or not is_state(m_entity, 'on') %}{% continue %}{% endif -%}
         {% set entities = state_attr(m_entity, 'entity_id') -%}
         {% if entities %}
@@ -77,7 +77,7 @@ This automation:
 ## 💡 Why use Area Health?
 
 - Get **real-time alerts** for important safety issues.
-- Avoid manually checking dozens of sensors—let Magic Areas watch them for you.
+- Avoid manually checking dozens of sensors—let Adaptive Areas watch them for you.
 - Build automations that respond to **area-level** issues, not just individual devices.
 
 !!! tip

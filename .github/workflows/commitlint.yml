@@ -1,0 +1,33 @@
+name: "Conventional Commits"
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: "Validate commits and PR title"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the repository"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "Validate PR title"
+        env:
+          COMMIT_MESSAGE: ${{ github.event.pull_request.title }}
+        run: python3 scripts/validate_commit.py --message "$COMMIT_MESSAGE"
+
+      - name: "Validate commit messages"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/validate_commit.py --range "$BASE_SHA..$HEAD_SHA"

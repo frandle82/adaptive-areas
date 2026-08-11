@@ -1,6 +1,6 @@
 # ✨ Feature List
 
-Magic Areas can do a lot more than [presence sensing](../concepts/presence-sensing.md)! Below is a list of built-in features grouped by category.
+Adaptive Areas can do a lot more than [presence sensing](../concepts/presence-sensing.md)! Below is a list of built-in features grouped by category.
 
 ## 🧠 Smart Groups
 Entities grouped with presence-aware automation logic.

@@ -5,7 +5,7 @@ The **Aggregation** feature creates aggregate sensors for all `sensor` and `bina
 !!! note
     Entities are created with the template:
     ```
-    (binary_?)sensor.magic_areas_aggregates_{area}_aggregate_{device_class}
+    (binary_?)sensor.adaptive_areas_aggregates_{area}_aggregate_{device_class}
     ```
     If multiple `unit_of_measurement` values exist for the same `device_class`, an `_{unit_of_measurement}` suffix is added.
 
@@ -18,7 +18,7 @@ This is especially useful for simplifying automations and dashboards, since you 
 | **Minimum number of entities** | Integer | `2`     | Minimum number of entities required for an aggregate sensor to be created. If you want aggregates always created (even with a single entity), set this to `1`. |
 | **Binary sensor device classes**  | Device class list | N/A     | Device classes of [binary_sensor](https://www.home-assistant.io/integrations/binary_sensor/) to aggregate. |
 | **Sensor device classes**  | Device class list | N/A     | Device classes of [sensor](https://www.home-assistant.io/integrations/binary_sensor/) to aggregate. |
-| **Illuminance threshold**  | Integer | `0` (disabled)     | Magic Areas can automatically create a [threshold](https://www.home-assistant.io/integrations/threshold/) sensor of device class `light` that tracks the aggregated `illuminance` sensor. This is useful for using as an [Area light sensor](../concepts/area-states.md#secondary-states). |
+| **Illuminance threshold**  | Integer | `0` (disabled)     | Adaptive Areas can automatically create a [threshold](https://www.home-assistant.io/integrations/threshold/) sensor of device class `light` that tracks the aggregated `illuminance` sensor. This is useful for using as an [Area light sensor](../concepts/area-states.md#secondary-states). |
 | **Threshold sensor hysteresis**  | Integer | `0`     | [Hysteresis](https://www.home-assistant.io/integrations/threshold/#hysteresis) for the light threshold sensor (percentage of the threshold value). |
 
 ## 📊 Aggregation Methods
@@ -29,17 +29,17 @@ This is especially useful for simplifying automations and dashboards, since you 
 ## 💡 Example Use Cases
 
 ### 🔥 Temperature Management
-Use `sensor.magic_areas_aggregates_{area}_aggregate_temperature` to get the average temperature of a room or floor:
+Use `sensor.adaptive_areas_aggregates_{area}_aggregate_temperature` to get the average temperature of a room or floor:
 - Automate HVAC systems based on area average temperature
 - Compare temperatures across multiple areas
 
 ### 💨 Air Quality & Ventilation
-Aggregate `co2`, `humidity`, or `voc` into a single sensor like `sensor.magic_areas_aggregates_{area}_aggregate_humidity`:
+Aggregate `co2`, `humidity`, or `voc` into a single sensor like `sensor.adaptive_areas_aggregates_{area}_aggregate_humidity`:
 - Trigger fans or dehumidifiers when humidity rises
 - Monitor long-term air quality trends
 
 ### ⚡ Power Monitoring
-Use `sensor.magic_areas_aggregates_{area}_aggregate_power` to track power consumption for an area:
+Use `sensor.adaptive_areas_aggregates_{area}_aggregate_power` to track power consumption for an area:
 - Shut off non-essential devices when usage spikes
 - Display dashboards comparing power usage per area
 
@@ -50,7 +50,7 @@ Aggregates make automation logic cleaner:
 - alias: Turn off humidifier when area unoccupied
   trigger:
     - platform: state
-      entity_id: binary_sensor.magic_areas_presence_tracking_bedroom_area_state
+      entity_id: binary_sensor.adaptive_areas_presence_tracking_bedroom_area_state
       to: "off"
       for: "5m"
   action:

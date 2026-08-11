@@ -1,16 +1,16 @@
 # 📍 Presence Sensing
 
-Magic Areas works by detecting presence within an area and triggering state changes or automations accordingly. It does this by monitoring presence-related events from specific Home Assistant entity types and interpreting their states to determine whether an area is occupied or clear.
+Adaptive Areas works by detecting presence within an area and triggering state changes or automations accordingly. It does this by monitoring presence-related events from specific Home Assistant entity types and interpreting their states to determine whether an area is occupied or clear.
 
 ## 🛰️ Supported Presence Sources
 
-Magic Areas currently supports presence sensing from the following Home Assistant platforms:
+Adaptive Areas currently supports presence sensing from the following Home Assistant platforms:
 
 - `media_player` (and `remote`)
 - `binary_sensor`
 - `device_tracker`
 
-This may seem like a limited list, but it's intentional. Magic Areas relies on clear and predictable `states` and `device_class` values to automatically detect which entities can be used for presence sensing — with no manual configuration required in most cases.
+This may seem like a limited list, but it's intentional. Adaptive Areas relies on clear and predictable `states` and `device_class` values to automatically detect which entities can be used for presence sensing — with no manual configuration required in most cases.
 
 ### Presence logic examples:
 
@@ -28,7 +28,7 @@ The following entity states are used by default to infer presence:
 
 ## 📡 Default `binary_sensor` Device Classes
 
-Magic Areas automatically uses the following `device_class` values for `binary_sensor` entities:
+Adaptive Areas automatically uses the following `device_class` values for `binary_sensor` entities:
 
 - `motion`
 - `occupancy`
@@ -62,4 +62,4 @@ You can create custom presence logic using these tools:
 
 ---
 
-With the right combination of sensors and logic, Magic Areas can reliably detect presence in every corner of your home — even in edge cases!
+With the right combination of sensors and logic, Adaptive Areas can reliably detect presence in every corner of your home — even in edge cases!

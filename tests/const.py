@@ -1,10 +1,10 @@
-"""Constants for Magic Areas tests."""
+"""Constants for Adaptive Areas tests."""
 
 from enum import StrEnum, auto
 
 from homeassistant.const import ATTR_FLOOR_ID
 
-from custom_components.magic_areas.const import CONF_TYPE, AreaType
+from custom_components.adaptive_areas.const import CONF_TYPE, AreaType
 
 
 class MockAreaIds(StrEnum):

@@ -24,7 +24,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_ENABLED_FEATURES,
     CONF_FAN_GROUPS_REQUIRED_STATE,
@@ -137,7 +137,7 @@ async def test_fan_group_basic(
     """Test Fan groups basic functionality."""
 
     fan_group_entity_id = (
-        f"{FAN_DOMAIN}.magic_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_group"
+        f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_group"
     )
 
     # Initialization test
@@ -197,14 +197,14 @@ async def test_fan_group_logic(
     """Test Fan groups logic."""
 
     fan_group_entity_id = (
-        f"{FAN_DOMAIN}.magic_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_group"
+        f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_group"
     )
     fan_control_entity_id = (
-        f"{SWITCH_DOMAIN}.magic_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_control"
+        f"{SWITCH_DOMAIN}.adaptive_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_control"
     )
-    tracked_entity_id = f"{SENSOR_DOMAIN}.magic_areas_aggregates_{DEFAULT_MOCK_AREA}_aggregate_temperature"
+    tracked_entity_id = f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_{DEFAULT_MOCK_AREA}_aggregate_temperature"
     motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
-    area_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.magic_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
+    area_sensor_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{DEFAULT_MOCK_AREA}_area_state"
     temperature_sensor_entity_id = entities_sensor_temperature_one.entity_id
 
     # Initialization checks

@@ -14,7 +14,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.core import HomeAssistant
 
-from custom_components.magic_areas.const import (
+from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_AGGREGATION,
@@ -54,7 +54,7 @@ async def auto_enable_custom_integrations(
 def patch_async_call_later(hass):
     """Automatically patch async_call_later for ReusableTimer tests."""
     with patch(
-        "custom_components.magic_areas.helpers.timer.async_call_later",
+        "custom_components.adaptive_areas.helpers.timer.async_call_later",
         side_effect=immediate_call_factory(hass),
     ):
         yield

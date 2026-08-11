@@ -1,4 +1,4 @@
-site_name: Magic Areas
+site_name: Adaptive Areas
 docs_dir: source
 theme:
   name: material
@@ -29,8 +29,6 @@ theme:
       toggle:
         icon: material/toggle-switch
         name: Switch to light mode
-  logo: https://raw.githubusercontent.com/home-assistant/brands/master/custom_integrations/magic_areas/logo.png
-  favicon: https://brands.home-assistant.io/_/magic_areas/dark_icon.png
 extra:
   generator: false
 plugins:
@@ -94,6 +92,5 @@ nav:
   - Community: community.md
 
 
-repo_url: https://github.com/jseidl/magic-areas
+repo_url: https://github.com/frandle82/adaptive-areas
 edit_uri: blob/main/docs/source/
-site_url: https://magicareas.io

@@ -27,7 +27,7 @@ This ensures messages and notifications are **only played where someone is prese
 
 ## 🚀 How It Works
 
-When you send a `play_media` command to `media_player.magic_areas_area_aware_media_player_global`, Magic Areas will:
+When you send a `play_media` command to `media_player.adaptive_areas_area_aware_media_player_global`, Adaptive Areas will:
 
 1. **Check each area** to see if it's eligible (feature enabled, state allowed, devices available)
 2. **Send the media** to all appropriate devices in those areas
@@ -43,7 +43,7 @@ When you send a `play_media` command to `media_player.magic_areas_area_aware_med
 ```yaml
 service: media_player.play_media
 target:
-  entity_id: media_player.magic_areas_area_aware_media_player_global
+  entity_id: media_player.adaptive_areas_area_aware_media_player_global
 data:
   media_content_type: "music"
   media_content_id: "media-source://tts/google_translate?message=The+garage+door+was+left+open"
@@ -61,7 +61,7 @@ notify:
   - platform: tts
     name: area_aware_notify
     entity_id: tts.piper
-    media_player: media_player.magic_areas_area_aware_media_player_global
+    media_player: media_player.adaptive_areas_area_aware_media_player_global
 ```
 
 Then you can use it in your automations like this:
