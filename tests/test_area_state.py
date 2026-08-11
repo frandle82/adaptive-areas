@@ -22,7 +22,9 @@ from custom_components.adaptive_areas.const import (
     CONF_KEEP_ONLY_ENTITIES,
     CONF_SECONDARY_STATES,
     CONF_SLEEP_ENTITY,
+    DATA_AREA_OBJECT,
     DOMAIN,
+    MODULE_DATA,
     AreaStates,
 )
 
@@ -125,6 +127,7 @@ async def setup_secondary_state_sensors(hass: HomeAssistant) -> list[MockBinaryS
 
 async def test_area_primary_state_change(
     hass: HomeAssistant,
+    basic_config_entry: MockConfigEntry,
     entities_binary_sensor_motion_one: list[MockBinarySensor],
     _setup_integration_basic,
 ) -> None:
@@ -153,6 +156,13 @@ async def test_area_primary_state_change(
     assert_state(motion_sensor, STATE_ON)
     assert_state(area_binary_sensor, STATE_ON)
     assert_in_attribute(area_binary_sensor, ATTR_STATES, AreaStates.OCCUPIED)
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    assert any(
+        entry["feature"] == "presence"
+        and entry["to"] == AreaStates.OCCUPIED
+        and "presence_detected" in entry["reason_codes"]
+        for entry in area.decision_trace.export()
+    )
 
     # Turn off motion sensor
     hass.states.async_set(motion_sensor_entity_id, STATE_OFF)
@@ -168,6 +178,12 @@ async def test_area_primary_state_change(
     assert_state(motion_sensor, STATE_OFF)
     assert_state(area_binary_sensor, STATE_OFF)
     assert_in_attribute(area_binary_sensor, ATTR_STATES, AreaStates.CLEAR)
+    assert any(
+        entry["feature"] == "presence"
+        and entry["to"] == AreaStates.CLEAR
+        and "presence_cleared" in entry["reason_codes"]
+        for entry in area.decision_trace.export()
+    )
 
 
 async def test_area_secondary_state_change(

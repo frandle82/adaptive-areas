@@ -49,6 +49,13 @@ class MediaPlayerControlSwitch(SwitchBase):
 
         if not self.is_on:
             self.logger.debug("%s: Control disabled. Skipping.", self.name)
+            self.area.trace_decision(
+                feature="media_player_control",
+                trigger="area_state_changed",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["control_disabled"],
+            )
             return
 
         if area_id != self.area.id:
@@ -65,9 +72,29 @@ class MediaPlayerControlSwitch(SwitchBase):
 
         if AreaStates.CLEAR in new_states:
             _LOGGER.debug("%s: Area clear, turning off media players.", self.name)
-            await self.hass.services.async_call(
-                MEDIA_PLAYER_DOMAIN,
-                SERVICE_TURN_OFF,
-                {ATTR_ENTITY_ID: self.media_player_group_id},
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_TURN_OFF,
+                    {ATTR_ENTITY_ID: self.media_player_group_id},
+                )
+            except Exception as err:
+                self.area.trace_decision(
+                    feature="media_player_control",
+                    trigger="area_state_changed",
+                    decision="turn_off",
+                    outcome="failed",
+                    reason_codes=["presence_cleared", "action_failed"],
+                    target_count=1,
+                    exception_class=type(err).__name__,
+                )
+                raise
+            self.area.trace_decision(
+                feature="media_player_control",
+                trigger="area_state_changed",
+                decision="turn_off",
+                outcome="executed",
+                reason_codes=["presence_cleared", "action_executed"],
+                target_count=1,
             )
             return

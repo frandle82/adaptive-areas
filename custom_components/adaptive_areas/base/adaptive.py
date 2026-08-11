@@ -62,6 +62,13 @@ from custom_components.adaptive_areas.const import (
     MetaAreaAutoReloadSettings,
     MetaAreaType,
 )
+from custom_components.adaptive_areas.helpers.decision_trace import (
+    DecisionTrace,
+    safe_record,
+)
+from custom_components.adaptive_areas.repairs import (
+    get_configured_entity_references,
+)
 
 # Classes
 
@@ -125,6 +132,7 @@ class AdaptiveArea:
         self.states: list[str] = []
 
         self.loaded_platforms: list[str] = []
+        self.decision_trace = DecisionTrace()
 
         self.logger.debug("%s: Primed for initialization.", self.name)
 
@@ -168,6 +176,11 @@ class AdaptiveArea:
             if remove_callback is not None:
                 remove_callback()
                 setattr(self, remove_callback_name, None)
+        self.decision_trace.clear()
+
+    def trace_decision(self, **kwargs) -> None:
+        """Safely add an entry to this area's in-memory decision trace."""
+        safe_record(self.decision_trace, area_state=self.states, **kwargs)
 
     def is_occupied(self) -> bool:
         """Return if area is occupied."""
@@ -484,6 +497,9 @@ class AdaptiveArea:
             """Filter entity registry events relevant to this area."""
 
             entity_id = event_data["entity_id"]
+
+            if entity_id in get_configured_entity_references(self.hass_config):
+                return True
 
             # Ignore our own stuff
             _, entity_part = entity_id.split(".")

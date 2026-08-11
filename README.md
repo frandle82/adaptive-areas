@@ -28,6 +28,7 @@ Smart areas that just work, every time, out of the box. Fully customizable if yo
 * Supports secondary states like dark, sleep, and extended for context-aware automation.
 * Provides meta-areas (e.g., Interior, Exterior, Global, Floors) to coordinate multiple areas at once.
 * Includes built-in, automation-like features: light control, fan groups, climate preset switching, and more
+* Supports native Home Assistant diagnostics, Repairs, System Health, and a privacy-safe recent Decision Trace for troubleshooting.
 
 > [!NOTE]
 > Check out the [core concepts](docs/source/concepts/index.md) in the documentation.

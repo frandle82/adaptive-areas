@@ -2,6 +2,57 @@
 
 If you’ve followed our [Installation](installation.md) and [Getting Started](getting-started.md) guides, things should be smooth sailing 🛶—but if something’s acting weird, this page will help you debug it.
 
+## Diagnostics and troubleshooting
+
+### Download diagnostics
+
+In Home Assistant, open **Settings → Devices & services → Adaptive Areas**. Open
+the relevant config entry's menu and select **Download diagnostics**.
+
+The downloaded file contains a privacy-safe configuration summary, current area
+states, a presence-source summary, enabled feature status, generated-entity
+counts, active Repair findings, and the recent automated Decision Trace. Entity
+object IDs, person and device-tracker identifiers, BLE identifiers, hardware
+unique IDs, exact locations, media content, tokens, and credentials are not
+exported. Entity references are reduced to structural details such as domain,
+device class, availability, and active status.
+
+Device diagnostics are also available because every Adaptive Areas device maps
+to exactly one Adaptive Areas config entry. They contain the same redacted entry
+information.
+
+### Repairs
+
+Adaptive Areas creates native Home Assistant Repair issues for persistent,
+actionable configuration problems—for example, when a configured Home Assistant
+Area or floor was deleted, or when an explicitly selected entity no longer
+exists. An entity that is merely `unavailable` or `unknown` is not treated as
+missing.
+
+Open **Settings → System → Repairs** to review an issue. Repair issues do not
+silently delete or rewrite configuration. Reconfigure or remove the affected
+Adaptive Areas entry after reviewing its automations. The issue disappears
+automatically after the corrected entry is loaded again.
+
+### System Health
+
+Home Assistant's **System information** view includes a concise Adaptive Areas
+summary: integration version, configured and loaded entry counts, regular and
+meta-area counts, classifications, active Repair count, and the number of legacy
+Magic Areas entries detected. It deliberately contains no area names, entity
+IDs, device IDs, or location information.
+
+### Decision Trace
+
+Diagnostics include the oldest-to-newest history of up to 20 recent presence
+transitions and automatic decisions for each loaded area. Entries explain why an
+action executed, was skipped, or failed using stable reason codes and target
+counts without storing target entity IDs or service payloads.
+
+The trace is lightweight and kept only in memory. It is not written to disk, it
+resets when the config entry is reloaded or Home Assistant restarts, and tracing
+never changes automation behavior.
+
 ## 🧪 Step 1: Enable Logging
 
 The first step to troubleshooting is **turning on logging** so you can see what’s going on behind the scenes.

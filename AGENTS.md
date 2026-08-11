@@ -88,6 +88,8 @@ Normal areas forward `binary_sensor`, `media_player`, `cover`, `switch`, `sensor
 - `switch/`: feature-control switches, Presence Hold, fan/climate/media control, and the currently hidden legacy Switch Groups implementation.
 - `fan.py`, `cover.py`, `media_player/`, `sensor/`, and `threshold.py`: platform-specific grouping, routing, aggregates, and threshold behavior.
 - `helpers/area.py`, `helpers/timer.py`, and `util.py`: config-entry-to-area construction, reusable timers, and registry cleanup.
+- `diagnostics.py`, `repairs.py`, and `system_health.py`: privacy-safe native Home Assistant support artifacts, actionable configuration issue lifecycle, and integration-wide count-only health reporting. `helpers/diagnostics.py` contains reusable redaction helpers.
+- `helpers/decision_trace.py`: bounded per-area Decision Trace storage. It is in-memory only, holds at most 20 oldest-to-newest exported entries, and is cleared on unload; trace failures must never alter or interrupt runtime behavior.
 - `translations/`: HA config/options/entity/device/selector UI strings. English is the semantic reference; German receives special quality attention. Missing locale strings may use HA fallback rather than invented translations.
 - `tests/`: behavioral contracts and HA test fixtures. Do not change expectations simply to conceal a regression.
 - `docs/source/`, `README.md`, and `info.md`: user-facing documentation/HACS rendering. Implementation wins when they disagree, but verified doc defects should be corrected.
@@ -142,6 +144,8 @@ Every substantial change includes a scoped audit of the changed and directly con
 Check for exceptions and None handling; unavailable/unknown/non-numeric states; incorrect awaits or async service usage; listener/timer leaks, duplicate subscriptions, stale callbacks, and races; reload loops and stale area/entity/device references; improper unload/registry cleanup; duplicate or invalid IDs; restoration errors; deprecated or invalid HA APIs; meta-area inconsistencies; contradictory feature actions; unexpected services; and automation that continues while its control switch or feature is disabled.
 
 Before replacing an apparently old Home Assistant API, verify deprecation against the repository's supported HA version. Keep HA interactions async-safe and introduce no unnecessary external dependencies.
+
+Diagnostics must remain safe to share: never export raw personal names, entity object IDs, device-tracker or BLE identifiers, hardware unique IDs, exact locations, media content, credentials, tokens, or unsanitized exceptions. New stored entity-reference fields must be included in Repair validation when their disappearance can break current behavior. Future automatic-control features should record bounded, privacy-safe executed, skipped, and failed decisions at existing decision points without reshaping their control logic.
 
 ## Tests and Validation
 

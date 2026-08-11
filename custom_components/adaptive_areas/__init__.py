@@ -12,11 +12,13 @@ from homeassistant.helpers.device_registry import (
     EVENT_DEVICE_REGISTRY_UPDATED,
     EventDeviceRegistryUpdatedData,
 )
+from homeassistant.helpers.area_registry import EVENT_AREA_REGISTRY_UPDATED
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     EventEntityRegistryUpdatedData,
 )
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.floor_registry import EVENT_FLOOR_REGISTRY_UPDATED
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
@@ -42,6 +44,10 @@ from custom_components.adaptive_areas.helpers.area import (
 )
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
+)
+from custom_components.adaptive_areas.repairs import (
+    async_evaluate_config_entry,
+    async_remove_config_entry_issues,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -157,14 +163,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
         _async_reload_entry()
 
-    async def _async_setup_integration(*args, **kwargs) -> None:
+    async def _async_setup_integration(*args, **kwargs) -> bool:
         """Load integration when Hass has finished starting."""
         _LOGGER.debug("Setting up entry for %s", config_entry.data[ATTR_NAME])
+
+        repair_summary = await async_evaluate_config_entry(hass, config_entry)
+        if repair_summary["missing_area"]:
+            _LOGGER.error("Unable to set up Adaptive Areas entry: area is missing")
+            return False
 
         adaptive_area: AdaptiveArea | None = get_adaptive_area_for_config_entry(
             hass, config_entry
         )
-        assert adaptive_area is not None
+        if adaptive_area is None:
+            return False
         await adaptive_area.initialize()
 
         _LOGGER.debug(
@@ -179,8 +191,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         tracked_listeners.append(config_entry.add_update_listener(async_update_options))
         tracked_listeners.append(_cancel_scheduled_reload)
 
+        @callback
+        def _async_backing_registry_updated(event: Event) -> None:
+            """Reload when the backing Area or floor changes."""
+            target_id = event.data.get("area_id") or event.data.get("floor_id")
+            if target_id == adaptive_area.id:
+                _async_reload_entry()
+
         # Watch for area changes.
         if not adaptive_area.is_meta():
+            tracked_listeners.append(
+                hass.bus.async_listen(
+                    EVENT_AREA_REGISTRY_UPDATED, _async_backing_registry_updated
+                )
+            )
             tracked_listeners.append(
                 hass.bus.async_listen(
                     EVENT_ENTITY_REGISTRY_UPDATED,
@@ -195,6 +219,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
                     adaptive_area.make_device_registry_filter(),
                 )
             )
+        elif adaptive_area.floor_id:
+            tracked_listeners.append(
+                hass.bus.async_listen(
+                    EVENT_FLOOR_REGISTRY_UPDATED, _async_backing_registry_updated
+                )
+            )
         hass.data[MODULE_DATA][config_entry.entry_id] = {
             DATA_AREA_OBJECT: adaptive_area,
             DATA_TRACKED_LISTENERS: tracked_listeners,
@@ -204,12 +234,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         await hass.config_entries.async_forward_entry_setups(
             config_entry, adaptive_area.available_platforms()
         )
+        return True
 
     hass.data.setdefault(MODULE_DATA, {})
 
-    await _async_setup_integration()
-
-    return True
+    return await _async_setup_integration()
 
 
 async def async_update_options(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
@@ -257,6 +286,11 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
         hass.data.pop(MODULE_DATA)
 
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    """Remove Repair issues owned by a deleted config entry."""
+    await async_remove_config_entry_issues(hass, config_entry)
 
 
 # Update config version

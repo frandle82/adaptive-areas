@@ -402,8 +402,51 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         )
 
         self.area.states = list(current_state)
+        # Initial state population is not an automated decision and should leave
+        # a newly loaded area's trace empty.
+        if last_state:
+            self._trace_state_transitions(new_states, lost_states)
 
         return (new_states, lost_states)
+
+    def _trace_state_transitions(
+        self, new_states: set[str], lost_states: set[str]
+    ) -> None:
+        """Record privacy-safe state transitions without changing state logic."""
+        transitions = {
+            AreaStates.OCCUPIED: (AreaStates.CLEAR, "presence_detected"),
+            AreaStates.CLEAR: (AreaStates.OCCUPIED, "presence_cleared"),
+            AreaStates.EXTENDED: (AreaStates.OCCUPIED, "extended_state_entered"),
+            AreaStates.DARK: (AreaStates.BRIGHT, "dark_state_active"),
+            AreaStates.BRIGHT: (AreaStates.DARK, "bright_state_active"),
+            AreaStates.SLEEP: (None, "sleep_state_active"),
+            AreaStates.ACCENT: (None, "accent_state_active"),
+        }
+        for state in sorted(new_states):
+            from_state, reason = transitions.get(state, (None, "area_state_changed"))
+            self.area.trace_decision(
+                feature="presence",
+                trigger="state_recalculated",
+                decision="state_transition",
+                outcome="observed",
+                reason_codes=[reason],
+                from_state=from_state,
+                to_state=state,
+            )
+        for state in sorted(lost_states - new_states):
+            if state not in (AreaStates.EXTENDED, AreaStates.SLEEP, AreaStates.ACCENT):
+                continue
+            self.area.trace_decision(
+                feature="presence",
+                trigger="state_recalculated",
+                decision="state_transition",
+                outcome="observed",
+                reason_codes=[f"{state}_state_inactive"],
+                from_state=state,
+                to_state=(
+                    AreaStates.OCCUPIED if self.area.is_occupied() else AreaStates.CLEAR
+                ),
+            )
 
     def _get_area_states(self) -> list[str]:
         """Return states for the area."""

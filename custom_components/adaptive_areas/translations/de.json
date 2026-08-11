@@ -566,6 +566,16 @@
         }
       }
     },
+    "issues": {
+      "missing_area": {
+        "title": "Home-Assistant-Bereich fehlt",
+        "description": "Der Adaptive-Areas-Eintrag **{entry}** verweist auf einen Bereich oder ein Stockwerk, der bzw. das nicht mehr existiert. Konfiguriere oder entferne diesen Eintrag, nachdem du die betroffenen Automatisierungen geprüft hast. Adaptive Areas löscht oder erstellt den Bereich nicht automatisch neu."
+      },
+      "missing_entities": {
+        "title": "Konfigurierte Entitäten fehlen",
+        "description": "Der Adaptive-Areas-Eintrag **{entry}** enthält {count} nicht mehr vorhandene Entitätsreferenz(en) in {category_count} Konfigurationskategorie(n). Konfiguriere den Eintrag neu und wähle vorhandene Entitäten aus. Entitäten mit dem Zustand „Nicht verfügbar“ oder „Unbekannt“ gelten nicht als fehlend."
+      }
+    },
     "device": {
         "global": {
             "name": "Global"

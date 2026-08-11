@@ -289,7 +289,16 @@ class AreaSwitchGroup(AdaptiveSwitchGroup):
     @callback
     def area_state_changed(self, area_id, states_tuple):
         """Handle area state changes."""
-        if area_id != self.area.id or not self.is_control_enabled():
+        if area_id != self.area.id:
+            return False
+        if not self.is_control_enabled():
+            self.area.trace_decision(
+                feature="switch_groups",
+                trigger="area_state_changed",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["control_disabled"],
+            )
             return False
 
         if self.category == SwitchGroupCategory.ALL:
@@ -346,6 +355,14 @@ class AreaSwitchGroup(AdaptiveSwitchGroup):
             self.controlled = True
             return self._apply_action(True)
 
+        self.area.trace_decision(
+            feature="switch_groups",
+            trigger="area_state_changed",
+            decision="no_action",
+            outcome="considered",
+            reason_codes=["activation_state_not_matched"],
+            target_count=len(self._group_entities),
+        )
         return self._apply_action(False)
 
     def _apply_action(self, state_active: bool):
@@ -387,14 +404,7 @@ class AreaSwitchGroup(AdaptiveSwitchGroup):
             return False
 
         self.controlled = True
-        self.hass.async_create_task(
-            self.hass.services.async_call(
-                SWITCH_DOMAIN,
-                SERVICE_TURN_ON,
-                {ATTR_ENTITY_ID: self.entity_id},
-                blocking=True,
-            )
-        )
+        self.hass.async_create_task(self._async_apply_service(SERVICE_TURN_ON))
         return True
 
     def _turn_off(self):
@@ -403,15 +413,37 @@ class AreaSwitchGroup(AdaptiveSwitchGroup):
             return False
 
         self.controlled = True
-        self.hass.async_create_task(
-            self.hass.services.async_call(
+        self.hass.async_create_task(self._async_apply_service(SERVICE_TURN_OFF))
+        return True
+
+    async def _async_apply_service(self, service: str) -> None:
+        """Run an existing group action and observe its result."""
+        try:
+            await self.hass.services.async_call(
                 SWITCH_DOMAIN,
-                SERVICE_TURN_OFF,
+                service,
                 {ATTR_ENTITY_ID: self.entity_id},
                 blocking=True,
             )
+        except Exception as err:
+            self.area.trace_decision(
+                feature="switch_groups",
+                trigger="area_state_changed",
+                decision=service,
+                outcome="failed",
+                reason_codes=["action_failed"],
+                target_count=len(self._group_entities),
+                exception_class=type(err).__name__,
+            )
+            raise
+        self.area.trace_decision(
+            feature="switch_groups",
+            trigger="area_state_changed",
+            decision=service,
+            outcome="executed",
+            reason_codes=["action_executed"],
+            target_count=len(self._group_entities),
         )
-        return True
 
     def is_control_enabled(self):
         """Check if switch group automation is enabled."""

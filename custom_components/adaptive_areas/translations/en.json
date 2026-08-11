@@ -566,6 +566,16 @@
       }
     }
   },
+  "issues": {
+    "missing_area": {
+      "title": "Home Assistant Area is missing",
+      "description": "The Adaptive Areas entry **{entry}** refers to an Area or floor that no longer exists. Reconfigure or remove this entry after reviewing the affected automations. Adaptive Areas will not delete or recreate the Area automatically."
+    },
+    "missing_entities": {
+      "title": "Configured entities are missing",
+      "description": "The Adaptive Areas entry **{entry}** contains {count} entity reference(s) that no longer exist across {category_count} configuration category/categories. Reconfigure the entry to select current entities. Entities that are only unavailable or unknown are not considered missing."
+    }
+  },
   "device": {
     "global": {
       "name": "Global"

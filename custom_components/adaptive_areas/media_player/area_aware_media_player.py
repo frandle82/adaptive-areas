@@ -171,6 +171,13 @@ class AreaAwareMediaPlayer(AdaptiveEntity, MediaPlayerEntity):
         # Fail early
         if not active_areas:
             _LOGGER.debug("No areas active. Ignoring.")
+            self.area.trace_decision(
+                feature="area_aware_media_player",
+                trigger="play_media",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["no_eligible_areas"],
+            )
             return
 
         # Gather media_player entities
@@ -182,6 +189,13 @@ class AreaAwareMediaPlayer(AdaptiveEntity, MediaPlayerEntity):
             _LOGGER.debug(
                 "%s: No media_player entities to forward. Ignoring.", self.name
             )
+            self.area.trace_decision(
+                feature="area_aware_media_player",
+                trigger="play_media",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["no_eligible_entities"],
+            )
             return
 
         data = {
@@ -192,6 +206,26 @@ class AreaAwareMediaPlayer(AdaptiveEntity, MediaPlayerEntity):
         if kwargs:
             data.update(kwargs)
 
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN, SERVICE_PLAY_MEDIA, data
+        try:
+            await self.hass.services.async_call(
+                MEDIA_PLAYER_DOMAIN, SERVICE_PLAY_MEDIA, data
+            )
+        except Exception as err:
+            self.area.trace_decision(
+                feature="area_aware_media_player",
+                trigger="play_media",
+                decision="play_media",
+                outcome="failed",
+                reason_codes=["action_failed"],
+                target_count=len(media_players),
+                exception_class=type(err).__name__,
+            )
+            raise
+        self.area.trace_decision(
+            feature="area_aware_media_player",
+            trigger="play_media",
+            decision="play_media",
+            outcome="executed",
+            reason_codes=["eligible_area_active", "action_executed"],
+            target_count=len(media_players),
         )

@@ -33,10 +33,12 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_SECONDARY_STATES,
     CONF_SLEEP_ENTITY,
+    DATA_AREA_OBJECT,
     DOMAIN,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+    MODULE_DATA,
     AreaStates,
 )
 
@@ -268,6 +270,7 @@ async def setup_entities_light_secondary_states(
 
 async def test_light_group_basic(
     hass: HomeAssistant,
+    light_groups_config_entry: MockConfigEntry,
     entities_light_one: list[MockLight],
     entities_binary_sensor_motion_one: list[MockBinarySensor],
     _setup_integration_light_groups,
@@ -331,6 +334,13 @@ async def test_light_group_basic(
     # Check light group is on
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
+    area = hass.data[MODULE_DATA][light_groups_config_entry.entry_id][DATA_AREA_OBJECT]
+    assert any(
+        entry["feature"] == "light_groups"
+        and entry["decision"] == "turn_on"
+        and entry["outcome"] == "executed"
+        for entry in area.decision_trace.export()
+    )
 
     # Turn motion sensor off
     hass.states.async_set(mock_motion_sensor_entity_id, STATE_OFF)
@@ -343,6 +353,12 @@ async def test_light_group_basic(
     # Check light group is off
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
+    assert any(
+        entry["feature"] == "light_groups"
+        and entry["decision"] == "turn_off"
+        and entry["outcome"] == "executed"
+        for entry in area.decision_trace.export()
+    )
 
 
 async def test_light_group_blocking_state_turns_off(

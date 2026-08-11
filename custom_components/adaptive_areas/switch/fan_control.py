@@ -108,6 +108,13 @@ class FanControlSwitch(SwitchBase):
 
         if not self.is_on:
             _LOGGER.debug("%s: Control disabled, skipping.", self.name)
+            self.area.trace_decision(
+                feature="fan_control",
+                trigger="area_state_changed",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["control_disabled"],
+            )
             return
 
         fan_group_entity_id = (
@@ -116,9 +123,7 @@ class FanControlSwitch(SwitchBase):
 
         if AreaStates.CLEAR in states:
             _LOGGER.debug("%s: Area clear, turning off fans", self.name)
-            await self.hass.services.async_call(
-                FAN_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: fan_group_entity_id}
-            )
+            await self._async_apply_service(SERVICE_TURN_OFF, "presence_cleared")
             return
 
         required_state = self.area.feature_config(AdaptiveAreasFeatures.FAN_GROUPS).get(
@@ -132,6 +137,14 @@ class FanControlSwitch(SwitchBase):
                 required_state,
                 str(states),
             )
+            self.area.trace_decision(
+                feature="fan_control",
+                trigger="area_state_changed",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["required_state_not_matched"],
+                target_count=1,
+            )
             return
 
         _LOGGER.debug(
@@ -141,17 +154,51 @@ class FanControlSwitch(SwitchBase):
         )
         if self.is_setpoint_reached():
             _LOGGER.debug("%s: Setpoint reached, turning on fans", self.name)
-            await self.hass.services.async_call(
-                FAN_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: fan_group_entity_id}
-            )
+            await self._async_apply_service(SERVICE_TURN_ON, "threshold_met")
         else:
             fan_group_state = self.hass.states.get(fan_group_entity_id)
             if fan_group_state and fan_group_state.state == STATE_ON:
                 _LOGGER.debug("%s: Setpoint not reached, turning off fans", self.name)
-                await self.hass.services.async_call(
-                    FAN_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: fan_group_entity_id}
+                await self._async_apply_service(SERVICE_TURN_OFF, "threshold_not_met")
+            else:
+                self.area.trace_decision(
+                    feature="fan_control",
+                    trigger="aggregate_sensor_changed",
+                    decision="no_action",
+                    outcome="skipped",
+                    reason_codes=["threshold_not_met", "already_off"],
+                    target_count=1,
                 )
         return
+
+    async def _async_apply_service(self, service: str, reason: str) -> None:
+        """Run a fan action and record its safe result."""
+        fan_group_entity_id = (
+            f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
+        )
+        try:
+            await self.hass.services.async_call(
+                FAN_DOMAIN, service, {ATTR_ENTITY_ID: fan_group_entity_id}
+            )
+        except Exception as err:
+            self.area.trace_decision(
+                feature="fan_control",
+                trigger="aggregate_sensor_changed",
+                decision=service,
+                outcome="failed",
+                reason_codes=[reason, "action_failed"],
+                target_count=1,
+                exception_class=type(err).__name__,
+            )
+            raise
+        self.area.trace_decision(
+            feature="fan_control",
+            trigger="aggregate_sensor_changed",
+            decision=service,
+            outcome="executed",
+            reason_codes=[reason, "action_executed"],
+            target_count=1,
+        )
 
     def is_setpoint_reached(self) -> bool:
         """Check wether the setpoint is reached."""

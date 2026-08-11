@@ -99,6 +99,13 @@ class ClimateControlSwitch(SwitchBase):
 
         if not self.is_on:
             self.logger.debug("%s: Control disabled. Skipping.", self.name)
+            self.area.trace_decision(
+                feature="climate_control",
+                trigger="area_state_changed",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["control_disabled"],
+            )
             return
 
         if area_id != self.area.id:
@@ -136,6 +143,14 @@ class ClimateControlSwitch(SwitchBase):
                 self.logger.debug(
                     "%s: Occupancy threshold not met. Skipping occupied preset.",
                     self.name,
+                )
+                self.area.trace_decision(
+                    feature="climate_control",
+                    trigger="area_state_changed",
+                    decision="no_action",
+                    outcome="skipped",
+                    reason_codes=["occupancy_threshold_not_met"],
+                    target_count=1,
                 )
                 continue
 
@@ -202,3 +217,21 @@ class ClimateControlSwitch(SwitchBase):
         # pylint: disable-next=broad-exception-caught
         except Exception as e:
             self.logger.error("%s: Error applying preset: %s", self.name, str(e))
+            self.area.trace_decision(
+                feature="climate_control",
+                trigger="area_state_changed",
+                decision="set_preset",
+                outcome="failed",
+                reason_codes=["action_failed"],
+                target_count=1,
+                exception_class=type(e).__name__,
+            )
+            return
+        self.area.trace_decision(
+            feature="climate_control",
+            trigger="area_state_changed",
+            decision="set_preset",
+            outcome="executed",
+            reason_codes=["area_state_matched", "action_executed"],
+            target_count=1,
+        )
