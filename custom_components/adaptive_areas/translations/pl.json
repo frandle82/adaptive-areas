@@ -122,20 +122,6 @@
           "task_switches_action": "Akcja dla przełączników zadań"
         }
       },
-      "feature_conf_switch_groups": {
-        "title": "Grupy przełączników",
-        "description": "Tworzy grupy przełączników zarządzane przez obszar dla scenariuszy snu i zadań. Każda grupa może określić, czy akcja stanu ma włączać czy wyłączać przełączniki.",
-        "data": {
-          "sleep_switches": "Przełączniki snu",
-          "sleep_switches_states": "Stany, w których przełączniki snu są włączone",
-          "sleep_switches_act_on": "Kiedy sterować przełącznikami snu?",
-          "sleep_switches_action": "Akcja dla przełączników snu",
-          "task_switches": "Przełączniki zadań",
-          "task_switches_states": "Stany, w których przełączniki zadań są włączone",
-          "task_switches_act_on": "Kiedy sterować przełącznikami zadań?",
-          "task_switches_action": "Akcja dla przełączników zadań"
-        }
-      },
       "feature_conf_presence_hold": {
         "title": "Podtrzymanie obeności",
         "description": "Tworzy przełącznik podtrzymujący stan obecności na wskazanym obszarze. Można skonfigurować opóźnienie, które automatycznie wyłączy ten przełącznik po zadanym czasie, jeśli często zdarza Ci się pozostawiać go załączonym.",

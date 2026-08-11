@@ -124,20 +124,6 @@
                     "task_switches_action": "Actie voor taakschakelaars"
                 }
             },
-            "feature_conf_switch_groups": {
-                "title": "Schakelaar-groepen",
-                "description": "Maakt gebiedsbeheerde schakelaar-groepen voor slaap- en taakscenario's. Elke groep kan bepalen of de statusactie schakelaars aan of uit zet.",
-                "data": {
-                    "sleep_switches": "Slaapschakelaars",
-                    "sleep_switches_states": "Statussen waarin slaapschakelaars aan staan",
-                    "sleep_switches_act_on": "Wanneer moeten slaapschakelaars worden aangestuurd?",
-                    "sleep_switches_action": "Actie voor slaapschakelaars",
-                    "task_switches": "Taakschakelaars",
-                    "task_switches_states": "Statussen waarin taakschakelaars aan staan",
-                    "task_switches_act_on": "Wanneer moeten taakschakelaars worden aangestuurd?",
-                    "task_switches_action": "Actie voor taakschakelaars"
-                }
-            },
             "feature_conf_presence_hold": {
                 "title": "Aanwezigheid vasthouden",
                 "description": "Creëert een schakelaar die een gebied bezet houdt terwijl deze aanstaat. U kunt een time-out configureren, zodat de schakelaar na een bepaalde tijd automatisch wordt uitgeschakeld, als u merkt dat u hem vaak aan laat staan.",

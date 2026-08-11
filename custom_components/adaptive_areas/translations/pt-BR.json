@@ -124,20 +124,6 @@
                     "task_switches_action": "Ação para interruptores de tarefa"
                 }
             },
-            "feature_conf_switch_groups": {
-                "title": "Grupos de interruptores",
-                "description": "Cria grupos de interruptores gerenciados por área para cenários de sono e tarefa. Cada grupo pode definir se a ação de estado liga ou desliga os interruptores.",
-                "data": {
-                    "sleep_switches": "Interruptores de sono",
-                    "sleep_switches_states": "Estados em que os interruptores de sono ficam ligados",
-                    "sleep_switches_act_on": "Quando os interruptores de sono devem ser controlados?",
-                    "sleep_switches_action": "Ação para interruptores de sono",
-                    "task_switches": "Interruptores de tarefa",
-                    "task_switches_states": "Estados em que os interruptores de tarefa ficam ligados",
-                    "task_switches_act_on": "Quando os interruptores de tarefa devem ser controlados?",
-                    "task_switches_action": "Ação para interruptores de tarefa"
-                }
-            },
             "feature_conf_presence_hold": {
                 "title": "Presença",
                 "description": "Cria um switch que manterá uma área ocupada enquanto estiver ligado. Você pode configurar um tempo limite para que o interruptor seja desligado automaticamente após um determinado período de tempo, caso você o deixe ligado com frequência.",

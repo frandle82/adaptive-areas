@@ -124,20 +124,6 @@
                     "task_switches_action": "Acción para interruptores de tarea"
                 }
             },
-            "feature_conf_switch_groups": {
-                "title": "Grupos de interruptores",
-                "description": "Crea grupos de interruptores gestionados por área para escenarios de descanso y tareas. Cada grupo puede definir si la acción del estado enciende o apaga los interruptores.",
-                "data": {
-                    "sleep_switches": "Interruptores de descanso",
-                    "sleep_switches_states": "Estados en los que los interruptores de descanso están encendidos",
-                    "sleep_switches_act_on": "¿Cuándo se deben controlar los interruptores de descanso?",
-                    "sleep_switches_action": "Acción para interruptores de descanso",
-                    "task_switches": "Interruptores de tarea",
-                    "task_switches_states": "Estados en los que los interruptores de tarea están encendidos",
-                    "task_switches_act_on": "¿Cuándo se deben controlar los interruptores de tarea?",
-                    "task_switches_action": "Acción para interruptores de tarea"
-                }
-            },
             "feature_conf_presence_hold": {
                 "title": "Retención de presencia",
                 "description": "Crea un interruptor que mantendrá un área ocupada mientras esté encendido. Puede configurar un tiempo de espera para que el interruptor se apague automáticamente después de un cierto período de tiempo, si a menudo lo deja encendido.",

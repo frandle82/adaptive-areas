@@ -124,20 +124,6 @@
                     "task_switches_action": "Action pour les interrupteurs tâche"
                 }
             },
-            "feature_conf_switch_groups": {
-                "title": "Groupes d'interrupteurs",
-                "description": "Crée des groupes d'interrupteurs gérés par zone pour les scénarios de sommeil et de tâches. Chaque groupe peut définir si l'action d'état allume ou éteint les interrupteurs.",
-                "data": {
-                    "sleep_switches": "Interrupteurs sommeil",
-                    "sleep_switches_states": "États dans lesquels les interrupteurs sommeil sont allumés",
-                    "sleep_switches_act_on": "Quand contrôler les interrupteurs sommeil ?",
-                    "sleep_switches_action": "Action pour les interrupteurs sommeil",
-                    "task_switches": "Interrupteurs tâche",
-                    "task_switches_states": "États dans lesquels les interrupteurs tâche sont allumés",
-                    "task_switches_act_on": "Quand contrôler les interrupteurs tâche ?",
-                    "task_switches_action": "Action pour les interrupteurs tâche"
-                }
-            },
             "feature_conf_presence_hold": {
                 "title": "Maintien de présence",
                 "description": "Crée un interrupteur qui maintiendra une pièce occupée tant qu'il est activé. Vous pouvez configurer une temporisation pour que l'interrupteur s'éteigne automatiquement après une certaine période de temps, si vous avez souvent tendance à le laisser activé.",

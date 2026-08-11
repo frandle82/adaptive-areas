@@ -182,20 +182,6 @@
                     "task_switches_action": "Aktion für Aufgaben-Schalter"
                 }
             },
-            "feature_conf_switch_groups": {
-                "title": "Schaltergruppen",
-                "description": "Erstellt bereichsverwaltete Schaltergruppen für Schlaf-/Aufgaben-Szenarien. Jede Gruppe kann festlegen, ob die Zustandsaktion Schalter ein- oder ausschaltet.",
-                "data": {
-                    "sleep_switches": "Schlaf-Schalter",
-                    "sleep_switches_states": "Zustände, in denen Schlaf-Schalter eingeschaltet sind",
-                    "sleep_switches_act_on": "Wann sollen Schlaf-Schalter gesteuert werden?",
-                    "sleep_switches_action": "Aktion für Schlaf-Schalter",
-                    "task_switches": "Aufgaben-Schalter",
-                    "task_switches_states": "Zustände, in denen Aufgaben-Schalter eingeschaltet sind",
-                    "task_switches_act_on": "Wann sollen Aufgaben-Schalter gesteuert werden?",
-                    "task_switches_action": "Aktion für Aufgaben-Schalter"
-                }
-            },
             "feature_conf_presence_hold": {
                 "title": "Anwesenheitshalteschalter",
                 "description": "Erstellt einen Schalter, der einen Bereich als belegt markiert hält (während der Schalter eingeschaltet ist). Wenn der Schalter häufig eingeschaltet bleibt, kann ein Timeout definiert werden, nach dessen Ablauf der Schalter automatisch ausgeschaltet wird.",
