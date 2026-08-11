@@ -66,7 +66,7 @@
       },
       "feature_conf_light_groups": {
         "title": "Grupy lamp",
-        "description": "Adaptive Areas czyni te cztery (plus jedną globalną) [grupy oświetlenia](https://github.com/frandle82/adaptive-areas/wiki/Light-Groups) (jeśli przypiszesz im oświetlenie) gotowymi do użycia. Domyślnie są to zwykłe grupy oświetlenia, ale można nimi sterować automatycznie, przypisując je do stanów obszarów i włączając przełącznik sterowania oświetleniem, który zostanie utworzony po włączeniu tej funkcji. Wszystkie światła zostaną wyłączone po opuszczeniu obszaru. Dodatkowe stany można odblokować, konfigurując opcję `Zaawansowane śledzenie stanu obszaru`.",
+        "description": "Adaptive Areas czyni te cztery (plus jedną globalną) grupy oświetlenia (jeśli przypiszesz im oświetlenie) gotowymi do użycia. Domyślnie są to zwykłe grupy oświetlenia, ale można nimi sterować automatycznie, przypisując je do stanów obszarów i włączając przełącznik sterowania oświetleniem, który zostanie utworzony po włączeniu tej funkcji. Wszystkie światła zostaną wyłączone po opuszczeniu obszaru. Dodatkowe stany można odblokować, konfigurując opcję `Zaawansowane śledzenie stanu obszaru`.",
         "data": {
           "overhead_lights": "Oświetlenie górne",
           "overhead_lights_states": "Wskaż, które oświetlenie górne jest załączone",
@@ -166,7 +166,7 @@
         },
         "data_description": {
           "aggregates_illuminance_threshold": "Adaptive Areas utworzy binarny sensor oświetlenia, śledzący moment, w którym suma natężeń oświetlenia w danym obszarze przekroczy ten próg. Wymaga to wybrania do agregacji klasy urządzenia `oświetlenie`. Ustaw wartość 0, aby wyłączyć.",
-          "aggregates_illuminance_threshold_hysteresis": "[Histereza](https://www.home-assistant.io/integrations/threshold/#hysteresis) definiuje czułość sensora na zmiany jego wartości. Wartość zerowa spowoduje zmianę stanu sensora za każdym razem, gdy natężenie oświetlenia przekroczy górny próg. Wartości dodatnie oznaczają, że sensor zmieni stan tylko wtedy, gdy próg zostanie przekroczony o określoną wartość, wyrażoną w procentach górnej wartości progu. Zwiększenie tej wartości może być przydatne, jeśli chcesz użyć tego sensora jako czujnika oświetlenia swojego obszaru."
+          "aggregates_illuminance_threshold_hysteresis": "Histereza definiuje czułość sensora na zmiany jego wartości. Wartość zerowa spowoduje zmianę stanu sensora za każdym razem, gdy natężenie oświetlenia przekroczy górny próg. Wartości dodatnie oznaczają, że sensor zmieni stan tylko wtedy, gdy próg zostanie przekroczony o określoną wartość, wyrażoną w procentach górnej wartości progu. Zwiększenie tej wartości może być przydatne, jeśli chcesz użyć tego sensora jako czujnika oświetlenia swojego obszaru."
         }
       },
       "feature_conf_fan_groups": {
@@ -216,7 +216,7 @@
           "ble_tracker_entities": "Encje urządzenia śledzącego BLE do śledzenia."
         },
         "data_description": {
-          "ble_tracker_entities": "Urządzenie śledzące BLE, jak np. [room-assistant](https://github.com/mKeRix/room-assistant), [Bermuda](https://github.com/agittins/bermuda) czy [ESPresence](https://github.com/ESPresense/ESPresense) tworzy sensory, które zmieniają stan w zależności od obszaru najbliższego   temu urządzeniu."
+          "ble_tracker_entities": "Urządzenie śledzące BLE, jak np. room-assistant, Bermuda czy ESPresence tworzy sensory, które zmieniają stan w zależności od obszaru najbliższego   temu urządzeniu."
         }
       },
       "feature_conf_wasp_in_a_box": {
@@ -233,7 +233,7 @@
       },
       "secondary_states": {
         "title": "Zaawansowane śledzenie stanu obszaru",
-        "description": "Możesz włączyć [stan drugorzędny](https://github.com/frandle82/adaptive-areas/wiki/Area-State) dla obszaru magicznego, przypisując mu encję. Stany drugorzędne są używane przez funkcje włączające oświetlenie tylko wtedy, gdy jest ciemno, włączające urządzenia klimatyzacyjne dopiero po upływie dłuższego czasu lub nie wysyłające powiadomień do obszaru, gdy jest on w trybie uśpienia.",
+        "description": "Możesz włączyć stan drugorzędny dla obszaru magicznego, przypisując mu encję. Stany drugorzędne są używane przez funkcje włączające oświetlenie tylko wtedy, gdy jest ciemno, włączające urządzenia klimatyzacyjne dopiero po upływie dłuższego czasu lub nie wysyłające powiadomień do obszaru, gdy jest on w trybie uśpienia.",
         "data": {
           "dark_entity": "Sensor oświetlenia obszaru",
           "sleep_entity": "Encja stanu uśpienia",
@@ -255,7 +255,7 @@
       },
       "area_config": {
         "title": "Podstawowe opcje obszaru",
-        "description": "Skonfiguruj podstawowe opcje obszaru. Typ obszaru jest używany dla [Meta-obszarów]: Wewnętrznych/Zewnętrznych/Globalnych (https://github.com/frandle82/adaptive-areas/wiki/Meta-Areas). Możesz precyzyjnie określić, które encje są analizowane przez Adaptive Areas, korzystając z opcji uwzględniania/wykluczania encji.",
+        "description": "Skonfiguruj podstawowe opcje obszaru. Typ obszaru jest używany dla [Meta-obszarów]: Wewnętrznych/Zewnętrznych/Globalnych. Możesz precyzyjnie określić, które encje są analizowane przez Adaptive Areas, korzystając z opcji uwzględniania/wykluczania encji.",
         "data": {
           "include_entities": "Dołącz encje do tego obszaru",
           "exclude_entities": "Wyłącz encje z analizy",
@@ -273,7 +273,7 @@
       },
       "presence_tracking": {
         "title": "Śledzenie obecności",
-        "description": "Skonfiguruj, które platformy i klasy sensorów binarnych są używane do [śledzenia obecności](https://github.com/frandle82/adaptive-areas/wiki/Presence-Sensing). Ta sekcja umożliwia również skonfigurowanie czasu oczekiwania Magcznego Obszaru na skasowanie stanu obszaru po zarejestrowaniu ostatniej obecności.",
+        "description": "Skonfiguruj, które platformy i klasy sensorów binarnych są używane do śledzenia obecności. Ta sekcja umożliwia również skonfigurowanie czasu oczekiwania Magcznego Obszaru na skasowanie stanu obszaru po zarejestrowaniu ostatniej obecności.",
         "data": {
           "presence_sensor_device_class": "Klasy urządzeń obecności",
           "presence_device_platforms": "Platformy przeznaczone do wykrywania obecności",

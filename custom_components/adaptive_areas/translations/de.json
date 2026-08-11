@@ -66,7 +66,7 @@
             },
             "feature_conf_light_groups": {
                 "title": "Lichtgruppen",
-                "description": "Adaptive Areas erstellt diese 4 (plus 1 globale) [Lichtgruppen](https://github.com/frandle82/adaptive-areas/wiki/Light-Groups) (wenn ihnen Lichter zugewiesen werden). Dies sind standardmäßig einfache Lichtgruppen, die jedoch automatisch gesteuert werden können, wenn sie Bereichszuständen zugewiesen sind und der Lichtsteuerungsschalter eingeschaltet wird (wird mit Aktivieren dieser Funktion erstellt). Alle Lichter werden ausgeschaltet, wenn ein Bereich freigegeben wird. Zusätzliche Zustände können durch Konfigurieren von `Erweiterte Statusverfolgung` freigeschaltet werden.",
+                "description": "Adaptive Areas erstellt diese 4 (plus 1 globale) Lichtgruppen (wenn ihnen Lichter zugewiesen werden). Dies sind standardmäßig einfache Lichtgruppen, die jedoch automatisch gesteuert werden können, wenn sie Bereichszuständen zugewiesen sind und der Lichtsteuerungsschalter eingeschaltet wird (wird mit Aktivieren dieser Funktion erstellt). Alle Lichter werden ausgeschaltet, wenn ein Bereich freigegeben wird. Zusätzliche Zustände können durch Konfigurieren von `Erweiterte Statusverfolgung` freigeschaltet werden.",
                 "data": {
                     "overhead_lights": "Deckenleuchten",
                     "overhead_lights_activation": "Deckenleuchten automatisch einschalten während",
@@ -226,7 +226,7 @@
                 },
                 "data_description": {
                     "aggregates_illuminance_threshold": "Adaptive Areas erstellt einen binären `Licht` Sensor, der erkennt, wenn die Gesamtbeleuchtungsstärke des Bereichs diesen Schwellenwert überschreitet. Erfordert, dass die Geräteklasse `Beleuchtungsstärke` für den aggregierten Sensor ausgewählt ist. Zum Deaktivieren auf 0 setzen.",
-                    "aggregates_illuminance_threshold_hysteresis": "[Hysterese](https://www.home-assistant.io/integrations/threshold/#hysteresis) definiert, wie empfindlich der Sensor auf Änderungen reagiert. Ein Wert von 0 bewirkt, dass der Sensorzustand jedes Mal umschaltet, wenn die Beleuchtungsstärke den festgelegten Schwellenwert überschreitet. Positive Werte bedeuten, dass der Sensor nur dann den Zustand ändert, wenn der Schwellenwert um einen bestimmten Betrag überschritten wird (ausgedrückt als Prozentsatz des zuvor festgelegten Schwellenwertes). Das Erhöhen dieses Werts kann nützlich sein, wenn der Sensor als Lichtsensor für seinen eigenen Bereich verwenden werden soll."
+                    "aggregates_illuminance_threshold_hysteresis": "Hysterese definiert, wie empfindlich der Sensor auf Änderungen reagiert. Ein Wert von 0 bewirkt, dass der Sensorzustand jedes Mal umschaltet, wenn die Beleuchtungsstärke den festgelegten Schwellenwert überschreitet. Positive Werte bedeuten, dass der Sensor nur dann den Zustand ändert, wenn der Schwellenwert um einen bestimmten Betrag überschritten wird (ausgedrückt als Prozentsatz des zuvor festgelegten Schwellenwertes). Das Erhöhen dieses Werts kann nützlich sein, wenn der Sensor als Lichtsensor für seinen eigenen Bereich verwenden werden soll."
                 }
             },
             "feature_conf_fan_groups": {
@@ -278,7 +278,7 @@
                     "ble_tracker_entities": "Zu verfolgende BLE-Tracker Entitäten."
                 },
                 "data_description": {
-                    "ble_tracker_entities": "BLE-Tracker wie [room-assistant](https://github.com/mKeRix/room-assistant), [Bermuda](https://github.com/agittins/bermuda) und [ESPresence](https://github.com/ESPresense/ESPresense) erstellen Sensoren, die ihren Zustand je nach Bereich ändern, dem sich das Gerät näher befand."
+                    "ble_tracker_entities": "BLE-Tracker wie room-assistant, Bermuda und ESPresence erstellen Sensoren, die ihren Zustand je nach Bereich ändern, dem sich das Gerät näher befand."
                 }
             },
             "feature_conf_wasp_in_a_box": {
@@ -297,7 +297,7 @@
             },
             "secondary_states": {
                 "title": "Erweiterte Statusverfolgung",
-                "description": "[Sekundäre Zustände](https://github.com/frandle82/adaptive-areas/wiki/Area-State) für einen magischen Bereich aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, oder um Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder um keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
+                "description": "Sekundäre Zustände für einen magischen Bereich aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, oder um Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder um keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
                 "data": {
                     "dark_entity": "Lichtsensor des Bereichs",
                     "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
@@ -319,7 +319,7 @@
             },
             "area_config": {
                 "title": "Grundlegende Bereichsoptionen",
-                "description": "Grundlegende Optionen des Bereichs konfigurieren. Die Bereichsart wird zur Zuweisung in die [Metabereiche](https://github.com/frandle82/adaptive-areas/wiki/Meta-Areas) Innenbereich/Außenbereich/Global verwendet. Mithilfe der Optionen zum Ein-/Ausschließen von Entitäten kann genau festgelegt werden, welche Entitäten durch Adaptive Areas analysiert werden.",
+                "description": "Grundlegende Optionen des Bereichs konfigurieren. Die Bereichsart wird zur Zuweisung in die Metabereiche Innenbereich/Außenbereich/Global verwendet. Mithilfe der Optionen zum Ein-/Ausschließen von Entitäten kann genau festgelegt werden, welche Entitäten durch Adaptive Areas analysiert werden.",
                 "data": {
                     "include_entities": "Entitäten in die Analyse einschließen",
                     "exclude_entities": "Entitäten von der Analyse ausschließen",
@@ -339,7 +339,7 @@
             },
             "presence_tracking": {
                 "title": "Anwesenheitsverfolgung",
-                "description": "Konfigurieren, welche Domänen und binären Sensorgeräteklassen für die [Anwesenheitsverfolgung](https://github.com/frandle82/adaptive-areas/wiki/Presence-Sensing) verwendet werden. In diesem Abschnitt kann ebenfalls konfiguriert werden, wie lange Adaptive Areas nach dem letzten Anwesenheitsereignis wartet, bis der Bereich freigegeben wird.",
+                "description": "Konfigurieren, welche Domänen und binären Sensorgeräteklassen für die Anwesenheitsverfolgung verwendet werden. In diesem Abschnitt kann ebenfalls konfiguriert werden, wie lange Adaptive Areas nach dem letzten Anwesenheitsereignis wartet, bis der Bereich freigegeben wird.",
                 "data": {
                     "presence_sensor_device_class": "Geräteklassen für Anwesenheitssensoren",
                     "presence_device_platforms": "Domänen zur Anwesenheitsverfolgung",

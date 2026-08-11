@@ -68,7 +68,7 @@
             },
             "feature_conf_light_groups": {
                 "title": "Groupes de lumières",
-                "description": "Les Adaptive Areas créent ces quatre groupes de lumières (plus un groupe global) [light groups](https://github.com/frandle82/adaptive-areas/wiki/Light-Groups) (si vous leur assignez des lumières) pour que vous puissiez les utiliser. Par défaut, ce sont des groupes de lumières simples, mais ils peuvent être contrôlés automatiquement si vous les assignez à des états de pièce et activez l'interrupteur de contrôle des lumières (qui sera créé lorsque vous activerez cette fonctionnalité). Toutes les lumières seront éteintes lorsque la pièce sera vidée. Des états supplémentaires peuvent être débloqués en configurant le `Suivi avancé de l'état de la pièce`.",
+                "description": "Les Adaptive Areas créent ces quatre groupes de lumières (plus un groupe global) light groups (si vous leur assignez des lumières) pour que vous puissiez les utiliser. Par défaut, ce sont des groupes de lumières simples, mais ils peuvent être contrôlés automatiquement si vous les assignez à des états de pièce et activez l'interrupteur de contrôle des lumières (qui sera créé lorsque vous activerez cette fonctionnalité). Toutes les lumières seront éteintes lorsque la pièce sera vidée. Des états supplémentaires peuvent être débloqués en configurant le `Suivi avancé de l'état de la pièce`.",
                 "data": {
                     "overhead_lights": "Lumières du plafond",
                     "overhead_lights_states": "États pour lesquels les lumières du plafond sont allumées",
@@ -168,7 +168,7 @@
                 },
                 "data_description": {
                     "aggregates_illuminance_threshold": "Adaptive Areas créera un capteur binaire `light` qui suivra lorsque l'éclairement agrégé de la pièce dépasse ce seuil. La classe de périphérique `illuminance` doit être sélectionnée pour l'agrégation. Réglez sur 0 pour désactiver.",
-                    "aggregates_illuminance_threshold_hysteresis": "[Hystérésis](https://www.home-assistant.io/integrations/threshold/#hysteresis) définit la sensibilité du capteur aux changements de sa valeur. Une valeur de zéro inversera l'état du capteur chaque fois que l'éclairement franchira le seuil ci-dessus. Les valeurs positives signifient que le capteur ne changera d'état que si le seuil est dépassé d'une certaine quantité, exprimée en pourcentage du seuil défini ci-dessus. L'augmentation de cette valeur peut être utile si vous essayez d'utiliser ce capteur comme capteur de lumière de sa propre pièce."
+                    "aggregates_illuminance_threshold_hysteresis": "Hystérésis définit la sensibilité du capteur aux changements de sa valeur. Une valeur de zéro inversera l'état du capteur chaque fois que l'éclairement franchira le seuil ci-dessus. Les valeurs positives signifient que le capteur ne changera d'état que si le seuil est dépassé d'une certaine quantité, exprimée en pourcentage du seuil défini ci-dessus. L'augmentation de cette valeur peut être utile si vous essayez d'utiliser ce capteur comme capteur de lumière de sa propre pièce."
                 }
             },
             "feature_conf_climate_groups": {
@@ -183,7 +183,7 @@
             },
             "secondary_states": {
                 "title": "Suivi avancé de l'état de la pièce",
-                "description": "Vous pouvez activer les [états secondaires](https://github.com/frandle82/adaptive-areas/wiki/Area-State) pour une Pièce Magique en lui assignant une entité. Les états secondaires sont utilisés par les fonctionnalités pour allumer les lumières uniquement lorsqu'il fait sombre ou pour allumer uniquement les appareils de climatisation après une période `extended` ou pour ne pas envoyer de notifications à une pièce si elle est en mode `sleep`.",
+                "description": "Vous pouvez activer les états secondaires pour une Pièce Magique en lui assignant une entité. Les états secondaires sont utilisés par les fonctionnalités pour allumer les lumières uniquement lorsqu'il fait sombre ou pour allumer uniquement les appareils de climatisation après une période `extended` ou pour ne pas envoyer de notifications à une pièce si elle est en mode `sleep`.",
                 "data": {
                     "dark_entity": "Capteur de luminosité de la pièce",
                     "sleep_entity": "Entité d'état de sommeil",
@@ -205,7 +205,7 @@
             },
             "area_config": {
                 "title": "Options de base de la pièce",
-                "description": "Configurez les options de base pour la pièce. Le type de pièce est utilisé pour les [méta-pièces](https://github.com/frandle82/adaptive-areas/wiki/Meta-Areas) intérieures/extérieures/globales, et vous pouvez affiner les entités analysées par Adaptive Areas en utilisant les options d'inclusion/exclusion des entités.",
+                "description": "Configurez les options de base pour la pièce. Le type de pièce est utilisé pour les méta-pièces intérieures/extérieures/globales, et vous pouvez affiner les entités analysées par Adaptive Areas en utilisant les options d'inclusion/exclusion des entités.",
                 "data": {
                     "include_entities": "Inclure les entités dans cette pièce",
                     "exclude_entities": "Exclure les entités de l'analyse",
@@ -223,7 +223,7 @@
             },
             "presence_tracking": {
                 "title": "Suivi de présence",
-                "description": "Configurez les plateformes et les classes d'appareils de capteurs binaires utilisés pour le [suivi de présence](https://github.com/frandle82/adaptive-areas/wiki/Presence-Sensing). Cette section vous permet également de configurer la durée pendant laquelle Pièce Magique attendra avant de vider la pièce après le dernier événement de présence.",
+                "description": "Configurez les plateformes et les classes d'appareils de capteurs binaires utilisés pour le suivi de présence. Cette section vous permet également de configurer la durée pendant laquelle Pièce Magique attendra avant de vider la pièce après le dernier événement de présence.",
                 "data": {
                     "presence_sensor_device_class": "Classes d'appareils de capteurs de présence",
                     "presence_device_platforms": "Plateformes à utiliser pour la détection de présence",
@@ -244,7 +244,7 @@
                 },
                 "description": "Effectue le suivi des capteurs des trackers BLE et crée un capteur binaire d'occupation correspondant pour la zone qui est activé lorsque le capteur du tracker BLE a un état égal au nom ou à l'ID de la zone. **Cette fonctionnalité n'effectue _PAS_ le suivi BLE elle-même.**",
                 "data_description": {
-                    "ble_tracker_entities": "Les trackers BLE tels que [room-assistant](https://github.com/mKeRix/room-assistant), [Bermuda](https://github.com/agittins/bermuda) et [ESPresence](https://github.com/ESPresense/ESPresense) créent des capteurs qui changent d'état en fonction de la zone à laquelle l'appareil est le plus proche."
+                    "ble_tracker_entities": "Les trackers BLE tels que room-assistant, Bermuda et ESPresence créent des capteurs qui changent d'état en fonction de la zone à laquelle l'appareil est le plus proche."
                 }
             },
             "feature_conf_fan_groups": {

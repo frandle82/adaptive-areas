@@ -66,7 +66,7 @@
       },
       "feature_conf_light_groups": {
         "title": "Light Groups",
-        "description": "Adaptive Areas creates these four (plus a global one) [light groups](https://github.com/frandle82/adaptive-areas/wiki/Light-Groups) (if you assign lights to them) for you to use. These by default are plain light groups but can be automatically controlled if you assign them to area states and enable the light control switch (that will be created when you enable this feature). All lights will be turned off when an area is cleared. Additional states can be unlocked by configuring `Advanced area state tracking`.",
+        "description": "Adaptive Areas creates these four (plus a global one) light groups (if you assign lights to them) for you to use. These by default are plain light groups but can be automatically controlled if you assign them to area states and enable the light control switch (that will be created when you enable this feature). All lights will be turned off when an area is cleared. Additional states can be unlocked by configuring `Advanced area state tracking`.",
         "data": {
           "overhead_lights": "Overhead lights",
           "overhead_lights_activation": "Automatically turn overhead lights on while",
@@ -208,7 +208,7 @@
         },
         "data_description": {
           "aggregates_illuminance_threshold": "Adaptive Areas will create a `light` binary sensor that will track when the area's aggregate illuminance goes over this threshold. Requires the device class `illuminance` to be selected for aggregation. Set to 0 to disable.",
-          "aggregates_illuminance_threshold_hysteresis": "[Hysteresis](https://www.home-assistant.io/integrations/threshold/#hysteresis) defines how sensitive the sensor is to changes on its value. A value of zero will flip the sensor state whenever the illuminance crosses the threshold above. Positive values means that the sensor will only change state if the threshold is surpassed by a given amount, expressed in percentage of the threshold set above. Ramping up this value might be useful if you're trying to use this sensor as its own area's light sensor."
+          "aggregates_illuminance_threshold_hysteresis": "Hysteresis defines how sensitive the sensor is to changes on its value. A value of zero will flip the sensor state whenever the illuminance crosses the threshold above. Positive values means that the sensor will only change state if the threshold is surpassed by a given amount, expressed in percentage of the threshold set above. Ramping up this value might be useful if you're trying to use this sensor as its own area's light sensor."
         }
       },
       "feature_conf_fan_groups": {
@@ -260,7 +260,7 @@
           "ble_tracker_entities": "Entities from BLE Trackers to track."
         },
         "data_description": {
-          "ble_tracker_entities": "BLE Trackers such as [room-assistant](https://github.com/mKeRix/room-assistant), [Bermuda](https://github.com/agittins/bermuda) and [ESPresence](https://github.com/ESPresense/ESPresense) creates sensors which changes state to whatever area the device was closer to."
+          "ble_tracker_entities": "BLE Trackers such as room-assistant, Bermuda and ESPresence creates sensors which changes state to whatever area the device was closer to."
         }
       },
       "feature_conf_wasp_in_a_box": {
@@ -279,7 +279,7 @@
       },
       "secondary_states": {
         "title": "Advanced area state tracking",
-        "description": "You can enable [secondary states](https://github.com/frandle82/adaptive-areas/wiki/Area-State) for a Adaptive Area by assigning an entity to it. Secondary states are used by features for turning lights on only when it's dark or only turning on climate devices after an `extended` period of time or not sending notifications to an area if it's on `sleep`.",
+        "description": "You can enable secondary states for a Adaptive Area by assigning an entity to it. Secondary states are used by features for turning lights on only when it's dark or only turning on climate devices after an `extended` period of time or not sending notifications to an area if it's on `sleep`.",
         "data": {
           "dark_entity": "Area's light sensor",
           "sleep_entity": "Sleep state entity",
@@ -301,7 +301,7 @@
       },
       "area_config": {
         "title": "Basic area options",
-        "description": "Configure basic options for the area. Area type is used for the Interior/Exterior/Global [Meta-areas](https://github.com/frandle82/adaptive-areas/wiki/Meta-Areas) and you can fine-tune which entities are analyzed by Adaptive Areas by using the include/exclude entities options.",
+        "description": "Configure basic options for the area. Area type is used for the Interior/Exterior/Global Meta-areas and you can fine-tune which entities are analyzed by Adaptive Areas by using the include/exclude entities options.",
         "data": {
           "include_entities": "Include entities to this area",
           "exclude_entities": "Exclude entities from being analyzed",
@@ -321,7 +321,7 @@
       },
       "presence_tracking": {
         "title": "Presence Tracking",
-        "description": "Configure which platforms and binary sensor device classes are used for [presence tracking](https://github.com/frandle82/adaptive-areas/wiki/Presence-Sensing). This section also allows you to configure how long Adaptive Area will wait until clearing the area after the last presence event.",
+        "description": "Configure which platforms and binary sensor device classes are used for presence tracking. This section also allows you to configure how long Adaptive Area will wait until clearing the area after the last presence event.",
         "data": {
           "presence_sensor_device_class": "Presence sensors device classes",
           "presence_device_platforms": "Platforms to be used for presence sensing",

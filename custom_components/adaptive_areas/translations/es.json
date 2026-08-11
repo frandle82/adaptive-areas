@@ -68,7 +68,7 @@
             },
             "feature_conf_light_groups": {
                 "title": "Grupos de luces",
-                "description": "Adaptive Areas crea estos cuatro (más uno global) [grupos de luces](https://github.com/frandle82/adaptive-areas/wiki/Light-Groups) (si les asigna luces) para que los use. Por defecto, estos son grupos de luces simples, pero se pueden controlar automáticamente si los asigna a estados de área y habilita el interruptor de control de luces (que se creará cuando habilite esta función). Todas las luces se apagarán cuando se despeje un área. Se pueden desbloquear estados adicionales configurando el \"Seguimiento avanzado del estado del área\".",
+                "description": "Adaptive Areas crea estos cuatro (más uno global) grupos de luces (si les asigna luces) para que los use. Por defecto, estos son grupos de luces simples, pero se pueden controlar automáticamente si los asigna a estados de área y habilita el interruptor de control de luces (que se creará cuando habilite esta función). Todas las luces se apagarán cuando se despeje un área. Se pueden desbloquear estados adicionales configurando el \"Seguimiento avanzado del estado del área\".",
                 "data": {
                     "overhead_lights": "luces de techo",
                     "overhead_lights_states": "Indica qué luces del techo están encendidas",
@@ -168,7 +168,7 @@
                 },
                 "data_description": {
                     "aggregates_illuminance_threshold": "Adaptive Areas creará un sensor binario de \"luz\" que rastreará cuando la iluminancia agregada del área supere este umbral. Requiere que se seleccione la clase de dispositivo \"iluminación\" para la agregación. Establezca en 0 para desactivar.",
-                    "aggregates_illuminance_threshold_hysteresis": "[Histéresis](https://www.home-assistant.io/integrations/threshold/#hysteresis) define la sensibilidad del sensor a los cambios en su valor. Un valor de cero cambiará el estado del sensor cada vez que la iluminancia supere el umbral indicado anteriormente. Los valores positivos significan que el sensor solo cambiará de estado si se supera el umbral en una cantidad determinada, expresada en porcentaje del umbral establecido anteriormente. Aumentar este valor puede ser útil si intentas usar este sensor como sensor de luz de su propia área."
+                    "aggregates_illuminance_threshold_hysteresis": "Histéresis define la sensibilidad del sensor a los cambios en su valor. Un valor de cero cambiará el estado del sensor cada vez que la iluminancia supere el umbral indicado anteriormente. Los valores positivos significan que el sensor solo cambiará de estado si se supera el umbral en una cantidad determinada, expresada en porcentaje del umbral establecido anteriormente. Aumentar este valor puede ser útil si intentas usar este sensor como sensor de luz de su propia área."
                 }
             },
             "feature_conf_climate_groups": {
@@ -183,7 +183,7 @@
             },
             "secondary_states": {
                 "title": "Seguimiento avanzado del estado del área",
-                "description": "Puede habilitar [estados secundarios](https://github.com/frandle82/adaptive-areas/wiki/Area-State) para un Área Mágica asignándole una entidad. Los estados secundarios son utilizados por funciones para encender las luces solo cuando está oscuro o solo encender dispositivos climáticos después de un período de tiempo \"extendido\" o no enviar notificaciones a un área si está en \"suspensión\".",
+                "description": "Puede habilitar estados secundarios para un Área Mágica asignándole una entidad. Los estados secundarios son utilizados por funciones para encender las luces solo cuando está oscuro o solo encender dispositivos climáticos después de un período de tiempo \"extendido\" o no enviar notificaciones a un área si está en \"suspensión\".",
                 "data": {
                     "dark_entity": "Sensor de luz del área",
                     "sleep_entity": "Entidad utilizada para rastrear el estado de sueño del área",
@@ -198,7 +198,7 @@
             },
             "area_config": {
                 "title": "Opciones de área básica",
-                "description": "Configurar opciones básicas para el área. El tipo de área se utiliza para las [Metaáreas] Interior/Exterior/Global (https://github.com/frandle82/adaptive-areas/wiki/Meta-Areas) y puede ajustar qué entidades se analizan mediante Áreas Mágicas utilizando las opciones de incluir/excluir entidades.",
+                "description": "Configurar opciones básicas para el área. El tipo de área se utiliza para las [Metaáreas] Interior/Exterior/Global y puede ajustar qué entidades se analizan mediante Áreas Mágicas utilizando las opciones de incluir/excluir entidades.",
                 "data": {
                     "include_entities": "Incluir entidades en esta área",
                     "exclude_entities": "Excluir entidades del análisis",
@@ -216,7 +216,7 @@
             },
             "presence_tracking": {
                 "title": "Seguimiento de presencia",
-                "description": "Configure qué plataformas y clases de dispositivos de sensores binarios se utilizan para [seguimiento de presencia] (https://github.com/frandle82/adaptive-areas/wiki/Presence-Sensing). Esta sección también le permite configurar cuánto tiempo esperará el Área Mágica hasta limpiar el área después del último evento de presencia.",
+                "description": "Configure qué plataformas y clases de dispositivos de sensores binarios se utilizan para seguimiento de presencia. Esta sección también le permite configurar cuánto tiempo esperará el Área Mágica hasta limpiar el área después del último evento de presencia.",
                 "data": {
                     "presence_sensor_device_class": "Clases de dispositivos de sensores de presencia",
                     "presence_device_platforms": "Plataformas que se utilizarán para la detección de presencia.",
@@ -236,7 +236,7 @@
                 },
                 "title": "Integración con rastreadores BLE",
                 "data_description": {
-                    "ble_tracker_entities": "Los rastreadores BLE como [room-assistant](https://github.com/mKeRix/room-assistant), [Bermuda](https://github.com/agittins/bermuda) y [ESPresence](https://github.com/ESPresense/ESPresense) crean sensores que cambian de estado según el área más cercana a la que se encuentre el dispositivo."
+                    "ble_tracker_entities": "Los rastreadores BLE como room-assistant, Bermuda y ESPresence crean sensores que cambian de estado según el área más cercana a la que se encuentre el dispositivo."
                 },
                 "description": "Realiza un seguimiento de los sensores de los rastreadores BLE y crea un sensor binario de `ocupación` correspondiente para el área que se activa cuando el sensor del rastreador BLE tiene un estado igual al nombre o ID del área. **Esta función NO realiza el seguimiento BLE por sí misma.**"
             }

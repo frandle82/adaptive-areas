@@ -68,7 +68,7 @@
             },
             "feature_conf_light_groups": {
                 "title": "Lichte groepen",
-                "description": "Adaptive Areas maakt deze vier (plus een globale) [lichtgroepen](https://github.com/frandle82/adaptive-areas/wiki/Light-Groups) (als je er lichten aan toewijst) die je kunt gebruiken. Dit zijn standaard gewone lichtgroepen, maar kunnen automatisch worden bestuurd als u ze aan gebiedsstatussen toewijst en de lichtschakelaar inschakelt (die wordt aangemaakt wanneer u deze functie inschakelt). Wanneer een gebied wordt ontruimd, worden alle lichten uitgeschakeld. Extra statussen kunnen worden ontgrendeld door 'Geavanceerde gebiedsstatus volgen' te configureren.",
+                "description": "Adaptive Areas maakt deze vier (plus een globale) lichtgroepen (als je er lichten aan toewijst) die je kunt gebruiken. Dit zijn standaard gewone lichtgroepen, maar kunnen automatisch worden bestuurd als u ze aan gebiedsstatussen toewijst en de lichtschakelaar inschakelt (die wordt aangemaakt wanneer u deze functie inschakelt). Wanneer een gebied wordt ontruimd, worden alle lichten uitgeschakeld. Extra statussen kunnen worden ontgrendeld door 'Geavanceerde gebiedsstatus volgen' te configureren.",
                 "data": {
                     "overhead_lights": "Bovenlichten",
                     "overhead_lights_states": "Geeft aan welke bovenlichten zijn ingeschakeld",
@@ -168,7 +168,7 @@
                 },
                 "data_description": {
                     "aggregates_illuminance_threshold": "Adaptive Areas creëert een binaire lichtsensor die bijhoudt wanneer de totale verlichtingssterkte van het gebied deze drempel overschrijdt. Vereist dat de apparaatklasse 'verlichtingssterkte' wordt geselecteerd voor aggregatie. Stel in op 0 om uit te schakelen.",
-                    "aggregates_illuminance_threshold_hysteresis": "[Hysteresis](https://www.home-assistant.io/integrations/threshold/#hysteresis) definieert hoe gevoelig de sensor is voor veranderingen in zijn waarde. Een waarde van nul zal de sensorstatus omkeren wanneer de verlichtingssterkte de bovenstaande drempelwaarde overschrijdt. Positieve waarden betekenen dat de sensor alleen van status verandert als de drempelwaarde wordt overschreden met een bepaald bedrag, uitgedrukt in percentage van de hierboven ingestelde drempelwaarde. Het kan handig zijn om deze waarde op te voeren als u deze sensor wilt gebruiken als lichtsensor voor zijn eigen gebied."
+                    "aggregates_illuminance_threshold_hysteresis": "Hysteresis definieert hoe gevoelig de sensor is voor veranderingen in zijn waarde. Een waarde van nul zal de sensorstatus omkeren wanneer de verlichtingssterkte de bovenstaande drempelwaarde overschrijdt. Positieve waarden betekenen dat de sensor alleen van status verandert als de drempelwaarde wordt overschreden met een bepaald bedrag, uitgedrukt in percentage van de hierboven ingestelde drempelwaarde. Het kan handig zijn om deze waarde op te voeren als u deze sensor wilt gebruiken als lichtsensor voor zijn eigen gebied."
                 }
             },
             "feature_conf_climate_groups": {
@@ -183,7 +183,7 @@
             },
             "secondary_states": {
                 "title": "Geavanceerde tracking van gebiedsstatus",
-                "description": "U kunt [secundaire staten](https://github.com/frandle82/adaptive-areas/wiki/Area-State) inschakelen voor een Adaptive Area door er een entiteit aan toe te wijzen. Secundaire statussen worden gebruikt door functies om lampen alleen aan te zetten als het donker is of om klimaatapparaten pas aan te zetten na een 'langere' tijdsperiode of om geen meldingen naar een gebied te sturen als het in de 'slaapstand' staat.",
+                "description": "U kunt secundaire staten inschakelen voor een Adaptive Area door er een entiteit aan toe te wijzen. Secundaire statussen worden gebruikt door functies om lampen alleen aan te zetten als het donker is of om klimaatapparaten pas aan te zetten na een 'langere' tijdsperiode of om geen meldingen naar een gebied te sturen als het in de 'slaapstand' staat.",
                 "data": {
                     "dark_entity": "De lichtsensor van Area",
                     "sleep_entity": "Entiteit die wordt gebruikt om de slaapstatus van het gebied bij te houden",
@@ -198,7 +198,7 @@
             },
             "area_config": {
                 "title": "Basisgebiedopties",
-                "description": "Configureer basisopties voor het gebied. Gebiedstype wordt gebruikt voor de Interior/Exterior/Global [Meta-areas](https://github.com/frandle82/adaptive-areas/wiki/Meta-Areas) en u kunt nauwkeurig afstemmen welke entiteiten worden geanalyseerd door Adaptive Areas door de opties voor het opnemen/uitsluiten van entiteiten te gebruiken.",
+                "description": "Configureer basisopties voor het gebied. Gebiedstype wordt gebruikt voor de Interior/Exterior/Global Meta-areas en u kunt nauwkeurig afstemmen welke entiteiten worden geanalyseerd door Adaptive Areas door de opties voor het opnemen/uitsluiten van entiteiten te gebruiken.",
                 "data": {
                     "include_entities": "Voeg entiteiten toe aan dit gebied",
                     "exclude_entities": "Sluit entiteiten uit van analyse",
@@ -216,7 +216,7 @@
             },
             "presence_tracking": {
                 "title": "Aanwezigheid volgen",
-                "description": "Configureer welke platforms en binaire sensorapparaatklassen worden gebruikt voor [aanwezigheidsregistratie] (https://github.com/frandle82/adaptive-areas/wiki/Presence-Sensing). In deze sectie kunt u ook configureren hoe lang Adaptive Area wacht tot het gebied wordt leeggemaakt na de laatste aanwezigheidsgebeurtenis.",
+                "description": "Configureer welke platforms en binaire sensorapparaatklassen worden gebruikt voor aanwezigheidsregistratie. In deze sectie kunt u ook configureren hoe lang Adaptive Area wacht tot het gebied wordt leeggemaakt na de laatste aanwezigheidsgebeurtenis.",
                 "data": {
                     "presence_sensor_device_class": "Apparaatklassen aanwezigheidssensoren",
                     "presence_device_platforms": "Platformen voor aanwezigheidsdetectie",
@@ -236,7 +236,7 @@
                     "ble_tracker_entities": "Entiteiten van BLE-trackers om te volgen."
                 },
                 "data_description": {
-                    "ble_tracker_entities": "BLE Trackers zoals [room-assistant](https://github.com/mKeRix/room-assistant), [Bermuda](https://github.com/agittins/bermuda) en [ESPresence](https://github.com/ESPresense/ESPresense) creëren sensoren die de status veranderen naar het gebied waar het apparaat zich het dichtst bij bevond."
+                    "ble_tracker_entities": "BLE Trackers zoals room-assistant, Bermuda en ESPresence creëren sensoren die de status veranderen naar het gebied waar het apparaat zich het dichtst bij bevond."
                 },
                 "description": "Volgt sensoren van BLE Trackers en creëert een bijbehorende binaire `bezettings`-sensor voor het gebied die wordt ingeschakeld wanneer de BLE-trackersensor een status heeft die gelijk is aan de naam of ID van het gebied. **Deze functie voert _GEEN_ BLE-tracking zelf uit.**"
             }
