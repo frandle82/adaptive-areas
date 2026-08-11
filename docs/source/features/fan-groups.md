@@ -8,9 +8,11 @@ The fans will automatically turn `on` 🔛 when the tracked sensor’s value ris
 
 | Option                 | Type    | Default   | Description                                                                 |
 |------------------------|--------|-----------|-----------------------------------------------------------------------------|
-| Required state         | string | `occupied` | Area must be in this state for fans to activate.                            |
-| Tracked device class   | string | n/a       | Aggregate device class to monitor (e.g., `temperature`, `humidity`, `co2`). |
-| Setpoint               | number | n/a       | Value threshold at which fans turn on/off.                                   |
+| Required state         | string | `extended` | Area must be in this state for fans to activate.                            |
+| Tracked device class   | string | `temperature` | Aggregate device class to monitor (e.g., `temperature`, `humidity`, `co2`). |
+| Setpoint               | number | `0`       | Value threshold at which fans turn on/off.                                   |
+
+When the area becomes clear, Fan Control turns the group off regardless of the tracked value.
 
 ## 🛠️ Example Use Cases
 

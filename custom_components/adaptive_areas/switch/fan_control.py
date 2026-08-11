@@ -166,7 +166,16 @@ class FanControlSwitch(SwitchBase):
             )
             return False
 
-        tracked_sensor_value = float(tracked_sensor_state.state)
+        try:
+            tracked_sensor_value = float(tracked_sensor_state.state)
+        except TypeError, ValueError:
+            _LOGGER.debug(
+                "%s: Tracked sensor entity '%s' has a non-numeric state '%s'.",
+                self.name,
+                self.tracked_entity_id,
+                tracked_sensor_state.state,
+            )
+            return False
         _LOGGER.debug(
             "%s: Setpoint value: %.2f, Sensor value: %.2f",
             self.name,

@@ -21,13 +21,13 @@ If you haven’t paid much attention to Home Assistant’s **Area Registry** bef
 
 Go to **Settings > Areas** and make sure every room or zone in your home is represented as an area. Since you're here, if your home is multi-story, configure the each Floor and assign areas to them.
 
-Once you’ve created your areas, go to **Settings > Devices & Services > Integrations**, click **+ Add Integration**, search for **Adaptive Areas**, and create a Adaptive Area for each of your defined areas.
+Once you’ve created your areas, go to **Settings > Devices & Services > Integrations**, click **+ Add Integration**, search for **Adaptive Areas**, and create an Adaptive Area for each of your defined areas.
 
 ## ⚙️ Step 2: Configure Each Adaptive Area
 
-After creating a Adaptive Area, go back to the **Integrations** page, find the Adaptive Areas entry for that area, and click **Configure**.
+After creating an Adaptive Area, go back to the **Integrations** page, find the Adaptive Areas entry for that area, and click **Configure**.
 
-All options are available in the UI, and every setting includes a helpful description.
+Supported user-facing options are available in the UI, and every setting includes a helpful description.
 
 !!! question "Struggling to understand how a setting works?"
     💬 Ask for help in [GitHub Discussions](https://github.com/frandle82/adaptive-areas/discussions).

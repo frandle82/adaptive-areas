@@ -77,10 +77,6 @@ template: |
   ## What's Changed
 
   $CHANGES
-
-  ## Contributors
-
-  $CONTRIBUTORS
 autolabeler:
   - label: breaking
     title:

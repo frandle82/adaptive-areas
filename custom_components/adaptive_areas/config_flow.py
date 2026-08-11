@@ -1230,7 +1230,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             },
             selectors={
                 CONF_FAN_GROUPS_REQUIRED_STATE: self._build_selector_select(
-                    EMPTY_ENTRY + available_states
+                    EMPTY_ENTRY + available_states,
+                    translation_key=SelectorTranslationKeys.AREA_STATES,
                 ),
                 CONF_FAN_GROUPS_TRACKED_DEVICE_CLASS: self._build_selector_select(
                     EMPTY_ENTRY + FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS

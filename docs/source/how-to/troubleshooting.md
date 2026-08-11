@@ -43,11 +43,12 @@ logger:
     custom_components.adaptive_areas.base: warn
     custom_components.adaptive_areas.binary_sensor: warn
     custom_components.adaptive_areas.light: warn
-    custom_components.adaptive_areas.climate: warn
+    custom_components.adaptive_areas.fan: warn
     custom_components.adaptive_areas.media_player: warn
     custom_components.adaptive_areas.sensor: warn
     custom_components.adaptive_areas.switch: warn
     custom_components.adaptive_areas.cover: warn
+    custom_components.adaptive_areas.threshold: warn
     custom_components.adaptive_areas.config_flow: warn
 ```
 
@@ -57,7 +58,7 @@ Once enabled, restart Home Assistant and check the **Logs** section under **Deve
 
 ### 🚫 Entity Not Being Added to an Area
 
-If an entity doesn’t seem to be included in a Adaptive Area:
+If an entity doesn’t seem to be included in an Adaptive Area:
 
 1. Go to **Developer Tools > States** or use the **Entity Filter** menu.
 2. Check that the entity:

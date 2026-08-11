@@ -13,7 +13,7 @@ Every time you add a smart plug, a lamp, or any energy-reporting device, you’d
 - add it to the Energy Dashboard manually
 
 With **Aggregation**, you don’t need to do that.
-When a device is assigned to an area, it’s automatically included in that area’s aggregate sensor.adaptive_areas_aggraggregate_egates_
+When a device is assigned to an area, it is automatically included in that area's aggregate sensor.
 
 Your dashboard stays up to date on its own.
 

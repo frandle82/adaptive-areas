@@ -3,8 +3,8 @@
     "config": {
         "step": {
             "user": {
-                "title": "Magischen Bereich erstellen",
-                "description": "Wähle den Bereich aus, der magisch werden soll!",
+                "title": "Adaptive Area erstellen",
+                "description": "Wähle den Home-Assistant-Bereich aus, den Adaptive Areas verwalten soll.",
                 "data": {
                     "name": "Bereich"
                 }
@@ -13,7 +13,7 @@
         "abort": {
             "already_configured": "Dieses Gerät ist bereits konfiguriert",
             "invalid_area": "Der ausgewählte Bereich existiert nicht",
-            "no_more_areas": "Es sind bereits alle Bereiche magisch!"
+            "no_more_areas": "Alle verfügbaren Bereiche sind bereits konfiguriert."
         }
     },
     "options": {
@@ -239,14 +239,14 @@
                     "preset_occupied": "Belegt",
                     "preset_sleep": "Schlaf",
                     "preset_extended": "Erweitert",
-                    "climate_occupancy_threshold": "Heizen erst nach Anwesenheit von ... Minuten"
+                    "climate_occupancy_threshold": "Belegt-Voreinstellung anwenden nach ... Minuten"
                 },
                 "data_description": {
                     "preset_clear": "Preset, das beim Zustand `Frei` gesetzt wird",
                     "preset_occupied": "Preset, das beim Zustand `Belegt` gesetzt wird",
                     "preset_sleep": "Preset, das beim Zustand `Schlaf` gesetzt wird",
                     "preset_extended": "Preset, das beim Zustand `Erweitert` gesetzt wird",
-                    "climate_occupancy_threshold": "Verhindert, dass kurzes Betreten eines Raumes sofort einen Heizvorgang auslöst."
+                    "climate_occupancy_threshold": "Verhindert, dass kurzes Betreten eines Raumes sofort die Belegt-Voreinstellung anwendet."
                 }
             },
             "feature_conf_ble_trackers": {
@@ -501,6 +501,18 @@
             },
             "fan_control": {
               "name": "Lüftersteuerung"
+            },
+            "task_switches": {
+                "name": "Aufgaben-Schalter"
+            },
+            "sleep_switches": {
+                "name": "Schlaf-Schalter"
+            },
+            "switch_group": {
+                "name": "Alle Schalter"
+            },
+            "switch_group_control": {
+                "name": "Schaltergruppensteuerung"
             }
         }
     },
@@ -544,12 +556,6 @@
           "dark": "Wenn der Bereich zwischen `Hell` und `Dunkel` wechselt",
           "extended": "Wenn der Bereich von `Belegt` auf `Erweitert` wechselt",
           "sleep": "Wenn der Bereich auf `Schlaf` wechselt"
-        }
-      },
-      "states_logic": {
-        "options": {
-          "any": "Mindestens ein Zustand erfüllt",
-          "all": "Alle Zustände müssen erfüllt sein"
         }
       },
       "calculation_mode": {

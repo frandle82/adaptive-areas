@@ -12,6 +12,7 @@ from custom_components.adaptive_areas.config_flow import (
     LEGACY_IMPORT_PREFIX,
     ConfigFlow,
     OptionsFlowHandler,
+    _replace_legacy_entity_ids,
 )
 from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
@@ -105,6 +106,74 @@ async def test_legacy_entry_is_hidden_after_area_was_imported(hass) -> None:
         data={**legacy_data, CONF_ID: str(DEFAULT_MOCK_AREA)},
     )
     imported_entry.add_to_hass(hass)
+
+    flow = ConfigFlow()
+    flow.hass = hass
+
+    assert flow._legacy_import_choices() == {}
+
+
+def test_legacy_entity_ids_are_replaced_recursively() -> None:
+    """Test legacy IDs in nested mappings and lists are replaced safely."""
+    value = {
+        "entity": "binary_sensor.magic_areas_kitchen_area_state",
+        "nested": [
+            "light.magic_areas_kitchen_all_lights",
+            {"adaptive": "light.adaptive_areas_kitchen_all_lights"},
+        ],
+        "unrelated": "sensor.kitchen_temperature",
+    }
+
+    assert _replace_legacy_entity_ids(value) == {
+        "entity": "binary_sensor.adaptive_areas_kitchen_area_state",
+        "nested": [
+            "light.adaptive_areas_kitchen_all_lights",
+            {"adaptive": "light.adaptive_areas_kitchen_all_lights"},
+        ],
+        "unrelated": "sensor.kitchen_temperature",
+    }
+
+
+async def test_legacy_import_choices_disambiguate_duplicate_titles(hass) -> None:
+    """Test legacy entries with duplicate titles remain independently importable."""
+    first_entry = MockConfigEntry(
+        domain=LEGACY_DOMAIN,
+        title="Kitchen",
+        unique_id="first-kitchen",
+        data={CONF_ID: "first-kitchen"},
+    )
+    second_entry = MockConfigEntry(
+        domain=LEGACY_DOMAIN,
+        title="Kitchen",
+        unique_id="second-kitchen",
+        data={CONF_ID: "second-kitchen"},
+    )
+    first_entry.add_to_hass(hass)
+    second_entry.add_to_hass(hass)
+
+    flow = ConfigFlow()
+    flow.hass = hass
+    choices = flow._legacy_import_choices()
+    first_choice, second_choice = sorted(
+        (first_entry, second_entry), key=lambda entry: entry.entry_id
+    )
+
+    assert choices[f"{LEGACY_IMPORT_PREFIX} Kitchen"] is first_choice
+    assert (
+        choices[f"{LEGACY_IMPORT_PREFIX} Kitchen [{second_choice.entry_id[:8]}]"]
+        is second_choice
+    )
+
+
+async def test_invalid_legacy_entry_without_area_id_is_hidden(hass) -> None:
+    """Test a legacy entry without an area ID cannot be imported."""
+    legacy_entry = MockConfigEntry(
+        domain=LEGACY_DOMAIN,
+        title="Invalid",
+        unique_id=None,
+        data={},
+    )
+    legacy_entry.add_to_hass(hass)
 
     flow = ConfigFlow()
     flow.hass = hass

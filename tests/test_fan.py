@@ -20,6 +20,7 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -301,6 +302,17 @@ async def test_fan_group_logic(
 
     fan_group_state = hass.states.get(fan_group_entity_id)
     assert_state(fan_group_state, STATE_ON)
+
+    # A temporarily unavailable aggregate must not raise from fan control.
+    hass.states.async_set(tracked_entity_id, STATE_UNAVAILABLE)
+    await hass.async_block_till_done()
+
+    fan_group_state = hass.states.get(fan_group_entity_id)
+    assert_state(fan_group_state, STATE_OFF)
+
+    # Restore the aggregate before continuing with source-sensor behavior.
+    hass.states.async_set(tracked_entity_id, str(SETPOINT_VALUE * 2))
+    await hass.async_block_till_done()
 
     # > Reset
     hass.states.async_set(motion_sensor_entity_id, STATE_OFF)

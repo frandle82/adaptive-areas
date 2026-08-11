@@ -19,6 +19,7 @@ When configuring Climate Control, you will first be asked to **select a climate 
 | **Preset (Occupied)**      | `string`      | Blank   | Preset to apply when the area becomes `occupied` (e.g., `home`, `comfort`). |
 | **Preset (Extended)**      | `string`      | Blank   | Preset to apply when the area reaches `extended` occupancy. |
 | **Preset (Sleep)**         | `string`      | Blank   | Preset to apply when the area enters the `sleep` state. |
+| **Occupied preset delay**  | `int (minutes)` | `10`  | Minimum continuous occupancy before applying the occupied preset. |
 
 !!! warning
     If you leave a preset mapping blank, Adaptive Areas will **not change the climate** when that state is active.

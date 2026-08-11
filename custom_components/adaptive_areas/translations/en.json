@@ -3,8 +3,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Create a Adaptive Area",
-        "description": "Choose the area you would like to make it magic!",
+        "title": "Create an Adaptive Area",
+        "description": "Choose the Home Assistant area you want Adaptive Areas to manage.",
         "data": {
           "name": "Area"
         }
@@ -13,7 +13,7 @@
     "abort": {
       "already_configured": "This device is already configured",
       "invalid_area": "The selected area does not exist",
-      "no_more_areas": "All your areas are already magic!"
+      "no_more_areas": "All available areas are already configured."
     }
   },
   "options": {
@@ -38,7 +38,7 @@
       },
       "show_menu": {
         "title": "Adaptive Areas Options",
-        "description": "Adaptive Areas does basic presence detection by default but you can unleash its full power by configuring advanced state tracking, tune in your presence tracking parameters and enabling our magic features! Options are not saved unless you select `Save & Exit`.",
+        "description": "Adaptive Areas provides basic presence detection by default. Configure advanced state tracking, presence parameters, and optional features here. Options are not saved unless you select `Save & Exit`.",
         "menu_options": {
           "area_config": "Basic area options",
           "secondary_states": "Advanced area state tracking",
@@ -209,7 +209,7 @@
       },
       "feature_conf_fan_groups": {
         "title": "Feature: Fan Groups",
-        "description": "Group and control all fan entities in an area. This feature allows fan entities to be controlled automatically according to an area's state and wether the aggregate sensor value crosses a setpoint. Fan control requires the aggregates feature to be enable and corresponding device classses selected.",
+        "description": "Group and control all fan entities in an area. This feature allows fan entities to be controlled automatically according to an area's state and whether the aggregate sensor value crosses a setpoint. Fan control requires the Aggregates feature and the corresponding device classes to be enabled.",
         "data": {
           "required_state": "Required state.",
           "tracked_device_class": "Tracked device class.",
@@ -239,14 +239,14 @@
           "preset_occupied": "Occupied",
           "preset_sleep": "Sleep",
           "preset_extended": "Extended",
-          "climate_occupancy_threshold": "Heat after presence of ... minutes"
+          "climate_occupancy_threshold": "Apply occupied preset after ... minutes"
         },
         "data_description": {
           "preset_clear": "Preset to be changed when on `clear` state.",
           "preset_occupied": "Preset to be changed when on `occupied` state.",
           "preset_sleep": "Preset to be changed when on `sleep` state.",
           "preset_extended": "Preset to be changed when on `extended` state.",
-          "climate_occupancy_threshold": "Prevents brief room visits from immediately starting a heating cycle."
+          "climate_occupancy_threshold": "Prevents brief room visits from immediately applying the occupied preset."
         }
       },
       "feature_conf_ble_trackers": {
@@ -275,7 +275,7 @@
       },
       "secondary_states": {
         "title": "Advanced area state tracking",
-        "description": "You can enable secondary states for a Adaptive Area by assigning an entity to it. Secondary states are used by features for turning lights on only when it's dark or only turning on climate devices after an `extended` period of time or not sending notifications to an area if it's on `sleep`.",
+        "description": "You can enable secondary states for an Adaptive Area by assigning an entity to it. Secondary states are used by features for turning lights on only when it's dark, changing climate presets after an `extended` period, or suppressing notifications while an area is in `sleep`.",
         "data": {
           "dark_entity": "Area's light sensor",
           "sleep_entity": "Sleep state entity",
@@ -476,15 +476,6 @@
       },
       "sleep_lights": {
         "name": "Sleep Lights"
-      },
-      "task_switches": {
-        "name": "Task Switches"
-      },
-      "sleep_switches": {
-        "name": "Sleep Switches"
-      },
-      "switch_group": {
-        "name": "All Switches"
       }
     },
     "media_player": {
@@ -510,6 +501,15 @@
       },
       "fan_control": {
         "name": "Fan Control"
+      },
+      "task_switches": {
+        "name": "Task Switches"
+      },
+      "sleep_switches": {
+        "name": "Sleep Switches"
+      },
+      "switch_group": {
+        "name": "All Switches"
       },
       "switch_group_control": {
         "name": "Switch Group Control"

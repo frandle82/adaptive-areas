@@ -9,10 +9,10 @@ Entities grouped with presence-aware automation logic.
   Automatically controls lights per area using presence, darkness, sleep, and more.
 
 * 🌀 [Fan Groups](fan-groups.md)
-  Dynamically manages fans in each area based on presence and occupancy. Includes support for multi-speed fans.
+  Groups an area's fans and switches the group on or off from an aggregate sensor and area state.
 
-* 🌡️ [Climate Groups](climate-control.md)
-  Automatically control climate devices and maps area states to climate presets.
+* 🌡️ [Climate Control](climate-control.md)
+  Maps area states to presets on one selected climate entity.
 
 ## 🧱 Simple Groups
 Passive entity grouping for easier control.
