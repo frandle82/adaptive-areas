@@ -1,5 +1,6 @@
 """Config Flow for Adaptive Area."""
 
+from collections.abc import Mapping
 import importlib.util
 import logging
 from typing import Any
@@ -191,13 +192,29 @@ from custom_components.adaptive_areas.helpers.area import (
     basic_area_from_meta,
     basic_area_from_object,
 )
+from custom_components.adaptive_areas.helpers.light_groups import (
+    migrate_light_groups_in_config,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 EMPTY_ENTRY = [""]
+LEGACY_DOMAIN = "magic_areas"
+LEGACY_IMPORT_PREFIX = "(Import Magic Areas)"
 HAS_FLOOR_REGISTRY = (
     importlib.util.find_spec("homeassistant.helpers.floor_registry") is not None
 )
+
+
+def _replace_legacy_entity_ids(value: Any) -> Any:
+    """Point imported Magic Areas entity IDs at Adaptive Areas entities."""
+    if isinstance(value, str):
+        return value.replace(f"{LEGACY_DOMAIN}_", f"{DOMAIN}_")
+    if isinstance(value, Mapping):
+        return {key: _replace_legacy_entity_ids(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_replace_legacy_entity_ids(item) for item in value]
+    return value
 
 
 class ConfigBase:
@@ -326,6 +343,63 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
     VERSION = AdaptiveConfigEntryVersion.MAJOR
     MINOR_VERSION = AdaptiveConfigEntryVersion.MINOR
 
+    @callback
+    def _legacy_import_choices(self) -> dict[str, config_entries.ConfigEntry]:
+        """Return importable Magic Areas entries keyed by display label."""
+        configured_area_ids = {
+            str(area_id)
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if (area_id := entry.data.get(CONF_ID) or entry.unique_id)
+        }
+        choices: dict[str, config_entries.ConfigEntry] = {}
+
+        for entry in sorted(
+            self.hass.config_entries.async_entries(LEGACY_DOMAIN),
+            key=lambda legacy_entry: (
+                legacy_entry.title.casefold(),
+                legacy_entry.entry_id,
+            ),
+        ):
+            area_id = entry.data.get(CONF_ID) or entry.unique_id
+            if not area_id or str(area_id) in configured_area_ids:
+                continue
+
+            title = entry.title or entry.data.get(CONF_NAME) or str(area_id)
+            label = f"{LEGACY_IMPORT_PREFIX} {title}"
+            if label in choices:
+                label = f"{label} [{entry.entry_id[:8]}]"
+            choices[label] = entry
+
+        return choices
+
+    async def _async_import_legacy_entry(
+        self, legacy_entry: config_entries.ConfigEntry
+    ):
+        """Create an Adaptive Areas entry from a Magic Areas entry."""
+        area_id = legacy_entry.data.get(CONF_ID) or legacy_entry.unique_id
+        if not area_id:
+            return self.async_abort(reason="invalid_area")
+
+        await self.async_set_unique_id(str(area_id))
+        self._abort_if_unique_id_configured()
+
+        migrated_data = _replace_legacy_entity_ids(dict(legacy_entry.data))
+        migrated_options = _replace_legacy_entity_ids(dict(legacy_entry.options))
+        migrated_data, _ = migrate_light_groups_in_config(migrated_data)
+        migrated_options, _ = migrate_light_groups_in_config(migrated_options)
+
+        title = legacy_entry.title or migrated_data.get(CONF_NAME) or str(area_id)
+        _LOGGER.info(
+            "Importing Magic Areas config entry %s as Adaptive Areas area %s",
+            legacy_entry.entry_id,
+            area_id,
+        )
+        return self.async_create_entry(
+            title=title,
+            data=migrated_data,
+            options=migrated_options,
+        )
+
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
@@ -390,12 +464,18 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
             reserved_names.append(area.id)
             areas.append(area)
 
+        legacy_import_choices = self._legacy_import_choices()
+
         if user_input is not None:
+            selected_name = user_input[CONF_NAME]
+            if legacy_entry := legacy_import_choices.get(selected_name):
+                return await self._async_import_legacy_entry(legacy_entry)
+
             # Look up area object by name
             area_object = None
 
             for area in areas:
-                area_name = user_input[CONF_NAME]
+                area_name = selected_name
 
                 # Handle meta area name append
                 if area_name.startswith("(Meta)"):
@@ -438,12 +518,15 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
 
         available_areas = [area for area in areas if area.id not in configured_areas]
 
-        if not available_areas:
+        if not available_areas and not legacy_import_choices:
             return self.async_abort(reason="no_more_areas")
 
         # Slight ordering trick so Meta areas are at the bottom
-        available_area_names = sorted(
-            [area.name for area in available_areas if area.id not in reserved_names]
+        available_area_names = sorted(legacy_import_choices)
+        available_area_names.extend(
+            sorted(
+                [area.name for area in available_areas if area.id not in reserved_names]
+            )
         )
         available_area_names.extend(
             sorted(

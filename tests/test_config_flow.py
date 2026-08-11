@@ -2,15 +2,25 @@
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from homeassistant import config_entries
 from homeassistant.const import ATTR_NAME
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
-from custom_components.adaptive_areas.config_flow import OptionsFlowHandler
+from custom_components.adaptive_areas.config_flow import (
+    LEGACY_DOMAIN,
+    LEGACY_IMPORT_PREFIX,
+    ConfigFlow,
+    OptionsFlowHandler,
+)
 from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
     AREA_STATE_EXTENDED,
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
+    CONF_DARK_ENTITY,
     CONF_FEATURE_LIGHT_GROUPS,
+    CONF_ID,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
@@ -18,6 +28,7 @@ from custom_components.adaptive_areas.const import (
     LIGHT_GROUP_ACTIVATION_EXTENDED,
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_OPTIONS,
+    AdaptiveConfigEntryVersion,
 )
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -25,6 +36,80 @@ from tests.helpers import (
     init_integration,
     shutdown_integration,
 )
+
+
+async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:
+    """Test importing a legacy entry without modifying the original."""
+    area_registry = async_get_area_registry(hass)
+    area_registry.async_create("Kitchen")
+
+    legacy_data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    legacy_options = {
+        **legacy_data,
+        CONF_DARK_ENTITY: "binary_sensor.magic_areas_aggregates_kitchen_light",
+    }
+    legacy_entry = MockConfigEntry(
+        domain=LEGACY_DOMAIN,
+        title="Kitchen",
+        unique_id=str(DEFAULT_MOCK_AREA),
+        data=legacy_data,
+        options=legacy_options,
+        version=2,
+        minor_version=1,
+    )
+    legacy_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    import_label = f"{LEGACY_IMPORT_PREFIX} Kitchen"
+    choice_validator = next(iter(result["data_schema"].schema.values()))
+    assert import_label in choice_validator.container
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {ATTR_NAME: import_label},
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Kitchen"
+    assert result["data"] == legacy_data
+    assert result["options"][CONF_DARK_ENTITY] == (
+        "binary_sensor.adaptive_areas_aggregates_kitchen_light"
+    )
+
+    imported_entry = result["result"]
+    assert imported_entry.unique_id == str(DEFAULT_MOCK_AREA)
+    assert imported_entry.version == AdaptiveConfigEntryVersion.MAJOR
+    assert imported_entry.minor_version == AdaptiveConfigEntryVersion.MINOR
+    assert legacy_entry in hass.config_entries.async_entries(LEGACY_DOMAIN)
+
+
+async def test_legacy_entry_is_hidden_after_area_was_imported(hass) -> None:
+    """Test that an imported area cannot be imported twice."""
+    legacy_data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    legacy_entry = MockConfigEntry(
+        domain=LEGACY_DOMAIN,
+        title="Kitchen",
+        unique_id=str(DEFAULT_MOCK_AREA),
+        data=legacy_data,
+    )
+    legacy_entry.add_to_hass(hass)
+    imported_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Kitchen",
+        unique_id=str(DEFAULT_MOCK_AREA),
+        data={**legacy_data, CONF_ID: str(DEFAULT_MOCK_AREA)},
+    )
+    imported_entry.add_to_hass(hass)
+
+    flow = ConfigFlow()
+    flow.hass = hass
+
+    assert flow._legacy_import_choices() == {}
 
 
 async def test_options_flow_migrates_legacy_light_group_options(hass) -> None:

@@ -3,6 +3,18 @@
 You’ve already [installed](installation.md) Adaptive Areas—awesome! 🎉
 Now let’s walk through how to set up your home with Adaptive Areas to make every room *magical*.
 
+## Migrating from Magic Areas
+
+Keep Magic Areas installed while importing its configuration. Go to
+**Settings > Devices & Services > Integrations**, click **+ Add Integration**, and
+select **Adaptive Areas**. Existing entries appear at the top of the area list as
+**(Import Magic Areas) _Area name_**.
+
+Select each entry you want to import. Adaptive Areas copies its data and options,
+migrates legacy light-group settings, and updates references to entities created
+by the old integration. The original Magic Areas entry is not changed. Review the
+imported areas before disabling or removing Magic Areas.
+
 ## 🏠 Step 1: Define Your Areas
 
 If you haven’t paid much attention to Home Assistant’s **Area Registry** before, now is the time!
