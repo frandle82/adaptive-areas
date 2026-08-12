@@ -4,6 +4,8 @@ import asyncio
 from collections.abc import AsyncGenerator
 import logging
 from typing import Any
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -31,6 +33,7 @@ from custom_components.adaptive_areas.const import (
     DOMAIN,
     AdaptiveAreasFeatures,
 )
+from custom_components.adaptive_areas.switch.climate_control import ClimateControlSwitch
 
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -223,3 +226,21 @@ async def test_climate_control_logic(
 
     climate_state = hass.states.get(MOCK_CLIMATE_ENTITY_ID)
     assert_attribute(climate_state, ATTR_PRESET_MODE, PRESET_AWAY)
+
+
+async def test_occupancy_threshold_callback_stays_on_event_loop(
+    hass: HomeAssistant,
+) -> None:
+    """Timer callback is HA-safe and schedules exactly one awaited re-evaluation."""
+    control = object.__new__(ClimateControlSwitch)
+    control.hass = hass
+    control._occupancy_threshold_callback = lambda: None
+    control.area = SimpleNamespace(id="kitchen", states=["occupied"])
+    control.area_state_changed = AsyncMock()
+
+    assert getattr(control._occupancy_threshold_elapsed, "_hass_callback", False)
+    control._occupancy_threshold_elapsed(None)
+    await hass.async_block_till_done()
+
+    control.area_state_changed.assert_awaited_once_with("kitchen", (["occupied"], []))
+    assert control._occupancy_threshold_callback is None

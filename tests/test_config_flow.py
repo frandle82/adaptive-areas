@@ -29,6 +29,7 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_FEATURE_LIGHT_GROUPS,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_EXCLUDE_ENTITIES,
     CONF_INCLUDE_ENTITIES,
     CONF_ID,
@@ -37,12 +38,15 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
+    DATA_AREA_OBJECT,
     DOMAIN,
     LIGHT_GROUP_ACTIVATION_EXTENDED,
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_OPTIONS,
     OPTIONS_AREA_META,
+    MODULE_DATA,
     AdaptiveConfigEntryVersion,
+    RoomCategory,
 )
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -292,7 +296,7 @@ async def test_light_group_form_only_exposes_room_state_rules(hass) -> None:
 async def test_area_evaluation_form(hass) -> None:
     """Intrinsic Area Evaluation exposes sources but no manual comfort band."""
     config_entry_options = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
-    config_entry_options[CONF_ENABLED_FEATURES] = {}
+    config_entry_options[CONF_ENABLED_FEATURES] = {CONF_FEATURE_ENVIRONMENT: {}}
     config_entry_options[CONF_INCLUDE_ENTITIES] = [
         "sensor.room_temperature",
         "sensor.room_humidity",
@@ -321,6 +325,10 @@ async def test_area_evaluation_form(hass) -> None:
     flow.hass = hass
     flow.handler = config_entry.entry_id
     await flow.async_step_init()
+
+    feature_result = await flow.async_step_select_features()
+    feature_fields = {marker.schema for marker in feature_result["data_schema"].schema}
+    assert CONF_FEATURE_ENVIRONMENT in feature_fields
 
     area_result = await flow.async_step_area_config()
     area_fields = {marker.schema for marker in area_result["data_schema"].schema}
@@ -362,5 +370,54 @@ async def test_area_evaluation_form(hass) -> None:
     )
     assert invalid["type"] == "form"
     assert invalid["errors"] == {CONF_ENVIRONMENT_CIRCULATION_FANS: "malformed_input"}
+
+    await shutdown_integration(hass, [config_entry])
+
+
+async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
+    """Saved general sources survive reload into an explicitly enabled engine."""
+    temperature_id = "sensor.options_temperature"
+    humidity_id = "sensor.options_humidity"
+    hass.states.async_set(
+        temperature_id, "21.5", {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE}
+    )
+    hass.states.async_set(
+        humidity_id, "50", {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY}
+    )
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=str(data[ATTR_NAME]),
+        data=data,
+        version=AdaptiveConfigEntryVersion.MAJOR,
+        minor_version=AdaptiveConfigEntryVersion.MINOR,
+    )
+    await init_integration(hass, [config_entry])
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = config_entry.entry_id
+    await flow.async_step_init()
+    result = await flow.async_step_area_config(
+        {
+            CONF_ROOM_CATEGORY: RoomCategory.LIVING_SEDENTARY,
+            CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
+            CONF_AREA_HUMIDITY_SENSOR: humidity_id,
+            CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
+        }
+    )
+    assert result["type"] == "menu"
+    result = await flow.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
+    assert result["type"] == "menu"
+    result = await flow.async_step_finish()
+    assert result["type"] == "create_entry"
+
+    hass.config_entries.async_update_entry(config_entry, options=result["data"])
+    await hass.async_block_till_done()
+    area = hass.data[MODULE_DATA][config_entry.entry_id][DATA_AREA_OBJECT]
+    assert area.config[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert area.config[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    assert area.environment is not None
+    assert area.environment.assessment["state"] != "unknown"
 
     await shutdown_integration(hass, [config_entry])

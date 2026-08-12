@@ -50,13 +50,7 @@ async def test_config_entry_diagnostics_sections_and_trace(
     assert diagnostics["integration"]["version"] == integration.version
     assert diagnostics["area"]["primary_occupancy_state"] == "clear"
     assert diagnostics["decision_trace"] == []
-    assert diagnostics["environment"]["assessment"]["comfort"] == "unknown"
-    assert diagnostics["environment"]["source_summary"]
-    assert diagnostics["environment"]["primary_sources"] == {
-        "temperature": {"configured": False, "available": False},
-        "humidity": {"configured": False, "available": False},
-    }
-    assert "source_entities" not in diagnostics["environment"]
+    assert diagnostics["environment"] == {"enabled": False}
 
     area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
     area.trace_decision(

@@ -6,7 +6,8 @@ import logging
 import pytest
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     _EventEntityRegistryUpdatedData_CreateRemove,
@@ -15,6 +16,7 @@ from homeassistant.helpers.entity_registry import (
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
+    AdaptiveAreasEvents,
     DATA_AREA_OBJECT,
     MODULE_DATA,
 )
@@ -188,10 +190,23 @@ async def test_start_event_does_not_reload_regular_area(
 ) -> None:
     """Do not perform a second full setup when Home Assistant starts."""
     hass.set_state(CoreState.starting)
+    loaded: list[tuple] = []
+
+    @callback
+    def _loaded(*args) -> None:
+        loaded.append(args)
+
+    remove = async_dispatcher_connect(hass, AdaptiveAreasEvents.AREA_LOADED, _loaded)
     await init_integration(hass, [basic_config_entry])
     area = get_entry_by_area_name(hass, basic_config_entry.data["id"])
     assert area is not None
     initial_timestamp = area.timestamp
+
+    # Exercise the deferred startup path independently of integration setup,
+    # which moves the test Home Assistant instance to running.
+    loaded.clear()
+    hass.set_state(CoreState.not_running)
+    area.finalize_init()
 
     hass.set_state(CoreState.running)
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
@@ -200,7 +215,31 @@ async def test_start_event_does_not_reload_regular_area(
     current_area = get_entry_by_area_name(hass, basic_config_entry.data["id"])
     assert current_area is area
     assert current_area.timestamp == initial_timestamp
+    assert len(loaded) == 1
+    assert loaded[0][-1] is True
 
+    remove()
+    await shutdown_integration(hass, [basic_config_entry])
+
+
+async def test_running_area_emits_area_loaded_once(
+    hass: HomeAssistant, basic_config_entry
+) -> None:
+    """Running startup path dispatches exactly once on event loop."""
+    loaded: list[tuple] = []
+
+    @callback
+    def _loaded(*args) -> None:
+        loaded.append(args)
+
+    remove = async_dispatcher_connect(hass, AdaptiveAreasEvents.AREA_LOADED, _loaded)
+    await init_integration(hass, [basic_config_entry])
+    await hass.async_block_till_done()
+
+    assert len(loaded) == 1
+    assert loaded[0][-1] is False
+
+    remove()
     await shutdown_integration(hass, [basic_config_entry])
 
 

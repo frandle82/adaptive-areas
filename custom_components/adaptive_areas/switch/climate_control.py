@@ -9,7 +9,7 @@ from homeassistant.components.climate.const import (
     SERVICE_SET_PRESET_MODE,
 )
 from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
-from homeassistant.core import CALLBACK_TYPE
+from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_call_later
 
@@ -193,6 +193,7 @@ class ClimateControlSwitch(SwitchBase):
         self._occupied_since = None
         self._clear_occupancy_threshold_timer()
 
+    @callback
     def _occupancy_threshold_elapsed(self, _now) -> None:
         """Re-evaluate climate presets after a short occupancy delay."""
         self._occupancy_threshold_callback = None

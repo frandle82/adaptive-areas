@@ -28,7 +28,7 @@ Passive entity grouping for easier control.
 Sensor logic, tracking, and hazard detection.
 
 * 🌿 [Area Evaluation](environment-monitoring.md)
-  Intrinsically evaluates compatible indoor, outdoor, surface, and air-quality sources while keeping missing dimensions unknown and sources traceable.
+  Optionally evaluates compatible indoor, outdoor, surface, and air-quality sources while keeping missing dimensions unknown and sources traceable. Disabled by default.
 
 * 📍 [BLE Tracker Sensors](ble-tracker-monitor.md)
   Adds support for BLE presence sensors (e.g., Bermuda, ESPresence, Room Assistant). Automatically maps tracked devices to areas.

@@ -365,7 +365,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 4
+    MINOR = 5
 
 
 class AdaptiveAreasFeatureInfo:
@@ -890,7 +890,7 @@ CONF_FEATURE_HEALTH = "health"
 CONF_FEATURE_PRESENCE_HOLD = "presence_hold"
 CONF_FEATURE_BLE_TRACKERS = "ble_trackers"
 CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
-# Legacy 1.3 RC key. Migration 2.3 removes it from enabled features.
+# Stable internal key retained for Area Evaluation entity compatibility.
 CONF_FEATURE_ENVIRONMENT = "environment"
 
 CONF_FEATURE_LIST_META = [
@@ -903,6 +903,7 @@ CONF_FEATURE_LIST_META = [
 ]
 
 CONF_FEATURE_LIST = CONF_FEATURE_LIST_META + [
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_BLE_TRACKERS,

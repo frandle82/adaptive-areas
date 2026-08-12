@@ -33,8 +33,10 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_DISABLED_FANS,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
+    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
     CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+    CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_WINDOWS,
     CONF_FEATURE_ENVIRONMENT,
@@ -75,6 +77,8 @@ _LOGGER = logging.getLogger(__name__)
 
 _MIGRATED_AREA_EVALUATION_KEYS = (
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
+    CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_ENVIRONMENT_WINDOWS,
     CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
@@ -156,7 +160,7 @@ def _migrate_area_evaluation_config(
     *,
     regular_area: bool = True,
 ) -> tuple[dict[str, Any], bool]:
-    """Move 1.3 RC Environment feature settings to intrinsic Area Evaluation."""
+    """Flatten legacy settings while preserving explicit feature intent."""
     if not isinstance(config, dict):
         return {}, False
     migrated = dict(config)
@@ -164,13 +168,16 @@ def _migrate_area_evaluation_config(
     enabled = migrated.get(CONF_ENABLED_FEATURES)
     if isinstance(enabled, dict) and CONF_FEATURE_ENVIRONMENT in enabled:
         enabled = dict(enabled)
-        legacy = enabled.pop(CONF_FEATURE_ENVIRONMENT)
+        legacy = enabled.get(CONF_FEATURE_ENVIRONMENT)
+        enabled[CONF_FEATURE_ENVIRONMENT] = {}
         migrated[CONF_ENABLED_FEATURES] = enabled
-        changed = True
         if isinstance(legacy, dict):
             for key in _MIGRATED_AREA_EVALUATION_KEYS:
                 if key in legacy and key not in migrated:
                     migrated[key] = legacy[key]
+                    changed = True
+            if legacy:
+                changed = True
     if regular_area and CONF_ROOM_CATEGORY not in migrated:
         migrated[CONF_ROOM_CATEGORY] = DEFAULT_ROOM_CATEGORY
         changed = True

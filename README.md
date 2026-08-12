@@ -38,7 +38,7 @@ Smart areas that just work, every time, out of the box. Fully customizable if yo
 ### Presence
 * **🕰️ Smart Presence Timeouts:** Each area has a configurable timeout for clearing presence after the last motion. If motion is detected again within the timeout, it resets — no abrupt shutoffs.
 * **✋ Presence Hold:** Creates a switch to manually override presence in an area. Useful if sensors aren’t fully reliable yet or for guests.
-* **🌿 Intrinsic Area Evaluation:** Every regular indoor Area evaluates category-aware thermal conditions, moisture, mould risk, air quality, ventilation, cooling, source provenance, and optional room usage. Missing dimensions remain unknown.
+* **🌿 Optional Area Evaluation:** Regular indoor Areas can evaluate category-aware thermal conditions, moisture, mould risk, air quality, ventilation, cooling, source provenance, and optional room usage. The feature is disabled by default, and missing dimensions remain unknown.
 * **🕯️ Secondary States:** Define subtle room states for more nuanced automations:
     * `dark` / `bright`: Based on light sensors or sun
     * `sleep`: Tracked by any entity

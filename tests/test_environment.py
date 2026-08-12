@@ -89,7 +89,9 @@ def _area(
             CONF_ID: "kitchen",
             CONF_NAME: "Kitchen",
             CONF_TYPE: AREA_TYPE_INTERIOR,
-            CONF_ENABLED_FEATURES: {},
+            CONF_ENABLED_FEATURES: (
+                {CONF_FEATURE_ENVIRONMENT: {}} if environment else {}
+            ),
             CONF_TRACK_ROOM_USAGE: track_room_usage,
             **(feature_config or {}),
         },
@@ -211,6 +213,8 @@ def test_primary_pair_excludes_decoys_from_all_derived_physics(
     assert engine.assessment["humidity_ratio"] == 7.24
     assert engine.assessment["enthalpy"] == 38.5
     assert engine.assessment["thermal_input_quality"] == "enhanced"
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["state"] == EnvironmentState.GOOD
 
     hass.states.async_set(
         "sensor.decoy_temperature",
@@ -883,7 +887,7 @@ async def test_room_usage_is_exposed_by_intrinsic_area_evaluation(
     """The basic usage opt-in is exposed by intrinsic Area Evaluation."""
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     data[CONF_TRACK_ROOM_USAGE] = True
-    data[CONF_ENABLED_FEATURES] = {}
+    data[CONF_ENABLED_FEATURES] = {CONF_FEATURE_ENVIRONMENT: {}}
     entry = MockConfigEntry(domain=DOMAIN, data=data)
     await init_integration(hass, [entry])
 
@@ -899,22 +903,145 @@ async def test_room_usage_is_exposed_by_intrinsic_area_evaluation(
     await shutdown_integration(hass, [entry])
 
 
-async def test_regular_interior_always_creates_area_evaluation_sensor(
+async def test_area_evaluation_is_disabled_by_default(
     hass: HomeAssistant,
 ) -> None:
-    """Regular indoor Areas receive evaluation even with no optional features."""
+    """Regular indoor Areas do no hidden evaluation work by default."""
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     data[CONF_ENABLED_FEATURES] = {}
     entry = MockConfigEntry(domain=DOMAIN, data=data)
     await init_integration(hass, [entry])
 
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is None
+    assert (
+        hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
+        is None
+    )
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_enabled_area_evaluation_uses_options_and_publishes_good(
+    hass: HomeAssistant,
+) -> None:
+    """Real setup path overlays options and publishes a capability-aware state."""
+    temperature = MockSensor(
+        name="primary_temperature",
+        unique_id="primary_temperature_runtime",
+        native_value=21.5,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        unit_of_measurement=UnitOfTemperature.CELSIUS,
+    )
+    humidity = MockSensor(
+        name="primary_humidity",
+        unique_id="primary_humidity_runtime",
+        native_value=50,
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement="%",
+        unit_of_measurement="%",
+    )
+    await setup_mock_entities(
+        hass, "sensor", {DEFAULT_MOCK_AREA: [temperature, humidity]}
+    )
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        options={
+            **data,
+            CONF_ENABLED_FEATURES: {CONF_FEATURE_ENVIRONMENT: {}},
+            CONF_AREA_TEMPERATURE_SENSOR: temperature.entity_id,
+            CONF_AREA_HUMIDITY_SENSOR: humidity.entity_id,
+            CONF_ROOM_CATEGORY: RoomCategory.LIVING_SEDENTARY,
+        },
+        version=2,
+        minor_version=5,
+    )
+    await init_integration(hass, [entry])
+
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.config[CONF_AREA_TEMPERATURE_SENSOR] == temperature.entity_id
+    assert area.config[CONF_AREA_HUMIDITY_SENSOR] == humidity.entity_id
     assert area.environment is not None
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert state is not None
-    assert state.state == EnvironmentState.UNKNOWN
+    assert state.state == EnvironmentState.GOOD
+    assert state.attributes["temperature"] == 21.5
+    assert state.attributes["relative_humidity"] == 50
+    assert state.attributes["comfort"] != ComfortState.UNKNOWN
+    assert state.attributes["humidity"] != HumidityState.UNKNOWN
 
     await shutdown_integration(hass, [entry])
+
+
+async def test_area_evaluation_enable_disable_reload(hass: HomeAssistant) -> None:
+    """Feature reload creates and removes engine, listeners, and entity."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=5)
+    await init_integration(hass, [entry])
+    entity_id = f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}"
+    assert hass.states.get(entity_id) is None
+
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**data, CONF_ENABLED_FEATURES: {CONF_FEATURE_ENVIRONMENT: {}}},
+    )
+    await hass.async_block_till_done()
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is not None
+    assert hass.states.get(entity_id) is not None
+
+    hass.config_entries.async_update_entry(
+        entry, options={**data, CONF_ENABLED_FEATURES: {}}
+    )
+    await hass.async_block_till_done()
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is None
+    assert hass.states.get(entity_id) is None
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_primary_sources_recover_without_reload(hass: HomeAssistant) -> None:
+    """Unavailable primary sources trigger evaluation when each becomes valid."""
+    area = _area(
+        hass,
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.primary_temperature",
+            CONF_AREA_HUMIDITY_SENSOR: "sensor.primary_humidity",
+        },
+    )
+    attributes = {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE}
+    hass.states.async_set("sensor.primary_temperature", STATE_UNAVAILABLE, attributes)
+    hass.states.async_set(
+        "sensor.primary_humidity",
+        STATE_UNAVAILABLE,
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY},
+    )
+    area.entities["sensor"] = [
+        {ATTR_ENTITY_ID: "sensor.primary_temperature"},
+        {ATTR_ENTITY_ID: "sensor.primary_humidity"},
+    ]
+    engine = AreaEnvironmentEngine(area)
+    assert engine.assessment["state"] == EnvironmentState.UNKNOWN
+
+    hass.states.async_set("sensor.primary_temperature", "21.5", attributes)
+    await hass.async_block_till_done()
+    assert engine.assessment["temperature"] == 21.5
+    assert engine.assessment["relative_humidity"] is None
+    assert engine.assessment["state"] == EnvironmentState.GOOD
+
+    hass.states.async_set(
+        "sensor.primary_humidity",
+        "50",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY},
+    )
+    await hass.async_block_till_done()
+    assert engine.assessment["relative_humidity"] == 50
+    assert engine.assessment["thermal_input_quality"] == "enhanced"
+    engine.unload()
 
 
 async def test_regular_exterior_does_not_create_area_evaluation_sensor(
@@ -965,14 +1092,14 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 4
-    assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
+    assert entry.minor_version == 5
+    assert entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
     assert CONF_ENVIRONMENT_COMFORT_MIN not in entry.data
     assert CONF_ENVIRONMENT_COMFORT_MAX not in entry.data
     assert entry.data[CONF_ROOM_CATEGORY] == RoomCategory.LIVING_SEDENTARY
-    assert CONF_FEATURE_ENVIRONMENT not in entry.options[CONF_ENABLED_FEATURES]
+    assert entry.options[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.options[CONF_ENVIRONMENT_WINDOWS] == ["binary_sensor.window"]
     assert CONF_ENVIRONMENT_COMFORT_MIN not in entry.options
 
@@ -1032,6 +1159,29 @@ async def test_rc5_primary_source_migration_is_conservative(
     assert CONF_AREA_HUMIDITY_SENSOR not in ambiguous
 
 
+async def test_rc6_migration_keeps_evaluation_disabled(hass: HomeAssistant) -> None:
+    """RC6 intrinsic entity is not proof of explicit feature intent."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data.update(
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.saved_temperature",
+            CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "sensor.saved_outdoor",
+            CONF_ROOM_CATEGORY: RoomCategory.SLEEPING_REST,
+        }
+    )
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=4)
+    await init_integration(hass, [entry])
+
+    assert entry.minor_version == 5
+    assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
+    assert entry.data[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.saved_temperature"
+    assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.saved_outdoor"
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is None
+
+    await shutdown_integration(hass, [entry])
+
+
 async def test_environment_sensor_fan_request_reaches_fan_control(
     hass: HomeAssistant,
 ) -> None:
@@ -1051,6 +1201,7 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     data[CONF_ENABLED_FEATURES] = {
         CONF_FEATURE_FAN_GROUPS: {},
+        CONF_FEATURE_ENVIRONMENT: {},
     }
     data[CONF_ENVIRONMENT_CIRCULATION_FANS] = [fan.entity_id]
     data[CONF_AREA_TEMPERATURE_SENSOR] = temperature.entity_id

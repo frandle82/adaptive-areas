@@ -40,6 +40,7 @@ from custom_components.adaptive_areas.const import (
     CONF_EXCLUDE_ENTITIES,
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_BLE_TRACKERS,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
@@ -163,8 +164,13 @@ class AdaptiveArea:
         if self.hass.is_running:
             _notify_load(False)
         else:
+
+            @callback
+            def _home_assistant_started(_event) -> None:
+                _notify_load(True)
+
             self._remove_load_listener = self.hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STARTED, lambda _: _notify_load(True)
+                EVENT_HOMEASSISTANT_STARTED, _home_assistant_started
             )
 
     def unload(self) -> None:
@@ -490,8 +496,15 @@ class AdaptiveArea:
 
         await self.load_entities()
 
-        if not self.is_meta() and self.is_interior():
+        if (
+            not self.is_meta()
+            and self.is_interior()
+            and self.has_feature(CONF_FEATURE_ENVIRONMENT)
+        ):
+            self.logger.debug("Area Evaluation enabled for %s", self.name)
             self.environment = AreaEnvironmentEngine(self)
+        else:
+            self.logger.debug("Area Evaluation disabled for %s", self.name)
 
         self.finalize_init()
 

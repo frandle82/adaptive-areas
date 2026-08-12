@@ -89,6 +89,7 @@ from .const import (
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
     CONF_FEATURE_BLE_TRACKERS,
     CONF_FEATURE_CLIMATE_CONTROL,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_FAN_GROUPS,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_LIGHT_GROUPS,
@@ -597,6 +598,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         if self.area.id == META_AREA_GLOBAL.lower():
             feature_list = CONF_FEATURE_LIST_GLOBAL
 
+        feature_list = list(feature_list)
+        if area_type != AREA_TYPE_INTERIOR:
+            feature_list = [
+                feature
+                for feature in feature_list
+                if feature != CONF_FEATURE_ENVIRONMENT
+            ]
+
         # Hide switch groups from UI feature selection.
         feature_list = [
             feature for feature in feature_list if feature != CONF_FEATURE_SWITCH_GROUPS
@@ -791,10 +800,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             "secondary_states",
             "select_features",
         ]
-        if (
-            not self.area.is_meta()
-            and self.area.config.get(CONF_TYPE) == AREA_TYPE_INTERIOR
-        ):
+        if CONF_FEATURE_ENVIRONMENT in self.area_options.get(CONF_ENABLED_FEATURES, {}):
             menu_options.insert(1, "area_evaluation")
 
         # Add entries for features
@@ -1354,7 +1360,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         )
 
     async def async_step_area_evaluation(self, user_input=None):
-        """Configure sources and roles for intrinsic Area Evaluation."""
+        """Configure sources and roles for enabled Area Evaluation."""
         temperature_entities = []
         humidity_entities = []
         window_entities = []

@@ -243,7 +243,9 @@ async def async_get_config_entry_diagnostics(
         },
         "decision_trace": area.decision_trace.export(),
         "environment": (
-            area.environment.diagnostics() if area.environment is not None else {}
+            {"enabled": True, **area.environment.diagnostics()}
+            if area.environment is not None
+            else {"enabled": False}
         ),
     }
 

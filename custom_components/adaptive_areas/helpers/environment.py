@@ -405,6 +405,23 @@ class AreaEnvironmentEngine:
         )
         self._refresh_outdoor_listener()
         self.evaluate(trace=False)
+        self.area.logger.debug(
+            "Primary temperature source: %s",
+            self.primary_temperature_entity or "not configured",
+        )
+        self.area.logger.debug(
+            "Primary humidity source: %s",
+            self.primary_humidity_entity or "not configured",
+        )
+        self.area.logger.debug(
+            "Evaluated capabilities: %s",
+            sorted(
+                key for key, value in self.assessment["capabilities"].items() if value
+            ),
+        )
+        self.area.logger.debug(
+            "Initial Area Evaluation state: %s", self.assessment["state"]
+        )
 
     def _exterior_sensor_ids(self) -> list[str]:
         """Return currently eligible automatic exterior temperature/RH sources."""
@@ -1536,13 +1553,22 @@ class AreaEnvironmentEngine:
             or mould_risk == MouldRiskState.ELEVATED
             or humidity_state
             in (HumidityState.ELEVATED, HumidityState.HIGH, HumidityState.VERY_HIGH)
-            or comfort not in (ComfortState.COMFORTABLE, ComfortState.UNKNOWN)
+            or comfort
+            not in (
+                ComfortState.COMFORTABLE,
+                ComfortState.NOT_APPLICABLE,
+                ComfortState.UNKNOWN,
+            )
         )
-        sufficiently_observed = (
-            temperature is not None
-            and humidity is not None
-            and air_quality == AirQualityState.GOOD
-        )
+        evaluated_dimensions = {
+            "comfort": comfort
+            not in (ComfortState.UNKNOWN, ComfortState.NOT_APPLICABLE),
+            "humidity": humidity_state != HumidityState.UNKNOWN,
+            "mould": mould_risk != MouldRiskState.UNKNOWN,
+            "air_quality": air_quality != AirQualityState.UNKNOWN,
+            "ventilation": ventilation != VentilationState.UNKNOWN,
+            "cooling": cooling != CoolingState.UNKNOWN,
+        }
         overall = (
             EnvironmentState.ACTION_REQUIRED
             if critical or required
@@ -1551,7 +1577,7 @@ class AreaEnvironmentEngine:
                 if attention
                 else (
                     EnvironmentState.GOOD
-                    if sufficiently_observed
+                    if any(evaluated_dimensions.values())
                     else EnvironmentState.UNKNOWN
                 )
             )
@@ -1640,6 +1666,9 @@ class AreaEnvironmentEngine:
             "ventilation_fan_request": ventilation_request,
             "circulation_fan_request": circulation_request,
             "capabilities": capabilities,
+            "evaluated_dimensions": sorted(
+                key for key, evaluated in evaluated_dimensions.items() if evaluated
+            ),
             "health_alert": health_alert,
             "reason_codes": list(dict.fromkeys(reasons)),
             "humidity_warning_duration_seconds": int(humidity_duration),

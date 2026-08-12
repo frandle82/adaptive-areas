@@ -33,7 +33,8 @@
                     "presence_hold": "Anwesenheitshalteschalter",
                     "ble_trackers": "BLE-Tracker-Überwachung",
                     "switch_groups": "Schaltergruppen",
-                    "wasp_in_a_box": "Wasp in a Box"
+                    "wasp_in_a_box": "Wasp in a Box",
+                    "environment": "Bereichsauswertung"
                 }
             },
             "show_menu": {
@@ -224,7 +225,7 @@
             },
             "area_evaluation": {
                 "title": "Bereichsauswertung",
-                "description": "Jeder normale Innenbereich wird anhand kompatibler, nicht ausgeschlossener Quellen ausgewertet. Fehlende Dimensionen bleiben unbekannt. Empfehlungen steuern nie direkt Geräte; ausdrücklich klassifizierte Ventilatoren können von der aktivierten Lüftersteuerung verwendet werden.",
+                "description": "Bewertet Raumkomfort, Luftfeuchtigkeit, Lüftung, Luftqualität, Schimmelrisiko und Kühlung anhand der konfigurierten Sensoren des Bereichs.",
                 "data": {
                     "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
                     "outdoor_humidity_entity": "Außenluftfeuchtequelle (optional)",

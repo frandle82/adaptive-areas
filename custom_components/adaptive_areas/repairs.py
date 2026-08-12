@@ -29,6 +29,8 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_DISABLED_FANS,
     CONF_KEEP_ONLY_ENTITIES,
+    CONF_ENABLED_FEATURES,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_NOTIFICATION_DEVICES,
     CONF_OVERHEAD_LIGHTS,
     CONF_PRESENCE_CONTROL_ENTITIES,
@@ -109,7 +111,15 @@ def get_missing_entity_summary(
     entity_registry = async_get_entity_registry(hass)
     missing_by_category: dict[str, int] = defaultdict(int)
     seen: set[str] = set()
-    for entity_id, category in _iter_entity_references(_combined_config(config_entry)):
+    combined = _combined_config(config_entry)
+    enabled_features = combined.get(CONF_ENABLED_FEATURES, {})
+    environment_enabled = (
+        isinstance(enabled_features, (dict, list))
+        and CONF_FEATURE_ENVIRONMENT in enabled_features
+    )
+    for entity_id, category in _iter_entity_references(combined):
+        if category in ("area_climate", "area_evaluation") and not environment_enabled:
+            continue
         if entity_id in seen:
             continue
         seen.add(entity_id)

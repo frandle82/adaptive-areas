@@ -33,7 +33,8 @@
           "health": "Create health sensors",
           "presence_hold": "Create presence hold switch",
           "ble_trackers": "Monitor Bluetooth tracker sensors",
-          "wasp_in_a_box": "Create a Wasp in a Box sensor"
+          "wasp_in_a_box": "Create a Wasp in a Box sensor",
+          "environment": "Area Evaluation"
         }
       },
       "show_menu": {
@@ -224,7 +225,7 @@
       },
       "area_evaluation": {
         "title": "Area Evaluation",
-        "description": "Every regular indoor Area is evaluated from compatible, non-excluded sources. Missing dimensions remain unknown. Recommendations never control devices directly; explicitly classified fans may be used by enabled Fan Control.",
+        "description": "Evaluate thermal comfort, humidity, ventilation, air quality, mould risk and cooling using the configured Area sensors.",
         "data": {
           "outdoor_temperature_entity": "Outdoor temperature source (optional)",
           "outdoor_humidity_entity": "Outdoor humidity source (optional)",
