@@ -4,7 +4,7 @@ from collections import Counter
 import logging
 
 from homeassistant.components.sensor.const import DOMAIN as SENSOR_DOMAIN
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
@@ -25,6 +25,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoEnvironment,
+    EnvironmentState,
 )
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
@@ -169,6 +170,8 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
     """Expose the unified environmental assessment as one low-churn sensor."""
 
     feature_info = AdaptiveAreasFeatureInfoEnvironment()
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [str(state) for state in EnvironmentState]
 
     def __init__(self, area: AdaptiveArea) -> None:
         """Initialize the Environment sensor."""

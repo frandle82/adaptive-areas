@@ -504,7 +504,97 @@
     },
     "sensor": {
       "environment": {
-        "name": "Environment"
+        "name": "Environment",
+        "state": {
+          "good": "Good",
+          "attention": "Attention needed",
+          "action_required": "Action required",
+          "unknown": "Unknown"
+        },
+        "state_attributes": {
+          "comfort": {
+            "name": "Comfort",
+            "state": {
+              "cold": "Cold",
+              "cool": "Cool",
+              "comfortable": "Comfortable",
+              "warm": "Warm",
+              "hot": "Hot",
+              "very_hot": "Very hot",
+              "unknown": "Unknown"
+            }
+          },
+          "humidity": {
+            "name": "Humidity",
+            "state": {
+              "very_dry": "Very dry",
+              "dry": "Dry",
+              "normal": "Normal",
+              "elevated": "Elevated",
+              "high": "High",
+              "very_high": "Very high",
+              "unknown": "Unknown"
+            }
+          },
+          "ventilation": {
+            "name": "Ventilation",
+            "state": {
+              "not_required": "Not required",
+              "recommended": "Recommended",
+              "required": "Required",
+              "urgent": "Urgent",
+              "ventilating": "Ventilating",
+              "unknown": "Unknown"
+            }
+          },
+          "cooling": {
+            "name": "Cooling",
+            "state": {
+              "not_required": "Not required",
+              "passive_recommended": "Passive cooling recommended",
+              "active_recommended": "Active cooling recommended",
+              "unknown": "Unknown"
+            }
+          },
+          "window_recommendation": {
+            "name": "Window recommendation",
+            "state": {
+              "none": "None",
+              "open": "Open",
+              "close": "Close",
+              "keep_closed": "Keep closed"
+            }
+          },
+          "ventilation_fan_request": {
+            "name": "Ventilation fan request",
+            "state": {
+              "none": "None",
+              "low": "Low",
+              "high": "High"
+            }
+          },
+          "circulation_fan_request": {
+            "name": "Circulation fan request",
+            "state": {
+              "none": "None",
+              "low": "Low",
+              "medium": "Medium",
+              "high": "High"
+            }
+          },
+          "available_capabilities": {
+            "name": "Available capabilities",
+            "state": {
+              "temperature": "Temperature",
+              "humidity": "Humidity",
+              "co2": "CO₂",
+              "voc": "VOC",
+              "aqi": "Air quality index",
+              "windows": "Windows",
+              "outdoor_temperature": "Outdoor temperature"
+            }
+          }
+        }
       }
     },
     "media_player": {

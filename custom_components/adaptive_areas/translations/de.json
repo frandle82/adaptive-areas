@@ -504,7 +504,97 @@
         },
         "sensor": {
             "environment": {
-                "name": "Umgebung"
+                "name": "Umgebung",
+                "state": {
+                    "good": "Gut",
+                    "attention": "Aufmerksamkeit erforderlich",
+                    "action_required": "Handlungsbedarf",
+                    "unknown": "Unbekannt"
+                },
+                "state_attributes": {
+                    "comfort": {
+                        "name": "Komfort",
+                        "state": {
+                            "cold": "Kalt",
+                            "cool": "Kühl",
+                            "comfortable": "Angenehm",
+                            "warm": "Warm",
+                            "hot": "Heiß",
+                            "very_hot": "Sehr heiß",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "humidity": {
+                        "name": "Luftfeuchtigkeit",
+                        "state": {
+                            "very_dry": "Sehr trocken",
+                            "dry": "Trocken",
+                            "normal": "Normal",
+                            "elevated": "Erhöht",
+                            "high": "Hoch",
+                            "very_high": "Sehr hoch",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "ventilation": {
+                        "name": "Lüftung",
+                        "state": {
+                            "not_required": "Nicht erforderlich",
+                            "recommended": "Empfohlen",
+                            "required": "Erforderlich",
+                            "urgent": "Dringend erforderlich",
+                            "ventilating": "Wird gelüftet",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "cooling": {
+                        "name": "Kühlung",
+                        "state": {
+                            "not_required": "Nicht erforderlich",
+                            "passive_recommended": "Passive Kühlung empfohlen",
+                            "active_recommended": "Aktive Kühlung empfohlen",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "window_recommendation": {
+                        "name": "Fensterempfehlung",
+                        "state": {
+                            "none": "Keine",
+                            "open": "Öffnen",
+                            "close": "Schließen",
+                            "keep_closed": "Geschlossen halten"
+                        }
+                    },
+                    "ventilation_fan_request": {
+                        "name": "Anforderung an Lüftungsventilator",
+                        "state": {
+                            "none": "Keine",
+                            "low": "Niedrig",
+                            "high": "Hoch"
+                        }
+                    },
+                    "circulation_fan_request": {
+                        "name": "Anforderung an Umluftventilator",
+                        "state": {
+                            "none": "Keine",
+                            "low": "Niedrig",
+                            "medium": "Mittel",
+                            "high": "Hoch"
+                        }
+                    },
+                    "available_capabilities": {
+                        "name": "Verfügbare Messgrößen",
+                        "state": {
+                            "temperature": "Temperatur",
+                            "humidity": "Luftfeuchtigkeit",
+                            "co2": "CO₂",
+                            "voc": "VOC",
+                            "aqi": "Luftqualitätsindex",
+                            "windows": "Fenster",
+                            "outdoor_temperature": "Außentemperatur"
+                        }
+                    }
+                }
             }
         },
         "media_player": {

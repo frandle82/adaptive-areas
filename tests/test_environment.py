@@ -1,5 +1,7 @@
 """Tests for the capability-aware Area Environment Engine."""
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -260,7 +262,12 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     control_entity_id = (
         f"switch.adaptive_areas_fan_groups_{DEFAULT_MOCK_AREA}_fan_control"
     )
-    assert hass.states.get(environment_entity_id) is not None
+    environment_state = hass.states.get(environment_entity_id)
+    assert environment_state is not None
+    assert environment_state.attributes["device_class"] == "enum"
+    assert set(environment_state.attributes["options"]) == {
+        str(state) for state in EnvironmentState
+    }
 
     await hass.services.async_call(
         "switch", SERVICE_TURN_ON, {ATTR_ENTITY_ID: control_entity_id}, blocking=True
@@ -272,3 +279,37 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     assert hass.states.get(fan.entity_id).state == STATE_ON
 
     await shutdown_integration(hass, [entry])
+
+
+def test_environment_translation_value_coverage() -> None:
+    """English and German translate every Environment state and attribute value."""
+    translations = Path("custom_components/adaptive_areas/translations")
+    expected = {
+        "comfort": {str(state) for state in ComfortState},
+        "humidity": {str(state) for state in HumidityState},
+        "ventilation": {str(state) for state in VentilationState},
+        "cooling": {str(state) for state in CoolingState},
+        "window_recommendation": {str(state) for state in WindowRecommendation},
+        "ventilation_fan_request": {str(state) for state in VentilationFanRequest},
+        "circulation_fan_request": {str(state) for state in CirculationFanRequest},
+        "available_capabilities": {
+            "temperature",
+            "humidity",
+            "co2",
+            "voc",
+            "aqi",
+            "windows",
+            "outdoor_temperature",
+        },
+    }
+
+    for language in ("en", "de"):
+        content = json.loads((translations / f"{language}.json").read_text())
+        environment = content["entity"]["sensor"]["environment"]
+        assert set(environment["state"]) == {str(state) for state in EnvironmentState}
+        assert set(environment["state_attributes"]) == set(expected)
+        for attribute, values in expected.items():
+            translation = environment["state_attributes"][attribute]
+            assert translation["name"]
+            assert set(translation["state"]) == values
+            assert all(translation["state"].values())
