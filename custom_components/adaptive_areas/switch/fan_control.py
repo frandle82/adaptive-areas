@@ -8,6 +8,7 @@ from homeassistant.const import (
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
+    STATE_OFF,
     STATE_ON,
     EntityCategory,
 )
@@ -72,6 +73,14 @@ class FanControlSwitch(SwitchBase):
                 self.area_state_changed,
             )
         )
+        if self.area.environment is not None:
+            self.async_on_remove(
+                self.area.environment.register_listener(
+                    lambda: self.hass.async_create_task(
+                        self.run_logic(self.area.states, trigger="environment_changed")
+                    )
+                )
+            )
         self.async_on_remove(
             async_track_state_change_event(
                 self.hass,
@@ -85,7 +94,7 @@ class FanControlSwitch(SwitchBase):
     ) -> None:
         """Call update state from track state change event."""
 
-        await self.run_logic(self.area.states)
+        await self.run_logic(self.area.states, trigger="aggregate_sensor_changed")
 
     async def area_state_changed(self, area_id, states_tuple):
         """Handle area state change event."""
@@ -103,7 +112,9 @@ class FanControlSwitch(SwitchBase):
         new_states, lost_states = states_tuple
         await self.run_logic(states=new_states)
 
-    async def run_logic(self, states: list[str]) -> None:
+    async def run_logic(
+        self, states: list[str], *, trigger: str = "area_state_changed"
+    ) -> None:
         """Run fan control logic."""
 
         if not self.is_on:
@@ -120,6 +131,10 @@ class FanControlSwitch(SwitchBase):
         fan_group_entity_id = (
             f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
         )
+
+        if self.area.environment is not None:
+            await self._run_environment_request(trigger)
+            return
 
         if AreaStates.CLEAR in states:
             _LOGGER.debug("%s: Area clear, turning off fans", self.name)
@@ -171,33 +186,92 @@ class FanControlSwitch(SwitchBase):
                 )
         return
 
-    async def _async_apply_service(self, service: str, reason: str) -> None:
+    async def _run_environment_request(self, trigger: str) -> None:
+        """Consume environment requests without changing their assessment."""
+        assert self.area.environment is not None
+        assessment = self.area.environment.assessment
+        ventilation_request = str(assessment.get("ventilation_fan_request", "none"))
+        circulation_request = str(assessment.get("circulation_fan_request", "none"))
+        on_targets: list[str] = []
+        if ventilation_request != "none":
+            on_targets.extend(self.area.environment.ventilation_fans)
+        if circulation_request != "none":
+            on_targets.extend(self.area.environment.circulation_fans)
+        on_targets = list(dict.fromkeys(on_targets))
+
+        all_targets = list(
+            dict.fromkeys(
+                self.area.environment.ventilation_fans
+                + self.area.environment.circulation_fans
+            )
+        )
+        off_targets = [
+            entity_id
+            for entity_id in all_targets
+            if entity_id not in on_targets
+            and (state := self.hass.states.get(entity_id)) is not None
+            and state.state != STATE_OFF
+        ]
+        if on_targets:
+            await self._async_apply_service(
+                SERVICE_TURN_ON,
+                "environment_request",
+                entity_ids=on_targets,
+                trigger=trigger,
+            )
+        if off_targets:
+            await self._async_apply_service(
+                SERVICE_TURN_OFF,
+                "environment_request_cleared",
+                entity_ids=off_targets,
+                trigger=trigger,
+            )
+        if not on_targets and not off_targets:
+            self.area.trace_decision(
+                feature="fan_control",
+                trigger=trigger,
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["no_environment_fan_request"],
+            )
+
+    async def _async_apply_service(
+        self,
+        service: str,
+        reason: str,
+        *,
+        entity_ids: list[str] | None = None,
+        trigger: str = "aggregate_sensor_changed",
+    ) -> None:
         """Run a fan action and record its safe result."""
         fan_group_entity_id = (
             f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
         )
+        targets = entity_ids or [fan_group_entity_id]
         try:
             await self.hass.services.async_call(
-                FAN_DOMAIN, service, {ATTR_ENTITY_ID: fan_group_entity_id}
+                FAN_DOMAIN,
+                service,
+                {ATTR_ENTITY_ID: targets},
             )
         except Exception as err:
             self.area.trace_decision(
                 feature="fan_control",
-                trigger="aggregate_sensor_changed",
+                trigger=trigger,
                 decision=service,
                 outcome="failed",
                 reason_codes=[reason, "action_failed"],
-                target_count=1,
+                target_count=len(targets),
                 exception_class=type(err).__name__,
             )
             raise
         self.area.trace_decision(
             feature="fan_control",
-            trigger="aggregate_sensor_changed",
+            trigger=trigger,
             decision=service,
             outcome="executed",
             reason_codes=[reason, "action_executed"],
-            target_count=1,
+            target_count=len(targets),
         )
 
     def is_setpoint_reached(self) -> bool:

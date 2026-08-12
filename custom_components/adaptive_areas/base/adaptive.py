@@ -40,6 +40,7 @@ from custom_components.adaptive_areas.const import (
     CONF_EXCLUDE_ENTITIES,
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_BLE_TRACKERS,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
@@ -66,6 +67,7 @@ from custom_components.adaptive_areas.helpers.decision_trace import (
     DecisionTrace,
     safe_record,
 )
+from custom_components.adaptive_areas.helpers.environment import AreaEnvironmentEngine
 from custom_components.adaptive_areas.repairs import (
     get_configured_entity_references,
 )
@@ -133,6 +135,7 @@ class AdaptiveArea:
 
         self.loaded_platforms: list[str] = []
         self.decision_trace = DecisionTrace()
+        self.environment: AreaEnvironmentEngine | None = None
 
         self.logger.debug("%s: Primed for initialization.", self.name)
 
@@ -176,6 +179,9 @@ class AdaptiveArea:
             if remove_callback is not None:
                 remove_callback()
                 setattr(self, remove_callback_name, None)
+        if self.environment is not None:
+            self.environment.unload()
+            self.environment = None
         self.decision_trace.clear()
 
     def trace_decision(self, **kwargs) -> None:
@@ -482,6 +488,9 @@ class AdaptiveArea:
         self.logger.debug("%s: Initializing area...", self.name)
 
         await self.load_entities()
+
+        if self.has_feature(CONF_FEATURE_ENVIRONMENT) and not self.is_meta():
+            self.environment = AreaEnvironmentEngine(self)
 
         self.finalize_init()
 

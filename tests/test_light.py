@@ -41,6 +41,7 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     AreaStates,
 )
+from custom_components.adaptive_areas.light import AreaLightGroup
 
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -266,6 +267,27 @@ async def setup_entities_light_secondary_states(
 
 
 # Tests
+
+
+def test_existing_light_group_manual_override_behavior() -> None:
+    """Preserve the pre-1.3 light-group override state machine."""
+    group = object.__new__(AreaLightGroup)
+    group._last_control_action_ts = float("-inf")
+    group.controlled = False
+    group.controlling = False
+    group.manual_override = False
+    group._attr_extra_state_attributes = {}
+    group._attr_name = "Test light group"
+    group._attr_translation_key = None
+    group.logger = _LOGGER
+
+    assert group.handle_manual_group_state_change(STATE_ON)
+    assert group.manual_override
+    assert group.controlling
+
+    assert group.handle_manual_group_state_change(STATE_OFF)
+    assert not group.manual_override
+    assert group.controlling
 
 
 async def test_light_group_basic(

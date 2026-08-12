@@ -43,12 +43,14 @@ async def test_config_entry_diagnostics_sections_and_trace(
         "entities",
         "repairs",
         "decision_trace",
+        "environment",
     }
     assert diagnostics["integration"]["name"] == "Adaptive Areas"
     integration = await async_get_integration(hass, DOMAIN)
     assert diagnostics["integration"]["version"] == integration.version
     assert diagnostics["area"]["primary_occupancy_state"] == "clear"
     assert diagnostics["decision_trace"] == []
+    assert diagnostics["environment"] == {}
 
     area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
     area.trace_decision(

@@ -33,7 +33,8 @@
                     "presence_hold": "Anwesenheitshalteschalter",
                     "ble_trackers": "BLE-Tracker-Überwachung",
                     "switch_groups": "Schaltergruppen",
-                    "wasp_in_a_box": "Wasp in a Box"
+                    "wasp_in_a_box": "Wasp in a Box",
+                    "environment": "Umgebungsüberwachung aktivieren"
                 }
             },
             "show_menu": {
@@ -54,7 +55,8 @@
                     "feature_conf_presence_hold": "Anwesenheitshalteschalter konfigurieren",
                     "feature_conf_ble_trackers": "BLE-Tracker-Überwachung konfigurieren",
                     "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
-                    "feature_conf_switch_groups": "Schaltergruppen konfigurieren"
+                    "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
+                    "feature_conf_environment": "Umgebungsüberwachung konfigurieren"
                 }
             },
             "feature_conf_health": {
@@ -221,6 +223,28 @@
                     "setpoint": "Wert, den der überwachte Aggregatsensor mindestens erreichen muss, damit die Lüftergruppe eingeschaltet wird."
                 }
             },
+            "feature_conf_environment": {
+                "title": "Umgebungsüberwachung",
+                "description": "Bewertet Komfort, Luftfeuchtigkeit, Lüftung und Kühlung anhand der tatsächlich im Bereich verfügbaren Sensoren. Fehlende Informationen werden als nicht verfügbar gemeldet und niemals als unbedenklich angenommen. Die Überwachung steuert Geräte nicht direkt; die vorhandene Lüftersteuerung kann Anforderungen übernehmen, wenn sie aktiviert ist.",
+                "data": {
+                    "comfort_min_temperature": "Minimale Komforttemperatur",
+                    "comfort_max_temperature": "Maximale Komforttemperatur",
+                    "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
+                    "relevant_windows": "Relevante Fenster (automatisch, wenn leer)",
+                    "passive_cooling_temperature_difference": "Mindesttemperaturdifferenz für passive Kühlung",
+                    "humidity_warning_duration": "Warnzeit bei hoher Luftfeuchtigkeit",
+                    "ventilation_fans": "Lüftungsventilatoren",
+                    "circulation_fans": "Umluftventilatoren",
+                    "disabled_fans": "Von Umgebungsanforderungen ausgeschlossene Ventilatoren"
+                },
+                "data_description": {
+                    "outdoor_temperature_entity": "Eine explizite Außenquelle auswählen, wenn die automatische Erkennung über Außenbereiche nicht eindeutig ist.",
+                    "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften.",
+                    "ventilation_fans": "Ventilatoren mit Luftaustausch, etwa Abluft- oder mechanische Lüftungsanlagen.",
+                    "circulation_fans": "Ventilatoren, die Innenluft bewegen, etwa Decken- oder Standventilatoren. Nicht klassifizierte Bereichsventilatoren erhalten standardmäßig diese sichere Rolle.",
+                    "disabled_fans": "Ventilatoren, die von der Umgebungsüberwachung niemals angefordert werden dürfen. Die passive Gruppierung bleibt unverändert."
+                }
+            },
             "feature_conf_climate_control": {
                 "title": "Funktion: Klimasteuerung > Auswahl der Entität",
                 "description": "Wähle die Klimaentität die anhand des Bereichszustands gesteuert werden soll.",
@@ -304,7 +328,7 @@
                     "presence_control_entities": "Anwesenheitsfreigabe durch Entitäten",
                     "type": "Bereichsart (innen/außen)",
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
-                    "ignore_diagnostic_entities": "Ignoriere diagnostische und Konfigurationseinheiten."
+                    "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren"
                 },
                 "data_description": {
                     "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer magischer Entitäten. Dies kann verwendet werden, um den binären Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs fungieren zu lassen.",
@@ -312,7 +336,7 @@
                     "presence_control_entities": "Optional. Wenn Entitäten gesetzt sind, wird Bewegung im Raum nur ausgewertet, wenn mindestens eine dieser Entitäten aktiv ist. Die Entitäten setzen den Raum nicht selbst auf belegt.",
                     "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
                     "reload_on_registry_change": "Magischen Bereich automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
-                    "ignore_diagnostic_entities": "Magische Bereiche können diagnostische und Konfigurationseinheiten ignorieren, die normalerweise nicht relevant sind."
+                    "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind."
                 }
             },
             "presence_tracking": {
@@ -476,6 +500,11 @@
             },
             "sleep_lights": {
                 "name": "Schlaflichter"
+            }
+        },
+        "sensor": {
+            "environment": {
+                "name": "Umgebung"
             }
         },
         "media_player": {

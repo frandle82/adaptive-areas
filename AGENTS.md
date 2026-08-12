@@ -8,7 +8,7 @@ This file is the authoritative repository-specific guide for coding agents worki
 - Repository: `frandle82/adaptive-areas`
 - Product: Home Assistant custom integration distributed through HACS
 - Integration domain: `adaptive_areas`
-- Manifest version: `1.1.0`
+- Manifest version: `1.2.0`
 - Main language: Python
 - License: MIT
 - Minimum Home Assistant version declared by HACS: `2026.8.0`
@@ -71,6 +71,10 @@ Aggregates group eligible entities by device class after the configured minimum 
 The illuminance threshold is part of Aggregates, not an independently selectable feature. If aggregation includes illuminance and the threshold is nonzero, a binary sensor of device class `light` tracks the generated illuminance aggregate using an upper threshold and percentage-derived hysteresis. It is omitted when prerequisites are absent. Preserve unknown/unavailable behavior supplied by HA's threshold entity.
 
 Health creates one problem-class binary group over selected hazard device classes (currently problem, smoke, moisture, safety, and gas defaults/support). Its group semantics expose whether any tracked distress entity is active. Keep the actual group implementation and supported classes synchronized with UI text and docs.
+
+### Environment Engine
+
+The Environment Engine evaluates available environmental inputs and exposes assessment, window advice, and ventilation/circulation fan requests; it never controls devices directly. Existing Fan Control consumes requests only while enabled, so the engine reuses existing control infrastructure instead of duplicating device control. Partial sensor availability is required: missing information remains unknown and must never be interpreted as healthy. Air-quality/ventilation needs outrank thermal efficiency, and ventilation-fan semantics must remain distinct from circulation-fan semantics. Environment decisions must remain privacy-safe and traceable.
 
 ### Generated platforms
 

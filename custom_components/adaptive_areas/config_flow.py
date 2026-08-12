@@ -87,6 +87,7 @@ from .const import (
     CONF_FEATURE_BLE_TRACKERS,
     CONF_FEATURE_CLIMATE_CONTROL,
     CONF_FEATURE_FAN_GROUPS,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_FEATURE_LIST,
@@ -98,6 +99,15 @@ from .const import (
     CONF_HEALTH_SENSOR_DEVICE_CLASSES,
     CONF_ID,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
+    CONF_ENVIRONMENT_COMFORT_MIN,
+    CONF_ENVIRONMENT_COMFORT_MAX,
+    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_WINDOWS,
+    CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+    CONF_ENVIRONMENT_HUMIDITY_DURATION,
+    CONF_ENVIRONMENT_VENTILATION_FANS,
+    CONF_ENVIRONMENT_CIRCULATION_FANS,
+    CONF_ENVIRONMENT_DISABLED_FANS,
     CONF_INCLUDE_ENTITIES,
     CONF_KEEP_ONLY_ENTITIES,
     CONF_NOTIFICATION_DEVICES,
@@ -143,6 +153,7 @@ from .const import (
     DISTRESS_SENSOR_CLASSES,
     DOMAIN,
     EMPTY_STRING,
+    ENVIRONMENT_FEATURE_SCHEMA,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACTIVATION_DISABLED,
@@ -164,6 +175,7 @@ from .const import (
     OPTIONS_CLIMATE_CONTROL,
     OPTIONS_CLIMATE_CONTROL_ENTITY_SELECT,
     OPTIONS_FAN_GROUP,
+    OPTIONS_ENVIRONMENT,
     OPTIONS_HEALTH_SENSOR,
     OPTIONS_LIGHT_GROUP,
     OPTIONS_PRESENCE_HOLD,
@@ -1238,6 +1250,109 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 ),
                 CONF_FAN_GROUPS_SETPOINT: self._build_selector_number(
                     unit_of_measurement=EMPTY_STRING, step=0.5
+                ),
+            },
+            user_input=user_input,
+        )
+
+    async def async_step_feature_conf_environment(self, user_input=None):
+        """Configure unified Environment Monitoring."""
+        temperature_entities = []
+        window_entities = []
+        fan_entities = []
+        for entity_id in self.all_entities:
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                continue
+            domain = entity_id.split(".", 1)[0]
+            if (
+                domain == SENSOR_DOMAIN
+                and state.attributes.get(ATTR_DEVICE_CLASS) == "temperature"
+            ):
+                temperature_entities.append(entity_id)
+            elif domain == BINARY_SENSOR_DOMAIN and state.attributes.get(
+                ATTR_DEVICE_CLASS
+            ) in ("window", "opening"):
+                window_entities.append(entity_id)
+            elif domain == "fan" and entity_id in self.area_entities:
+                fan_entities.append(entity_id)
+
+        def _validate(raw_input):
+            if float(raw_input[CONF_ENVIRONMENT_COMFORT_MIN]) >= float(
+                raw_input[CONF_ENVIRONMENT_COMFORT_MAX]
+            ):
+                raise vol.MultipleInvalid(
+                    [
+                        vol.Invalid(
+                            "minimum must be below maximum",
+                            path=[CONF_ENVIRONMENT_COMFORT_MAX],
+                        )
+                    ]
+                )
+            role_sets = (
+                set(raw_input.get(CONF_ENVIRONMENT_VENTILATION_FANS, [])),
+                set(raw_input.get(CONF_ENVIRONMENT_CIRCULATION_FANS, [])),
+                set(raw_input.get(CONF_ENVIRONMENT_DISABLED_FANS, [])),
+            )
+            if any(
+                left & right
+                for index, left in enumerate(role_sets)
+                for right in role_sets[index + 1 :]
+            ):
+                raise vol.MultipleInvalid(
+                    [
+                        vol.Invalid(
+                            "fan roles must not overlap",
+                            path=[CONF_ENVIRONMENT_CIRCULATION_FANS],
+                        )
+                    ]
+                )
+            return ENVIRONMENT_FEATURE_SCHEMA(raw_input)
+
+        return await self.do_feature_config(
+            name=CONF_FEATURE_ENVIRONMENT,
+            options=OPTIONS_ENVIRONMENT,
+            custom_schema=_validate,
+            dynamic_validators={
+                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: vol.In(
+                    EMPTY_ENTRY + sorted(temperature_entities)
+                ),
+                CONF_ENVIRONMENT_WINDOWS: cv.multi_select(sorted(window_entities)),
+                CONF_ENVIRONMENT_VENTILATION_FANS: cv.multi_select(
+                    sorted(fan_entities)
+                ),
+                CONF_ENVIRONMENT_CIRCULATION_FANS: cv.multi_select(
+                    sorted(fan_entities)
+                ),
+                CONF_ENVIRONMENT_DISABLED_FANS: cv.multi_select(sorted(fan_entities)),
+            },
+            selectors={
+                CONF_ENVIRONMENT_COMFORT_MIN: self._build_selector_number(
+                    unit_of_measurement="°C", step=0.5
+                ),
+                CONF_ENVIRONMENT_COMFORT_MAX: self._build_selector_number(
+                    unit_of_measurement="°C", step=0.5
+                ),
+                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: self._build_selector_entity_simple(
+                    EMPTY_ENTRY + sorted(temperature_entities)
+                ),
+                CONF_ENVIRONMENT_WINDOWS: self._build_selector_entity_simple(
+                    sorted(window_entities), multiple=True
+                ),
+                CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA: self._build_selector_number(
+                    unit_of_measurement="K", step=0.5
+                ),
+                CONF_ENVIRONMENT_HUMIDITY_DURATION: self._build_selector_number(
+                    unit_of_measurement="minutes", max_value=1440
+                ),
+                CONF_ENVIRONMENT_VENTILATION_FANS: self._build_selector_entity_simple(
+                    sorted(fan_entities), multiple=True
+                ),
+                CONF_ENVIRONMENT_CIRCULATION_FANS: self._build_selector_entity_simple(
+                    sorted(fan_entities), multiple=True
+                ),
+                CONF_ENVIRONMENT_DISABLED_FANS: self._build_selector_entity_simple(
+                    sorted(fan_entities), multiple=True
                 ),
             },
             user_input=user_input,

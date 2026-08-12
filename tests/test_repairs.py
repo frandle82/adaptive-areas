@@ -10,6 +10,9 @@ from homeassistant.helpers.area_registry import async_get as async_get_area_regi
 
 from custom_components.adaptive_areas.const import (
     CONF_INCLUDE_ENTITIES,
+    CONF_ENABLED_FEATURES,
+    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_NAME,
     DOMAIN,
 )
@@ -65,6 +68,24 @@ async def test_missing_entity_issue_ignores_unavailable_and_cleans_up(
     hass.states.async_set("binary_sensor.configured_motion", STATE_UNAVAILABLE)
     await async_evaluate_config_entry(hass, entry)
     assert _issue(registry, ISSUE_MISSING_ENTITIES, entry) is None
+
+
+async def test_missing_explicit_environment_reference_is_repaired(
+    hass: HomeAssistant,
+) -> None:
+    """Deleted explicit environmental sources are reported by category."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {
+        CONF_FEATURE_ENVIRONMENT: {
+            CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "sensor.deleted_outdoor"
+        }
+    }
+    entry = MockConfigEntry(domain=DOMAIN, title="Safe entry", data=data)
+    area = async_get_area_registry(hass).async_create(name=data[CONF_NAME])
+    assert area.id == data["id"]
+
+    summary = await async_evaluate_config_entry(hass, entry)
+    assert summary["missing_entities"]["category_counts"] == {"environment": 1}
 
 
 def test_repair_translation_keys_exist() -> None:

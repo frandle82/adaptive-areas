@@ -432,6 +432,14 @@ class AdaptiveAreasFeatureInfoHealth(AdaptiveAreasFeatureInfo):
     translation_keys = {BINARY_SENSOR_DOMAIN: "health"}
 
 
+class AdaptiveAreasFeatureInfoEnvironment(AdaptiveAreasFeatureInfo):
+    """Feature information for Environment Monitoring."""
+
+    id = "environment"
+    translation_keys = {SENSOR_DOMAIN: "environment"}
+    icons = {SENSOR_DOMAIN: "mdi:home-thermometer-outline"}
+
+
 class AdaptiveAreasFeatureInfoLightGroups(AdaptiveAreasFeatureInfo):
     """Feature information for feature: Light groups."""
 
@@ -515,6 +523,7 @@ class AdaptiveAreasFeatures(StrEnum):
     FAN_GROUPS = "fan_groups"
     WASP_IN_A_BOX = "wasp_in_a_box"
     BLE_TRACKER = "ble_trackers"
+    ENVIRONMENT = "environment"
 
 
 # Adaptive Areas Events
@@ -878,6 +887,7 @@ CONF_FEATURE_HEALTH = "health"
 CONF_FEATURE_PRESENCE_HOLD = "presence_hold"
 CONF_FEATURE_BLE_TRACKERS = "ble_trackers"
 CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
+CONF_FEATURE_ENVIRONMENT = "environment"
 
 CONF_FEATURE_LIST_META = [
     CONF_FEATURE_MEDIA_PLAYER_GROUPS,
@@ -895,6 +905,7 @@ CONF_FEATURE_LIST = CONF_FEATURE_LIST_META + [
     CONF_FEATURE_FAN_GROUPS,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_FEATURE_WASP_IN_A_BOX,
+    CONF_FEATURE_ENVIRONMENT,
 ]
 
 CONF_FEATURE_LIST_GLOBAL = CONF_FEATURE_LIST_META
@@ -955,6 +966,109 @@ FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS = [
     SensorDeviceClass.PM25,
     SensorDeviceClass.SULPHUR_DIOXIDE,
 ]
+
+# Environment Monitoring
+CONF_ENVIRONMENT_COMFORT_MIN, DEFAULT_ENVIRONMENT_COMFORT_MIN = (
+    "comfort_min_temperature",
+    20.0,
+)
+CONF_ENVIRONMENT_COMFORT_MAX, DEFAULT_ENVIRONMENT_COMFORT_MAX = (
+    "comfort_max_temperature",
+    24.0,
+)
+CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE = "outdoor_temperature_entity"
+CONF_ENVIRONMENT_WINDOWS = "relevant_windows"
+CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA, DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA = (
+    "passive_cooling_temperature_difference",
+    2.0,
+)
+CONF_ENVIRONMENT_HUMIDITY_DURATION, DEFAULT_ENVIRONMENT_HUMIDITY_DURATION = (
+    "humidity_warning_duration",
+    15,
+)
+CONF_ENVIRONMENT_VENTILATION_FANS = "ventilation_fans"
+CONF_ENVIRONMENT_CIRCULATION_FANS = "circulation_fans"
+CONF_ENVIRONMENT_DISABLED_FANS = "disabled_fans"
+
+
+class ComfortState(StrEnum):
+    """Thermal comfort assessment states."""
+
+    COLD = "cold"
+    COOL = "cool"
+    COMFORTABLE = "comfortable"
+    WARM = "warm"
+    HOT = "hot"
+    VERY_HOT = "very_hot"
+    UNKNOWN = "unknown"
+
+
+class HumidityState(StrEnum):
+    """Humidity assessment states."""
+
+    VERY_DRY = "very_dry"
+    DRY = "dry"
+    NORMAL = "normal"
+    ELEVATED = "elevated"
+    HIGH = "high"
+    VERY_HIGH = "very_high"
+    UNKNOWN = "unknown"
+
+
+class VentilationState(StrEnum):
+    """Ventilation assessment states."""
+
+    NOT_REQUIRED = "not_required"
+    RECOMMENDED = "recommended"
+    REQUIRED = "required"
+    URGENT = "urgent"
+    VENTILATING = "ventilating"
+    UNKNOWN = "unknown"
+
+
+class CoolingState(StrEnum):
+    """Cooling assessment states."""
+
+    NOT_REQUIRED = "not_required"
+    PASSIVE_RECOMMENDED = "passive_recommended"
+    ACTIVE_RECOMMENDED = "active_recommended"
+    UNKNOWN = "unknown"
+
+
+class WindowRecommendation(StrEnum):
+    """Actionable window recommendations."""
+
+    NONE = "none"
+    OPEN = "open"
+    CLOSE = "close"
+    KEEP_CLOSED = "keep_closed"
+
+
+class VentilationFanRequest(StrEnum):
+    """Ventilation fan requests."""
+
+    NONE = "none"
+    LOW = "low"
+    HIGH = "high"
+
+
+class CirculationFanRequest(StrEnum):
+    """Circulation fan requests."""
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class EnvironmentState(StrEnum):
+    """Overall Environment Monitoring states."""
+
+    GOOD = "good"
+    ATTENTION = "attention"
+    ACTION_REQUIRED = "action_required"
+    UNKNOWN = "unknown"
+
 
 # Config Schema
 
@@ -1100,6 +1214,33 @@ FAN_GROUP_FEATURE_SCHEMA = vol.Schema(
     extra=vol.REMOVE_EXTRA,
 )
 
+ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_ENVIRONMENT_COMFORT_MIN, default=DEFAULT_ENVIRONMENT_COMFORT_MIN
+        ): vol.Coerce(float),
+        vol.Optional(
+            CONF_ENVIRONMENT_COMFORT_MAX, default=DEFAULT_ENVIRONMENT_COMFORT_MAX
+        ): vol.Coerce(float),
+        vol.Optional(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_WINDOWS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+            default=DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=20)),
+        vol.Optional(
+            CONF_ENVIRONMENT_HUMIDITY_DURATION,
+            default=DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+        vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
+        vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
+        vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
 LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_OVERHEAD_LIGHTS, default=[]): cv.entity_ids,
@@ -1197,6 +1338,7 @@ CONFIGURABLE_FEATURES = {
     CONF_FEATURE_PRESENCE_HOLD: PRESENCE_HOLD_FEATURE_SCHEMA,
     CONF_FEATURE_BLE_TRACKERS: BLE_TRACKER_FEATURE_SCHEMA,
     CONF_FEATURE_WASP_IN_A_BOX: WASP_IN_A_BOX_FEATURE_SCHEMA,
+    CONF_FEATURE_ENVIRONMENT: ENVIRONMENT_FEATURE_SCHEMA,
 }
 
 NON_CONFIGURABLE_FEATURES_META = [
@@ -1601,6 +1743,26 @@ OPTIONS_FAN_GROUP = [
         str,
     ),
     (CONF_FAN_GROUPS_SETPOINT, DEFAULT_FAN_GROUPS_SETPOINT, float),
+]
+
+OPTIONS_ENVIRONMENT = [
+    (CONF_ENVIRONMENT_COMFORT_MIN, DEFAULT_ENVIRONMENT_COMFORT_MIN, float),
+    (CONF_ENVIRONMENT_COMFORT_MAX, DEFAULT_ENVIRONMENT_COMFORT_MAX, float),
+    (CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, "", cv.entity_id),
+    (CONF_ENVIRONMENT_WINDOWS, [], cv.entity_ids),
+    (
+        CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+        DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+        float,
+    ),
+    (
+        CONF_ENVIRONMENT_HUMIDITY_DURATION,
+        DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
+        int,
+    ),
+    (CONF_ENVIRONMENT_VENTILATION_FANS, [], cv.entity_ids),
+    (CONF_ENVIRONMENT_CIRCULATION_FANS, [], cv.entity_ids),
+    (CONF_ENVIRONMENT_DISABLED_FANS, [], cv.entity_ids),
 ]
 
 OPTIONS_AREA_AWARE_MEDIA_PLAYER = [

@@ -38,6 +38,7 @@ Smart areas that just work, every time, out of the box. Fully customizable if yo
 ### Presence
 * **🕰️ Smart Presence Timeouts:** Each area has a configurable timeout for clearing presence after the last motion. If motion is detected again within the timeout, it resets — no abrupt shutoffs.
 * **✋ Presence Hold:** Creates a switch to manually override presence in an area. Useful if sensors aren’t fully reliable yet or for guests.
+* **🌿 Environment Monitoring:** Evaluates comfort, humidity, ventilation, cooling, windows, and safe fan requests from the sensors actually available in each Area.
 * **🕯️ Secondary States:** Define subtle room states for more nuanced automations:
     * `dark` / `bright`: Based on light sensors or sun
     * `sleep`: Tracked by any entity

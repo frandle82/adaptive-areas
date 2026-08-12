@@ -27,6 +27,9 @@ Passive entity grouping for easier control.
 ## 📊 Sensor Features
 Sensor logic, tracking, and hazard detection.
 
+* 🌿 [Environment Monitoring](environment-monitoring.md)
+  Evaluates available temperature, humidity, air-quality, window, and outdoor-temperature inputs without assuming missing data is healthy.
+
 * 📍 [BLE Tracker Sensors](ble-tracker-monitor.md)
   Adds support for BLE presence sensors (e.g., Bermuda, ESPresence, Room Assistant). Automatically maps tracked devices to areas.
 

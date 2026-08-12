@@ -20,6 +20,9 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
     CONF_DARK_ENTITY,
+    CONF_ENVIRONMENT_COMFORT_MAX,
+    CONF_ENVIRONMENT_COMFORT_MIN,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_ID,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
@@ -267,5 +270,41 @@ async def test_light_group_form_only_exposes_room_state_rules(hass) -> None:
     assert conflicting_result["errors"] == {
         CONF_OVERHEAD_LIGHTS_BLOCKING_STATES: "malformed_input"
     }
+
+    await shutdown_integration(hass, [config_entry])
+
+
+async def test_environment_form(hass) -> None:
+    """Options expose focused Environment settings."""
+    config_entry_options = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    config_entry_options[CONF_ENABLED_FEATURES] = {CONF_FEATURE_ENVIRONMENT: {}}
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=str(config_entry_options[ATTR_NAME]),
+        data=get_basic_config_entry_data(DEFAULT_MOCK_AREA),
+        options=config_entry_options,
+    )
+    await init_integration(hass, [config_entry])
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = config_entry.entry_id
+    await flow.async_step_init()
+
+    environment_result = await flow.async_step_feature_conf_environment()
+    environment_fields = {
+        marker.schema for marker in environment_result["data_schema"].schema
+    }
+    assert CONF_ENVIRONMENT_COMFORT_MIN in environment_fields
+    assert CONF_ENVIRONMENT_COMFORT_MAX in environment_fields
+
+    invalid = await flow.async_step_feature_conf_environment(
+        {
+            CONF_ENVIRONMENT_COMFORT_MIN: 25,
+            CONF_ENVIRONMENT_COMFORT_MAX: 24,
+        }
+    )
+    assert invalid["type"] == "form"
+    assert invalid["errors"] == {CONF_ENVIRONMENT_COMFORT_MAX: "malformed_input"}
 
     await shutdown_integration(hass, [config_entry])

@@ -195,6 +195,7 @@ async def async_get_config_entry_diagnostics(
             "entities": generated,
             "repairs": repair_summary,
             "decision_trace": [],
+            "environment": {},
         }
 
     enabled_features = _enabled_features(area)
@@ -241,6 +242,9 @@ async def async_get_config_entry_diagnostics(
             "legacy_same_area_entries": _legacy_same_area_count(hass, config_entry),
         },
         "decision_trace": area.decision_trace.export(),
+        "environment": (
+            area.environment.diagnostics() if area.environment is not None else {}
+        ),
     }
 
 

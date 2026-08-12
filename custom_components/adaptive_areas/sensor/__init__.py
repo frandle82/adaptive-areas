@@ -4,6 +4,7 @@ from collections import Counter
 import logging
 
 from homeassistant.components.sensor.const import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
@@ -19,10 +20,13 @@ from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
     CONF_FEATURE_AGGREGATION,
+    CONF_FEATURE_ENVIRONMENT,
     DEFAULT_AGGREGATES_MIN_ENTITIES,
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
+    AdaptiveAreasFeatureInfoEnvironment,
 )
+from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
 from custom_components.adaptive_areas.sensor.base import AreaSensorGroupSensor
 from custom_components.adaptive_areas.util import cleanup_removed_entries
@@ -44,6 +48,9 @@ async def async_setup_entry(
 
     if area.has_feature(CONF_FEATURE_AGGREGATION):
         entities_to_add.extend(create_aggregate_sensors(area))
+
+    if area.has_feature(CONF_FEATURE_ENVIRONMENT) and area.environment is not None:
+        entities_to_add.append(EnvironmentSensor(area))
 
     if entities_to_add:
         async_add_entities(entities_to_add)
@@ -156,3 +163,51 @@ class AreaAggregateSensor(AreaSensorGroupSensor):
     """Aggregate sensor for the area."""
 
     feature_info = AdaptiveAreasFeatureInfoAggregates()
+
+
+class EnvironmentSensor(AdaptiveEntity, SensorEntity):
+    """Expose the unified environmental assessment as one low-churn sensor."""
+
+    feature_info = AdaptiveAreasFeatureInfoEnvironment()
+
+    def __init__(self, area: AdaptiveArea) -> None:
+        """Initialize the Environment sensor."""
+        AdaptiveEntity.__init__(self, area, domain=SENSOR_DOMAIN)
+        SensorEntity.__init__(self)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to assessment transitions."""
+        await super().async_added_to_hass()
+        assert self.area.environment is not None
+        self.async_on_remove(
+            self.area.environment.register_listener(self._assessment_changed)
+        )
+        self._assessment_changed()
+
+    def _assessment_changed(self) -> None:
+        """Publish stable assessment outputs without history or identifiers."""
+        if self.area.environment is None:
+            return
+        assessment = self.area.environment.assessment
+        self._attr_native_value = str(assessment.get("state", "unknown"))
+        self._attr_extra_state_attributes = {
+            "comfort": str(assessment.get("comfort", "unknown")),
+            "humidity": str(assessment.get("humidity", "unknown")),
+            "ventilation": str(assessment.get("ventilation", "unknown")),
+            "cooling": str(assessment.get("cooling", "unknown")),
+            "window_recommendation": str(
+                assessment.get("window_recommendation", "none")
+            ),
+            "ventilation_fan_request": str(
+                assessment.get("ventilation_fan_request", "none")
+            ),
+            "circulation_fan_request": str(
+                assessment.get("circulation_fan_request", "none")
+            ),
+            "available_capabilities": sorted(
+                capability
+                for capability, available in assessment.get("capabilities", {}).items()
+                if available
+            ),
+        }
+        self.async_write_ha_state()
