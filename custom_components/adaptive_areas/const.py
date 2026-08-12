@@ -365,7 +365,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 3
+    MINOR = 4
 
 
 class AdaptiveAreasFeatureInfo:
@@ -708,6 +708,8 @@ CONF_ENABLED_FEATURES, DEFAULT_ENABLED_FEATURES = "features", {}  # cv.ensure_li
 CONF_SECONDARY_STATES, DEFAULT_AREA_STATES = "secondary_states", {}  # cv.ensure_list
 CONF_INCLUDE_ENTITIES = "include_entities"  # cv.entity_ids
 CONF_EXCLUDE_ENTITIES = "exclude_entities"  # cv.entity_ids
+CONF_AREA_TEMPERATURE_SENSOR = "area_temperature_sensor"
+CONF_AREA_HUMIDITY_SENSOR = "area_humidity_sensor"
 CONF_KEEP_ONLY_ENTITIES = "keep_only_entities"  # cv.entity_ids
 CONF_PRESENCE_CONTROL_ENTITIES = "presence_control_entities"  # cv.entity_ids
 (
@@ -1495,6 +1497,10 @@ REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
         ),
         vol.Optional(CONF_INCLUDE_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_AREA_TEMPERATURE_SENSOR, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_AREA_HUMIDITY_SENSOR, default=""): vol.Any("", cv.entity_id),
         vol.Optional(CONF_PRESENCE_CONTROL_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
@@ -1640,13 +1646,15 @@ _DOMAIN_SCHEMA = vol.Schema(
 # VALIDATION_TUPLES
 OPTIONS_AREA = [
     (CONF_TYPE, DEFAULT_TYPE, vol.In([AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR])),
+    (CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY, vol.In(RoomCategory)),
+    (CONF_AREA_TEMPERATURE_SENSOR, "", cv.entity_id),
+    (CONF_AREA_HUMIDITY_SENSOR, "", cv.entity_id),
+    (CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE, cv.boolean),
     (CONF_INCLUDE_ENTITIES, [], cv.entity_ids),
     (CONF_EXCLUDE_ENTITIES, [], cv.entity_ids),
     (CONF_PRESENCE_CONTROL_ENTITIES, [], cv.entity_ids),
     (CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE, cv.boolean),
     (CONF_IGNORE_DIAGNOSTIC_ENTITIES, DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES, cv.boolean),
-    (CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE, cv.boolean),
-    (CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY, vol.In(RoomCategory)),
 ]
 OPTIONS_PRESENCE_TRACKING = [
     (

@@ -3,7 +3,8 @@
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant import config_entries
-from homeassistant.const import ATTR_NAME
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_NAME
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
@@ -17,6 +18,8 @@ from custom_components.adaptive_areas.config_flow import (
 from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
     AREA_STATE_EXTENDED,
+    CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
     CONF_DARK_ENTITY,
@@ -26,6 +29,8 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_FEATURE_LIGHT_GROUPS,
+    CONF_EXCLUDE_ENTITIES,
+    CONF_INCLUDE_ENTITIES,
     CONF_ID,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
@@ -288,6 +293,22 @@ async def test_area_evaluation_form(hass) -> None:
     """Intrinsic Area Evaluation exposes sources but no manual comfort band."""
     config_entry_options = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     config_entry_options[CONF_ENABLED_FEATURES] = {}
+    config_entry_options[CONF_INCLUDE_ENTITIES] = [
+        "sensor.room_temperature",
+        "sensor.room_humidity",
+    ]
+    config_entry_options[CONF_AREA_TEMPERATURE_SENSOR] = "sensor.room_temperature"
+    config_entry_options[CONF_AREA_HUMIDITY_SENSOR] = "sensor.room_humidity"
+    hass.states.async_set(
+        "sensor.room_temperature",
+        "21",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE},
+    )
+    hass.states.async_set(
+        "sensor.room_humidity",
+        "50",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY},
+    )
     config_entry = MockConfigEntry(
         domain=DOMAIN,
         title=str(config_entry_options[ATTR_NAME]),
@@ -305,6 +326,8 @@ async def test_area_evaluation_form(hass) -> None:
     area_fields = {marker.schema for marker in area_result["data_schema"].schema}
     assert CONF_TRACK_ROOM_USAGE in area_fields
     assert CONF_ROOM_CATEGORY in area_fields
+    assert CONF_AREA_TEMPERATURE_SENSOR in area_fields
+    assert CONF_AREA_HUMIDITY_SENSOR in area_fields
 
     environment_result = await flow.async_step_area_evaluation()
     environment_fields = {
@@ -313,6 +336,23 @@ async def test_area_evaluation_form(hass) -> None:
     assert CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE in environment_fields
     assert CONF_ENVIRONMENT_OUTDOOR_HUMIDITY in environment_fields
     assert CONF_ENVIRONMENT_SURFACE_TEMPERATURE in environment_fields
+    assert CONF_AREA_TEMPERATURE_SENSOR not in environment_fields
+    assert CONF_AREA_HUMIDITY_SENSOR not in environment_fields
+
+    excluded_primary = await flow.async_step_area_config(
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.room_temperature",
+            CONF_AREA_HUMIDITY_SENSOR: "sensor.room_humidity",
+            CONF_INCLUDE_ENTITIES: [
+                "sensor.room_temperature",
+                "sensor.room_humidity",
+            ],
+            CONF_EXCLUDE_ENTITIES: ["sensor.room_temperature"],
+        }
+    )
+    assert excluded_primary["errors"] == {
+        CONF_AREA_TEMPERATURE_SENSOR: "excluded_primary_source"
+    }
 
     invalid = await flow.async_step_area_evaluation(
         {

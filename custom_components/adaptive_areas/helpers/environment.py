@@ -26,6 +26,8 @@ from homeassistant.util.unit_conversion import TemperatureConverter
 
 from custom_components.adaptive_areas.const import (
     AREA_TYPE_EXTERIOR,
+    CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_DISABLED_FANS,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
@@ -220,6 +222,11 @@ CONTEXT: dict[str, dict[str, str]] = {
         "clean_allowed": "Room is clear; cleaning is allowed.",
         "good": "Available environmental measurements are unremarkable.",
         "partial": "Available measurements show no dominant issue; some environmental dimensions cannot be evaluated.",
+        "temperature_not_configured": "No primary Area temperature sensor is configured for temperature assessment.",
+        "temperature_unavailable": "Temperature assessment is limited: the configured primary Area temperature sensor is currently unavailable.",
+        "humidity_not_configured": "No primary Area humidity sensor is configured for humidity assessment.",
+        "humidity_unavailable": "Temperature and humidity assessment is limited: the configured primary Area humidity sensor is currently unavailable.",
+        "climate_sources_missing": "Temperature and humidity assessment is unavailable: primary Area temperature and humidity sensors are missing.",
         "co2": "CO₂ concentration is elevated",
         "pm25": "PM2.5 concentration is elevated",
         "pm10": "PM10 concentration is elevated",
@@ -251,6 +258,11 @@ CONTEXT: dict[str, dict[str, str]] = {
         "clean_allowed": "Der Raum ist frei; eine Reinigung ist möglich.",
         "good": "Raumklima im verfügbaren Messumfang unauffällig.",
         "partial": "Die verfügbaren Messwerte zeigen kein vorrangiges Problem; einige Umweltbereiche sind nicht bewertbar.",
+        "temperature_not_configured": "Für die Temperaturbewertung ist kein Temperatursensor des Bereichs festgelegt.",
+        "temperature_unavailable": "Die Temperaturbewertung ist eingeschränkt: Der festgelegte Temperatursensor des Bereichs ist derzeit nicht verfügbar.",
+        "humidity_not_configured": "Für die Feuchtebewertung ist kein Luftfeuchtigkeitssensor des Bereichs festgelegt.",
+        "humidity_unavailable": "Temperatur- und Feuchtebewertung eingeschränkt: Der festgelegte Luftfeuchtigkeitssensor ist derzeit nicht verfügbar.",
+        "climate_sources_missing": "Temperatur- und Feuchtebewertung nicht verfügbar: Temperatur- und Luftfeuchtigkeitssensor des Bereichs fehlen.",
         "co2": "die CO₂-Konzentration ist erhöht",
         "pm25": "die Feinstaubbelastung PM2,5 ist erhöht",
         "pm10": "die Feinstaubbelastung PM10 ist erhöht",
@@ -308,6 +320,10 @@ class AreaEnvironmentEngine:
             )
         )
         self._excluded_ids = set(self.config.get(CONF_EXCLUDE_ENTITIES, []))
+        self.primary_temperature_entity = self.config.get(
+            CONF_AREA_TEMPERATURE_SENSOR, ""
+        )
+        self.primary_humidity_entity = self.config.get(CONF_AREA_HUMIDITY_SENSOR, "")
         self._sensor_ids = self._discover_sensor_ids()
         self._window_ids = self._discover_window_ids()
         self.outdoor_temperature_entity = self.config.get(
@@ -344,6 +360,7 @@ class AreaEnvironmentEngine:
         self._occupied_seconds_today = 0.0
         self._occupancy_sessions_today = 1 if self._usage_occupied else 0
         self._last_dominant_decision: str | None = None
+        self._last_primary_status: dict[str, bool] = {}
         self._last_comfort = ComfortState.UNKNOWN
         self._listeners: list[Callable[[], None]] = []
         self._remove_outdoor_listener: Callable[[], None] | None = None
@@ -354,6 +371,10 @@ class AreaEnvironmentEngine:
             for entity_ids in self._sensor_ids.values()
             for entity_id in entity_ids
         } | set(self._window_ids)
+        if self.primary_temperature_entity:
+            tracked.add(self.primary_temperature_entity)
+        if self.primary_humidity_entity:
+            tracked.add(self.primary_humidity_entity)
         if self.outdoor_temperature_entity:
             tracked.add(self.outdoor_temperature_entity)
         if self.outdoor_humidity_entity:
@@ -436,8 +457,6 @@ class AreaEnvironmentEngine:
 
     def _discover_sensor_ids(self) -> dict[str, list[str]]:
         supported = set(AIR_QUALITY_MATRIX) | {
-            SensorDeviceClass.TEMPERATURE,
-            SensorDeviceClass.HUMIDITY,
             SensorDeviceClass.AQI,
             SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
         }
@@ -460,6 +479,78 @@ class AreaEnvironmentEngine:
         for entity_ids in result.values():
             entity_ids.sort()
         return result
+
+    def _primary_value(
+        self, entity_id: str, device_class: SensorDeviceClass, source_key: str
+    ) -> float | None:
+        """Read one configured authoritative indoor source without fallback."""
+        source: dict[str, Any] = {
+            "mode": "primary",
+            "configured": bool(entity_id),
+            "available": False,
+        }
+        if entity_id:
+            source.update(self._source_descriptor(entity_id))
+        self._source_entities[source_key] = source
+        if not entity_id or entity_id in self._excluded_ids:
+            return None
+        state = self.area.hass.states.get(entity_id)
+        if (
+            state is None
+            or not entity_id.startswith("sensor.")
+            or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+            or state.attributes.get(ATTR_DEVICE_CLASS) != device_class
+        ):
+            return None
+        try:
+            value = float(state.state)
+            unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+            if (
+                device_class == SensorDeviceClass.TEMPERATURE
+                and unit
+                and unit != UnitOfTemperature.CELSIUS
+            ):
+                value = TemperatureConverter.convert(
+                    value, unit, UnitOfTemperature.CELSIUS
+                )
+        except TypeError, ValueError:
+            return None
+        source["available"] = True
+        return value
+
+    def _primary_source_reasons(self) -> list[str]:
+        """Return stable reason codes for unavailable authoritative inputs."""
+        reasons: list[str] = []
+        for source_key, entity_id in (
+            ("temperature", self.primary_temperature_entity),
+            ("humidity", self.primary_humidity_entity),
+        ):
+            if not entity_id:
+                reasons.append(f"primary_{source_key}_sensor_not_configured")
+            elif not self._source_entities[source_key]["available"]:
+                reasons.append(f"primary_{source_key}_sensor_unavailable")
+        return reasons
+
+    def _trace_primary_status(self, *, trace: bool) -> None:
+        """Trace source loss/restoration transitions without logging every update."""
+        primary_status = {
+            key: bool(self._source_entities[key]["available"])
+            for key in ("temperature", "humidity")
+        }
+        if trace and self._last_primary_status:
+            for key, available in primary_status.items():
+                if available == self._last_primary_status.get(key):
+                    continue
+                self.area.trace_decision(
+                    feature="area_evaluation",
+                    trigger="primary_environment_source_changed",
+                    decision=f"primary_{key}_source_{'restored' if available else 'missing'}",
+                    outcome="evaluated",
+                    reason_codes=[
+                        f"primary_{key}_sensor_{'restored' if available else 'unavailable'}"
+                    ],
+                )
+        self._last_primary_status = primary_status
 
     def _discover_window_ids(self) -> list[str]:
         explicit = [
@@ -488,6 +579,21 @@ class AreaEnvironmentEngine:
             return
         self._update_usage_transition()
         self.evaluate()
+        if self.usage_enabled and self._last_dominant_decision.startswith("primary_"):
+            cleaning = self.assessment["cleaning_recommendation"]
+            reason = {
+                CleaningRecommendation.POSTPONE: "cleaning_postponed_occupied",
+                CleaningRecommendation.PREFERRED: "cleaning_preferred_room_clear",
+                CleaningRecommendation.ALLOWED: "room_clear",
+            }.get(cleaning)
+            if reason:
+                self.area.trace_decision(
+                    feature="area_evaluation",
+                    trigger="area_state_changed",
+                    decision=reason,
+                    outcome="evaluated",
+                    reason_codes=[reason],
+                )
 
     def register_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         """Register an assessment listener and return its unsubscribe callback."""
@@ -1133,8 +1239,6 @@ class AreaEnvironmentEngine:
             )
         if assessment["mould_risk"] == MouldRiskState.HIGH:
             return "mould_risk_high", text["mould_high"]
-        if "prolonged_high_humidity" in reasons:
-            return "humidity_persistent", text["humidity_high"]
         if assessment["ventilation"] in (
             VentilationState.RECOMMENDED,
             VentilationState.VENTILATING,
@@ -1142,6 +1246,26 @@ class AreaEnvironmentEngine:
             return "ventilation_recommended", text["ventilation_recommended"].format(
                 reason=text[dominant_reason]
             )
+        if any(
+            reason.startswith("primary_temperature_sensor_") for reason in reasons
+        ) and any(reason.startswith("primary_humidity_sensor_") for reason in reasons):
+            return "primary_climate_sources_missing", text["climate_sources_missing"]
+        for reason, context_key in (
+            (
+                "primary_temperature_sensor_not_configured",
+                "temperature_not_configured",
+            ),
+            (
+                "primary_temperature_sensor_unavailable",
+                "temperature_unavailable",
+            ),
+            ("primary_humidity_sensor_not_configured", "humidity_not_configured"),
+            ("primary_humidity_sensor_unavailable", "humidity_unavailable"),
+        ):
+            if reason in reasons:
+                return reason, text[context_key]
+        if "prolonged_high_humidity" in reasons:
+            return "humidity_persistent", text["humidity_high"]
         if assessment["comfort"] in (ComfortState.HOT, ComfortState.VERY_HOT):
             cooling_key = {
                 CoolingState.PASSIVE_RECOMMENDED: "cool_passive",
@@ -1214,10 +1338,16 @@ class AreaEnvironmentEngine:
     def evaluate(self, *, trace: bool = True) -> None:
         """Evaluate all available dimensions and notify subscribers."""
         self._source_entities = {}
-        temperature_values = self._values(SensorDeviceClass.TEMPERATURE)
-        humidity_values = self._values(SensorDeviceClass.HUMIDITY)
-        temperature = mean(temperature_values) if temperature_values else None
-        humidity = mean(humidity_values) if humidity_values else None
+        temperature = self._primary_value(
+            self.primary_temperature_entity,
+            SensorDeviceClass.TEMPERATURE,
+            "temperature",
+        )
+        humidity = self._primary_value(
+            self.primary_humidity_entity,
+            SensorDeviceClass.HUMIDITY,
+            "humidity",
+        )
         comfort, comfort_quality, dew_point, humidex = self._comfort(
             temperature, humidity
         )
@@ -1270,6 +1400,7 @@ class AreaEnvironmentEngine:
             else None
         )
         reasons = [*air_reasons, *ventilation_reasons]
+        reasons.extend(self._primary_source_reasons())
         if mould_risk == MouldRiskState.ELEVATED:
             reasons.append("mould_risk_elevated")
         elif mould_risk == MouldRiskState.HIGH:
@@ -1455,6 +1586,11 @@ class AreaEnvironmentEngine:
             "comfort": comfort,
             "comfort_confidence": comfort_quality,
             "comfort_quality": comfort_quality,
+            "thermal_input_quality": (
+                "enhanced"
+                if temperature is not None and humidity is not None
+                else "basic" if temperature is not None else "unavailable"
+            ),
             "humidity": humidity_state,
             "mould_risk": mould_risk,
             "air_quality": air_quality,
@@ -1513,6 +1649,7 @@ class AreaEnvironmentEngine:
         assessment["dominant_decision"] = dominant_decision
         assessment["context"] = context
         self.assessment = assessment
+        self._trace_primary_status(trace=trace)
         if trace and dominant_decision != self._last_dominant_decision:
             self.area.trace_decision(
                 feature="area_evaluation",
@@ -1574,6 +1711,7 @@ class AreaEnvironmentEngine:
             "state",
             "comfort",
             "comfort_confidence",
+            "thermal_input_quality",
             "humidity",
             "mould_risk",
             "air_quality",
@@ -1608,6 +1746,14 @@ class AreaEnvironmentEngine:
                     "count": len(value.get("entities", [])),
                 }
                 for key, value in self.assessment.get("source_entities", {}).items()
+            },
+            "primary_sources": {
+                key: {
+                    "configured": bool(value.get("configured", False)),
+                    "available": bool(value.get("available", False)),
+                }
+                for key, value in self.assessment.get("source_entities", {}).items()
+                if key in ("temperature", "humidity")
             },
             "pollutant_assessments": self.assessment.get("pollutant_assessments", {}),
             "humidity_warning_duration_seconds": self.assessment.get(

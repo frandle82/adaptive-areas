@@ -9,6 +9,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
 from custom_components.adaptive_areas.const import (
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_INCLUDE_ENTITIES,
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
@@ -86,6 +87,18 @@ async def test_missing_explicit_environment_reference_is_repaired(
 
     summary = await async_evaluate_config_entry(hass, entry)
     assert summary["missing_entities"]["category_counts"] == {"area_evaluation": 1}
+
+
+async def test_deleted_primary_area_sensor_is_repaired(hass: HomeAssistant) -> None:
+    """Only an explicitly configured missing primary source creates a Repair."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_AREA_TEMPERATURE_SENSOR] = "sensor.deleted_room_temperature"
+    entry = MockConfigEntry(domain=DOMAIN, title="Safe entry", data=data)
+    area = async_get_area_registry(hass).async_create(name=data[CONF_NAME])
+    assert area.id == data["id"]
+
+    summary = await async_evaluate_config_entry(hass, entry)
+    assert summary["missing_entities"]["category_counts"] == {"area_climate": 1}
 
 
 def test_repair_translation_keys_exist() -> None:

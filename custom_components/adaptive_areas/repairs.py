@@ -14,6 +14,8 @@ from homeassistant.helpers.floor_registry import async_get as async_get_floor_re
 from custom_components.adaptive_areas.const import (
     CONF_ACCENT_ENTITY,
     CONF_ACCENT_LIGHTS,
+    CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_BLE_TRACKER_ENTITIES,
     CONF_CLIMATE_CONTROL_ENTITY_ID,
     CONF_DARK_ENTITY,
@@ -43,6 +45,8 @@ ISSUE_MISSING_AREA = "missing_area"
 ISSUE_MISSING_ENTITIES = "missing_entities"
 
 _ENTITY_REFERENCE_CATEGORIES = {
+    CONF_AREA_TEMPERATURE_SENSOR: "area_climate",
+    CONF_AREA_HUMIDITY_SENSOR: "area_climate",
     CONF_INCLUDE_ENTITIES: "area_filter",
     CONF_KEEP_ONLY_ENTITIES: "presence",
     CONF_PRESENCE_CONTROL_ENTITIES: "presence",

@@ -6,16 +6,19 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_NAME
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_NAME
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import (
     EVENT_DEVICE_REGISTRY_UPDATED,
     EventDeviceRegistryUpdatedData,
+    async_get as async_get_device_registry,
 )
 from homeassistant.helpers.area_registry import EVENT_AREA_REGISTRY_UPDATED
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     EventEntityRegistryUpdatedData,
+    async_get as async_get_entity_registry,
 )
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.floor_registry import EVENT_FLOOR_REGISTRY_UPDATED
@@ -23,6 +26,9 @@ from homeassistant.helpers.floor_registry import EVENT_FLOOR_REGISTRY_UPDATED
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
     AREA_TYPE_META,
+    AREA_TYPE_INTERIOR,
+    CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_DISABLED_FANS,
@@ -33,6 +39,9 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_WINDOWS,
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_SWITCH_GROUPS,
+    CONF_ID,
+    CONF_INCLUDE_ENTITIES,
+    CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_SLEEP_SWITCHES,
@@ -73,6 +82,73 @@ _MIGRATED_AREA_EVALUATION_KEYS = (
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_DISABLED_FANS,
 )
+
+
+def _eligible_primary_sources(
+    hass: HomeAssistant, config_entry: ConfigEntry, config: dict[str, Any]
+) -> dict[SensorDeviceClass, list[str]]:
+    """Find unambiguous RC5 Area climate candidates without guessing."""
+    area_id = config.get(CONF_ID)
+    entity_registry = async_get_entity_registry(hass)
+    device_registry = async_get_device_registry(hass)
+    entity_ids = {
+        entry.entity_id
+        for entry in entity_registry.entities.get_entries_for_area_id(area_id)
+    }
+    for device in device_registry.devices.get_devices_for_area_id(area_id):
+        entity_ids.update(
+            entry.entity_id
+            for entry in entity_registry.entities.get_entries_for_device_id(device.id)
+        )
+    entity_ids.update(config.get(CONF_INCLUDE_ENTITIES, []))
+    excluded = set(config.get(CONF_EXCLUDE_ENTITIES, []))
+    result = {
+        SensorDeviceClass.TEMPERATURE: [],
+        SensorDeviceClass.HUMIDITY: [],
+    }
+    for entity_id in sorted(entity_ids - excluded):
+        entry = entity_registry.async_get(entity_id)
+        state = hass.states.get(entity_id)
+        if not entity_id.startswith("sensor.") or state is None:
+            continue
+        if entry is not None and (
+            entry.disabled or entry.config_entry_id == config_entry.entry_id
+        ):
+            continue
+        device_class = state.attributes.get(ATTR_DEVICE_CLASS)
+        if device_class in result:
+            result[device_class].append(entity_id)
+    return result
+
+
+def _migrate_primary_area_sources(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    data: dict[str, Any],
+    options: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], bool, bool]:
+    """Select only a single deterministic RC5 candidate per indoor dimension."""
+    combined = {**data, **options}
+    if combined.get(CONF_TYPE) != AREA_TYPE_INTERIOR:
+        return data, options, False, False
+    candidates = _eligible_primary_sources(hass, config_entry, combined)
+    migrated_data = dict(data)
+    migrated_options = dict(options)
+    target = migrated_options if options else migrated_data
+    data_changed = False
+    options_changed = False
+    for key, device_class in (
+        (CONF_AREA_TEMPERATURE_SENSOR, SensorDeviceClass.TEMPERATURE),
+        (CONF_AREA_HUMIDITY_SENSOR, SensorDeviceClass.HUMIDITY),
+    ):
+        if key in combined or len(candidates[device_class]) != 1:
+            continue
+        target[key] = candidates[device_class][0]
+        if options:
+            options_changed = True
+        else:
+            data_changed = True
+    return migrated_data, migrated_options, data_changed, options_changed
 
 
 def _migrate_area_evaluation_config(
@@ -376,6 +452,17 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     )
     data_changed |= evaluation_data_changed
     options_changed |= evaluation_options_changed
+    if config_entry.minor_version < 4:
+        (
+            migrated_data,
+            migrated_options,
+            primary_data_changed,
+            primary_options_changed,
+        ) = _migrate_primary_area_sources(
+            hass, config_entry, migrated_data, migrated_options
+        )
+        data_changed |= primary_data_changed
+        options_changed |= primary_options_changed
 
     update: dict[str, Any] = {
         "minor_version": AdaptiveConfigEntryVersion.MINOR,

@@ -1,14 +1,22 @@
 # Area Evaluation and Room Usage
 
-Area Evaluation is intrinsic to every regular indoor Area. It creates one **Area Evaluation** sensor while retaining the existing `sensor.adaptive_areas_environment_…` entity and unique ID for release-candidate compatibility. It uses compatible Area entities after the normal include/exclude and entity-category filters. There is no feature toggle. Missing dimensions remain `unknown`; they are never interpreted as healthy.
+Area Evaluation is intrinsic to every regular indoor Area. It creates one **Area Evaluation** sensor while retaining the existing `sensor.adaptive_areas_environment_…` entity and unique ID for release-candidate compatibility. It uses configured primary indoor climate sensors and automatically discovered air-quality sensors after the normal include/exclude and entity-category filters. There is no feature toggle. Missing dimensions remain `unknown`; they are never interpreted as healthy.
 
-Choose a room category under **Basic area options**. Configure optional outdoor, surface, window, and fan-role sources under **Area Evaluation**. The general exclusion list is authoritative for every source, including explicitly selected and automatically discovered exterior sources. The entity's `source_entities` attribute shows the exact entity IDs and names used for each dimension and whether direct values or an exterior-Area mean was used. Shareable diagnostics contain counts and modes only.
+Choose a room category and primary indoor temperature/humidity sensors under **Basic area options**. Configure optional outdoor, surface, window, and fan-role sources under **Area Evaluation**. The general exclusion list is authoritative for every source, including explicitly selected and automatically discovered exterior sources. The entity's `source_entities` attribute shows primary source identity and availability plus exact IDs and names used for other dimensions. Shareable diagnostics contain only modes, counts, and primary configured/available flags.
 
 Room Usage remains a separate basic option, disabled by default. It uses only existing occupied/clear transitions, stores no movement history, and controls no cleaning device.
 
 ## Scientific and operational basis
 
 Adaptive Areas combines published formulas and guidance with clearly labelled operational policy. It does not claim compliance with [ANSI/ASHRAE Standard 55](https://www.ashrae.org/technical-resources/bookstore/standard-55-thermal-environmental-conditions-for-human-occupancy) or [ISO 7730:2025](https://www.iso.org/standard/85803.html): ordinary rooms usually lack air speed, mean radiant temperature, clothing, and metabolic-rate inputs. Boundaries marked `Adaptive Areas operational` are deterministic automation rules, not health limits.
+
+### Primary Area climate sensors
+
+Adaptive Areas does not average every temperature and humidity sensor in an Area for thermal assessment. Select one representative indoor temperature sensor and one representative indoor relative-humidity sensor in **Basic area options**. Those deterministic sources form the operational indoor reference used by thermal, psychrometric, humidity, mould-risk, and cooling calculations. Area Aggregate Temperature and Humidity sensors remain separate statistical features and are never substituted.
+
+If a primary source is unconfigured, excluded, unavailable, invalid, or deleted, its measurement stays unknown. Adaptive Areas does not fall back to another Area sensor, a climate attribute, or an Aggregate. Temperature-only category assessment can continue at `basic` input quality; calculations requiring relative humidity remain unknown. CO₂ and other independently discovered air-quality measurements continue to work.
+
+One point measurement is not necessarily the spatial mean of a room. Position, mounting height, sunlight, exterior walls, heat sources, and local airflow influence readings. A representative sensor should generally avoid direct sunlight, radiators, supply/exhaust jets, exterior-door drafts, and appliance heat. Adaptive Areas does not validate placement.
 
 ### Thermal and moisture calculations
 

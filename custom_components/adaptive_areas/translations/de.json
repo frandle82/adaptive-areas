@@ -331,7 +331,9 @@
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
                     "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren",
                     "track_room_usage": "Raumnutzung und Reinigungsempfehlung erfassen",
-                    "room_category": "Raumkategorie"
+                    "room_category": "Raumkategorie",
+                    "area_temperature_sensor": "Temperatursensor des Bereichs",
+                    "area_humidity_sensor": "Luftfeuchtigkeitssensor des Bereichs"
                 },
                 "data_description": {
                     "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer Adaptive-Areas-Entitäten. Damit kann der binäre Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs dienen.",
@@ -341,7 +343,9 @@
                     "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
                     "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind.",
                     "track_room_usage": "Optional und standardmäßig deaktiviert. Verwendet nur Anwesenheitswechsel des Bereichs, um die tägliche Raumnutzung einzuordnen und einen geeigneten Reinigungszeitpunkt zu empfehlen. Es werden weder Staubsauger noch andere Geräte gesteuert.",
-                    "room_category": "Legt den Raumzweck für die kategoriespezifische thermische Einordnung fest. Das Profil ist eine betriebliche Einordnung und kein universeller Komfortstandard."
+                    "room_category": "Legt den Raumzweck für die kategoriespezifische thermische Einordnung fest. Das Profil ist eine betriebliche Einordnung und kein universeller Komfortstandard.",
+                    "area_temperature_sensor": "Sensor, dessen Messwert als Raumtemperatur dieses Bereichs verwendet wird.",
+                    "area_humidity_sensor": "Sensor, dessen Messwert als relative Luftfeuchtigkeit dieses Bereichs verwendet wird."
                 }
             },
             "presence_tracking": {
@@ -366,7 +370,9 @@
             "malformed_input": "Diese Eingabe ist ungültig",
             "no_entity_selected": "Keine Entität ausgewählt",
             "invalid_entity": "Ungültige Entität ausgewählt",
-            "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi"
+            "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi",
+            "excluded_primary_source": "Ein primärer Bereichsklimasensor kann nicht zugleich ausgeschlossen werden",
+            "invalid_primary_source": "Einen verfügbaren Bereichssensor mit passender Geräteklasse auswählen"
         }
     },
     "entity": {
@@ -562,6 +568,14 @@
                         }
                     },
                     "thermal_profile": {"name": "Thermisches Profil"},
+                    "thermal_input_quality": {
+                        "name": "Qualität der thermischen Eingangsdaten",
+                        "state": {
+                            "enhanced": "Primäre Temperatur und Luftfeuchtigkeit verfügbar",
+                            "basic": "Nur primäre Temperatur verfügbar",
+                            "unavailable": "Primäre Temperatur nicht verfügbar"
+                        }
+                    },
                     "humidity": {
                         "name": "Luftfeuchtigkeit",
                         "state": {

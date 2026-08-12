@@ -197,6 +197,9 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "comfort": str(assessment.get("comfort", "unknown")),
             "comfort_confidence": assessment.get("comfort_confidence", "unknown"),
             "comfort_quality": assessment.get("comfort_quality", "unknown"),
+            "thermal_input_quality": assessment.get(
+                "thermal_input_quality", "unavailable"
+            ),
             "room_category": str(assessment.get("room_category", "unknown")),
             "thermal_profile": assessment.get("thermal_profile", {}),
             "humidity": str(assessment.get("humidity", "unknown")),

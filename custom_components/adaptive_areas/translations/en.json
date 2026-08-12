@@ -331,7 +331,9 @@
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
           "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
           "track_room_usage": "Track room usage and cleaning recommendation",
-          "room_category": "Room category"
+          "room_category": "Room category",
+          "area_temperature_sensor": "Primary temperature sensor",
+          "area_humidity_sensor": "Primary humidity sensor"
         },
         "data_description": {
           "include_entities": "Adaptive Areas can consider entities from other areas including other Adaptive entities. You can use this to make a room's presence binary sensor to act as another room's presence sensor as well.",
@@ -341,7 +343,9 @@
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
           "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
           "track_room_usage": "Optional and disabled by default. Uses only Area presence transitions to classify daily room use and recommend when cleaning is suitable. It never controls a vacuum or another device.",
-          "room_category": "Select the room purpose used for category-specific thermal interpretation. This is an operational profile, not a claim of universal comfort."
+          "room_category": "Select the room purpose used for category-specific thermal interpretation. This is an operational profile, not a claim of universal comfort.",
+          "area_temperature_sensor": "Temperature sensor used as the indoor temperature for this Area.",
+          "area_humidity_sensor": "Relative-humidity sensor used as the indoor humidity for this Area."
         }
       },
       "presence_tracking": {
@@ -366,7 +370,9 @@
       "malformed_input": "This field is invalid or required",
       "no_entity_selected": "No entity was selected",
       "invalid_entity": "Invalid entity selected",
-      "climate_no_preset_support": "Climate entity does not support preset modes"
+      "climate_no_preset_support": "Climate entity does not support preset modes",
+      "excluded_primary_source": "A primary Area climate sensor cannot also be excluded",
+      "invalid_primary_source": "Select an available Area sensor with the required device class"
     }
   },
   "entity": {
@@ -562,6 +568,14 @@
             }
           },
           "thermal_profile": {"name": "Thermal profile"},
+          "thermal_input_quality": {
+            "name": "Thermal input quality",
+            "state": {
+              "enhanced": "Primary temperature and humidity available",
+              "basic": "Primary temperature only",
+              "unavailable": "Primary temperature unavailable"
+            }
+          },
           "humidity": {
             "name": "Humidity",
             "state": {

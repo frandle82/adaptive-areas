@@ -15,12 +15,17 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
+from custom_components.adaptive_areas import _migrate_primary_area_sources
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
+    CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
@@ -104,12 +109,16 @@ def _sensor(
     device_class: SensorDeviceClass,
     unit: str | None = None,
 ) -> None:
-    """Add an environmental sensor state to the area."""
+    """Add a sensor and select the first indoor temperature/RH test source."""
     attributes = {ATTR_DEVICE_CLASS: device_class}
     if unit:
         attributes[ATTR_UNIT_OF_MEASUREMENT] = unit
     hass.states.async_set(entity_id, str(value), attributes)
     area.entities.setdefault("sensor", []).append({ATTR_ENTITY_ID: entity_id})
+    if device_class == SensorDeviceClass.TEMPERATURE:
+        area.config.setdefault(CONF_AREA_TEMPERATURE_SENSOR, entity_id)
+    elif device_class == SensorDeviceClass.HUMIDITY:
+        area.config.setdefault(CONF_AREA_HUMIDITY_SENSOR, entity_id)
 
 
 def test_temperature_only_is_partial(hass: HomeAssistant) -> None:
@@ -155,10 +164,119 @@ def test_temperature_and_humidity_produce_derived_comfort(
     assert assessment["humidity_ratio"] > 10
     assert assessment["enthalpy"] > 50
     assert assessment["humidex"] > assessment["temperature"]
-    assert (
-        assessment["source_entities"]["humidity"]["entities"][0]["entity_id"]
-        == "sensor.humidity"
+    assert assessment["source_entities"]["humidity"] == {
+        "mode": "primary",
+        "configured": True,
+        "available": True,
+        "entity_id": "sensor.humidity",
+        "name": "humidity",
+    }
+
+
+def test_primary_pair_excludes_decoys_from_all_derived_physics(
+    hass: HomeAssistant,
+) -> None:
+    """Only configured sources form the coupled indoor air state."""
+    area = _area(
+        hass,
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.primary_temperature",
+            CONF_AREA_HUMIDITY_SENSOR: "sensor.primary_humidity",
+        },
     )
+    _sensor(
+        hass,
+        area,
+        "sensor.primary_temperature",
+        20,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    _sensor(hass, area, "sensor.primary_humidity", 50, SensorDeviceClass.HUMIDITY, "%")
+    _sensor(
+        hass,
+        area,
+        "sensor.decoy_temperature",
+        80,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    _sensor(hass, area, "sensor.decoy_humidity", 5, SensorDeviceClass.HUMIDITY, "%")
+    engine = AreaEnvironmentEngine(area)
+
+    assert engine.assessment["temperature"] == 20
+    assert engine.assessment["relative_humidity"] == 50
+    assert engine.assessment["dew_point"] == 9.26
+    assert engine.assessment["absolute_humidity"] == 8.62
+    assert engine.assessment["humidity_ratio"] == 7.24
+    assert engine.assessment["enthalpy"] == 38.5
+    assert engine.assessment["thermal_input_quality"] == "enhanced"
+
+    hass.states.async_set(
+        "sensor.decoy_temperature",
+        "-40",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE},
+    )
+    hass.states.async_set(
+        "sensor.decoy_humidity", "100", {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY}
+    )
+    engine.evaluate()
+    assert engine.assessment["temperature"] == 20
+    assert engine.assessment["relative_humidity"] == 50
+
+
+def test_unavailable_primary_never_falls_back(hass: HomeAssistant) -> None:
+    """Configured identity survives outage while decoys remain ignored."""
+    area = _area(
+        hass,
+        {CONF_AREA_TEMPERATURE_SENSOR: "sensor.primary_temperature"},
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.primary_temperature",
+        21,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.decoy_temperature",
+        30,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    engine = AreaEnvironmentEngine(area)
+    hass.states.async_set(
+        "sensor.primary_temperature",
+        STATE_UNAVAILABLE,
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE},
+    )
+    engine.evaluate()
+
+    assert engine.assessment["temperature"] is None
+    assert engine.assessment["comfort"] == ComfortState.UNKNOWN
+    assert engine.assessment["thermal_input_quality"] == "unavailable"
+    assert engine.assessment["source_entities"]["temperature"]["entity_id"] == (
+        "sensor.primary_temperature"
+    )
+    assert not engine.assessment["source_entities"]["temperature"]["available"]
+
+
+def test_missing_climate_sources_do_not_disable_co2(hass: HomeAssistant) -> None:
+    """Independent CO2 safety and ventilation survive absent climate sources."""
+    area = _area(hass)
+    _sensor(hass, area, "sensor.co2", 2200, SensorDeviceClass.CO2, "ppm")
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["temperature"] is None
+    assert assessment["relative_humidity"] is None
+    assert assessment["air_quality"] == AirQualityState.CRITICAL
+    assert assessment["ventilation"] == VentilationState.URGENT
+    assert assessment["dominant_decision"] == "air_quality_critical"
+    assert "CO₂" in assessment["context"]
+    assert "primary_temperature_sensor_not_configured" in assessment["reason_codes"]
 
 
 def test_psychrometric_reference_calculations() -> None:
@@ -299,6 +417,36 @@ def test_humidity_immediate_and_duration_design(hass: HomeAssistant) -> None:
     assert engine.assessment["humidity"] == HumidityState.VERY_HIGH
     assert engine.assessment["ventilation"] == VentilationState.REQUIRED
     assert "rapid_humidity_rise" in engine.assessment["reason_codes"]
+
+
+def test_primary_humidity_change_resets_history(hass: HomeAssistant, freezer) -> None:
+    """Reloading with a new primary source cannot inherit old persistence."""
+    area = _area(
+        hass,
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.temperature",
+            CONF_AREA_HUMIDITY_SENSOR: "sensor.humidity_a",
+        },
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.temperature",
+        22,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    _sensor(hass, area, "sensor.humidity_a", 72, SensorDeviceClass.HUMIDITY, "%")
+    _sensor(hass, area, "sensor.humidity_b", 72, SensorDeviceClass.HUMIDITY, "%")
+    old_engine = AreaEnvironmentEngine(area)
+    freezer.tick(12 * 60 * 60)
+    old_engine.evaluate()
+    assert old_engine.assessment["mould_warning_duration_seconds"] == 12 * 60 * 60
+
+    area.config[CONF_AREA_HUMIDITY_SENSOR] = "sensor.humidity_b"
+    new_engine = AreaEnvironmentEngine(area)
+    assert new_engine.assessment["mould_warning_duration_seconds"] == 0
+    assert new_engine.assessment["humidity_warning_duration_seconds"] == 0
 
 
 def test_persistent_humidity_increases_mould_risk(hass: HomeAssistant, freezer) -> None:
@@ -534,6 +682,7 @@ def test_exclusion_is_authoritative_and_sources_are_transparent(
     area = _area(
         hass,
         {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.bad_temperature",
             CONF_EXCLUDE_ENTITIES: [
                 "sensor.bad_temperature",
                 "sensor.excluded_outdoor",
@@ -564,14 +713,16 @@ def test_exclusion_is_authoritative_and_sources_are_transparent(
     )
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["temperature"] == 21
+    assert assessment["temperature"] is None
     assert assessment["outdoor_temperature"] is None
     assert assessment["source_entities"]["temperature"] == {
-        "mode": "direct",
-        "entities": [
-            {"entity_id": "sensor.good_temperature", "name": "good temperature"}
-        ],
+        "mode": "primary",
+        "configured": True,
+        "available": False,
+        "entity_id": "sensor.bad_temperature",
+        "name": "bad temperature",
     }
+    assert "primary_temperature_sensor_unavailable" in assessment["reason_codes"]
 
 
 async def test_late_exterior_area_refreshes_automatic_sources(
@@ -680,7 +831,7 @@ def test_room_usage_uses_presence_transitions_only(
     assert "cleaning_preferred_room_clear" in (
         area.decision_trace.export()[-1]["reason_codes"]
     )
-    assert "cleaning" in engine.assessment["context"].lower()
+    assert "temperature and humidity assessment" in engine.assessment["context"].lower()
 
 
 def test_health_warning_has_highest_context_priority(hass: HomeAssistant) -> None:
@@ -814,7 +965,7 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 3
+    assert entry.minor_version == 4
     assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
@@ -826,6 +977,59 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     assert CONF_ENVIRONMENT_COMFORT_MIN not in entry.options
 
     await shutdown_integration(hass, [entry])
+
+
+async def test_rc5_primary_source_migration_is_conservative(
+    hass: HomeAssistant,
+) -> None:
+    """One candidate is selected; ambiguous and excluded candidates are not."""
+    async_get_area_registry(hass).async_create(name="Kitchen")
+    temperature = MockSensor(
+        name="only_temperature",
+        unique_id="only_temperature",
+        native_value=21,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        unit_of_measurement=UnitOfTemperature.CELSIUS,
+    )
+    humidity_a = MockSensor(
+        name="humidity_a",
+        unique_id="humidity_a",
+        native_value=50,
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement="%",
+        unit_of_measurement="%",
+    )
+    humidity_b = MockSensor(
+        name="humidity_b",
+        unique_id="humidity_b",
+        native_value=55,
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement="%",
+        unit_of_measurement="%",
+    )
+    await setup_mock_entities(
+        hass,
+        "sensor",
+        {DEFAULT_MOCK_AREA: [temperature, humidity_a, humidity_b]},
+    )
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_EXCLUDE_ENTITIES] = [humidity_b.entity_id]
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=3)
+
+    migrated_data, migrated_options, data_changed, options_changed = (
+        _migrate_primary_area_sources(hass, entry, data, {})
+    )
+
+    assert migrated_data[CONF_AREA_TEMPERATURE_SENSOR] == temperature.entity_id
+    assert migrated_data[CONF_AREA_HUMIDITY_SENSOR] == humidity_a.entity_id
+    assert migrated_options == {}
+    assert data_changed is True
+    assert options_changed is False
+
+    data[CONF_EXCLUDE_ENTITIES] = []
+    ambiguous, _, _, _ = _migrate_primary_area_sources(hass, entry, data, {})
+    assert CONF_AREA_HUMIDITY_SENSOR not in ambiguous
 
 
 async def test_environment_sensor_fan_request_reaches_fan_control(
@@ -849,6 +1053,7 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
         CONF_FEATURE_FAN_GROUPS: {},
     }
     data[CONF_ENVIRONMENT_CIRCULATION_FANS] = [fan.entity_id]
+    data[CONF_AREA_TEMPERATURE_SENSOR] = temperature.entity_id
     entry = MockConfigEntry(domain=DOMAIN, data=data)
     await init_integration(hass, [entry])
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
@@ -874,8 +1079,14 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     assert hass.states.get(fan.entity_id).state == STATE_ON
     environment_state = hass.states.get(environment_entity_id)
     assert environment_state is not None
-    assert environment_state.attributes["decision_context"] == ["room_too_warm"]
-    assert environment_state.attributes["reason_codes"] == ["room_too_warm"]
+    assert environment_state.attributes["decision_context"] == [
+        "primary_humidity_sensor_not_configured",
+        "room_too_warm",
+    ]
+    assert environment_state.attributes["reason_codes"] == [
+        "primary_humidity_sensor_not_configured",
+        "room_too_warm",
+    ]
     assert environment_state.attributes["context"]
 
     await shutdown_integration(hass, [entry])
@@ -888,6 +1099,7 @@ def test_environment_translation_value_coverage() -> None:
         "comfort": {str(state) for state in ComfortState},
         "comfort_confidence": {"enhanced", "basic", "not_applicable", "unknown"},
         "comfort_quality": {"enhanced", "basic", "not_applicable", "unknown"},
+        "thermal_input_quality": {"enhanced", "basic", "unavailable"},
         "room_category": {str(category) for category in RoomCategory} | {"unknown"},
         "humidity": {str(state) for state in HumidityState},
         "mould_risk": {str(state) for state in MouldRiskState},

@@ -68,6 +68,8 @@ from .const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
     CONF_BLE_TRACKER_ENTITIES,
+    CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREA_TEMPERATURE_SENSOR,
     CONF_CLEAR_TIMEOUT,
     CONF_CLIMATE_CONTROL_ENTITY_ID,
     CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
@@ -695,6 +697,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         evaluation_source_candidates = {
             entity_id
             for key in (
+                CONF_AREA_TEMPERATURE_SENSOR,
+                CONF_AREA_HUMIDITY_SENSOR,
                 CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
                 CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
                 CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
@@ -821,6 +825,28 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
     async def async_step_area_config(self, user_input=None):
         """Gather basic settings for the area."""
+
+        def primary_candidates(
+            device_class: str, include_entities=None, *, preserve_current: bool = True
+        ) -> list[str]:
+            """Return eligible Area or explicitly included primary sensors."""
+            candidates = set(self.area_entities)
+            candidates.update(
+                include_entities or self.area_options.get(CONF_INCLUDE_ENTITIES, [])
+            )
+            if preserve_current:
+                for key in (CONF_AREA_TEMPERATURE_SENSOR, CONF_AREA_HUMIDITY_SENSOR):
+                    if entity_id := self.area_options.get(key):
+                        candidates.add(entity_id)
+            return sorted(
+                entity_id
+                for entity_id in candidates
+                if entity_id.startswith(f"{SENSOR_DOMAIN}.")
+                and not entity_id.startswith(f"{SENSOR_DOMAIN}.{DOMAIN}_")
+                and (state := self.hass.states.get(entity_id)) is not None
+                and state.attributes.get(ATTR_DEVICE_CLASS) == device_class
+            )
+
         errors: dict[str, str] = {}
         if user_input is not None:
             _LOGGER.debug(
@@ -834,7 +860,36 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 else REGULAR_AREA_BASIC_OPTIONS_SCHEMA
             )
             try:
-                self.area_options.update(options_schema(user_input))
+                validated = options_schema(user_input)
+                if not self.area.is_meta():
+                    excluded = set(validated.get(CONF_EXCLUDE_ENTITIES, []))
+                    allowed = {
+                        CONF_AREA_TEMPERATURE_SENSOR: set(
+                            primary_candidates(
+                                "temperature",
+                                validated.get(CONF_INCLUDE_ENTITIES, []),
+                                preserve_current=False,
+                            )
+                        ),
+                        CONF_AREA_HUMIDITY_SENSOR: set(
+                            primary_candidates(
+                                "humidity",
+                                validated.get(CONF_INCLUDE_ENTITIES, []),
+                                preserve_current=False,
+                            )
+                        ),
+                    }
+                    for key, candidates in allowed.items():
+                        entity_id = validated.get(key)
+                        if entity_id and entity_id in excluded:
+                            raise vol.MultipleInvalid(
+                                [vol.Invalid("excluded_primary_source", path=[key])]
+                            )
+                        if entity_id and entity_id not in candidates:
+                            raise vol.MultipleInvalid(
+                                [vol.Invalid("invalid_primary_source", path=[key])]
+                            )
+                self.area_options.update(validated)
             except vol.MultipleInvalid as validation:
                 errors = {
                     str(error.path[0]): str(error.msg) for error in validation.errors
@@ -887,6 +942,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             CONF_ROOM_CATEGORY: self._build_selector_select(
                 list(RoomCategory),
                 translation_key=SelectorTranslationKeys.ROOM_CATEGORY,
+            ),
+            CONF_AREA_TEMPERATURE_SENSOR: self._build_selector_entity_simple(
+                [""] + primary_candidates("temperature")
+            ),
+            CONF_AREA_HUMIDITY_SENSOR: self._build_selector_entity_simple(
+                [""] + primary_candidates("humidity")
             ),
         }
 
