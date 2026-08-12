@@ -53,6 +53,7 @@ from .const import (
     AREA_TYPE_EXTERIOR,
     AREA_TYPE_INTERIOR,
     AREA_TYPE_META,
+    AREA_EVALUATION_OPTIONS_SCHEMA,
     BUILTIN_AREA_STATES,
     CLIMATE_CONTROL_FEATURE_SCHEMA_ENTITY_SELECT,
     CLIMATE_CONTROL_FEATURE_SCHEMA_PRESET_SELECT,
@@ -87,7 +88,6 @@ from .const import (
     CONF_FEATURE_BLE_TRACKERS,
     CONF_FEATURE_CLIMATE_CONTROL,
     CONF_FEATURE_FAN_GROUPS,
-    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_FEATURE_LIST,
@@ -99,9 +99,9 @@ from .const import (
     CONF_HEALTH_SENSOR_DEVICE_CLASSES,
     CONF_ID,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
-    CONF_ENVIRONMENT_COMFORT_MIN,
-    CONF_ENVIRONMENT_COMFORT_MAX,
+    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_ENVIRONMENT_WINDOWS,
     CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
@@ -121,6 +121,7 @@ from .const import (
     CONF_PRESENCE_HOLD_TIMEOUT,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
+    CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
     CONF_SECONDARY_STATES,
     CONF_SECONDARY_STATES_CALCULATION_MODE,
@@ -154,7 +155,6 @@ from .const import (
     DISTRESS_SENSOR_CLASSES,
     DOMAIN,
     EMPTY_STRING,
-    ENVIRONMENT_FEATURE_SCHEMA,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACTIVATION_DISABLED,
@@ -176,7 +176,7 @@ from .const import (
     OPTIONS_CLIMATE_CONTROL,
     OPTIONS_CLIMATE_CONTROL_ENTITY_SELECT,
     OPTIONS_FAN_GROUP,
-    OPTIONS_ENVIRONMENT,
+    OPTIONS_AREA_EVALUATION,
     OPTIONS_HEALTH_SENSOR,
     OPTIONS_LIGHT_GROUP,
     OPTIONS_PRESENCE_HOLD,
@@ -197,6 +197,7 @@ from .const import (
     AdaptiveConfigEntryVersion,
     MetaAreaType,
     SelectorTranslationKeys,
+    RoomCategory,
     SWITCH_GROUP_ACTION_OPTIONS,
 )
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
@@ -689,6 +690,30 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
         self.area_entities = sorted(self.resolve_groups(filtered_area_entities))
 
+        # General exclusions are authoritative for intrinsic Area Evaluation,
+        # including explicit and automatically discovered exterior sources.
+        evaluation_source_candidates = {
+            entity_id
+            for key in (
+                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+                CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
+                CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+            )
+            if (entity_id := self.area.config.get(key))
+        }
+        for runtime in self.hass.data.get(MODULE_DATA, {}).values():
+            candidate_area = runtime.get(DATA_AREA_OBJECT)
+            if candidate_area is None or not candidate_area.is_exterior():
+                continue
+            for entity in candidate_area.entities.get(SENSOR_DOMAIN, []):
+                entity_id = entity[ATTR_ENTITY_ID]
+                state = self.hass.states.get(entity_id)
+                if state and state.attributes.get(ATTR_DEVICE_CLASS) in (
+                    "temperature",
+                    "humidity",
+                ):
+                    evaluation_source_candidates.add(entity_id)
+
         # All binary entities
         self.all_binary_entities = sorted(
             self.resolve_groups(
@@ -701,6 +726,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         self.all_area_entities = sorted(
             self.area_entities
             + self.config_entry.options.get(CONF_EXCLUDE_ENTITIES, [])
+            + list(evaluation_source_candidates)
         )
 
         self.all_lights = sorted(
@@ -761,6 +787,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             "secondary_states",
             "select_features",
         ]
+        if (
+            not self.area.is_meta()
+            and self.area.config.get(CONF_TYPE) == AREA_TYPE_INTERIOR
+        ):
+            menu_options.insert(1, "area_evaluation")
 
         # Add entries for features
         menu_options_features = []
@@ -853,6 +884,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             CONF_RELOAD_ON_REGISTRY_CHANGE: self._build_selector_boolean(),
             CONF_IGNORE_DIAGNOSTIC_ENTITIES: self._build_selector_boolean(),
             CONF_TRACK_ROOM_USAGE: self._build_selector_boolean(),
+            CONF_ROOM_CATEGORY: self._build_selector_select(
+                list(RoomCategory),
+                translation_key=SelectorTranslationKeys.ROOM_CATEGORY,
+            ),
         }
 
         options = OPTIONS_AREA_META if self.area.is_meta() else OPTIONS_AREA
@@ -1257,9 +1292,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             user_input=user_input,
         )
 
-    async def async_step_feature_conf_environment(self, user_input=None):
-        """Configure unified Environment Monitoring."""
+    async def async_step_area_evaluation(self, user_input=None):
+        """Configure sources and roles for intrinsic Area Evaluation."""
         temperature_entities = []
+        humidity_entities = []
         window_entities = []
         fan_entities = []
         for entity_id in self.all_entities:
@@ -1272,6 +1308,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 and state.attributes.get(ATTR_DEVICE_CLASS) == "temperature"
             ):
                 temperature_entities.append(entity_id)
+            elif (
+                domain == SENSOR_DOMAIN
+                and state.attributes.get(ATTR_DEVICE_CLASS) == "humidity"
+            ):
+                humidity_entities.append(entity_id)
             elif domain == BINARY_SENSOR_DOMAIN and state.attributes.get(
                 ATTR_DEVICE_CLASS
             ) in ("window", "opening"):
@@ -1279,18 +1320,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             elif domain == "fan" and entity_id in self.area_entities:
                 fan_entities.append(entity_id)
 
-        def _validate(raw_input):
-            if float(raw_input[CONF_ENVIRONMENT_COMFORT_MIN]) >= float(
-                raw_input[CONF_ENVIRONMENT_COMFORT_MAX]
-            ):
-                raise vol.MultipleInvalid(
-                    [
-                        vol.Invalid(
-                            "minimum must be below maximum",
-                            path=[CONF_ENVIRONMENT_COMFORT_MAX],
-                        )
-                    ]
-                )
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            raw_input = dict(user_input)
             role_sets = (
                 set(raw_input.get(CONF_ENVIRONMENT_VENTILATION_FANS, [])),
                 set(raw_input.get(CONF_ENVIRONMENT_CIRCULATION_FANS, [])),
@@ -1301,63 +1333,88 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 for index, left in enumerate(role_sets)
                 for right in role_sets[index + 1 :]
             ):
-                raise vol.MultipleInvalid(
-                    [
-                        vol.Invalid(
-                            "fan roles must not overlap",
-                            path=[CONF_ENVIRONMENT_CIRCULATION_FANS],
-                        )
-                    ]
-                )
-            return ENVIRONMENT_FEATURE_SCHEMA(raw_input)
+                errors[CONF_ENVIRONMENT_CIRCULATION_FANS] = "malformed_input"
+            else:
+                try:
+                    validated = AREA_EVALUATION_OPTIONS_SCHEMA(raw_input)
+                except vol.MultipleInvalid as validation:
+                    errors = {
+                        str(error.path[0]): str(error.msg)
+                        for error in validation.errors
+                    }
+                else:
+                    self.area_options.update(validated)
+                    self.all_area_entities = sorted(
+                        set(self.all_area_entities)
+                        | {
+                            entity_id
+                            for key in (
+                                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+                                CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
+                                CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+                            )
+                            if (entity_id := validated.get(key))
+                        }
+                    )
+                    return await self.async_step_show_menu()
 
-        return await self.do_feature_config(
-            name=CONF_FEATURE_ENVIRONMENT,
-            options=OPTIONS_ENVIRONMENT,
-            custom_schema=_validate,
-            dynamic_validators={
-                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: vol.In(
-                    EMPTY_ENTRY + sorted(temperature_entities)
-                ),
-                CONF_ENVIRONMENT_WINDOWS: cv.multi_select(sorted(window_entities)),
-                CONF_ENVIRONMENT_VENTILATION_FANS: cv.multi_select(
-                    sorted(fan_entities)
-                ),
-                CONF_ENVIRONMENT_CIRCULATION_FANS: cv.multi_select(
-                    sorted(fan_entities)
-                ),
-                CONF_ENVIRONMENT_DISABLED_FANS: cv.multi_select(sorted(fan_entities)),
-            },
-            selectors={
-                CONF_ENVIRONMENT_COMFORT_MIN: self._build_selector_number(
-                    unit_of_measurement="°C", step=0.5
-                ),
-                CONF_ENVIRONMENT_COMFORT_MAX: self._build_selector_number(
-                    unit_of_measurement="°C", step=0.5
-                ),
-                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: self._build_selector_entity_simple(
-                    EMPTY_ENTRY + sorted(temperature_entities)
-                ),
-                CONF_ENVIRONMENT_WINDOWS: self._build_selector_entity_simple(
-                    sorted(window_entities), multiple=True
-                ),
-                CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA: self._build_selector_number(
-                    unit_of_measurement="K", step=0.5
-                ),
-                CONF_ENVIRONMENT_HUMIDITY_DURATION: self._build_selector_number(
-                    unit_of_measurement="minutes", max_value=1440
-                ),
-                CONF_ENVIRONMENT_VENTILATION_FANS: self._build_selector_entity_simple(
-                    sorted(fan_entities), multiple=True
-                ),
-                CONF_ENVIRONMENT_CIRCULATION_FANS: self._build_selector_entity_simple(
-                    sorted(fan_entities), multiple=True
-                ),
-                CONF_ENVIRONMENT_DISABLED_FANS: self._build_selector_entity_simple(
-                    sorted(fan_entities), multiple=True
-                ),
-            },
-            user_input=user_input,
+        return self.async_show_form(
+            step_id="area_evaluation",
+            data_schema=self._build_options_schema(
+                options=OPTIONS_AREA_EVALUATION,
+                saved_options=self.area_options,
+                dynamic_validators={
+                    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: vol.In(
+                        EMPTY_ENTRY + sorted(temperature_entities)
+                    ),
+                    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: vol.In(
+                        EMPTY_ENTRY + sorted(humidity_entities)
+                    ),
+                    CONF_ENVIRONMENT_SURFACE_TEMPERATURE: vol.In(
+                        EMPTY_ENTRY + sorted(temperature_entities)
+                    ),
+                    CONF_ENVIRONMENT_WINDOWS: cv.multi_select(sorted(window_entities)),
+                    CONF_ENVIRONMENT_VENTILATION_FANS: cv.multi_select(
+                        sorted(fan_entities)
+                    ),
+                    CONF_ENVIRONMENT_CIRCULATION_FANS: cv.multi_select(
+                        sorted(fan_entities)
+                    ),
+                    CONF_ENVIRONMENT_DISABLED_FANS: cv.multi_select(
+                        sorted(fan_entities)
+                    ),
+                },
+                selectors={
+                    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: self._build_selector_entity_simple(
+                        EMPTY_ENTRY + sorted(temperature_entities)
+                    ),
+                    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: self._build_selector_entity_simple(
+                        EMPTY_ENTRY + sorted(humidity_entities)
+                    ),
+                    CONF_ENVIRONMENT_SURFACE_TEMPERATURE: self._build_selector_entity_simple(
+                        EMPTY_ENTRY + sorted(temperature_entities)
+                    ),
+                    CONF_ENVIRONMENT_WINDOWS: self._build_selector_entity_simple(
+                        sorted(window_entities), multiple=True
+                    ),
+                    CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA: self._build_selector_number(
+                        unit_of_measurement="K", step=0.5
+                    ),
+                    CONF_ENVIRONMENT_HUMIDITY_DURATION: self._build_selector_number(
+                        unit_of_measurement="minutes", max_value=1440
+                    ),
+                    CONF_ENVIRONMENT_VENTILATION_FANS: self._build_selector_entity_simple(
+                        sorted(fan_entities), multiple=True
+                    ),
+                    CONF_ENVIRONMENT_CIRCULATION_FANS: self._build_selector_entity_simple(
+                        sorted(fan_entities), multiple=True
+                    ),
+                    CONF_ENVIRONMENT_DISABLED_FANS: self._build_selector_entity_simple(
+                        sorted(fan_entities), multiple=True
+                    ),
+                },
+            ),
+            errors=errors,
         )
 
     async def async_step_feature_conf_switch_groups(self, user_input=None):

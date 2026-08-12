@@ -24,16 +24,23 @@ from custom_components.adaptive_areas.const import (
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
+    CONF_ENVIRONMENT_COMFORT_MAX,
+    CONF_ENVIRONMENT_COMFORT_MIN,
+    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_ENVIRONMENT_WINDOWS,
-    CONF_FEATURE_ENVIRONMENT,
+    CONF_EXCLUDE_ENTITIES,
     CONF_FEATURE_FAN_GROUPS,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_HEALTH,
     CONF_ID,
     CONF_NAME,
+    CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
     CONF_TYPE,
     AREA_TYPE_INTERIOR,
+    AREA_TYPE_EXTERIOR,
     AirQualityState,
     CirculationFanRequest,
     CleaningRecommendation,
@@ -43,6 +50,7 @@ from custom_components.adaptive_areas.const import (
     HumidityState,
     MouldRiskState,
     RoomUsageState,
+    RoomCategory,
     VentilationFanRequest,
     VentilationState,
     WindowRecommendation,
@@ -76,10 +84,9 @@ def _area(
             CONF_ID: "kitchen",
             CONF_NAME: "Kitchen",
             CONF_TYPE: AREA_TYPE_INTERIOR,
-            CONF_ENABLED_FEATURES: (
-                {CONF_FEATURE_ENVIRONMENT: feature_config or {}} if environment else {}
-            ),
+            CONF_ENABLED_FEATURES: {},
             CONF_TRACK_ROOM_USAGE: track_room_usage,
+            **(feature_config or {}),
         },
     )
     return AdaptiveArea(
@@ -123,13 +130,13 @@ def test_temperature_only_is_partial(hass: HomeAssistant) -> None:
     assert engine.assessment["cooling"] == CoolingState.UNKNOWN
     assert engine.assessment["state"] == EnvironmentState.ATTENTION
     assert engine.assessment["capabilities"]["co2"] is False
-    assert engine.assessment["comfort_confidence"] == "limited"
+    assert engine.assessment["comfort_confidence"] == "basic"
 
 
 def test_temperature_and_humidity_produce_derived_comfort(
     hass: HomeAssistant,
 ) -> None:
-    """Temperature plus humidity yields full-confidence derived values."""
+    """Temperature plus humidity yields enhanced psychrometric values."""
     area = _area(hass)
     _sensor(
         hass,
@@ -142,9 +149,24 @@ def test_temperature_and_humidity_produce_derived_comfort(
     _sensor(hass, area, "sensor.humidity", 70, SensorDeviceClass.HUMIDITY, "%")
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["comfort_confidence"] == "full"
+    assert assessment["comfort_confidence"] == "enhanced"
     assert assessment["dew_point"] == 22.01
-    assert assessment["apparent_temperature"] > assessment["temperature"]
+    assert assessment["absolute_humidity"] > 18
+    assert assessment["humidity_ratio"] > 10
+    assert assessment["enthalpy"] > 50
+    assert assessment["humidex"] > assessment["temperature"]
+    assert (
+        assessment["source_entities"]["humidity"]["entities"][0]["entity_id"]
+        == "sensor.humidity"
+    )
+
+
+def test_psychrometric_reference_calculations() -> None:
+    """Published moist-air approximations remain numerically stable at 20 °C/50%."""
+    assert round(AreaEnvironmentEngine._dew_point(20, 50), 2) == 9.26
+    assert round(AreaEnvironmentEngine._absolute_humidity(20, 50), 2) == 8.62
+    assert round(AreaEnvironmentEngine._humidity_ratio(20, 50), 2) == 7.24
+    assert round(AreaEnvironmentEngine._enthalpy(20, 50), 2) == 38.50
 
 
 def test_humidity_only_cannot_infer_comfort(hass: HomeAssistant) -> None:
@@ -235,9 +257,9 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     )
     area.entities["binary_sensor"] = [{ATTR_ENTITY_ID: "binary_sensor.window"}]
     engine = AreaEnvironmentEngine(area)
-    assert engine.assessment["ventilation"] == VentilationState.REQUIRED
+    assert engine.assessment["ventilation"] == VentilationState.RECOMMENDED
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
-    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.HIGH
+    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.LOW
 
     hass.states.async_set(
         "sensor.co2", "900", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
@@ -307,7 +329,7 @@ def test_persistent_humidity_increases_mould_risk(hass: HomeAssistant, freezer) 
 def test_short_humidity_peak_recovers_without_high_mould_risk(
     hass: HomeAssistant,
 ) -> None:
-    """A shower-like peak may elevate risk but cannot claim persistent high risk."""
+    """A shower-like peak cannot claim persistent mould risk."""
     area = _area(hass)
     _sensor(
         hass,
@@ -319,7 +341,7 @@ def test_short_humidity_peak_recovers_without_high_mould_risk(
     )
     _sensor(hass, area, "sensor.humidity", 80, SensorDeviceClass.HUMIDITY, "%")
     engine = AreaEnvironmentEngine(area)
-    assert engine.assessment["mould_risk"] == MouldRiskState.ELEVATED
+    assert engine.assessment["mould_risk"] == MouldRiskState.LOW
 
     hass.states.async_set(
         "sensor.humidity",
@@ -334,18 +356,28 @@ def test_short_humidity_peak_recovers_without_high_mould_risk(
 
 
 def test_worst_pollutant_does_not_request_ventilation_fan(
-    hass: HomeAssistant,
+    hass: HomeAssistant, freezer
 ) -> None:
-    """PM drives air-quality severity but not the separate ventilation model."""
+    """Limited PM coverage stays unknown and never requests outdoor ventilation."""
     area = _area(hass)
     _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
     _sensor(hass, area, "sensor.pm25", 80, SensorDeviceClass.PM25, "µg/m³")
-    assessment = AreaEnvironmentEngine(area).assessment
+    engine = AreaEnvironmentEngine(area)
+    assessment = engine.assessment
 
-    assert assessment["air_quality"] == AirQualityState.CRITICAL
+    assert assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
+    assert assessment["source_entities"]["pm25"]["entities"][0]["entity_id"] == (
+        "sensor.pm25"
+    )
     assert assessment["ventilation"] == VentilationState.NOT_REQUIRED
     assert assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
-    assert "high_pm25" in assessment["reason_codes"]
+
+    freezer.tick(18 * 60 * 60)
+    engine.evaluate()
+    assert engine.assessment["air_quality"] == AirQualityState.CRITICAL
+    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
+    assert "high_pm25" in engine.assessment["reason_codes"]
 
 
 def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
@@ -359,11 +391,21 @@ def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
 
 
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
-    """PM uses retained observations and safely expires a constant old sample."""
+    """PM uses elapsed-time weighting, coverage quality, and a 24-hour window."""
     area = _area(hass)
     _sensor(hass, area, "sensor.pm25", 10, SensorDeviceClass.PM25, "µg/m³")
     engine = AreaEnvironmentEngine(area)
-    assert engine.assessment["air_quality"] == AirQualityState.GOOD
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["pollutant_assessments"]["pm25"] == {
+        "current": 10.0,
+        "rolling_24h": None,
+        "coverage_hours": 0.0,
+        "quality": "limited",
+        "basis": "WHO-24h",
+        "basis_type": "scientific_guideline",
+    }
+
+    freezer.tick(6 * 60 * 60)
 
     hass.states.async_set(
         "sensor.pm25",
@@ -374,12 +416,237 @@ def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
         },
     )
     engine.evaluate()
-    assert engine.assessment["air_quality"] == AirQualityState.POOR
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
 
-    freezer.tick(24 * 60 * 60 + 1)
+    freezer.tick(18 * 60 * 60)
     engine.evaluate()
     assert engine.assessment["pollutants"]["pm25"] == 80
+    assert engine.assessment["pollutant_assessments"]["pm25"]["rolling_24h"] == 62.5
+    assert engine.assessment["pollutant_assessments"]["pm25"]["coverage_hours"] == 24
+    assert engine.assessment["air_quality"] == AirQualityState.POOR
+
+    freezer.tick(24 * 60 * 60)
+    engine.evaluate()
+    assert engine.assessment["pollutant_assessments"]["pm25"]["rolling_24h"] == 80
     assert engine.assessment["air_quality"] == AirQualityState.CRITICAL
+
+
+def test_surface_temperature_improves_mould_quality(
+    hass: HomeAssistant, freezer
+) -> None:
+    """A measured cool surface drives surface-RH persistence evaluation."""
+    area = _area(
+        hass,
+        {CONF_ENVIRONMENT_SURFACE_TEMPERATURE: "sensor.cool_wall"},
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.room_temperature",
+        22,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    _sensor(hass, area, "sensor.humidity", 55, SensorDeviceClass.HUMIDITY, "%")
+    hass.states.async_set(
+        "sensor.cool_wall",
+        "14",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfTemperature.CELSIUS,
+        },
+    )
+    area.entities["sensor"].append({ATTR_ENTITY_ID: "sensor.cool_wall"})
+    engine = AreaEnvironmentEngine(area)
+
+    assert engine.assessment["temperature"] == 22
+    assert engine.assessment["mould_quality"] == "surface_based"
+    assert engine.assessment["surface_relative_humidity"] > 80
+    assert engine.assessment["mould_risk"] == MouldRiskState.LOW
+    freezer.tick(6 * 60 * 60)
+    engine.evaluate()
+    assert engine.assessment["mould_risk"] == MouldRiskState.ELEVATED
+
+
+def test_room_category_can_make_comfort_not_applicable(hass: HomeAssistant) -> None:
+    """Storage and unconditioned Areas do not receive residential comfort labels."""
+    area = _area(hass, {CONF_ROOM_CATEGORY: RoomCategory.SERVICE_STORAGE})
+    _sensor(
+        hass,
+        area,
+        "sensor.room_temperature",
+        12,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["comfort"] == ComfortState.NOT_APPLICABLE
+    assert assessment["comfort_quality"] == "not_applicable"
+    assert assessment["cooling"] == CoolingState.NOT_REQUIRED
+
+
+def test_outdoor_moisture_can_keep_window_closed(hass: HomeAssistant) -> None:
+    """Humidity advice compares moisture ratio instead of relative humidity alone."""
+    area = _area(
+        hass,
+        {
+            CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "sensor.outdoor_temperature",
+            CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: "sensor.outdoor_humidity",
+            CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"],
+        },
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.room_temperature",
+        22,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    _sensor(hass, area, "sensor.humidity", 76, SensorDeviceClass.HUMIDITY, "%")
+    hass.states.async_set(
+        "sensor.outdoor_temperature",
+        "28",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE},
+    )
+    hass.states.async_set(
+        "sensor.outdoor_humidity",
+        "80",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY},
+    )
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["moisture_ventilation"] == "unfavorable"
+    assert assessment["window_recommendation"] == WindowRecommendation.KEEP_CLOSED
+    assert assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
+
+
+def test_exclusion_is_authoritative_and_sources_are_transparent(
+    hass: HomeAssistant,
+) -> None:
+    """General exclusions remove evaluation inputs; retained sources show ID and name."""
+    area = _area(
+        hass,
+        {
+            CONF_EXCLUDE_ENTITIES: [
+                "sensor.bad_temperature",
+                "sensor.excluded_outdoor",
+            ],
+            CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "sensor.excluded_outdoor",
+        },
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.bad_temperature",
+        40,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    hass.states.async_set(
+        "sensor.excluded_outdoor",
+        "10",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE},
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.good_temperature",
+        21,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["temperature"] == 21
+    assert assessment["outdoor_temperature"] is None
+    assert assessment["source_entities"]["temperature"] == {
+        "mode": "direct",
+        "entities": [
+            {"entity_id": "sensor.good_temperature", "name": "good temperature"}
+        ],
+    }
+
+
+async def test_late_exterior_area_refreshes_automatic_sources(
+    hass: HomeAssistant,
+) -> None:
+    """Setup order does not prevent automatic exterior source discovery/listening."""
+    interior = _area(hass)
+    _sensor(
+        hass,
+        interior,
+        "sensor.room_temperature",
+        27,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    engine = AreaEnvironmentEngine(interior)
+    assert engine.assessment["outdoor_temperature"] is None
+
+    exterior = _area(hass)
+    exterior.config[CONF_TYPE] = AREA_TYPE_EXTERIOR
+    _sensor(
+        hass,
+        exterior,
+        "sensor.garden_temperature",
+        20,
+        SensorDeviceClass.TEMPERATURE,
+        UnitOfTemperature.CELSIUS,
+    )
+    hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: exterior}
+    engine._area_loaded(AREA_TYPE_EXTERIOR, None, exterior.id)
+
+    assert engine.assessment["outdoor_temperature"] == 20
+    assert engine.assessment["cooling"] == CoolingState.PASSIVE_RECOMMENDED
+    hass.states.async_set(
+        "sensor.garden_temperature",
+        "30",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfTemperature.CELSIUS,
+        },
+    )
+    await hass.async_block_till_done()
+    assert engine.assessment["outdoor_temperature"] == 30
+
+
+def test_tvoc_mass_is_precaution_only_and_generic_scale_is_unclassified(
+    hass: HomeAssistant,
+) -> None:
+    """TVOC mass uses AIR precaution; generic VOC ppb is never toxicologically mapped."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.tvoc",
+        951,
+        SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+        "µg/m³",
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.voc_parts",
+        5000,
+        SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+        "ppb",
+    )
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["air_quality"] == AirQualityState.DEGRADED
+    assert assessment["pollutant_assessments"]["voc"]["quality"] == (
+        "precaution_indicator"
+    )
+    assert assessment["pollutant_assessments"]["voc_parts"]["quality"] == (
+        "unsupported_scale"
+    )
 
 
 def test_room_usage_uses_presence_transitions_only(
@@ -436,7 +703,7 @@ def test_german_context_is_human_readable(hass: HomeAssistant) -> None:
     _sensor(hass, area, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["context"].startswith("Lüften erforderlich")
+    assert assessment["context"].startswith("Lüften empfohlen")
     assert "high_co2" in assessment["reason_codes"]
 
 
@@ -459,10 +726,10 @@ def test_circulation_request_requires_occupancy(hass: HomeAssistant) -> None:
     assert engine.assessment["circulation_fan_request"] == CirculationFanRequest.HIGH
 
 
-async def test_room_usage_alone_creates_environment_sensor(
+async def test_room_usage_is_exposed_by_intrinsic_area_evaluation(
     hass: HomeAssistant,
 ) -> None:
-    """The basic opt-in works without enabling Environment Monitoring."""
+    """The basic usage opt-in is exposed by intrinsic Area Evaluation."""
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     data[CONF_TRACK_ROOM_USAGE] = True
     data[CONF_ENABLED_FEATURES] = {}
@@ -481,12 +748,30 @@ async def test_room_usage_alone_creates_environment_sensor(
     await shutdown_integration(hass, [entry])
 
 
-async def test_room_usage_disabled_creates_no_environment_sensor(
+async def test_regular_interior_always_creates_area_evaluation_sensor(
     hass: HomeAssistant,
 ) -> None:
-    """Backwards-compatible defaults add no usage runtime or entity."""
+    """Regular indoor Areas receive evaluation even with no optional features."""
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     data[CONF_ENABLED_FEATURES] = {}
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    await init_integration(hass, [entry])
+
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is not None
+    state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
+    assert state is not None
+    assert state.state == EnvironmentState.UNKNOWN
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_regular_exterior_does_not_create_area_evaluation_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Exterior Areas provide outdoor sources but receive no indoor evaluation."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_TYPE] = AREA_TYPE_EXTERIOR
     entry = MockConfigEntry(domain=DOMAIN, data=data)
     await init_integration(hass, [entry])
 
@@ -496,6 +781,49 @@ async def test_room_usage_disabled_creates_no_environment_sensor(
         hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
         is None
     )
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
+    hass: HomeAssistant,
+) -> None:
+    """RC4 feature settings migrate safely; obsolete manual bands are dropped."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {
+        CONF_FEATURE_ENVIRONMENT: {
+            CONF_ENVIRONMENT_COMFORT_MIN: 19,
+            CONF_ENVIRONMENT_COMFORT_MAX: 25,
+            CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "sensor.outdoor",
+            CONF_ENVIRONMENT_CIRCULATION_FANS: ["fan.room"],
+        }
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        options={
+            CONF_ENABLED_FEATURES: {
+                CONF_FEATURE_ENVIRONMENT: {
+                    CONF_ENVIRONMENT_COMFORT_MIN: 18,
+                    CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"],
+                }
+            }
+        },
+        version=2,
+        minor_version=2,
+    )
+    await init_integration(hass, [entry])
+
+    assert entry.minor_version == 3
+    assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
+    assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
+    assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
+    assert CONF_ENVIRONMENT_COMFORT_MIN not in entry.data
+    assert CONF_ENVIRONMENT_COMFORT_MAX not in entry.data
+    assert entry.data[CONF_ROOM_CATEGORY] == RoomCategory.LIVING_SEDENTARY
+    assert CONF_FEATURE_ENVIRONMENT not in entry.options[CONF_ENABLED_FEATURES]
+    assert entry.options[CONF_ENVIRONMENT_WINDOWS] == ["binary_sensor.window"]
+    assert CONF_ENVIRONMENT_COMFORT_MIN not in entry.options
 
     await shutdown_integration(hass, [entry])
 
@@ -518,9 +846,9 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
 
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     data[CONF_ENABLED_FEATURES] = {
-        CONF_FEATURE_ENVIRONMENT: {CONF_ENVIRONMENT_CIRCULATION_FANS: [fan.entity_id]},
         CONF_FEATURE_FAN_GROUPS: {},
     }
+    data[CONF_ENVIRONMENT_CIRCULATION_FANS] = [fan.entity_id]
     entry = MockConfigEntry(domain=DOMAIN, data=data)
     await init_integration(hass, [entry])
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
@@ -558,9 +886,12 @@ def test_environment_translation_value_coverage() -> None:
     translations = Path("custom_components/adaptive_areas/translations")
     expected_values = {
         "comfort": {str(state) for state in ComfortState},
-        "comfort_confidence": {"full", "limited", "unknown"},
+        "comfort_confidence": {"enhanced", "basic", "not_applicable", "unknown"},
+        "comfort_quality": {"enhanced", "basic", "not_applicable", "unknown"},
+        "room_category": {str(category) for category in RoomCategory} | {"unknown"},
         "humidity": {str(state) for state in HumidityState},
         "mould_risk": {str(state) for state in MouldRiskState},
+        "mould_quality": {"surface_based", "room_air_estimate", "unknown"},
         "air_quality": {str(state) for state in AirQualityState},
         "ventilation": {str(state) for state in VentilationState},
         "cooling": {str(state) for state in CoolingState},
@@ -569,6 +900,7 @@ def test_environment_translation_value_coverage() -> None:
         "circulation_fan_request": {str(state) for state in CirculationFanRequest},
         "room_usage": {str(state) for state in RoomUsageState},
         "cleaning_recommendation": {str(state) for state in CleaningRecommendation},
+        "moisture_ventilation": {"favorable", "unfavorable", "unknown"},
         "available_capabilities": {
             "temperature",
             "humidity",
@@ -581,6 +913,8 @@ def test_environment_translation_value_coverage() -> None:
             "no2",
             "windows",
             "outdoor_temperature",
+            "outdoor_humidity",
+            "surface_temperature",
             "room_usage",
             "health",
         },
@@ -589,8 +923,22 @@ def test_environment_translation_value_coverage() -> None:
         "temperature",
         "relative_humidity",
         "dew_point",
+        "absolute_humidity",
+        "humidity_ratio",
+        "enthalpy",
+        "humidex",
         "apparent_temperature",
+        "thermal_profile",
+        "surface_temperature",
+        "surface_relative_humidity",
+        "mould_warning_duration_seconds",
+        "outdoor_temperature",
+        "outdoor_relative_humidity",
+        "outdoor_humidity_ratio",
+        "outdoor_enthalpy",
         "pollutant_measurements",
+        "pollutant_assessments",
+        "source_entities",
         "current_occupancy_duration",
         "occupied_duration_today",
         "occupancy_sessions_today",

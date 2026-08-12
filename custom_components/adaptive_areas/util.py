@@ -17,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 def cleanup_removed_entries(
     hass: HomeAssistant, entity_list: Sequence[Entity], old_ids: list[dict[str, str]]
 ) -> None:
-    """Clean up old magic entities."""
+    """Clean up legacy generated entities."""
     new_ids = [entity.entity_id for entity in entity_list]
     _LOGGER.debug(
         "Checking for cleanup. Old entity list: %s, New entity list: %s",

@@ -33,8 +33,7 @@
           "health": "Create health sensors",
           "presence_hold": "Create presence hold switch",
           "ble_trackers": "Monitor Bluetooth tracker sensors",
-          "wasp_in_a_box": "Create a Wasp in a Box sensor",
-          "environment": "Enable Environment Monitoring"
+          "wasp_in_a_box": "Create a Wasp in a Box sensor"
         }
       },
       "show_menu": {
@@ -42,6 +41,7 @@
         "description": "Adaptive Areas provides basic presence detection by default. Configure advanced state tracking, presence parameters, and optional features here. Options are not saved unless you select `Save & Exit`.",
         "menu_options": {
           "area_config": "Basic area options",
+          "area_evaluation": "Configure Area Evaluation",
           "secondary_states": "Advanced area state tracking",
           "presence_tracking": "Presence tracking options",
           "select_features": "Feature selection",
@@ -55,8 +55,7 @@
           "feature_conf_aggregates": "Configure aggregate sensors",
           "feature_conf_presence_hold": "Configure presence hold switch",
           "feature_conf_ble_trackers": "Configure BLE Tracker monitoring",
-          "feature_conf_wasp_in_a_box": "Configure Wasp in a Box",
-          "feature_conf_environment": "Configure Environment Monitoring"
+          "feature_conf_wasp_in_a_box": "Configure Wasp in a Box"
         }
       },
       "feature_conf_health": {
@@ -223,26 +222,28 @@
           "setpoint": "Number which the tracked aggregate sensor must be equal or greater in order to turn on the fan group."
         }
       },
-      "feature_conf_environment": {
-        "title": "Environment Monitoring",
-        "description": "Assess comfort, humidity, ventilation, and cooling from the sensors that are actually available in this area. Missing information is reported as unavailable, never assumed healthy. Monitoring does not control devices directly; existing Fan Control may consume fan requests when enabled.",
+      "area_evaluation": {
+        "title": "Area Evaluation",
+        "description": "Every regular indoor Area is evaluated from compatible, non-excluded sources. Missing dimensions remain unknown. Recommendations never control devices directly; explicitly classified fans may be used by enabled Fan Control.",
         "data": {
-          "comfort_min_temperature": "Comfort minimum temperature",
-          "comfort_max_temperature": "Comfort maximum temperature",
           "outdoor_temperature_entity": "Outdoor temperature source (optional)",
+          "outdoor_humidity_entity": "Outdoor humidity source (optional)",
+          "surface_temperature_entity": "Cool surface temperature source (optional)",
           "relevant_windows": "Relevant windows (automatic when empty)",
           "passive_cooling_temperature_difference": "Passive cooling minimum temperature difference",
           "humidity_warning_duration": "High humidity warning duration",
           "ventilation_fans": "Ventilation fans",
           "circulation_fans": "Circulation fans",
-          "disabled_fans": "Fans excluded from Environment requests"
+          "disabled_fans": "Fans excluded from evaluation requests"
         },
         "data_description": {
           "outdoor_temperature_entity": "Select an explicit outdoor source when automatic exterior-area discovery is ambiguous.",
+          "outdoor_humidity_entity": "Used with outdoor temperature to compare moisture content and moist-air enthalpy. Exterior Area sources are discovered automatically when empty.",
+          "surface_temperature_entity": "Optional measured cool surface. Enables surface-relative-humidity mould-risk evaluation; otherwise a conservative room-air estimate is used.",
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area.",
           "ventilation_fans": "Fans that exchange air, such as extractor or mechanical ventilation fans.",
           "circulation_fans": "Fans that move indoor air, such as ceiling or pedestal fans. Unclassified area fans default to this safer role.",
-          "disabled_fans": "Fans that Environment Monitoring must never request. Passive grouping remains unchanged."
+          "disabled_fans": "Fans that Area Evaluation must never request. Passive grouping remains unchanged."
         }
       },
       "feature_conf_climate_control": {
@@ -329,7 +330,8 @@
           "type": "Area type (interior/exterior)",
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
           "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
-          "track_room_usage": "Track room usage and cleaning recommendation"
+          "track_room_usage": "Track room usage and cleaning recommendation",
+          "room_category": "Room category"
         },
         "data_description": {
           "include_entities": "Adaptive Areas can consider entities from other areas including other Adaptive entities. You can use this to make a room's presence binary sensor to act as another room's presence sensor as well.",
@@ -338,7 +340,8 @@
           "type": "Defining an area type allows Meta areas for Interior/Exterior to be created.",
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
           "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
-          "track_room_usage": "Optional and disabled by default. Uses only Area presence transitions to classify daily room use and recommend when cleaning is suitable. It never controls a vacuum or another device."
+          "track_room_usage": "Optional and disabled by default. Uses only Area presence transitions to classify daily room use and recommend when cleaning is suitable. It never controls a vacuum or another device.",
+          "room_category": "Select the room purpose used for category-specific thermal interpretation. This is an operational profile, not a claim of universal comfort."
         }
       },
       "presence_tracking": {
@@ -506,7 +509,7 @@
     },
     "sensor": {
       "environment": {
-        "name": "Environment",
+        "name": "Area Evaluation",
         "state": {
           "good": "Good",
           "attention": "Attention needed",
@@ -523,17 +526,42 @@
               "warm": "Warm",
               "hot": "Hot",
               "very_hot": "Very hot",
+              "not_applicable": "Not applicable for this room category",
               "unknown": "Unknown"
             }
           },
           "comfort_confidence": {
-            "name": "Comfort confidence",
+            "name": "Comfort quality",
             "state": {
-              "full": "Temperature and humidity available",
-              "limited": "Temperature only",
+              "enhanced": "Temperature and humidity available",
+              "basic": "Temperature only",
+              "not_applicable": "Not applicable",
               "unknown": "Unknown"
             }
           },
+          "comfort_quality": {
+            "name": "Comfort quality",
+            "state": {
+              "enhanced": "Temperature and humidity available",
+              "basic": "Temperature only",
+              "not_applicable": "Not applicable",
+              "unknown": "Unknown"
+            }
+          },
+          "room_category": {
+            "name": "Room category",
+            "state": {
+              "living_sedentary": "Living / sedentary",
+              "sleeping_rest": "Sleeping / rest",
+              "hygiene_wet": "Bathroom / wet room",
+              "active_domestic": "Active domestic work",
+              "circulation_transient": "Hall / transient",
+              "service_storage": "Service / storage",
+              "unconditioned": "Unconditioned",
+              "unknown": "Unknown"
+            }
+          },
+          "thermal_profile": {"name": "Thermal profile"},
           "humidity": {
             "name": "Humidity",
             "state": {
@@ -625,6 +653,8 @@
               "no2": "Nitrogen dioxide",
               "windows": "Windows",
               "outdoor_temperature": "Outdoor temperature",
+              "outdoor_humidity": "Outdoor humidity",
+              "surface_temperature": "Surface temperature",
               "room_usage": "Room usage",
               "health": "Area health"
             }
@@ -632,8 +662,37 @@
           "temperature": {"name": "Temperature"},
           "relative_humidity": {"name": "Relative humidity"},
           "dew_point": {"name": "Dew point"},
-          "apparent_temperature": {"name": "Apparent temperature"},
+          "absolute_humidity": {"name": "Absolute humidity"},
+          "humidity_ratio": {"name": "Humidity ratio"},
+          "enthalpy": {"name": "Moist-air enthalpy"},
+          "humidex": {"name": "Humidex warm-stress index"},
+          "apparent_temperature": {"name": "Humidex (compatibility attribute)"},
+          "surface_temperature": {"name": "Surface temperature"},
+          "surface_relative_humidity": {"name": "Surface relative humidity"},
+          "mould_quality": {
+            "name": "Mould assessment quality",
+            "state": {
+              "surface_based": "Measured surface temperature",
+              "room_air_estimate": "Room-air estimate",
+              "unknown": "Unknown"
+            }
+          },
+          "mould_warning_duration_seconds": {"name": "Mould warning duration"},
+          "outdoor_temperature": {"name": "Outdoor temperature"},
+          "outdoor_relative_humidity": {"name": "Outdoor relative humidity"},
+          "outdoor_humidity_ratio": {"name": "Outdoor humidity ratio"},
+          "outdoor_enthalpy": {"name": "Outdoor moist-air enthalpy"},
+          "moisture_ventilation": {
+            "name": "Moisture ventilation suitability",
+            "state": {
+              "favorable": "Outdoor air is drier",
+              "unfavorable": "Outdoor air is not drier",
+              "unknown": "Unknown"
+            }
+          },
           "pollutant_measurements": {"name": "Pollutant measurements"},
+          "pollutant_assessments": {"name": "Pollutant assessments"},
+          "source_entities": {"name": "Source entities"},
           "room_usage": {
             "name": "Room usage",
             "state": {
@@ -685,6 +744,9 @@
               "passive_cooling_available": "Passive cooling is available",
               "outdoor_air_warmer": "Outdoor air is warmer",
               "active_cooling_recommended": "Active cooling is recommended",
+              "outdoor_air_moisture_penalty": "Cooler outdoor air has no enthalpy advantage",
+              "outdoor_air_drier": "Outdoor air has less moisture",
+              "outdoor_air_more_humid": "Outdoor air has equal or greater moisture",
               "window_closed": "A relevant window is closed",
               "ventilation_complete": "Ventilation demand has cleared",
               "room_usage_high": "Room usage is high",
@@ -716,6 +778,9 @@
               "passive_cooling_available": "Passive cooling is available",
               "outdoor_air_warmer": "Outdoor air is warmer",
               "active_cooling_recommended": "Active cooling is recommended",
+              "outdoor_air_moisture_penalty": "Cooler outdoor air has no enthalpy advantage",
+              "outdoor_air_drier": "Outdoor air has less moisture",
+              "outdoor_air_more_humid": "Outdoor air has equal or greater moisture",
               "window_closed": "A relevant window is closed",
               "ventilation_complete": "Ventilation demand has cleared",
               "mould_risk_elevated": "Mould risk is elevated",
@@ -814,6 +879,17 @@
         "any": "Any",
         "all": "All",
         "majority": "Majority"
+      }
+    },
+    "room_category": {
+      "options": {
+        "living_sedentary": "Living / sedentary",
+        "sleeping_rest": "Sleeping / rest",
+        "hygiene_wet": "Bathroom / wet room",
+        "active_domestic": "Active domestic work",
+        "circulation_transient": "Hall / transient",
+        "service_storage": "Service / storage",
+        "unconditioned": "Unconditioned"
       }
     }
   },

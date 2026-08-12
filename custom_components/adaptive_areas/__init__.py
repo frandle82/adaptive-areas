@@ -22,8 +22,18 @@ from homeassistant.helpers.floor_registry import EVENT_FLOOR_REGISTRY_UPDATED
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
+    AREA_TYPE_META,
     CONF_ENABLED_FEATURES,
+    CONF_ENVIRONMENT_CIRCULATION_FANS,
+    CONF_ENVIRONMENT_DISABLED_FANS,
+    CONF_ENVIRONMENT_HUMIDITY_DURATION,
+    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+    CONF_ENVIRONMENT_VENTILATION_FANS,
+    CONF_ENVIRONMENT_WINDOWS,
+    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_SWITCH_GROUPS,
+    CONF_ROOM_CATEGORY,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_SLEEP_SWITCHES,
     CONF_SLEEP_SWITCHES_ACTION,
@@ -33,9 +43,11 @@ from custom_components.adaptive_areas.const import (
     CONF_TASK_SWITCHES_ACTION,
     CONF_TASK_SWITCHES_ACT_ON,
     CONF_TASK_SWITCHES_STATES,
+    CONF_TYPE,
     DATA_AREA_OBJECT,
     DATA_TRACKED_LISTENERS,
     DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
+    DEFAULT_ROOM_CATEGORY,
     MODULE_DATA,
     AdaptiveConfigEntryVersion,
 )
@@ -51,6 +63,42 @@ from custom_components.adaptive_areas.repairs import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_MIGRATED_AREA_EVALUATION_KEYS = (
+    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_WINDOWS,
+    CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+    CONF_ENVIRONMENT_HUMIDITY_DURATION,
+    CONF_ENVIRONMENT_VENTILATION_FANS,
+    CONF_ENVIRONMENT_CIRCULATION_FANS,
+    CONF_ENVIRONMENT_DISABLED_FANS,
+)
+
+
+def _migrate_area_evaluation_config(
+    config: dict[str, Any] | None,
+    *,
+    regular_area: bool = True,
+) -> tuple[dict[str, Any], bool]:
+    """Move 1.3 RC Environment feature settings to intrinsic Area Evaluation."""
+    if not isinstance(config, dict):
+        return {}, False
+    migrated = dict(config)
+    changed = False
+    enabled = migrated.get(CONF_ENABLED_FEATURES)
+    if isinstance(enabled, dict) and CONF_FEATURE_ENVIRONMENT in enabled:
+        enabled = dict(enabled)
+        legacy = enabled.pop(CONF_FEATURE_ENVIRONMENT)
+        migrated[CONF_ENABLED_FEATURES] = enabled
+        changed = True
+        if isinstance(legacy, dict):
+            for key in _MIGRATED_AREA_EVALUATION_KEYS:
+                if key in legacy and key not in migrated:
+                    migrated[key] = legacy[key]
+    if regular_area and CONF_ROOM_CATEGORY not in migrated:
+        migrated[CONF_ROOM_CATEGORY] = DEFAULT_ROOM_CATEGORY
+        changed = True
+    return migrated, changed
 
 
 def _sanitize_switch_groups_options(
@@ -319,6 +367,15 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     migrated_options, options_changed = migrate_light_groups_in_config(
         dict(config_entry.options)
     )
+    regular_area = config_entry.data.get(CONF_TYPE) != AREA_TYPE_META
+    migrated_data, evaluation_data_changed = _migrate_area_evaluation_config(
+        migrated_data, regular_area=regular_area
+    )
+    migrated_options, evaluation_options_changed = _migrate_area_evaluation_config(
+        migrated_options, regular_area=regular_area
+    )
+    data_changed |= evaluation_data_changed
+    options_changed |= evaluation_options_changed
 
     update: dict[str, Any] = {
         "minor_version": AdaptiveConfigEntryVersion.MINOR,

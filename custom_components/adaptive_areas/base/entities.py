@@ -159,7 +159,7 @@ class AdaptiveEntity(RestoreEntity):
 
 
 class BinaryAdaptiveEntity(AdaptiveEntity):
-    """Class for Binary-based magic entities."""
+    """Class for binary-state Adaptive Areas entities."""
 
     _attr_is_on: bool
 

@@ -85,7 +85,7 @@ async def test_missing_explicit_environment_reference_is_repaired(
     assert area.id == data["id"]
 
     summary = await async_evaluate_config_entry(hass, entry)
-    assert summary["missing_entities"]["category_counts"] == {"environment": 1}
+    assert summary["missing_entities"]["category_counts"] == {"area_evaluation": 1}
 
 
 def test_repair_translation_keys_exist() -> None:

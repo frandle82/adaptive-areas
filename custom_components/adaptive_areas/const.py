@@ -365,7 +365,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 2
+    MINOR = 3
 
 
 class AdaptiveAreasFeatureInfo:
@@ -433,7 +433,7 @@ class AdaptiveAreasFeatureInfoHealth(AdaptiveAreasFeatureInfo):
 
 
 class AdaptiveAreasFeatureInfoEnvironment(AdaptiveAreasFeatureInfo):
-    """Feature information for Environment Monitoring."""
+    """Stable entity information for intrinsic Area Evaluation."""
 
     id = "environment"
     translation_keys = {SENSOR_DOMAIN: "environment"}
@@ -549,6 +549,7 @@ class SelectorTranslationKeys(StrEnum):
     CALCULATION_MODE = auto()
     LIGHT_ACTIVATION = auto()
     LIGHT_BRIGHTNESS = auto()
+    ROOM_CATEGORY = auto()
 
 
 ALL_BINARY_SENSOR_DEVICE_CLASSES = [cls.value for cls in BinarySensorDeviceClass]
@@ -887,6 +888,7 @@ CONF_FEATURE_HEALTH = "health"
 CONF_FEATURE_PRESENCE_HOLD = "presence_hold"
 CONF_FEATURE_BLE_TRACKERS = "ble_trackers"
 CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
+# Legacy 1.3 RC key. Migration 2.3 removes it from enabled features.
 CONF_FEATURE_ENVIRONMENT = "environment"
 
 CONF_FEATURE_LIST_META = [
@@ -905,7 +907,6 @@ CONF_FEATURE_LIST = CONF_FEATURE_LIST_META + [
     CONF_FEATURE_FAN_GROUPS,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_FEATURE_WASP_IN_A_BOX,
-    CONF_FEATURE_ENVIRONMENT,
 ]
 
 CONF_FEATURE_LIST_GLOBAL = CONF_FEATURE_LIST_META
@@ -967,7 +968,7 @@ FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS = [
     SensorDeviceClass.SULPHUR_DIOXIDE,
 ]
 
-# Environment Monitoring
+# Intrinsic Area Evaluation (legacy Environment keys retained for RC migration)
 CONF_ENVIRONMENT_COMFORT_MIN, DEFAULT_ENVIRONMENT_COMFORT_MIN = (
     "comfort_min_temperature",
     20.0,
@@ -990,6 +991,21 @@ CONF_ENVIRONMENT_VENTILATION_FANS = "ventilation_fans"
 CONF_ENVIRONMENT_CIRCULATION_FANS = "circulation_fans"
 CONF_ENVIRONMENT_DISABLED_FANS = "disabled_fans"
 CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE = ("track_room_usage", False)
+CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY = ("room_category", "living_sedentary")
+CONF_ENVIRONMENT_OUTDOOR_HUMIDITY = "outdoor_humidity_entity"
+CONF_ENVIRONMENT_SURFACE_TEMPERATURE = "surface_temperature_entity"
+
+
+class RoomCategory(StrEnum):
+    """Purpose-based regular indoor Area categories."""
+
+    LIVING_SEDENTARY = "living_sedentary"
+    SLEEPING_REST = "sleeping_rest"
+    HYGIENE_WET = "hygiene_wet"
+    ACTIVE_DOMESTIC = "active_domestic"
+    CIRCULATION_TRANSIENT = "circulation_transient"
+    SERVICE_STORAGE = "service_storage"
+    UNCONDITIONED = "unconditioned"
 
 
 class ComfortState(StrEnum):
@@ -1001,6 +1017,7 @@ class ComfortState(StrEnum):
     WARM = "warm"
     HOT = "hot"
     VERY_HOT = "very_hot"
+    NOT_APPLICABLE = "not_applicable"
     UNKNOWN = "unknown"
 
 
@@ -1063,7 +1080,7 @@ class CirculationFanRequest(StrEnum):
 
 
 class EnvironmentState(StrEnum):
-    """Overall Environment Monitoring states."""
+    """Overall Area Evaluation states."""
 
     GOOD = "good"
     ATTENTION = "attention"
@@ -1280,6 +1297,35 @@ ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
     extra=vol.REMOVE_EXTRA,
 )
 
+# Intrinsic Area Evaluation settings. Legacy feature schema above remains only so
+# migration can validate 1.3 RC data before moving supported keys to this schema.
+AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_SURFACE_TEMPERATURE, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_WINDOWS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+            default=DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=20)),
+        vol.Optional(
+            CONF_ENVIRONMENT_HUMIDITY_DURATION,
+            default=DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+        vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
+        vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
+        vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
 LIGHT_GROUP_FEATURE_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_OVERHEAD_LIGHTS, default=[]): cv.entity_ids,
@@ -1377,7 +1423,6 @@ CONFIGURABLE_FEATURES = {
     CONF_FEATURE_PRESENCE_HOLD: PRESENCE_HOLD_FEATURE_SCHEMA,
     CONF_FEATURE_BLE_TRACKERS: BLE_TRACKER_FEATURE_SCHEMA,
     CONF_FEATURE_WASP_IN_A_BOX: WASP_IN_A_BOX_FEATURE_SCHEMA,
-    CONF_FEATURE_ENVIRONMENT: ENVIRONMENT_FEATURE_SCHEMA,
 }
 
 NON_CONFIGURABLE_FEATURES_META = [
@@ -1460,6 +1505,9 @@ REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_TRACK_ROOM_USAGE, default=DEFAULT_TRACK_ROOM_USAGE
         ): cv.boolean,
+        vol.Optional(CONF_ROOM_CATEGORY, default=DEFAULT_ROOM_CATEGORY): vol.In(
+            RoomCategory
+        ),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1521,6 +1569,30 @@ REGULAR_AREA_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_TRACK_ROOM_USAGE, default=DEFAULT_TRACK_ROOM_USAGE
         ): cv.boolean,
+        vol.Optional(CONF_ROOM_CATEGORY, default=DEFAULT_ROOM_CATEGORY): vol.In(
+            RoomCategory
+        ),
+        vol.Optional(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_SURFACE_TEMPERATURE, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_ENVIRONMENT_WINDOWS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+            default=DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=20)),
+        vol.Optional(
+            CONF_ENVIRONMENT_HUMIDITY_DURATION,
+            default=DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+        vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
+        vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
+        vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_KEEP_ONLY_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_PRESENCE_DEVICE_PLATFORMS,
@@ -1574,6 +1646,7 @@ OPTIONS_AREA = [
     (CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE, cv.boolean),
     (CONF_IGNORE_DIAGNOSTIC_ENTITIES, DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES, cv.boolean),
     (CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE, cv.boolean),
+    (CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY, vol.In(RoomCategory)),
 ]
 OPTIONS_PRESENCE_TRACKING = [
     (
@@ -1791,10 +1864,10 @@ OPTIONS_FAN_GROUP = [
     (CONF_FAN_GROUPS_SETPOINT, DEFAULT_FAN_GROUPS_SETPOINT, float),
 ]
 
-OPTIONS_ENVIRONMENT = [
-    (CONF_ENVIRONMENT_COMFORT_MIN, DEFAULT_ENVIRONMENT_COMFORT_MIN, float),
-    (CONF_ENVIRONMENT_COMFORT_MAX, DEFAULT_ENVIRONMENT_COMFORT_MAX, float),
+OPTIONS_AREA_EVALUATION = [
     (CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, "", cv.entity_id),
+    (CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, "", cv.entity_id),
+    (CONF_ENVIRONMENT_SURFACE_TEMPERATURE, "", cv.entity_id),
     (CONF_ENVIRONMENT_WINDOWS, [], cv.entity_ids),
     (
         CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,

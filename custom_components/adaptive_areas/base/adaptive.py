@@ -40,11 +40,9 @@ from custom_components.adaptive_areas.const import (
     CONF_EXCLUDE_ENTITIES,
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_BLE_TRACKERS,
-    CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
-    CONF_TRACK_ROOM_USAGE,
     CONF_INCLUDE_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
@@ -376,7 +374,9 @@ class AdaptiveArea:
             )
 
         self.logger.debug(
-            "%s: Loaded magic entities: %s", self.name, str(self.adaptive_entities)
+            "%s: Loaded Adaptive Areas entities: %s",
+            self.name,
+            str(self.adaptive_entities),
         )
 
     def get_entity_dict(self, entity_id) -> dict[str, str]:
@@ -490,10 +490,7 @@ class AdaptiveArea:
 
         await self.load_entities()
 
-        if (
-            self.has_feature(CONF_FEATURE_ENVIRONMENT)
-            or self.config.get(CONF_TRACK_ROOM_USAGE, False)
-        ) and not self.is_meta():
+        if not self.is_meta() and self.is_interior():
             self.environment = AreaEnvironmentEngine(self)
 
         self.finalize_init()
@@ -683,7 +680,7 @@ class AdaptiveMetaArea(AdaptiveArea):
             if area.slug not in self.child_areas:
                 continue
 
-            # Force loading of magic entities
+            # Force loading of Adaptive Areas entities
             area.load_adaptive_entities()
 
             for entities in area.adaptive_entities.values():

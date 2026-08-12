@@ -1,78 +1,53 @@
-# Environment Monitoring and Room Usage
+# Area Evaluation and Room Usage
 
-Environment Monitoring creates one Environment sensor for an eligible regular area. It evaluates only Area entities that remain after Adaptive Areas' normal include/exclude and entity-category filtering. Missing data stays `unknown`; it is never interpreted as healthy.
+Area Evaluation is intrinsic to every regular indoor Area. It creates one **Area Evaluation** sensor while retaining the existing `sensor.adaptive_areas_environment_…` entity and unique ID for release-candidate compatibility. It uses compatible Area entities after the normal include/exclude and entity-category filters. There is no feature toggle. Missing dimensions remain `unknown`; they are never interpreted as healthy.
 
-Room Usage is a separate option under **Basic area options**. It is disabled by default and can create the same Environment sensor without enabling Environment Monitoring. It uses only the Area's existing presence transitions. It does not discover more people, store movement history, or control a vacuum.
+Choose a room category under **Basic area options**. Configure optional outdoor, surface, window, and fan-role sources under **Area Evaluation**. The general exclusion list is authoritative for every source, including explicitly selected and automatically discovered exterior sources. The entity's `source_entities` attribute shows the exact entity IDs and names used for each dimension and whether direct values or an exterior-Area mean was used. Shareable diagnostics contain counts and modes only.
 
-## Scientific and technical basis
+Room Usage remains a separate basic option, disabled by default. It uses only existing occupied/clear transitions, stores no movement history, and controls no cleaning device.
 
-Adaptive Areas uses published formulae and documented operational policies, not a universal environmental score. [ANSI/ASHRAE Standard 55](https://www.ashrae.org/technical-resources/bookstore/standard-55-thermal-environmental-conditions-for-human-occupancy) and [ISO 7730:2025](https://www.iso.org/standard/85803.html) inform the limitations described below; the integration does not claim compliance with either standard. The centralized policies and pollutant matrix in `helpers/environment.py` identify each boundary and its basis. Thresholds labelled “Adaptive Areas operational” are deterministic automation rules, not medical limits.
+## Scientific and operational basis
 
-## Thermal comfort
+Adaptive Areas combines published formulas and guidance with clearly labelled operational policy. It does not claim compliance with [ANSI/ASHRAE Standard 55](https://www.ashrae.org/technical-resources/bookstore/standard-55-thermal-environmental-conditions-for-human-occupancy) or [ISO 7730:2025](https://www.iso.org/standard/85803.html): ordinary rooms usually lack air speed, mean radiant temperature, clothing, and metabolic-rate inputs. Boundaries marked `Adaptive Areas operational` are deterministic automation rules, not health limits.
 
-With temperature only, Adaptive Areas applies the configured comfort band and marks the result confidence as `limited`. With temperature and relative humidity it also publishes:
+### Thermal and moisture calculations
 
-* dew point, calculated with the Magnus approximation;
-* apparent temperature, using the Canadian humidex formula at warm temperatures;
-* confidence `full`.
+Room categories select purpose-based thermal reference profiles: living/sedentary, sleeping/rest, hygiene/wet, active domestic, circulation/transient, service/storage, and unconditioned. [German Environment Agency room-temperature references](https://www.umweltbundesamt.de/umwelttipps-fuer-den-alltag/richtiges-heizen-schuetzt-das-klima-den-geldbeutel) inform these profiles; category offsets and hysteresis are Adaptive Areas operational policy. Service/storage and unconditioned Areas report comfort as `not_applicable` rather than applying residential comfort language.
 
-The result is a practical indoor indicator, not an ASHRAE 55 or ISO 7730 PMV/PPD calculation. Those standards need inputs such as air speed, radiant temperature, clothing and metabolic rate that ordinary Home Assistant rooms generally do not provide. The implementation is informed by the open-source [Thermal Comfort integration](https://github.com/dolezsa/thermal_comfort), but has no added runtime dependency.
+Temperature alone gives comfort quality `basic`. Temperature plus relative humidity gives `enhanced` and publishes:
 
-## Air quality matrix
+* dew point and saturation vapour pressure using the [improved Magnus-form research](https://doi.org/10.1175/1520-0450(1996)035%3C0601:IMFAOS%3E2.0.CO;2);
+* absolute humidity in g/m³;
+* humidity ratio in g water/kg dry air;
+* moist-air enthalpy in kJ/kg dry air, using standard-pressure perfect-gas approximations documented by the [ASHRAE Handbook psychrometrics chapter](https://handbook.ashrae.org/Handbooks/F25/SI/F25_Ch01/F25_Ch01_si.aspx);
+* [Environment and Climate Change Canada's Humidex formula](https://climate.weather.gc.ca/glossary_e.html) only as a warm-stress index from 26 °C, never as a universal comfort temperature.
 
-The worst available pollutant determines `air_quality`: `good`, `degraded`, `poor`, `critical`, or `unknown`.
+Outdoor temperature plus humidity enables humidity-ratio and enthalpy comparisons. Drying advice uses moisture content, not relative humidity alone. Passive cooling requires a useful temperature difference and, when humidity is known, an enthalpy advantage; cooler but moisture-heavy outdoor air is reported as a penalty.
 
-| Input | Good through | Degraded through | Poor through | Evaluation basis |
-| --- | ---: | ---: | ---: | --- |
-| CO₂ | 1000 ppm | 1400 ppm | 2000 ppm | German Environment Agency indoor-air bands |
-| PM2.5 | 15 µg/m³ | 37.5 µg/m³ | 75 µg/m³ | WHO 24-hour guideline, then operational multiples |
-| PM10 | 45 µg/m³ | 75 µg/m³ | 150 µg/m³ | WHO 24-hour guideline, then operational bands |
-| CO | 4 mg/m³ | 7 mg/m³ | 10 mg/m³ | WHO 24-hour guideline and operational bands |
-| NO₂ | 25 µg/m³ | 50 µg/m³ | 100 µg/m³ | WHO 24-hour guideline and operational multiples |
-| AQI | 50 | 100 | 150 | Operational AQI bands; the sensor's own AQI system applies |
-| VOC | 250 µg/m³ | 500 µg/m³ | 1000 µg/m³ | Adaptive Areas operational bands for mass-concentration sensors |
-| VOC (parts) | 220 ppb | 660 ppb | 2200 ppb | Adaptive Areas operational bands for parts-per-billion sensors |
+### Humidity and mould-risk indicator
 
-PM2.5, PM10, CO and NO₂ use the mean of observed samples retained for up to 24 hours. This is not a regulatory monitor: sampling frequency, calibration and sensor placement still matter. Units must match the matrix; unsupported or unavailable readings are ignored. The source values are the [WHO 2021 air quality guidelines](https://www.who.int/publications/i/item/9789240034228/) and the German Environment Agency's [indoor CO₂ guidance](https://www.umweltbundesamt.de/system/files/medien/pdfs/kohlendioxid_2008.pdf).
+Room humidity above 65% starts a persistence signal. A short peak can request ventilation but does not immediately claim persistent mould risk. Risk becomes `elevated` after six hours and `high` after 24 hours.
 
-Air-quality severity and ventilation are intentionally separate. CO₂ and persistent or rapidly rising humidity can request ventilation. PM, CO, NO₂, AQI or VOC can make air quality poor or critical, but Adaptive Areas does not claim that opening a window or running an extraction fan is always the safe remedy for those pollutants.
+With an optional measured cool-surface temperature, Adaptive Areas estimates surface relative humidity and uses the [German Environment Agency's 80% surface-RH guidance](https://www.umweltbundesamt.de/system/files/medien/4031/publikationen/240513_uba_fb_schimmelleitfaden_0.pdf); quality is `surface_based`. Without it, the 65% room-RH persistence proxy is labelled `room_air_estimate`. This is a conservative risk indicator, not mould detection.
 
-## Humidity and mould risk
+## Air quality
 
-Humidity is classified independently. Values above 65% start a persistence timer; very high humidity and a rapid rise can act immediately. The mould-risk indicator needs temperature, humidity and dew point:
+CO₂ uses the German Environment Agency categories: up to 1000 ppm hygienically unremarkable, 1000–2000 ppm elevated with ventilation recommended, and above 2000 ppm hygienically unacceptable with urgent ventilation. The 850 ppm clearing value is an Adaptive Areas operational hysteresis threshold.
 
-* `low`: no sustained warning signal;
-* `elevated`: high moisture for six hours, or humidity above 75%;
-* `high`: high moisture for 24 hours with high humidity or a small dew-point depression;
-* `unknown`: required measurements are missing.
+PM2.5, PM10, CO, and NO₂ use the [WHO 2021 24-hour guideline values](https://www.who.int/publications/i/item/9789240034228): 15 µg/m³, 45 µg/m³, 4 mg/m³, and 25 µg/m³ respectively. Adaptive Areas calculates a true elapsed-time-weighted rolling 24-hour average. Classification remains `unknown`/`limited` until at least 18 hours are covered. Higher severities are explicitly operational multiples, not extra WHO limits. Sensor calibration, placement, gaps, and sampling still matter.
 
-This is a conservative risk indicator, not mould detection and not a surface-temperature model. The thresholds reflect the German Environment Agency's advice that long-term indoor humidity should remain below roughly 65–70%: [Ventilation prevents mould](https://www.umweltbundesamt.de/themen/richtiges-lueften-beugt-schimmel-vor).
+TVOC mass concentration is only a [German AIR precaution indicator](https://www.umweltbundesamt.de/en/topics/health/commissions-working-groups/german-committee-on-indoor-air-guide-values): values above 950 µg/m³ are marked elevated, not toxicological. Generic VOC ppb and AQI values are exposed as `unsupported_scale` and are not mapped to invented universal health bands.
 
-## Recommendations and context
+Air-quality severity remains separate from ventilation safety. Particles, CO, NO₂, AQI, or VOC can indicate degraded air without implying that outdoor ventilation is safe.
 
-The Environment sensor exposes independent comfort, humidity, mould risk, air quality, ventilation, cooling, window, ventilation-fan and circulation-fan results. `context` explains the dominant current decision in human-readable English or German. `reason_codes` preserves stable machine values for automations. The compatibility attribute `decision_context` currently mirrors those codes.
+## Recommendations, context, and fan roles
 
-Priority is deterministic: an active Area Health warning, critical/poor air quality, urgent/required ventilation, high mould risk or persistent humidity, thermal discomfort, window advice, cleaning advice, then normal or partial-data status. This answers why ventilation or cleaning is recommended without exposing personal identifiers.
+The sensor exposes independent comfort, humidity, mould, air-quality, ventilation, cooling, window, ventilation-fan, circulation-fan, and cleaning results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values. The RC compatibility attribute `decision_context` mirrors those codes.
 
-CO₂ ventilation starts above 1000 ppm, becomes required above 1400 ppm and urgent above 2000 ppm. Hysteresis keeps an active recommendation until CO₂ falls below 850 ppm. Passive cooling is recommended only when the room exceeds the configured maximum and outdoor air is at least the configured difference cooler. Air-quality and humidity needs outrank thermal efficiency.
-
-Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors only; other openings must be selected explicitly.
+Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Area Evaluation publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
 
 ## Room usage and cleaning
 
-When opted in, daily usage is derived from occupied/clear transitions:
+Daily usage is `unused`, `low`, `normal`, or `high`, derived from occupied duration and session count. While occupied, cleaning is `postpone`; when a highly used room clears it is `preferred`; otherwise it is `allowed`. Counters are in memory and reset at the local day boundary or integration reload.
 
-* `unused`: no occupancy today;
-* `low`: less than 30 occupied minutes and fewer than two sessions;
-* `normal`: at least 30 minutes or two sessions;
-* `high`: at least two hours or four sessions.
-
-While occupied, cleaning is `postpone`. When a highly used room clears, cleaning is `preferred`; otherwise it is `allowed`. The sensor also exposes current and daily occupied durations, session count and last-transition timestamps. Counters reset at the local day boundary and are in-memory only, so an integration reload starts a new observation period.
-
-## Fan roles and Manual Override
-
-Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air and can respond to warm occupied rooms. Configure ventilation fans explicitly; unclassified Area fans use the circulation role.
-
-The engine only publishes fan requests. Existing Fan Control consumes them only while Fan Control is enabled. Room Usage alone never changes Fan Control's established aggregate/setpoint behavior.
-
-Manual Override remains limited to the existing Light Groups implementation. Environment Monitoring and Room Usage neither extend nor redesign it.
+Manual Override remains limited to Light Groups. Area Evaluation and Room Usage do not extend it.

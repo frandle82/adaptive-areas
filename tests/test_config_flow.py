@@ -20,14 +20,17 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
     CONF_DARK_ENTITY,
-    CONF_ENVIRONMENT_COMFORT_MAX,
-    CONF_ENVIRONMENT_COMFORT_MIN,
-    CONF_FEATURE_ENVIRONMENT,
+    CONF_ENVIRONMENT_CIRCULATION_FANS,
+    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
+    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
+    CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+    CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_ID,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+    CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
     DOMAIN,
     LIGHT_GROUP_ACTIVATION_EXTENDED,
@@ -281,10 +284,10 @@ async def test_light_group_form_only_exposes_room_state_rules(hass) -> None:
     await shutdown_integration(hass, [config_entry])
 
 
-async def test_environment_form(hass) -> None:
-    """Options expose focused Environment settings."""
+async def test_area_evaluation_form(hass) -> None:
+    """Intrinsic Area Evaluation exposes sources but no manual comfort band."""
     config_entry_options = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
-    config_entry_options[CONF_ENABLED_FEATURES] = {CONF_FEATURE_ENVIRONMENT: {}}
+    config_entry_options[CONF_ENABLED_FEATURES] = {}
     config_entry = MockConfigEntry(
         domain=DOMAIN,
         title=str(config_entry_options[ATTR_NAME]),
@@ -301,21 +304,23 @@ async def test_environment_form(hass) -> None:
     area_result = await flow.async_step_area_config()
     area_fields = {marker.schema for marker in area_result["data_schema"].schema}
     assert CONF_TRACK_ROOM_USAGE in area_fields
+    assert CONF_ROOM_CATEGORY in area_fields
 
-    environment_result = await flow.async_step_feature_conf_environment()
+    environment_result = await flow.async_step_area_evaluation()
     environment_fields = {
         marker.schema for marker in environment_result["data_schema"].schema
     }
-    assert CONF_ENVIRONMENT_COMFORT_MIN in environment_fields
-    assert CONF_ENVIRONMENT_COMFORT_MAX in environment_fields
+    assert CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE in environment_fields
+    assert CONF_ENVIRONMENT_OUTDOOR_HUMIDITY in environment_fields
+    assert CONF_ENVIRONMENT_SURFACE_TEMPERATURE in environment_fields
 
-    invalid = await flow.async_step_feature_conf_environment(
+    invalid = await flow.async_step_area_evaluation(
         {
-            CONF_ENVIRONMENT_COMFORT_MIN: 25,
-            CONF_ENVIRONMENT_COMFORT_MAX: 24,
+            CONF_ENVIRONMENT_VENTILATION_FANS: ["fan.shared"],
+            CONF_ENVIRONMENT_CIRCULATION_FANS: ["fan.shared"],
         }
     )
     assert invalid["type"] == "form"
-    assert invalid["errors"] == {CONF_ENVIRONMENT_COMFORT_MAX: "malformed_input"}
+    assert invalid["errors"] == {CONF_ENVIRONMENT_CIRCULATION_FANS: "malformed_input"}
 
     await shutdown_integration(hass, [config_entry])

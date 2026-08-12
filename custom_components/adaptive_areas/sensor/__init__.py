@@ -20,8 +20,6 @@ from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
     CONF_FEATURE_AGGREGATION,
-    CONF_FEATURE_ENVIRONMENT,
-    CONF_TRACK_ROOM_USAGE,
     DEFAULT_AGGREGATES_MIN_ENTITIES,
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
@@ -51,10 +49,7 @@ async def async_setup_entry(
     if area.has_feature(CONF_FEATURE_AGGREGATION):
         entities_to_add.extend(create_aggregate_sensors(area))
 
-    if (
-        area.has_feature(CONF_FEATURE_ENVIRONMENT)
-        or area.config.get(CONF_TRACK_ROOM_USAGE, False)
-    ) and area.environment is not None:
+    if area.environment is not None:
         entities_to_add.append(EnvironmentSensor(area))
 
     if entities_to_add:
@@ -192,7 +187,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         self._assessment_changed()
 
     def _assessment_changed(self) -> None:
-        """Publish stable assessment outputs without history or identifiers."""
+        """Publish stable assessment outputs and transparent source attribution."""
         if self.area.environment is None:
             return
         assessment = self.area.environment.assessment
@@ -201,6 +196,9 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         self._attr_extra_state_attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
             "comfort_confidence": assessment.get("comfort_confidence", "unknown"),
+            "comfort_quality": assessment.get("comfort_quality", "unknown"),
+            "room_category": str(assessment.get("room_category", "unknown")),
+            "thermal_profile": assessment.get("thermal_profile", {}),
             "humidity": str(assessment.get("humidity", "unknown")),
             "mould_risk": str(assessment.get("mould_risk", "unknown")),
             "air_quality": str(assessment.get("air_quality", "unknown")),
@@ -209,8 +207,25 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "temperature": assessment.get("temperature"),
             "relative_humidity": assessment.get("relative_humidity"),
             "dew_point": assessment.get("dew_point"),
+            "absolute_humidity": assessment.get("absolute_humidity"),
+            "humidity_ratio": assessment.get("humidity_ratio"),
+            "enthalpy": assessment.get("enthalpy"),
+            "humidex": assessment.get("humidex"),
             "apparent_temperature": assessment.get("apparent_temperature"),
+            "surface_temperature": assessment.get("surface_temperature"),
+            "surface_relative_humidity": assessment.get("surface_relative_humidity"),
+            "mould_quality": assessment.get("mould_quality", "unknown"),
+            "mould_warning_duration_seconds": assessment.get(
+                "mould_warning_duration_seconds", 0
+            ),
+            "outdoor_temperature": assessment.get("outdoor_temperature"),
+            "outdoor_relative_humidity": assessment.get("outdoor_relative_humidity"),
+            "outdoor_humidity_ratio": assessment.get("outdoor_humidity_ratio"),
+            "outdoor_enthalpy": assessment.get("outdoor_enthalpy"),
+            "moisture_ventilation": assessment.get("moisture_ventilation", "unknown"),
             "pollutant_measurements": dict(pollutants),
+            "pollutant_assessments": assessment.get("pollutant_assessments", {}),
+            "source_entities": assessment.get("source_entities", {}),
             "window_recommendation": str(
                 assessment.get("window_recommendation", "none")
             ),
