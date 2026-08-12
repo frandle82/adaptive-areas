@@ -3,7 +3,7 @@
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import math
 from statistics import mean
 from typing import Any
@@ -41,7 +41,6 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_ENVIRONMENT,
     CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
-    CONF_TRACK_ROOM_USAGE,
     DATA_AREA_OBJECT,
     DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
     DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
@@ -50,13 +49,11 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasEvents,
     AirQualityState,
     CirculationFanRequest,
-    CleaningRecommendation,
     ComfortState,
     CoolingState,
     EnvironmentState,
     HumidityState,
     MouldRiskState,
-    RoomUsageState,
     RoomCategory,
     VentilationFanRequest,
     VentilationState,
@@ -126,17 +123,6 @@ class MouldPolicy:
 
 
 @dataclass(frozen=True)
-class UsagePolicy:
-    """Deterministic, non-scientific home-automation usage bands."""
-
-    normal_seconds: int = 30 * 60
-    high_seconds: int = 2 * 60 * 60
-    normal_sessions: int = 2
-    high_sessions: int = 4
-    basis: str = "Adaptive Areas operational policy"
-
-
-@dataclass(frozen=True)
 class VentilationPolicy:
     """Indoor CO2 ventilation bands and clearing hysteresis."""
 
@@ -150,7 +136,6 @@ class VentilationPolicy:
 COMFORT_POLICY = ComfortPolicy()
 HUMIDITY_POLICY = HumidityPolicy()
 MOULD_POLICY = MouldPolicy()
-USAGE_POLICY = UsagePolicy()
 VENTILATION_POLICY = VentilationPolicy()
 
 THERMAL_PROFILES: dict[RoomCategory, ThermalProfile] = {
@@ -279,12 +264,11 @@ CONTEXT: dict[str, dict[str, str]] = {
 
 
 class AreaEnvironmentEngine:
-    """Evaluate environment and optional room usage without device control."""
+    """Evaluate Room Climate without controlling devices."""
 
     def __init__(self, area) -> None:
         """Initialize capability discovery, histories, and listeners."""
         self.area = area
-        self.usage_enabled = bool(area.config.get(CONF_TRACK_ROOM_USAGE, False))
         self.config = dict(area.config)
         # Read RC4 nested values until config-entry migration has persisted them.
         if area.has_feature(CONF_FEATURE_ENVIRONMENT):
@@ -351,14 +335,6 @@ class AreaEnvironmentEngine:
         self._mould_warning_since: datetime | None = None
         self._ventilation_latched = False
         self._had_window_need = False
-        now = datetime.now(UTC)
-        self._usage_day: date = now.date()
-        self._usage_occupied = area.is_occupied()
-        self._occupied_since: datetime | None = now if self._usage_occupied else None
-        self._last_occupied: datetime | None = now if self._usage_occupied else None
-        self._last_cleared: datetime | None = None
-        self._occupied_seconds_today = 0.0
-        self._occupancy_sessions_today = 1 if self._usage_occupied else 0
         self._last_dominant_decision: str | None = None
         self._last_primary_status: dict[str, bool] = {}
         self._last_comfort = ComfortState.UNKNOWN
@@ -420,7 +396,7 @@ class AreaEnvironmentEngine:
             ),
         )
         self.area.logger.debug(
-            "Initial Area Evaluation state: %s", self.assessment["state"]
+            "Initial Room Climate state: %s", self.assessment["state"]
         )
 
     def _exterior_sensor_ids(self) -> list[str]:
@@ -559,7 +535,7 @@ class AreaEnvironmentEngine:
                 if available == self._last_primary_status.get(key):
                     continue
                 self.area.trace_decision(
-                    feature="area_evaluation",
+                    feature="environment",
                     trigger="primary_environment_source_changed",
                     decision=f"primary_{key}_source_{'restored' if available else 'missing'}",
                     outcome="evaluated",
@@ -594,23 +570,7 @@ class AreaEnvironmentEngine:
     def _area_state_changed(self, area_id: str, _states_tuple) -> None:
         if area_id != self.area.id:
             return
-        self._update_usage_transition()
         self.evaluate()
-        if self.usage_enabled and self._last_dominant_decision.startswith("primary_"):
-            cleaning = self.assessment["cleaning_recommendation"]
-            reason = {
-                CleaningRecommendation.POSTPONE: "cleaning_postponed_occupied",
-                CleaningRecommendation.PREFERRED: "cleaning_preferred_room_clear",
-                CleaningRecommendation.ALLOWED: "room_clear",
-            }.get(cleaning)
-            if reason:
-                self.area.trace_decision(
-                    feature="area_evaluation",
-                    trigger="area_state_changed",
-                    decision=reason,
-                    outcome="evaluated",
-                    reason_codes=[reason],
-                )
 
     def register_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         """Register an assessment listener and return its unsubscribe callback."""
@@ -1128,89 +1088,6 @@ class AreaEnvironmentEngine:
             for entity_id in self._window_ids
         )
 
-    def _reset_usage_day(self, now: datetime) -> None:
-        if now.date() == self._usage_day:
-            return
-        self._usage_day = now.date()
-        self._occupied_seconds_today = 0.0
-        self._occupancy_sessions_today = 1 if self._usage_occupied else 0
-        if self._usage_occupied:
-            self._occupied_since = now
-
-    def _update_usage_transition(self) -> None:
-        if not self.usage_enabled:
-            return
-        now = datetime.now(UTC)
-        self._reset_usage_day(now)
-        occupied = self.area.is_occupied()
-        if occupied == self._usage_occupied:
-            return
-        self._usage_occupied = occupied
-        if occupied:
-            self._occupied_since = now
-            self._last_occupied = now
-            self._occupancy_sessions_today += 1
-        else:
-            if self._occupied_since:
-                self._occupied_seconds_today += (
-                    now - self._occupied_since
-                ).total_seconds()
-            self._occupied_since = None
-            self._last_cleared = now
-
-    def _usage(self) -> dict[str, Any]:
-        if not self.usage_enabled:
-            return {
-                "room_usage": RoomUsageState.UNKNOWN,
-                "cleaning_recommendation": CleaningRecommendation.UNKNOWN,
-            }
-        now = datetime.now(UTC)
-        self._reset_usage_day(now)
-        current = (
-            (now - self._occupied_since).total_seconds()
-            if self._usage_occupied and self._occupied_since
-            else 0.0
-        )
-        total = self._occupied_seconds_today + current
-        if total == 0 and self._occupancy_sessions_today == 0:
-            usage = RoomUsageState.UNUSED
-        elif (
-            total >= USAGE_POLICY.high_seconds
-            or self._occupancy_sessions_today >= USAGE_POLICY.high_sessions
-        ):
-            usage = RoomUsageState.HIGH
-        elif (
-            total >= USAGE_POLICY.normal_seconds
-            or self._occupancy_sessions_today >= USAGE_POLICY.normal_sessions
-        ):
-            usage = RoomUsageState.NORMAL
-        else:
-            usage = RoomUsageState.LOW
-        if self._usage_occupied:
-            cleaning = CleaningRecommendation.POSTPONE
-        elif usage == RoomUsageState.HIGH:
-            cleaning = CleaningRecommendation.PREFERRED
-        else:
-            cleaning = CleaningRecommendation.ALLOWED
-        return {
-            "room_usage": usage,
-            "cleaning_recommendation": cleaning,
-            "current_occupancy_duration": int(current),
-            "occupied_duration_today": int(total),
-            "occupancy_sessions_today": self._occupancy_sessions_today,
-            "time_since_last_occupancy": (
-                int((now - self._last_cleared).total_seconds())
-                if self._last_cleared
-                else None
-            ),
-            "last_occupied": (
-                self._last_occupied.isoformat() if self._last_occupied else None
-            ),
-            "last_cleared": (
-                self._last_cleared.isoformat() if self._last_cleared else None
-            ),
-        }
-
     def _context(self, assessment: dict[str, Any]) -> tuple[str, str]:
         language = (
             "de" if str(self.area.hass.config.language).startswith("de") else "en"
@@ -1295,13 +1172,6 @@ class AreaEnvironmentEngine:
             return "window_open_recommended", text["window_open"]
         if assessment["window_recommendation"] == WindowRecommendation.CLOSE:
             return "window_close_recommended", text["window_close"]
-        cleaning = assessment["cleaning_recommendation"]
-        if cleaning == CleaningRecommendation.POSTPONE:
-            return "cleaning_postponed_occupied", text["clean_postpone"]
-        if cleaning == CleaningRecommendation.PREFERRED:
-            return "cleaning_preferred_room_clear", text["clean_preferred"]
-        if cleaning == CleaningRecommendation.ALLOWED and self.usage_enabled:
-            return "cleaning_allowed_room_clear", text["clean_allowed"]
         capabilities = assessment["capabilities"]
         if all(
             capabilities.get(key) for key in ("temperature", "humidity", "air_quality")
@@ -1518,16 +1388,6 @@ class AreaEnvironmentEngine:
                 ComfortState.VERY_HOT: CirculationFanRequest.HIGH,
             }.get(comfort, CirculationFanRequest.NONE)
 
-        usage = self._usage()
-        cleaning = usage["cleaning_recommendation"]
-        if usage["room_usage"] == RoomUsageState.HIGH:
-            reasons.append("room_usage_high")
-        if cleaning == CleaningRecommendation.POSTPONE:
-            reasons.append("cleaning_postponed_occupied")
-        elif cleaning == CleaningRecommendation.PREFERRED:
-            reasons.append("cleaning_preferred_room_clear")
-        elif cleaning == CleaningRecommendation.ALLOWED and self.usage_enabled:
-            reasons.append("room_clear")
         health_state = (
             self.area.hass.states.get(self.health_entity)
             if self.health_entity
@@ -1597,7 +1457,6 @@ class AreaEnvironmentEngine:
             "outdoor_temperature": outdoor is not None,
             "outdoor_humidity": outdoor_humidity is not None,
             "surface_temperature": surface_temperature is not None,
-            "room_usage": self.usage_enabled,
             "health": health_state is not None,
         }
         assessment = {
@@ -1672,7 +1531,6 @@ class AreaEnvironmentEngine:
             "health_alert": health_alert,
             "reason_codes": list(dict.fromkeys(reasons)),
             "humidity_warning_duration_seconds": int(humidity_duration),
-            **usage,
         }
         dominant_decision, context = self._context(assessment)
         assessment["dominant_decision"] = dominant_decision
@@ -1681,7 +1539,7 @@ class AreaEnvironmentEngine:
         self._trace_primary_status(trace=trace)
         if trace and dominant_decision != self._last_dominant_decision:
             self.area.trace_decision(
-                feature="area_evaluation",
+                feature="environment",
                 trigger="area_input_changed",
                 decision=dominant_decision,
                 outcome="evaluated",
@@ -1698,7 +1556,7 @@ class AreaEnvironmentEngine:
 
     @property
     def uses_fan_requests(self) -> bool:
-        """Return whether explicit Area Evaluation fan roles opt into requests."""
+        """Return whether explicit Room Climate fan roles opt into requests."""
         return bool(
             self.config.get(CONF_ENVIRONMENT_VENTILATION_FANS)
             or self.config.get(CONF_ENVIRONMENT_CIRCULATION_FANS)
@@ -1746,7 +1604,6 @@ class AreaEnvironmentEngine:
             "air_quality",
             "ventilation",
             "cooling",
-            "room_usage",
             "health_alert",
         )
         return {
@@ -1762,9 +1619,6 @@ class AreaEnvironmentEngine:
                 ),
                 "circulation_fan": str(
                     self.assessment.get("circulation_fan_request", "none")
-                ),
-                "cleaning": str(
-                    self.assessment.get("cleaning_recommendation", "unknown")
                 ),
             },
             "context": self.assessment.get("context", ""),

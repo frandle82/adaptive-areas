@@ -34,7 +34,8 @@
           "presence_hold": "Create presence hold switch",
           "ble_trackers": "Monitor Bluetooth tracker sensors",
           "wasp_in_a_box": "Create a Wasp in a Box sensor",
-          "environment": "Area Evaluation"
+          "environment": "Room Climate",
+          "room_usage": "Room Usage"
         }
       },
       "show_menu": {
@@ -42,7 +43,6 @@
         "description": "Adaptive Areas provides basic presence detection by default. Configure advanced state tracking, presence parameters, and optional features here. Options are not saved unless you select `Save & Exit`.",
         "menu_options": {
           "area_config": "Basic area options",
-          "area_evaluation": "Configure Area Evaluation",
           "secondary_states": "Advanced area state tracking",
           "presence_tracking": "Presence tracking options",
           "select_features": "Feature selection",
@@ -56,7 +56,8 @@
           "feature_conf_aggregates": "Configure aggregate sensors",
           "feature_conf_presence_hold": "Configure presence hold switch",
           "feature_conf_ble_trackers": "Configure BLE Tracker monitoring",
-          "feature_conf_wasp_in_a_box": "Configure Wasp in a Box"
+          "feature_conf_wasp_in_a_box": "Configure Wasp in a Box",
+          "feature_conf_environment": "Configure Room Climate"
         }
       },
       "feature_conf_health": {
@@ -223,9 +224,9 @@
           "setpoint": "Number which the tracked aggregate sensor must be equal or greater in order to turn on the fan group."
         }
       },
-      "area_evaluation": {
-        "title": "Area Evaluation",
-        "description": "Evaluate thermal comfort, humidity, ventilation, air quality, mould risk and cooling using the configured Area sensors.",
+      "feature_conf_environment": {
+        "title": "Room Climate",
+        "description": "Evaluate thermal comfort, humidity, ventilation, air quality, mould risk and cooling using configured Area sensors.",
         "data": {
           "outdoor_temperature_entity": "Outdoor temperature source (optional)",
           "outdoor_humidity_entity": "Outdoor humidity source (optional)",
@@ -244,7 +245,7 @@
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area.",
           "ventilation_fans": "Fans that exchange air, such as extractor or mechanical ventilation fans.",
           "circulation_fans": "Fans that move indoor air, such as ceiling or pedestal fans. Unclassified area fans default to this safer role.",
-          "disabled_fans": "Fans that Area Evaluation must never request. Passive grouping remains unchanged."
+          "disabled_fans": "Fans that Room Climate must never request. Passive grouping remains unchanged."
         }
       },
       "feature_conf_climate_control": {
@@ -331,7 +332,6 @@
           "type": "Area type (interior/exterior)",
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
           "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
-          "track_room_usage": "Track room usage and cleaning recommendation",
           "room_category": "Room category",
           "area_temperature_sensor": "Primary temperature sensor",
           "area_humidity_sensor": "Primary humidity sensor"
@@ -343,7 +343,6 @@
           "type": "Defining an area type allows Meta areas for Interior/Exterior to be created.",
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
           "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
-          "track_room_usage": "Optional and disabled by default. Uses only Area presence transitions to classify daily room use and recommend when cleaning is suitable. It never controls a vacuum or another device.",
           "room_category": "Select the room purpose used for category-specific thermal interpretation. This is an operational profile, not a claim of universal comfort.",
           "area_temperature_sensor": "Temperature sensor used as the indoor temperature for this Area.",
           "area_humidity_sensor": "Relative-humidity sensor used as the indoor humidity for this Area."
@@ -516,7 +515,7 @@
     },
     "sensor": {
       "environment": {
-        "name": "Area Evaluation",
+        "name": "Room Climate",
         "state": {
           "good": "Good",
           "attention": "Attention needed",
@@ -670,7 +669,6 @@
               "outdoor_temperature": "Outdoor temperature",
               "outdoor_humidity": "Outdoor humidity",
               "surface_temperature": "Surface temperature",
-              "room_usage": "Room usage",
               "health": "Area health"
             }
           },
@@ -708,32 +706,7 @@
           "pollutant_measurements": {"name": "Pollutant measurements"},
           "pollutant_assessments": {"name": "Pollutant assessments"},
           "source_entities": {"name": "Source entities"},
-          "room_usage": {
-            "name": "Room usage",
-            "state": {
-              "unused": "Unused today",
-              "low": "Low",
-              "normal": "Normal",
-              "high": "High",
-              "unknown": "Unknown"
-            }
-          },
-          "cleaning_recommendation": {
-            "name": "Cleaning recommendation",
-            "state": {
-              "postpone": "Postpone while occupied",
-              "allowed": "Allowed",
-              "preferred": "Preferred now",
-              "unknown": "Unknown"
-            }
-          },
-          "current_occupancy_duration": {"name": "Current occupancy duration"},
-          "occupied_duration_today": {"name": "Occupied duration today"},
-          "occupancy_sessions_today": {"name": "Occupancy sessions today"},
-          "time_since_last_occupancy": {"name": "Time since last occupancy"},
           "humidity_warning_duration_seconds": {"name": "High-humidity duration"},
-          "last_occupied": {"name": "Last occupied"},
-          "last_cleared": {"name": "Last cleared"},
           "context": {"name": "Context"},
           "reason_codes": {
             "name": "Reason codes",
@@ -763,11 +736,7 @@
               "outdoor_air_drier": "Outdoor air has less moisture",
               "outdoor_air_more_humid": "Outdoor air has equal or greater moisture",
               "window_closed": "A relevant window is closed",
-              "ventilation_complete": "Ventilation demand has cleared",
-              "room_usage_high": "Room usage is high",
-              "cleaning_postponed_occupied": "Cleaning is postponed while occupied",
-              "cleaning_preferred_room_clear": "A highly used room is clear for cleaning",
-              "room_clear": "The room is clear"
+              "ventilation_complete": "Ventilation demand has cleared"
             }
           },
           "decision_context": {
@@ -799,11 +768,43 @@
               "window_closed": "A relevant window is closed",
               "ventilation_complete": "Ventilation demand has cleared",
               "mould_risk_elevated": "Mould risk is elevated",
-              "mould_risk_high": "Mould risk is high",
-              "room_usage_high": "Room usage is high",
+              "mould_risk_high": "Mould risk is high"
+            }
+          }
+        }
+      },
+      "room_usage": {
+        "name": "Room Usage",
+        "state": {
+          "unused": "Unused today",
+          "low": "Low",
+          "normal": "Normal",
+          "high": "High",
+          "unknown": "Unknown"
+        },
+        "state_attributes": {
+          "cleaning_recommendation": {
+            "name": "Cleaning recommendation",
+            "state": {
+              "postpone": "Postpone while occupied",
+              "allowed": "Allowed",
+              "preferred": "Preferred now",
+              "unknown": "Unknown"
+            }
+          },
+          "current_occupancy_duration": {"name": "Current occupancy duration"},
+          "occupied_duration_today": {"name": "Occupied duration today"},
+          "occupancy_sessions_today": {"name": "Occupancy sessions today"},
+          "time_since_last_occupancy": {"name": "Time since last occupancy"},
+          "last_occupied": {"name": "Last occupied"},
+          "last_cleared": {"name": "Last cleared"},
+          "context": {"name": "Context"},
+          "reason_codes": {
+            "name": "Reason codes",
+            "state": {
               "cleaning_postponed_occupied": "Cleaning is postponed while occupied",
               "cleaning_preferred_room_clear": "A highly used room is clear for cleaning",
-              "room_clear": "The room is clear"
+              "cleaning_allowed_room_clear": "The room is clear for cleaning"
             }
           }
         }

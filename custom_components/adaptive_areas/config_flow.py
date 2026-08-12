@@ -125,7 +125,6 @@ from .const import (
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_ROOM_CATEGORY,
-    CONF_TRACK_ROOM_USAGE,
     CONF_SECONDARY_STATES,
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_ENTITY,
@@ -232,6 +231,17 @@ def _replace_legacy_entity_ids(value: Any) -> Any:
     if isinstance(value, list):
         return [_replace_legacy_entity_ids(item) for item in value]
     return value
+
+
+def _remove_legacy_environmental_sensors(config: dict[str, Any]) -> dict[str, Any]:
+    """Discard Magic Areas `health`/Umweltsensoren during import."""
+    cleaned = dict(config)
+    enabled = cleaned.get(CONF_ENABLED_FEATURES)
+    if isinstance(enabled, dict) and CONF_FEATURE_HEALTH in enabled:
+        enabled = dict(enabled)
+        enabled.pop(CONF_FEATURE_HEALTH, None)
+        cleaned[CONF_ENABLED_FEATURES] = enabled
+    return cleaned
 
 
 class ConfigBase:
@@ -402,6 +412,8 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
 
         migrated_data = _replace_legacy_entity_ids(dict(legacy_entry.data))
         migrated_options = _replace_legacy_entity_ids(dict(legacy_entry.options))
+        migrated_data = _remove_legacy_environmental_sensors(migrated_data)
+        migrated_options = _remove_legacy_environmental_sensors(migrated_options)
         migrated_data, _ = migrate_light_groups_in_config(migrated_data)
         migrated_options, _ = migrate_light_groups_in_config(migrated_options)
 
@@ -701,7 +713,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
         self.area_entities = sorted(self.resolve_groups(filtered_area_entities))
 
-        # General exclusions are authoritative for intrinsic Area Evaluation,
+        # General exclusions are authoritative for optional Room Climate,
         # including explicit and automatically discovered exterior sources.
         evaluation_source_candidates = {
             entity_id
@@ -800,9 +812,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             "secondary_states",
             "select_features",
         ]
-        if CONF_FEATURE_ENVIRONMENT in self.area_options.get(CONF_ENABLED_FEATURES, {}):
-            menu_options.insert(1, "area_evaluation")
-
         # Add entries for features
         menu_options_features = []
         configurable_features = self._get_configurable_features()
@@ -944,7 +953,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             ),
             CONF_RELOAD_ON_REGISTRY_CHANGE: self._build_selector_boolean(),
             CONF_IGNORE_DIAGNOSTIC_ENTITIES: self._build_selector_boolean(),
-            CONF_TRACK_ROOM_USAGE: self._build_selector_boolean(),
             CONF_ROOM_CATEGORY: self._build_selector_select(
                 list(RoomCategory),
                 translation_key=SelectorTranslationKeys.ROOM_CATEGORY,
@@ -1359,8 +1367,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             user_input=user_input,
         )
 
-    async def async_step_area_evaluation(self, user_input=None):
-        """Configure sources and roles for enabled Area Evaluation."""
+    async def async_step_feature_conf_environment(self, user_input=None):
+        """Configure sources and roles for enabled Room Climate."""
         temperature_entities = []
         humidity_entities = []
         window_entities = []
@@ -1426,7 +1434,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     return await self.async_step_show_menu()
 
         return self.async_show_form(
-            step_id="area_evaluation",
+            step_id="feature_conf_environment",
             data_schema=self._build_options_schema(
                 options=OPTIONS_AREA_EVALUATION,
                 saved_options=self.area_options,

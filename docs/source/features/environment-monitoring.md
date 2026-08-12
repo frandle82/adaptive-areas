@@ -1,10 +1,14 @@
-# Area Evaluation and Room Usage
+# Room Climate, Area Health, and Room Usage
 
-Area Evaluation is an optional feature for regular indoor Areas and is disabled by default. When enabled, it creates one **Area Evaluation** sensor while retaining the existing `sensor.adaptive_areas_environment_…` entity and unique ID for release-candidate compatibility. It uses configured primary indoor climate sensors and automatically discovered air-quality sensors after the normal include/exclude and entity-category filters. When disabled, no engine, listeners, histories, recommendations, or evaluation entity run in the background. Missing dimensions remain `unknown`; they are never interpreted as healthy.
+## Room Climate
 
-Enable **Area Evaluation** under **Feature selection**. Choose a room category and primary indoor temperature/humidity sensors under **Basic area options**. Configure optional outdoor, surface, window, and fan-role sources under **Area Evaluation**. The general exclusion list is authoritative for every source, including explicitly selected and automatically discovered exterior sources. The entity's `source_entities` attribute shows primary source identity and availability plus exact IDs and names used for other dimensions. Shareable diagnostics contain only modes, counts, and primary configured/available flags.
+Room Climate is optional for regular indoor Areas and disabled by default. When enabled, it creates one **Room Climate** sensor while retaining existing `environment` entity and unique IDs for compatibility. It uses configured primary indoor climate sensors and automatically discovered numeric air-quality sensors after normal filters. When disabled, no engine, listeners, pollutant histories, recommendations, or Room Climate entity run. Missing dimensions remain `unknown`; never interpreted as healthy.
 
-Room Usage remains a separate basic option, disabled by default. It uses only existing occupied/clear transitions, stores no movement history, and controls no cleaning device.
+Enable **Room Climate** under **Feature selection**. Choose room category and primary indoor temperature/humidity sensors under **Basic area options**. Configure optional outdoor, surface, window, and fan-role sources under **Room Climate**. General exclusion list remains authoritative. `source_entities` provides traceability; shareable diagnostics contain only modes, counts, and primary configured/available flags.
+
+## Area Health
+
+Area Health is separate optional feature for smoke, gas, moisture alarms, safety, and problem binary sensors. It replaces no Room Climate measurement. Room Climate performs no generic binary environmental aggregation. Imported legacy Magic Areas `health`/German “Umweltsensoren” configuration is discarded rather than silently enabling Area Health.
 
 ## Scientific and operational basis
 
@@ -50,12 +54,12 @@ Air-quality severity remains separate from ventilation safety. Particles, CO, NO
 
 ## Recommendations, context, and fan roles
 
-The sensor exposes independent comfort, humidity, mould, air-quality, ventilation, cooling, window, ventilation-fan, circulation-fan, and cleaning results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values. The RC compatibility attribute `decision_context` mirrors those codes.
+Room Climate sensor exposes independent comfort, humidity, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains dominant current decision in English or German; `reason_codes` supplies stable machine values. RC compatibility attribute `decision_context` mirrors those codes.
 
-Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Area Evaluation publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
+Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Room Climate publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
 
-## Room usage and cleaning
+## Room Usage
 
-Daily usage is `unused`, `low`, `normal`, or `high`, derived from occupied duration and session count. While occupied, cleaning is `postpone`; when a highly used room clears it is `preferred`; otherwise it is `allowed`. Counters are in memory and reset at the local day boundary or integration reload.
+Room Usage is independent optional feature enabled under **Feature selection**. It creates dedicated **Room Usage** sensor and has no empty configuration page. Daily usage is `unused`, `low`, `normal`, or `high`, derived only from occupied duration and session count. While occupied, cleaning is `postpone`; when a highly used room clears it is `preferred`; otherwise it is `allowed`. `context` and `reason_codes` explain that decision. Counters are in memory and reset at the next evaluated day boundary or integration reload. No movement history is stored and no cleaning device is controlled.
 
-Manual Override remains limited to Light Groups. Area Evaluation and Room Usage do not extend it.
+Manual Override remains limited to Light Groups. Room Climate and Room Usage do not extend it.

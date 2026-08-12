@@ -247,6 +247,11 @@ async def async_get_config_entry_diagnostics(
             if area.environment is not None
             else {"enabled": False}
         ),
+        "room_usage": (
+            {"enabled": True, **area.room_usage.assessment}
+            if area.room_usage is not None
+            else {"enabled": False}
+        ),
     }
 
 

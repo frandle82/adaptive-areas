@@ -41,6 +41,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_BLE_TRACKERS,
     CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
@@ -68,6 +69,7 @@ from custom_components.adaptive_areas.helpers.decision_trace import (
     safe_record,
 )
 from custom_components.adaptive_areas.helpers.environment import AreaEnvironmentEngine
+from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
 from custom_components.adaptive_areas.repairs import (
     get_configured_entity_references,
 )
@@ -136,6 +138,7 @@ class AdaptiveArea:
         self.loaded_platforms: list[str] = []
         self.decision_trace = DecisionTrace()
         self.environment: AreaEnvironmentEngine | None = None
+        self.room_usage: RoomUsageEngine | None = None
 
         self.logger.debug("%s: Primed for initialization.", self.name)
 
@@ -187,6 +190,9 @@ class AdaptiveArea:
         if self.environment is not None:
             self.environment.unload()
             self.environment = None
+        if self.room_usage is not None:
+            self.room_usage.unload()
+            self.room_usage = None
         self.decision_trace.clear()
 
     def trace_decision(self, **kwargs) -> None:
@@ -501,10 +507,13 @@ class AdaptiveArea:
             and self.is_interior()
             and self.has_feature(CONF_FEATURE_ENVIRONMENT)
         ):
-            self.logger.debug("Area Evaluation enabled for %s", self.name)
+            self.logger.debug("Room Climate enabled for %s", self.name)
             self.environment = AreaEnvironmentEngine(self)
         else:
-            self.logger.debug("Area Evaluation disabled for %s", self.name)
+            self.logger.debug("Room Climate disabled for %s", self.name)
+
+        if not self.is_meta() and self.has_feature(CONF_FEATURE_ROOM_USAGE):
+            self.room_usage = RoomUsageEngine(self)
 
         self.finalize_init()
 

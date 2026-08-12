@@ -365,7 +365,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 5
+    MINOR = 6
 
 
 class AdaptiveAreasFeatureInfo:
@@ -433,11 +433,19 @@ class AdaptiveAreasFeatureInfoHealth(AdaptiveAreasFeatureInfo):
 
 
 class AdaptiveAreasFeatureInfoEnvironment(AdaptiveAreasFeatureInfo):
-    """Stable entity information for intrinsic Area Evaluation."""
+    """Stable entity information for optional Room Climate."""
 
     id = "environment"
     translation_keys = {SENSOR_DOMAIN: "environment"}
     icons = {SENSOR_DOMAIN: "mdi:home-thermometer-outline"}
+
+
+class AdaptiveAreasFeatureInfoRoomUsage(AdaptiveAreasFeatureInfo):
+    """Entity information for optional Room Usage."""
+
+    id = "room_usage"
+    translation_keys = {SENSOR_DOMAIN: "room_usage"}
+    icons = {SENSOR_DOMAIN: "mdi:chart-timeline-variant"}
 
 
 class AdaptiveAreasFeatureInfoLightGroups(AdaptiveAreasFeatureInfo):
@@ -524,6 +532,7 @@ class AdaptiveAreasFeatures(StrEnum):
     WASP_IN_A_BOX = "wasp_in_a_box"
     BLE_TRACKER = "ble_trackers"
     ENVIRONMENT = "environment"
+    ROOM_USAGE = "room_usage"
 
 
 # Adaptive Areas Events
@@ -890,8 +899,9 @@ CONF_FEATURE_HEALTH = "health"
 CONF_FEATURE_PRESENCE_HOLD = "presence_hold"
 CONF_FEATURE_BLE_TRACKERS = "ble_trackers"
 CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
-# Stable internal key retained for Area Evaluation entity compatibility.
+# Stable internal key retained for Room Climate entity compatibility.
 CONF_FEATURE_ENVIRONMENT = "environment"
+CONF_FEATURE_ROOM_USAGE = "room_usage"
 
 CONF_FEATURE_LIST_META = [
     CONF_FEATURE_MEDIA_PLAYER_GROUPS,
@@ -904,6 +914,7 @@ CONF_FEATURE_LIST_META = [
 
 CONF_FEATURE_LIST = CONF_FEATURE_LIST_META + [
     CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_BLE_TRACKERS,
@@ -971,7 +982,7 @@ FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS = [
     SensorDeviceClass.SULPHUR_DIOXIDE,
 ]
 
-# Intrinsic Area Evaluation (legacy Environment keys retained for RC migration)
+# Room Climate (legacy Environment keys retained for compatibility)
 CONF_ENVIRONMENT_COMFORT_MIN, DEFAULT_ENVIRONMENT_COMFORT_MIN = (
     "comfort_min_temperature",
     20.0,
@@ -1083,7 +1094,7 @@ class CirculationFanRequest(StrEnum):
 
 
 class EnvironmentState(StrEnum):
-    """Overall Area Evaluation states."""
+    """Overall Room Climate states."""
 
     GOOD = "good"
     ATTENTION = "attention"
@@ -1300,7 +1311,7 @@ ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
     extra=vol.REMOVE_EXTRA,
 )
 
-# Intrinsic Area Evaluation settings. Legacy feature schema above remains only so
+# Room Climate settings. Legacy feature schema above remains only so
 # migration can validate 1.3 RC data before moving supported keys to this schema.
 AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
     {
@@ -1416,6 +1427,7 @@ AREA_AWARE_MEDIA_PLAYER_FEATURE_SCHEMA = vol.Schema(
 ALL_FEATURES = set(CONF_FEATURE_LIST) | set(CONF_FEATURE_LIST_GLOBAL)
 
 CONFIGURABLE_FEATURES = {
+    CONF_FEATURE_ENVIRONMENT: AREA_EVALUATION_OPTIONS_SCHEMA,
     CONF_FEATURE_LIGHT_GROUPS: LIGHT_GROUP_FEATURE_SCHEMA,
     CONF_FEATURE_SWITCH_GROUPS: SWITCH_GROUP_FEATURE_SCHEMA,
     CONF_FEATURE_CLIMATE_CONTROL: CLIMATE_CONTROL_FEATURE_SCHEMA,
@@ -1509,9 +1521,6 @@ REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
         ): cv.boolean,
-        vol.Optional(
-            CONF_TRACK_ROOM_USAGE, default=DEFAULT_TRACK_ROOM_USAGE
-        ): cv.boolean,
         vol.Optional(CONF_ROOM_CATEGORY, default=DEFAULT_ROOM_CATEGORY): vol.In(
             RoomCategory
         ),
@@ -1572,9 +1581,6 @@ REGULAR_AREA_SCHEMA = vol.Schema(
         ): cv.boolean,
         vol.Optional(
             CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
-        ): cv.boolean,
-        vol.Optional(
-            CONF_TRACK_ROOM_USAGE, default=DEFAULT_TRACK_ROOM_USAGE
         ): cv.boolean,
         vol.Optional(CONF_ROOM_CATEGORY, default=DEFAULT_ROOM_CATEGORY): vol.In(
             RoomCategory
@@ -1650,7 +1656,6 @@ OPTIONS_AREA = [
     (CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY, vol.In(RoomCategory)),
     (CONF_AREA_TEMPERATURE_SENSOR, "", cv.entity_id),
     (CONF_AREA_HUMIDITY_SENSOR, "", cv.entity_id),
-    (CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE, cv.boolean),
     (CONF_INCLUDE_ENTITIES, [], cv.entity_ids),
     (CONF_EXCLUDE_ENTITIES, [], cv.entity_ids),
     (CONF_PRESENCE_CONTROL_ENTITIES, [], cv.entity_ids),

@@ -27,8 +27,11 @@ Passive entity grouping for easier control.
 ## 📊 Sensor Features
 Sensor logic, tracking, and hazard detection.
 
-* 🌿 [Area Evaluation](environment-monitoring.md)
+* 🌿 [Room Climate](environment-monitoring.md)
   Optionally evaluates compatible indoor, outdoor, surface, and air-quality sources while keeping missing dimensions unknown and sources traceable. Disabled by default.
+
+* 📊 [Room Usage](environment-monitoring.md#room-usage)
+  Independently evaluates occupancy duration and sessions for cleaning automations. Disabled by default.
 
 * 📍 [BLE Tracker Sensors](ble-tracker-monitor.md)
   Adds support for BLE presence sensors (e.g., Bermuda, ESPresence, Room Assistant). Automatically maps tracked devices to areas.

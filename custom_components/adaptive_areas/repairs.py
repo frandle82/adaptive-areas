@@ -64,13 +64,13 @@ _ENTITY_REFERENCE_CATEGORIES = {
     CONF_CLIMATE_CONTROL_ENTITY_ID: "climate_control",
     CONF_BLE_TRACKER_ENTITIES: "ble_trackers",
     CONF_NOTIFICATION_DEVICES: "area_aware_media_player",
-    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "area_evaluation",
-    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: "area_evaluation",
-    CONF_ENVIRONMENT_SURFACE_TEMPERATURE: "area_evaluation",
-    CONF_ENVIRONMENT_WINDOWS: "area_evaluation",
-    CONF_ENVIRONMENT_VENTILATION_FANS: "area_evaluation",
-    CONF_ENVIRONMENT_CIRCULATION_FANS: "area_evaluation",
-    CONF_ENVIRONMENT_DISABLED_FANS: "area_evaluation",
+    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "room_climate",
+    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: "room_climate",
+    CONF_ENVIRONMENT_SURFACE_TEMPERATURE: "room_climate",
+    CONF_ENVIRONMENT_WINDOWS: "room_climate",
+    CONF_ENVIRONMENT_VENTILATION_FANS: "room_climate",
+    CONF_ENVIRONMENT_CIRCULATION_FANS: "room_climate",
+    CONF_ENVIRONMENT_DISABLED_FANS: "room_climate",
 }
 
 
@@ -118,7 +118,7 @@ def get_missing_entity_summary(
         and CONF_FEATURE_ENVIRONMENT in enabled_features
     )
     for entity_id, category in _iter_entity_references(combined):
-        if category in ("area_climate", "area_evaluation") and not environment_enabled:
+        if category in ("area_climate", "room_climate") and not environment_enabled:
             continue
         if entity_id in seen:
             continue

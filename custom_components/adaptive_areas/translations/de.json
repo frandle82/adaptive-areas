@@ -29,12 +29,13 @@
                     "cover_groups": "Abdeckungsgruppen",
                     "area_aware_media_player": "Bereichsabhängiger Media Player",
                     "aggregates": "Aggregierte Sensoren",
-                    "health": "Umweltsensoren",
+                    "health": "Bereichsgesundheit",
                     "presence_hold": "Anwesenheitshalteschalter",
                     "ble_trackers": "BLE-Tracker-Überwachung",
                     "switch_groups": "Schaltergruppen",
                     "wasp_in_a_box": "Wasp in a Box",
-                    "environment": "Bereichsauswertung"
+                    "environment": "Raumklima",
+                    "room_usage": "Raumnutzung"
                 }
             },
             "show_menu": {
@@ -42,12 +43,11 @@
                 "description": "Adaptive Areas führt standardmäßig eine einfache Anwesenheitserkennung durch. Das volle Potential von Adaptive Areas wird erst durch Verwendung der erweiterten Statusverfolgung und Anpassung der Anwesenheitsverfolgung freigeschaltet! Die Einstellungen werden erst durch `Speichern und beenden` gespeichert.",
                 "menu_options": {
                     "area_config": "Allgemeine Bereichsoptionen",
-                    "area_evaluation": "Bereichsauswertung konfigurieren",
                     "secondary_states": "Erweiterte Statusverfolgung",
                     "presence_tracking": "Anwesenheitsverfolgung",
                     "select_features": "Funktionen auswählen",
                     "finish": "Speichern und beenden",
-                    "feature_conf_health": "Umweltsensoren konfigurieren",
+                    "feature_conf_health": "Bereichsgesundheit konfigurieren",
                     "feature_conf_fan_groups": "Lüftergruppen konfigurieren",
                     "feature_conf_climate_control": "Klimasteuerung konfigurieren",
                     "feature_conf_light_groups": "Lichtgruppen konfigurieren",
@@ -56,12 +56,13 @@
                     "feature_conf_presence_hold": "Anwesenheitshalteschalter konfigurieren",
                     "feature_conf_ble_trackers": "BLE-Tracker-Überwachung konfigurieren",
                     "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
-                    "feature_conf_switch_groups": "Schaltergruppen konfigurieren"
+                    "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
+                    "feature_conf_environment": "Raumklima konfigurieren"
                 }
             },
             "feature_conf_health": {
-                "title": "Umweltsensor",
-                "description": "Mehrere Geräteklassen vom Typ `Binärsensor` auswählen, die von diesem Umweltsensor verfolgt werden und in Automatisierungen verwendet werden können.",
+                "title": "Bereichsgesundheit",
+                "description": "Gesundheits-, Sicherheits- und Problemklassen von Binärsensoren auswählen, die in einer Bereichsgesundheitsentität zusammengefasst werden.",
                 "data": {
                     "health_binary_sensor_device_classes": "Zu verfolgende Geräteklassen"
                 }
@@ -223,8 +224,8 @@
                     "setpoint": "Wert, den der überwachte Aggregatsensor mindestens erreichen muss, damit die Lüftergruppe eingeschaltet wird."
                 }
             },
-            "area_evaluation": {
-                "title": "Bereichsauswertung",
+            "feature_conf_environment": {
+                "title": "Raumklima",
                 "description": "Bewertet Raumkomfort, Luftfeuchtigkeit, Lüftung, Luftqualität, Schimmelrisiko und Kühlung anhand der konfigurierten Sensoren des Bereichs.",
                 "data": {
                     "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
@@ -244,7 +245,7 @@
                     "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften.",
                     "ventilation_fans": "Ventilatoren mit Luftaustausch, etwa Abluft- oder mechanische Lüftungsanlagen.",
                     "circulation_fans": "Ventilatoren, die Innenluft bewegen, etwa Decken- oder Standventilatoren. Nicht klassifizierte Bereichsventilatoren erhalten standardmäßig diese sichere Rolle.",
-                    "disabled_fans": "Ventilatoren, die von der Bereichsauswertung niemals angefordert werden dürfen. Die passive Gruppierung bleibt unverändert."
+                    "disabled_fans": "Ventilatoren, die vom Raumklima niemals angefordert werden dürfen. Die passive Gruppierung bleibt unverändert."
                 }
             },
             "feature_conf_climate_control": {
@@ -331,7 +332,6 @@
                     "type": "Bereichsart (innen/außen)",
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
                     "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren",
-                    "track_room_usage": "Raumnutzung und Reinigungsempfehlung erfassen",
                     "room_category": "Raumkategorie",
                     "area_temperature_sensor": "Temperatursensor des Bereichs",
                     "area_humidity_sensor": "Luftfeuchtigkeitssensor des Bereichs"
@@ -343,7 +343,6 @@
                     "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
                     "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
                     "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind.",
-                    "track_room_usage": "Optional und standardmäßig deaktiviert. Verwendet nur Anwesenheitswechsel des Bereichs, um die tägliche Raumnutzung einzuordnen und einen geeigneten Reinigungszeitpunkt zu empfehlen. Es werden weder Staubsauger noch andere Geräte gesteuert.",
                     "room_category": "Legt den Raumzweck für die kategoriespezifische thermische Einordnung fest. Das Profil ist eine betriebliche Einordnung und kein universeller Komfortstandard.",
                     "area_temperature_sensor": "Sensor, dessen Messwert als Raumtemperatur dieses Bereichs verwendet wird.",
                     "area_humidity_sensor": "Sensor, dessen Messwert als relative Luftfeuchtigkeit dieses Bereichs verwendet wird."
@@ -516,7 +515,7 @@
         },
         "sensor": {
             "environment": {
-                "name": "Bereichsauswertung",
+                "name": "Raumklima",
                 "state": {
                     "good": "Gut",
                     "attention": "Aufmerksamkeit erforderlich",
@@ -670,7 +669,6 @@
                             "outdoor_temperature": "Außentemperatur",
                             "outdoor_humidity": "Außenluftfeuchtigkeit",
                             "surface_temperature": "Oberflächentemperatur",
-                            "room_usage": "Raumnutzung",
                             "health": "Gesundheitswarnungen des Bereichs"
                         }
                     },
@@ -708,32 +706,7 @@
                     "pollutant_measurements": {"name": "Schadstoffmesswerte"},
                     "pollutant_assessments": {"name": "Schadstoffbewertungen"},
                     "source_entities": {"name": "Quellentitäten"},
-                    "room_usage": {
-                        "name": "Raumnutzung",
-                        "state": {
-                            "unused": "Heute ungenutzt",
-                            "low": "Niedrig",
-                            "normal": "Normal",
-                            "high": "Hoch",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "cleaning_recommendation": {
-                        "name": "Reinigungsempfehlung",
-                        "state": {
-                            "postpone": "Bei Anwesenheit verschieben",
-                            "allowed": "Möglich",
-                            "preferred": "Jetzt bevorzugt",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "current_occupancy_duration": {"name": "Aktuelle Anwesenheitsdauer"},
-                    "occupied_duration_today": {"name": "Heutige Anwesenheitsdauer"},
-                    "occupancy_sessions_today": {"name": "Heutige Anwesenheitsphasen"},
-                    "time_since_last_occupancy": {"name": "Zeit seit letzter Anwesenheit"},
                     "humidity_warning_duration_seconds": {"name": "Dauer der hohen Luftfeuchtigkeit"},
-                    "last_occupied": {"name": "Zuletzt belegt"},
-                    "last_cleared": {"name": "Zuletzt frei"},
                     "context": {"name": "Kontext"},
                     "reason_codes": {
                         "name": "Grundcodes",
@@ -763,11 +736,7 @@
                             "outdoor_air_drier": "Die Außenluft enthält weniger Feuchtigkeit",
                             "outdoor_air_more_humid": "Die Außenluft enthält gleich viel oder mehr Feuchtigkeit",
                             "window_closed": "Ein relevantes Fenster ist geschlossen",
-                            "ventilation_complete": "Der Lüftungsbedarf ist beendet",
-                            "room_usage_high": "Die Raumnutzung ist hoch",
-                            "cleaning_postponed_occupied": "Die Reinigung wird bei Anwesenheit verschoben",
-                            "cleaning_preferred_room_clear": "Ein stark genutzter Raum ist zur Reinigung frei",
-                            "room_clear": "Der Raum ist frei"
+                            "ventilation_complete": "Der Lüftungsbedarf ist beendet"
                         }
                     },
                     "decision_context": {
@@ -799,11 +768,43 @@
                             "window_closed": "Ein relevantes Fenster ist geschlossen",
                             "ventilation_complete": "Der Lüftungsbedarf ist beendet",
                             "mould_risk_elevated": "Schimmelrisiko ist erhöht",
-                            "mould_risk_high": "Schimmelrisiko ist hoch",
-                            "room_usage_high": "Die Raumnutzung ist hoch",
+                            "mould_risk_high": "Schimmelrisiko ist hoch"
+                        }
+                    }
+                }
+            },
+            "room_usage": {
+                "name": "Raumnutzung",
+                "state": {
+                    "unused": "Heute ungenutzt",
+                    "low": "Niedrig",
+                    "normal": "Normal",
+                    "high": "Hoch",
+                    "unknown": "Unbekannt"
+                },
+                "state_attributes": {
+                    "cleaning_recommendation": {
+                        "name": "Reinigungsempfehlung",
+                        "state": {
+                            "postpone": "Bei Anwesenheit verschieben",
+                            "allowed": "Möglich",
+                            "preferred": "Jetzt bevorzugt",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "current_occupancy_duration": {"name": "Aktuelle Anwesenheitsdauer"},
+                    "occupied_duration_today": {"name": "Heutige Anwesenheitsdauer"},
+                    "occupancy_sessions_today": {"name": "Heutige Anwesenheitsphasen"},
+                    "time_since_last_occupancy": {"name": "Zeit seit letzter Anwesenheit"},
+                    "last_occupied": {"name": "Zuletzt belegt"},
+                    "last_cleared": {"name": "Zuletzt frei"},
+                    "context": {"name": "Kontext"},
+                    "reason_codes": {
+                        "name": "Grundcodes",
+                        "state": {
                             "cleaning_postponed_occupied": "Die Reinigung wird bei Anwesenheit verschoben",
                             "cleaning_preferred_room_clear": "Ein stark genutzter Raum ist zur Reinigung frei",
-                            "room_clear": "Der Raum ist frei"
+                            "cleaning_allowed_room_clear": "Der Raum ist zur Reinigung frei"
                         }
                     }
                 }

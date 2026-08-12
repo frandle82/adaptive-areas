@@ -86,7 +86,7 @@ async def test_missing_explicit_environment_reference_is_repaired(
     assert area.id == data["id"]
 
     summary = await async_evaluate_config_entry(hass, entry)
-    assert summary["missing_entities"]["category_counts"] == {"area_evaluation": 1}
+    assert summary["missing_entities"]["category_counts"] == {"room_climate": 1}
 
 
 async def test_deleted_primary_area_sensor_is_repaired(hass: HomeAssistant) -> None:

@@ -13,6 +13,7 @@ from custom_components.adaptive_areas.config_flow import (
     LEGACY_IMPORT_PREFIX,
     ConfigFlow,
     OptionsFlowHandler,
+    _remove_legacy_environmental_sensors,
     _replace_legacy_entity_ids,
 )
 from custom_components.adaptive_areas.const import (
@@ -30,6 +31,8 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_HEALTH,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_EXCLUDE_ENTITIES,
     CONF_INCLUDE_ENTITIES,
     CONF_ID,
@@ -37,13 +40,13 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_ROOM_CATEGORY,
-    CONF_TRACK_ROOM_USAGE,
     DATA_AREA_OBJECT,
     DOMAIN,
     LIGHT_GROUP_ACTIVATION_EXTENDED,
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_OPTIONS,
     OPTIONS_AREA_META,
+    CONF_FEATURE_LIST_META,
     MODULE_DATA,
     AdaptiveConfigEntryVersion,
     RoomCategory,
@@ -58,7 +61,61 @@ from tests.helpers import (
 
 def test_room_usage_is_not_a_meta_area_option() -> None:
     """Cleaning suitability remains limited to physical regular Areas."""
-    assert CONF_TRACK_ROOM_USAGE not in {option[0] for option in OPTIONS_AREA_META}
+    assert CONF_FEATURE_ROOM_USAGE not in CONF_FEATURE_LIST_META
+    assert CONF_FEATURE_ROOM_USAGE not in {option[0] for option in OPTIONS_AREA_META}
+
+
+def test_legacy_environmental_sensors_are_discarded_only_on_import() -> None:
+    """Magic Areas health does not silently become Adaptive Area Health."""
+    config = {
+        CONF_ENABLED_FEATURES: {
+            CONF_FEATURE_HEALTH: {"health_device_classes": ["smoke"]},
+            CONF_FEATURE_LIGHT_GROUPS: {},
+        }
+    }
+
+    cleaned = _remove_legacy_environmental_sensors(config)
+
+    assert CONF_FEATURE_HEALTH not in cleaned[CONF_ENABLED_FEATURES]
+    assert CONF_FEATURE_LIGHT_GROUPS in cleaned[CONF_ENABLED_FEATURES]
+    assert CONF_FEATURE_HEALTH in config[CONF_ENABLED_FEATURES]
+
+
+async def test_optional_feature_menu_follows_enabled_features(hass) -> None:
+    """Only enabled configurable features receive menu entries."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=data)
+    await init_integration(hass, [entry])
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    initial = await flow.async_step_init()
+    assert "feature_conf_environment" not in initial["menu_options"]
+    assert "feature_conf_light_groups" not in initial["menu_options"]
+
+    enabled = await flow.async_step_select_features(
+        {
+            CONF_FEATURE_ENVIRONMENT: True,
+            CONF_FEATURE_LIGHT_GROUPS: True,
+            CONF_FEATURE_ROOM_USAGE: True,
+        }
+    )
+    assert "feature_conf_environment" in enabled["menu_options"]
+    assert "feature_conf_light_groups" in enabled["menu_options"]
+    assert "feature_conf_room_usage" not in enabled["menu_options"]
+
+    disabled = await flow.async_step_select_features(
+        {
+            CONF_FEATURE_LIGHT_GROUPS: True,
+            CONF_FEATURE_ROOM_USAGE: True,
+        }
+    )
+    assert "feature_conf_environment" not in disabled["menu_options"]
+    assert "feature_conf_light_groups" in disabled["menu_options"]
+    assert CONF_FEATURE_ROOM_USAGE in flow.area_options[CONF_ENABLED_FEATURES]
+
+    await shutdown_integration(hass, [entry])
 
 
 async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:
@@ -67,6 +124,10 @@ async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:
     area_registry.async_create("Kitchen")
 
     legacy_data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    legacy_data[CONF_ENABLED_FEATURES] = {
+        CONF_FEATURE_HEALTH: {},
+        CONF_FEATURE_LIGHT_GROUPS: {},
+    }
     legacy_options = {
         **legacy_data,
         CONF_DARK_ENTITY: "binary_sensor.magic_areas_aggregates_kitchen_light",
@@ -99,7 +160,10 @@ async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Kitchen"
-    assert result["data"] == legacy_data
+    assert result["data"][CONF_ID] == legacy_data[CONF_ID]
+    assert CONF_FEATURE_HEALTH not in result["data"][CONF_ENABLED_FEATURES]
+    assert CONF_FEATURE_LIGHT_GROUPS in result["data"][CONF_ENABLED_FEATURES]
+    assert CONF_FEATURE_HEALTH not in result["options"][CONF_ENABLED_FEATURES]
     assert result["options"][CONF_DARK_ENTITY] == (
         "binary_sensor.adaptive_areas_aggregates_kitchen_light"
     )
@@ -293,8 +357,8 @@ async def test_light_group_form_only_exposes_room_state_rules(hass) -> None:
     await shutdown_integration(hass, [config_entry])
 
 
-async def test_area_evaluation_form(hass) -> None:
-    """Intrinsic Area Evaluation exposes sources but no manual comfort band."""
+async def test_room_climate_standard_feature_form(hass) -> None:
+    """Room Climate uses the standard enabled-feature configuration menu."""
     config_entry_options = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     config_entry_options[CONF_ENABLED_FEATURES] = {CONF_FEATURE_ENVIRONMENT: {}}
     config_entry_options[CONF_INCLUDE_ENTITIES] = [
@@ -329,15 +393,19 @@ async def test_area_evaluation_form(hass) -> None:
     feature_result = await flow.async_step_select_features()
     feature_fields = {marker.schema for marker in feature_result["data_schema"].schema}
     assert CONF_FEATURE_ENVIRONMENT in feature_fields
+    assert CONF_FEATURE_ROOM_USAGE in feature_fields
+
+    init_result = await flow.async_step_init()
+    assert "feature_conf_environment" in init_result["menu_options"]
+    assert "feature_conf_room_usage" not in init_result["menu_options"]
 
     area_result = await flow.async_step_area_config()
     area_fields = {marker.schema for marker in area_result["data_schema"].schema}
-    assert CONF_TRACK_ROOM_USAGE in area_fields
     assert CONF_ROOM_CATEGORY in area_fields
     assert CONF_AREA_TEMPERATURE_SENSOR in area_fields
     assert CONF_AREA_HUMIDITY_SENSOR in area_fields
 
-    environment_result = await flow.async_step_area_evaluation()
+    environment_result = await flow.async_step_feature_conf_environment()
     environment_fields = {
         marker.schema for marker in environment_result["data_schema"].schema
     }
@@ -362,7 +430,7 @@ async def test_area_evaluation_form(hass) -> None:
         CONF_AREA_TEMPERATURE_SENSOR: "excluded_primary_source"
     }
 
-    invalid = await flow.async_step_area_evaluation(
+    invalid = await flow.async_step_feature_conf_environment(
         {
             CONF_ENVIRONMENT_VENTILATION_FANS: ["fan.shared"],
             CONF_ENVIRONMENT_CIRCULATION_FANS: ["fan.shared"],

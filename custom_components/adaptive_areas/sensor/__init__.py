@@ -24,7 +24,9 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoEnvironment,
+    AdaptiveAreasFeatureInfoRoomUsage,
     EnvironmentState,
+    RoomUsageState,
 )
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
@@ -51,6 +53,9 @@ async def async_setup_entry(
 
     if area.environment is not None:
         entities_to_add.append(EnvironmentSensor(area))
+
+    if area.room_usage is not None:
+        entities_to_add.append(RoomUsageSensor(area))
 
     if entities_to_add:
         async_add_entities(entities_to_add)
@@ -166,7 +171,7 @@ class AreaAggregateSensor(AreaSensorGroupSensor):
 
 
 class EnvironmentSensor(AdaptiveEntity, SensorEntity):
-    """Expose the unified environmental assessment as one low-churn sensor."""
+    """Expose Room Climate assessment under stable environment IDs."""
 
     feature_info = AdaptiveAreasFeatureInfoEnvironment()
     _attr_device_class = SensorDeviceClass.ENUM
@@ -243,22 +248,46 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 for capability, available in assessment.get("capabilities", {}).items()
                 if available
             ),
-            "room_usage": str(assessment.get("room_usage", "unknown")),
-            "cleaning_recommendation": str(
-                assessment.get("cleaning_recommendation", "unknown")
-            ),
-            "current_occupancy_duration": assessment.get("current_occupancy_duration"),
-            "occupied_duration_today": assessment.get("occupied_duration_today"),
-            "occupancy_sessions_today": assessment.get("occupancy_sessions_today"),
-            "time_since_last_occupancy": assessment.get("time_since_last_occupancy"),
             "humidity_warning_duration_seconds": assessment.get(
                 "humidity_warning_duration_seconds", 0
             ),
-            "last_occupied": assessment.get("last_occupied"),
-            "last_cleared": assessment.get("last_cleared"),
             "context": assessment.get("context", ""),
             "reason_codes": list(assessment.get("reason_codes", [])),
             # Compatibility alias retained for 1.3 release-candidate users.
             "decision_context": list(assessment.get("reason_codes", [])),
+        }
+        self.async_write_ha_state()
+
+
+class RoomUsageSensor(AdaptiveEntity, SensorEntity):
+    """Expose independent Room Usage and cleaning suitability."""
+
+    feature_info = AdaptiveAreasFeatureInfoRoomUsage()
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [str(state) for state in RoomUsageState]
+
+    def __init__(self, area: AdaptiveArea) -> None:
+        """Initialize Room Usage sensor."""
+        AdaptiveEntity.__init__(self, area, domain=SENSOR_DOMAIN)
+        SensorEntity.__init__(self)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to usage transitions."""
+        await super().async_added_to_hass()
+        assert self.area.room_usage is not None
+        self.async_on_remove(
+            self.area.room_usage.register_listener(self._assessment_changed)
+        )
+        self._assessment_changed()
+
+    def _assessment_changed(self) -> None:
+        if self.area.room_usage is None:
+            return
+        assessment = self.area.room_usage.assessment
+        self._attr_native_value = str(assessment["room_usage"])
+        self._attr_extra_state_attributes = {
+            key: str(value) if key == "cleaning_recommendation" else value
+            for key, value in assessment.items()
+            if key != "room_usage"
         }
         self.async_write_ha_state()

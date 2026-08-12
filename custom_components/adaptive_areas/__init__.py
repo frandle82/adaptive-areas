@@ -40,11 +40,13 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_WINDOWS,
     CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_ID,
     CONF_INCLUDE_ENTITIES,
     CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
+    CONF_TRACK_ROOM_USAGE,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_SLEEP_SWITCHES,
     CONF_SLEEP_SWITCHES_ACTION,
@@ -182,6 +184,34 @@ def _migrate_area_evaluation_config(
         migrated[CONF_ROOM_CATEGORY] = DEFAULT_ROOM_CATEGORY
         changed = True
     return migrated, changed
+
+
+def _migrate_room_usage_feature(
+    data: dict[str, Any], options: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], bool, bool]:
+    """Move legacy top-level Room Usage toggle into enabled features."""
+    migrated_data = dict(data)
+    migrated_options = dict(options)
+    enabled = bool(
+        migrated_options.get(
+            CONF_TRACK_ROOM_USAGE,
+            migrated_data.get(CONF_TRACK_ROOM_USAGE, False),
+        )
+    )
+    data_changed = migrated_data.pop(CONF_TRACK_ROOM_USAGE, None) is not None
+    options_changed = migrated_options.pop(CONF_TRACK_ROOM_USAGE, None) is not None
+    if enabled:
+        features = dict(migrated_data.get(CONF_ENABLED_FEATURES, {}))
+        features.update(migrated_options.get(CONF_ENABLED_FEATURES, {}))
+        if CONF_FEATURE_ROOM_USAGE not in features:
+            features[CONF_FEATURE_ROOM_USAGE] = {}
+            if options:
+                migrated_options[CONF_ENABLED_FEATURES] = features
+                options_changed = True
+            else:
+                migrated_data[CONF_ENABLED_FEATURES] = features
+                data_changed = True
+    return migrated_data, migrated_options, data_changed, options_changed
 
 
 def _sanitize_switch_groups_options(
@@ -459,6 +489,14 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     )
     data_changed |= evaluation_data_changed
     options_changed |= evaluation_options_changed
+    (
+        migrated_data,
+        migrated_options,
+        usage_data_changed,
+        usage_options_changed,
+    ) = _migrate_room_usage_feature(migrated_data, migrated_options)
+    data_changed |= usage_data_changed
+    options_changed |= usage_options_changed
     if config_entry.minor_version < 4:
         (
             migrated_data,
