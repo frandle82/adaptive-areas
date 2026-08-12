@@ -28,10 +28,12 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+    CONF_TRACK_ROOM_USAGE,
     DOMAIN,
     LIGHT_GROUP_ACTIVATION_EXTENDED,
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_OPTIONS,
+    OPTIONS_AREA_META,
     AdaptiveConfigEntryVersion,
 )
 from tests.const import DEFAULT_MOCK_AREA
@@ -40,6 +42,11 @@ from tests.helpers import (
     init_integration,
     shutdown_integration,
 )
+
+
+def test_room_usage_is_not_a_meta_area_option() -> None:
+    """Cleaning suitability remains limited to physical regular Areas."""
+    assert CONF_TRACK_ROOM_USAGE not in {option[0] for option in OPTIONS_AREA_META}
 
 
 async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:
@@ -290,6 +297,10 @@ async def test_environment_form(hass) -> None:
     flow.hass = hass
     flow.handler = config_entry.entry_id
     await flow.async_step_init()
+
+    area_result = await flow.async_step_area_config()
+    area_fields = {marker.schema for marker in area_result["data_schema"].schema}
+    assert CONF_TRACK_ROOM_USAGE in area_fields
 
     environment_result = await flow.async_step_feature_conf_environment()
     environment_fields = {

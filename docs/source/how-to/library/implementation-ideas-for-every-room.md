@@ -1,6 +1,6 @@
 # Implementation ideas for every room
 
-This is the "meta" cookbook which condenses the multiple features and tricks of [Adaptive Areas](https://github.com/frandle82/adaptive-areas) to magically and accurately (YMMV) track presence in every room of your house!
+This cookbook combines [Adaptive Areas](https://github.com/frandle82/adaptive-areas) features and practical ideas for accurate presence tracking in every room (results depend on the sensors used).
 
 !!! warning
     Adaptive Areas strength is on stacking multiple somewhat-reliable sources of presence into a nice solid and reliable presence tracking system. You will likely need to use multiple sources of presence that will be good at one situation (static vs moving, for example) but bad at others until you cover all the situations. Adaptive Areas has features (such as "Keep-only sensors") that allow you to use even flappy or slow sensors.

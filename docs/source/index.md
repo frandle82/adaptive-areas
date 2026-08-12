@@ -41,7 +41,7 @@ Step-by-step instructions to get started and troubleshoot:
 
 And also a library of implementation examples:
 
-* [Making every room magic](how-to/library/implementation-ideas-for-every-room.md)
+* [Making every room adaptive](how-to/library/implementation-ideas-for-every-room.md)
 * [Using energy aggregates on the energy dashboard](how-to/library/energy-aggregates.md)
 * [Automatic lights brightness control](how-to/library/automatic-light-brightness-control.md)
 * [Perfecting climate comfort with Climate Control](how-to/library/perfecting-climate-comfort.md)
@@ -52,7 +52,7 @@ And also a library of implementation examples:
 
 Detailed documentation for each [feature](features/index.md).
 
-## 🚀 How to get into magic?
+## 🚀 How to get started
 
 1. [Install Adaptive Areas](how-to/installation.md) via HACS or manually.
 2. Follow the [Getting Started](how-to/getting-started.md) guide to set up your first areas.

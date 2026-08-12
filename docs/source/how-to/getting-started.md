@@ -1,7 +1,7 @@
 # Getting Started
 
 You’ve already [installed](installation.md) Adaptive Areas—awesome! 🎉
-Now let’s walk through how to set up your home with Adaptive Areas to make every room *magical*.
+Now let’s walk through how to configure your home with Adaptive Areas.
 
 ## Migrating from Magic Areas
 

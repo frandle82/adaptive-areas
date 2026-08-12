@@ -989,6 +989,7 @@ CONF_ENVIRONMENT_HUMIDITY_DURATION, DEFAULT_ENVIRONMENT_HUMIDITY_DURATION = (
 CONF_ENVIRONMENT_VENTILATION_FANS = "ventilation_fans"
 CONF_ENVIRONMENT_CIRCULATION_FANS = "circulation_fans"
 CONF_ENVIRONMENT_DISABLED_FANS = "disabled_fans"
+CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE = ("track_room_usage", False)
 
 
 class ComfortState(StrEnum):
@@ -1067,6 +1068,44 @@ class EnvironmentState(StrEnum):
     GOOD = "good"
     ATTENTION = "attention"
     ACTION_REQUIRED = "action_required"
+    UNKNOWN = "unknown"
+
+
+class AirQualityState(StrEnum):
+    """Worst reliably evaluated air-quality state."""
+
+    GOOD = "good"
+    DEGRADED = "degraded"
+    POOR = "poor"
+    CRITICAL = "critical"
+    UNKNOWN = "unknown"
+
+
+class MouldRiskState(StrEnum):
+    """Moisture conditions favourable to mould growth, not mould detection."""
+
+    LOW = "low"
+    ELEVATED = "elevated"
+    HIGH = "high"
+    UNKNOWN = "unknown"
+
+
+class RoomUsageState(StrEnum):
+    """Operational occupancy-based usage classification."""
+
+    UNUSED = "unused"
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    UNKNOWN = "unknown"
+
+
+class CleaningRecommendation(StrEnum):
+    """Area-level cleaning opportunity without vacuum control."""
+
+    POSTPONE = "postpone"
+    ALLOWED = "allowed"
+    PREFERRED = "preferred"
     UNKNOWN = "unknown"
 
 
@@ -1418,6 +1457,9 @@ REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
         ): cv.boolean,
+        vol.Optional(
+            CONF_TRACK_ROOM_USAGE, default=DEFAULT_TRACK_ROOM_USAGE
+        ): cv.boolean,
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1476,6 +1518,9 @@ REGULAR_AREA_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
         ): cv.boolean,
+        vol.Optional(
+            CONF_TRACK_ROOM_USAGE, default=DEFAULT_TRACK_ROOM_USAGE
+        ): cv.boolean,
         vol.Optional(CONF_KEEP_ONLY_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_PRESENCE_DEVICE_PLATFORMS,
@@ -1528,6 +1573,7 @@ OPTIONS_AREA = [
     (CONF_PRESENCE_CONTROL_ENTITIES, [], cv.entity_ids),
     (CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE, cv.boolean),
     (CONF_IGNORE_DIAGNOSTIC_ENTITIES, DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES, cv.boolean),
+    (CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE, cv.boolean),
 ]
 OPTIONS_PRESENCE_TRACKING = [
     (

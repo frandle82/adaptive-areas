@@ -57,4 +57,4 @@ logger:
 Then restart Home Assistant. Debug messages will now appear in your logs.
 
 ## ✅ What’s Next?
-Once Adaptive Areas is installed and running, check out the [Getting Started](getting-started.md) guide to learn how to make your first area magical and our [Implementation Ideas](library/implementation-ideas-for-every-room.md) to learn how to make every other area in your home just as magical!
+Once Adaptive Areas is installed and running, check out the [Getting Started](getting-started.md) guide to configure your first adaptive area and our [Implementation Ideas](library/implementation-ideas-for-every-room.md) for the other areas in your home.

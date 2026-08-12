@@ -4,7 +4,7 @@ Adaptive Areas’ primary goal is to understand and track an **area’s presence
 
 ## 🟢 Presence State
 
-For each area you make it magic, Adaptive Areas does the following:
+For each configured area, Adaptive Areas does the following:
 
 1. Scans the area for all associated entities.
 2. Identifies which entities are valid **presence sensors** (see: [Presence Sensing](presence-sensing.md)).

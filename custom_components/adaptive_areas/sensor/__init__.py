@@ -21,6 +21,7 @@ from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_ENVIRONMENT,
+    CONF_TRACK_ROOM_USAGE,
     DEFAULT_AGGREGATES_MIN_ENTITIES,
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
@@ -50,7 +51,10 @@ async def async_setup_entry(
     if area.has_feature(CONF_FEATURE_AGGREGATION):
         entities_to_add.extend(create_aggregate_sensors(area))
 
-    if area.has_feature(CONF_FEATURE_ENVIRONMENT) and area.environment is not None:
+    if (
+        area.has_feature(CONF_FEATURE_ENVIRONMENT)
+        or area.config.get(CONF_TRACK_ROOM_USAGE, False)
+    ) and area.environment is not None:
         entities_to_add.append(EnvironmentSensor(area))
 
     if entities_to_add:
@@ -192,12 +196,21 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         if self.area.environment is None:
             return
         assessment = self.area.environment.assessment
+        pollutants = assessment.get("pollutants", {})
         self._attr_native_value = str(assessment.get("state", "unknown"))
         self._attr_extra_state_attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
+            "comfort_confidence": assessment.get("comfort_confidence", "unknown"),
             "humidity": str(assessment.get("humidity", "unknown")),
+            "mould_risk": str(assessment.get("mould_risk", "unknown")),
+            "air_quality": str(assessment.get("air_quality", "unknown")),
             "ventilation": str(assessment.get("ventilation", "unknown")),
             "cooling": str(assessment.get("cooling", "unknown")),
+            "temperature": assessment.get("temperature"),
+            "relative_humidity": assessment.get("relative_humidity"),
+            "dew_point": assessment.get("dew_point"),
+            "apparent_temperature": assessment.get("apparent_temperature"),
+            "pollutant_measurements": dict(pollutants),
             "window_recommendation": str(
                 assessment.get("window_recommendation", "none")
             ),
@@ -212,6 +225,22 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 for capability, available in assessment.get("capabilities", {}).items()
                 if available
             ),
+            "room_usage": str(assessment.get("room_usage", "unknown")),
+            "cleaning_recommendation": str(
+                assessment.get("cleaning_recommendation", "unknown")
+            ),
+            "current_occupancy_duration": assessment.get("current_occupancy_duration"),
+            "occupied_duration_today": assessment.get("occupied_duration_today"),
+            "occupancy_sessions_today": assessment.get("occupancy_sessions_today"),
+            "time_since_last_occupancy": assessment.get("time_since_last_occupancy"),
+            "humidity_warning_duration_seconds": assessment.get(
+                "humidity_warning_duration_seconds", 0
+            ),
+            "last_occupied": assessment.get("last_occupied"),
+            "last_cleared": assessment.get("last_cleared"),
+            "context": assessment.get("context", ""),
+            "reason_codes": list(assessment.get("reason_codes", [])),
+            # Compatibility alias retained for 1.3 release-candidate users.
             "decision_context": list(assessment.get("reason_codes", [])),
         }
         self.async_write_ha_state()

@@ -44,6 +44,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
+    CONF_TRACK_ROOM_USAGE,
     CONF_INCLUDE_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
@@ -489,7 +490,10 @@ class AdaptiveArea:
 
         await self.load_entities()
 
-        if self.has_feature(CONF_FEATURE_ENVIRONMENT) and not self.is_meta():
+        if (
+            self.has_feature(CONF_FEATURE_ENVIRONMENT)
+            or self.config.get(CONF_TRACK_ROOM_USAGE, False)
+        ) and not self.is_meta():
             self.environment = AreaEnvironmentEngine(self)
 
         self.finalize_init()

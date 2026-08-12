@@ -299,7 +299,7 @@
             },
             "secondary_states": {
                 "title": "Erweiterte Statusverfolgung",
-                "description": "Sekundäre Zustände für einen magischen Bereich aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, oder um Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder um keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
+                "description": "Sekundäre Zustände für einen Adaptive Area aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
                 "data": {
                     "dark_entity": "Lichtsensor des Bereichs",
                     "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
@@ -328,15 +328,17 @@
                     "presence_control_entities": "Anwesenheitsfreigabe durch Entitäten",
                     "type": "Bereichsart (innen/außen)",
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
-                    "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren"
+                    "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren",
+                    "track_room_usage": "Raumnutzung und Reinigungsempfehlung erfassen"
                 },
                 "data_description": {
-                    "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer magischer Entitäten. Dies kann verwendet werden, um den binären Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs fungieren zu lassen.",
+                    "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer Adaptive-Areas-Entitäten. Damit kann der binäre Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs dienen.",
                     "exclude_entities": "Die hier aufgeführten Entitäten werden von Adaptive Areas vollständig ignoriert. Diese Option verwenden, wenn Entitäten die Daten verfälschen würden, wie z.B. Temperatursensoren von Geräten.",
                     "presence_control_entities": "Optional. Wenn Entitäten gesetzt sind, wird Bewegung im Raum nur ausgewertet, wenn mindestens eine dieser Entitäten aktiv ist. Die Entitäten setzen den Raum nicht selbst auf belegt.",
                     "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
-                    "reload_on_registry_change": "Magischen Bereich automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
-                    "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind."
+                    "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
+                    "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind.",
+                    "track_room_usage": "Optional und standardmäßig deaktiviert. Verwendet nur Anwesenheitswechsel des Bereichs, um die tägliche Raumnutzung einzuordnen und einen geeigneten Reinigungszeitpunkt zu empfehlen. Es werden weder Staubsauger noch andere Geräte gesteuert."
                 }
             },
             "presence_tracking": {
@@ -524,6 +526,14 @@
                             "unknown": "Unbekannt"
                         }
                     },
+                    "comfort_confidence": {
+                        "name": "Verlässlichkeit der Komfortbewertung",
+                        "state": {
+                            "full": "Temperatur und Luftfeuchtigkeit verfügbar",
+                            "limited": "Nur Temperatur verfügbar",
+                            "unknown": "Unbekannt"
+                        }
+                    },
                     "humidity": {
                         "name": "Luftfeuchtigkeit",
                         "state": {
@@ -533,6 +543,25 @@
                             "elevated": "Erhöht",
                             "high": "Hoch",
                             "very_high": "Sehr hoch",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "mould_risk": {
+                        "name": "Schimmelrisiko-Indikator",
+                        "state": {
+                            "low": "Niedrig",
+                            "elevated": "Erhöht",
+                            "high": "Hoch",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "air_quality": {
+                        "name": "Luftqualität",
+                        "state": {
+                            "good": "Gut",
+                            "degraded": "Beeinträchtigt",
+                            "poor": "Schlecht",
+                            "critical": "Kritisch",
                             "unknown": "Unbekannt"
                         }
                     },
@@ -588,19 +617,95 @@
                             "temperature": "Temperatur",
                             "humidity": "Luftfeuchtigkeit",
                             "co2": "CO₂",
+                            "pm25": "PM2,5",
+                            "pm10": "PM10",
                             "voc": "VOC",
                             "aqi": "Luftqualitätsindex",
+                            "co": "Kohlenmonoxid",
+                            "no2": "Stickstoffdioxid",
                             "windows": "Fenster",
-                            "outdoor_temperature": "Außentemperatur"
+                            "outdoor_temperature": "Außentemperatur",
+                            "room_usage": "Raumnutzung",
+                            "health": "Gesundheitswarnungen des Bereichs"
+                        }
+                    },
+                    "temperature": {"name": "Temperatur"},
+                    "relative_humidity": {"name": "Relative Luftfeuchtigkeit"},
+                    "dew_point": {"name": "Taupunkt"},
+                    "apparent_temperature": {"name": "Gefühlte Temperatur"},
+                    "pollutant_measurements": {"name": "Schadstoffmesswerte"},
+                    "room_usage": {
+                        "name": "Raumnutzung",
+                        "state": {
+                            "unused": "Heute ungenutzt",
+                            "low": "Niedrig",
+                            "normal": "Normal",
+                            "high": "Hoch",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "cleaning_recommendation": {
+                        "name": "Reinigungsempfehlung",
+                        "state": {
+                            "postpone": "Bei Anwesenheit verschieben",
+                            "allowed": "Möglich",
+                            "preferred": "Jetzt bevorzugt",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "current_occupancy_duration": {"name": "Aktuelle Anwesenheitsdauer"},
+                    "occupied_duration_today": {"name": "Heutige Anwesenheitsdauer"},
+                    "occupancy_sessions_today": {"name": "Heutige Anwesenheitsphasen"},
+                    "time_since_last_occupancy": {"name": "Zeit seit letzter Anwesenheit"},
+                    "humidity_warning_duration_seconds": {"name": "Dauer der hohen Luftfeuchtigkeit"},
+                    "last_occupied": {"name": "Zuletzt belegt"},
+                    "last_cleared": {"name": "Zuletzt frei"},
+                    "context": {"name": "Kontext"},
+                    "reason_codes": {
+                        "name": "Grundcodes",
+                        "state": {
+                            "health_alert": "Eine Gesundheitswarnung des Bereichs ist aktiv",
+                            "very_high_co2": "CO₂ ist sehr hoch",
+                            "high_co2": "CO₂ ist hoch",
+                            "co2_hysteresis": "CO₂ liegt weiterhin über der Entwarnungsschwelle",
+                            "high_pm25": "PM2,5 ist erhöht",
+                            "high_pm10": "PM10 ist erhöht",
+                            "high_co": "Kohlenmonoxid ist erhöht",
+                            "high_no2": "Stickstoffdioxid ist erhöht",
+                            "high_aqi": "Luftqualitätsindex ist erhöht",
+                            "high_voc": "VOC-Wert ist erhöht",
+                            "mould_risk_elevated": "Schimmelrisiko ist erhöht",
+                            "mould_risk_high": "Schimmelrisiko ist hoch",
+                            "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
+                            "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
+                            "rapid_humidity_rise": "Luftfeuchtigkeit steigt schnell",
+                            "window_already_open": "Ein relevantes Fenster ist bereits offen",
+                            "room_too_warm": "Der Raum ist zu warm",
+                            "outdoor_air_cooler": "Die Außenluft ist kühler",
+                            "passive_cooling_available": "Passive Kühlung ist möglich",
+                            "outdoor_air_warmer": "Die Außenluft ist wärmer",
+                            "active_cooling_recommended": "Aktive Kühlung wird empfohlen",
+                            "window_closed": "Ein relevantes Fenster ist geschlossen",
+                            "ventilation_complete": "Der Lüftungsbedarf ist beendet",
+                            "room_usage_high": "Die Raumnutzung ist hoch",
+                            "cleaning_postponed_occupied": "Die Reinigung wird bei Anwesenheit verschoben",
+                            "cleaning_preferred_room_clear": "Ein stark genutzter Raum ist zur Reinigung frei",
+                            "room_clear": "Der Raum ist frei"
                         }
                     },
                     "decision_context": {
                         "name": "Entscheidungskontext",
                         "state": {
                             "very_high_co2": "CO₂ ist sehr hoch",
+                            "health_alert": "Eine Gesundheitswarnung des Bereichs ist aktiv",
                             "high_co2": "CO₂ ist hoch",
                             "co2_hysteresis": "CO₂ liegt weiterhin über der Entwarnungsschwelle",
                             "high_voc": "VOC-Wert ist hoch",
+                            "high_pm25": "PM2,5 ist erhöht",
+                            "high_pm10": "PM10 ist erhöht",
+                            "high_co": "Kohlenmonoxid ist erhöht",
+                            "high_no2": "Stickstoffdioxid ist erhöht",
+                            "high_aqi": "Luftqualitätsindex ist erhöht",
                             "poor_aqi": "Luftqualitätsindex ist schlecht",
                             "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
                             "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
@@ -611,7 +716,14 @@
                             "passive_cooling_available": "Passive Kühlung ist möglich",
                             "outdoor_air_warmer": "Die Außenluft ist wärmer",
                             "active_cooling_recommended": "Aktive Kühlung wird empfohlen",
-                            "ventilation_complete": "Der Lüftungsbedarf ist beendet"
+                            "window_closed": "Ein relevantes Fenster ist geschlossen",
+                            "ventilation_complete": "Der Lüftungsbedarf ist beendet",
+                            "mould_risk_elevated": "Schimmelrisiko ist erhöht",
+                            "mould_risk_high": "Schimmelrisiko ist hoch",
+                            "room_usage_high": "Die Raumnutzung ist hoch",
+                            "cleaning_postponed_occupied": "Die Reinigung wird bei Anwesenheit verschoben",
+                            "cleaning_preferred_room_clear": "Ein stark genutzter Raum ist zur Reinigung frei",
+                            "room_clear": "Der Raum ist frei"
                         }
                     }
                 }

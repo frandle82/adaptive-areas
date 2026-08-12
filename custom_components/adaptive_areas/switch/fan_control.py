@@ -21,6 +21,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FAN_GROUPS_REQUIRED_STATE,
     CONF_FAN_GROUPS_SETPOINT,
     CONF_FAN_GROUPS_TRACKED_DEVICE_CLASS,
+    CONF_FEATURE_ENVIRONMENT,
     DEFAULT_FAN_GROUPS_REQUIRED_STATE,
     DEFAULT_FAN_GROUPS_SETPOINT,
     DEFAULT_FAN_GROUPS_TRACKED_DEVICE_CLASS,
@@ -73,7 +74,10 @@ class FanControlSwitch(SwitchBase):
                 self.area_state_changed,
             )
         )
-        if self.area.environment is not None:
+        if (
+            self.area.has_feature(CONF_FEATURE_ENVIRONMENT)
+            and self.area.environment is not None
+        ):
             self.async_on_remove(
                 self.area.environment.register_listener(
                     lambda: self.hass.async_create_task(
@@ -132,7 +136,10 @@ class FanControlSwitch(SwitchBase):
             f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
         )
 
-        if self.area.environment is not None:
+        if (
+            self.area.has_feature(CONF_FEATURE_ENVIRONMENT)
+            and self.area.environment is not None
+        ):
             await self._run_environment_request(trigger)
             return
 

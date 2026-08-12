@@ -121,6 +121,7 @@ from .const import (
     CONF_PRESENCE_HOLD_TIMEOUT,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
+    CONF_TRACK_ROOM_USAGE,
     CONF_SECONDARY_STATES,
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_ENTITY,
@@ -851,6 +852,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             ),
             CONF_RELOAD_ON_REGISTRY_CHANGE: self._build_selector_boolean(),
             CONF_IGNORE_DIAGNOSTIC_ENTITIES: self._build_selector_boolean(),
+            CONF_TRACK_ROOM_USAGE: self._build_selector_boolean(),
         }
 
         options = OPTIONS_AREA_META if self.area.is_meta() else OPTIONS_AREA

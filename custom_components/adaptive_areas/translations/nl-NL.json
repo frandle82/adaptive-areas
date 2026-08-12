@@ -3,8 +3,8 @@
     "config": {
         "step": {
             "user": {
-                "title": "Creëer een magisch gebied",
-                "description": "Kies het gebied waar je het magisch van wilt maken!",
+                "title": "Maak een Adaptive Area",
+                "description": "Kies het gebied dat je adaptief wilt maken.",
                 "data": {
                     "name": "Gebied"
                 }
@@ -13,7 +13,7 @@
         "abort": {
             "already_configured": "Dit apparaat is al geconfigureerd",
             "invalid_area": "Het geselecteerde gebied bestaat niet",
-            "no_more_areas": "Al je gebieden zijn al magisch!"
+            "no_more_areas": "Al je gebieden zijn al Adaptive Areas."
         }
     },
     "options": {
@@ -39,7 +39,7 @@
             },
             "show_menu": {
                 "title": "Opties voor Adaptive Areas",
-                "description": "Adaptive Areas voert standaard basisaanwezigheidsdetectie uit, maar u kunt de volledige kracht ervan benutten door geavanceerde statustracking te configureren, uw aanwezigheidstrackingparameters af te stemmen en onze magische functies in te schakelen! Opties worden niet opgeslagen tenzij u 'Opslaan en afsluiten' selecteert.",
+                "description": "Adaptive Areas voert standaard basisaanwezigheidsdetectie uit. Configureer geavanceerde statustracking, stem de aanwezigheidsparameters af en schakel extra functies in om meer mogelijkheden te gebruiken. Opties worden pas opgeslagen wanneer u 'Opslaan en afsluiten' selecteert.",
                 "menu_options": {
                     "area_config": "Basisgebiedopties",
                     "secondary_states": "Geavanceerde tracking van gebiedsstatus",
@@ -190,14 +190,14 @@
                     "exclude_entities": "Sluit entiteiten uit van analyse",
                     "type": "Gebiedstype (binnen/buiten)",
                     "ignore_diagnostic_entities": "Negeer diagnostische en configuratie-entiteiten",
-                    "reload_on_registry_change": "Laad dit magische gebied automatisch opnieuw bij registerupdates"
+                    "reload_on_registry_change": "Laad deze Adaptive Area automatisch opnieuw bij registerupdates"
                 },
                 "data_description": {
                     "include_entities": "Adaptive Areas kunnen entiteiten uit andere gebieden overwegen, inclusief andere Adaptive-entiteiten. U kunt dit gebruiken om de binaire aanwezigheidssensor van een kamer ook als aanwezigheidssensor van een andere kamer te laten fungeren.",
                     "exclude_entities": "Entiteiten die hier worden vermeld, worden volledig genegeerd door Adaptive Areas. Gebruik dit als u entiteiten heeft die uw gegevens weggooien, zoals temperatuursensoren van apparaten.",
                     "type": "Door een gebiedstype te definiëren, kunnen metagebieden voor binnen/buiten worden gemaakt.",
                     "ignore_diagnostic_entities": "Adaptive Areas kunnen diagnostische en configuratie-entiteiten negeren die doorgaans niet relevant zijn.",
-                    "reload_on_registry_change": "Laad dit magische gebied automatisch opnieuw wanneer een entiteit of apparaat aan een gebied wordt toegewezen of ernaar wordt verplaatst."
+                    "reload_on_registry_change": "Laad deze Adaptive Area automatisch opnieuw wanneer een entiteit of apparaat aan een gebied wordt toegewezen of ernaar wordt verplaatst."
                 }
             },
             "presence_tracking": {

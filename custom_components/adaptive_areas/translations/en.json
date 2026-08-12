@@ -328,7 +328,8 @@
           "presence_control_entities": "Presence control entities",
           "type": "Area type (interior/exterior)",
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
-          "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities"
+          "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
+          "track_room_usage": "Track room usage and cleaning recommendation"
         },
         "data_description": {
           "include_entities": "Adaptive Areas can consider entities from other areas including other Adaptive entities. You can use this to make a room's presence binary sensor to act as another room's presence sensor as well.",
@@ -336,7 +337,8 @@
           "presence_control_entities": "Optional. If entities are set, room motion is only evaluated when at least one of these entities is active. These entities do not mark the room occupied by themselves.",
           "type": "Defining an area type allows Meta areas for Interior/Exterior to be created.",
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
-          "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant."
+          "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
+          "track_room_usage": "Optional and disabled by default. Uses only Area presence transitions to classify daily room use and recommend when cleaning is suitable. It never controls a vacuum or another device."
         }
       },
       "presence_tracking": {
@@ -524,6 +526,14 @@
               "unknown": "Unknown"
             }
           },
+          "comfort_confidence": {
+            "name": "Comfort confidence",
+            "state": {
+              "full": "Temperature and humidity available",
+              "limited": "Temperature only",
+              "unknown": "Unknown"
+            }
+          },
           "humidity": {
             "name": "Humidity",
             "state": {
@@ -533,6 +543,25 @@
               "elevated": "Elevated",
               "high": "High",
               "very_high": "Very high",
+              "unknown": "Unknown"
+            }
+          },
+          "mould_risk": {
+            "name": "Mould risk indicator",
+            "state": {
+              "low": "Low",
+              "elevated": "Elevated",
+              "high": "High",
+              "unknown": "Unknown"
+            }
+          },
+          "air_quality": {
+            "name": "Air quality",
+            "state": {
+              "good": "Good",
+              "degraded": "Degraded",
+              "poor": "Poor",
+              "critical": "Critical",
               "unknown": "Unknown"
             }
           },
@@ -588,19 +617,95 @@
               "temperature": "Temperature",
               "humidity": "Humidity",
               "co2": "CO₂",
+              "pm25": "PM2.5",
+              "pm10": "PM10",
               "voc": "VOC",
               "aqi": "Air quality index",
+              "co": "Carbon monoxide",
+              "no2": "Nitrogen dioxide",
               "windows": "Windows",
-              "outdoor_temperature": "Outdoor temperature"
+              "outdoor_temperature": "Outdoor temperature",
+              "room_usage": "Room usage",
+              "health": "Area health"
+            }
+          },
+          "temperature": {"name": "Temperature"},
+          "relative_humidity": {"name": "Relative humidity"},
+          "dew_point": {"name": "Dew point"},
+          "apparent_temperature": {"name": "Apparent temperature"},
+          "pollutant_measurements": {"name": "Pollutant measurements"},
+          "room_usage": {
+            "name": "Room usage",
+            "state": {
+              "unused": "Unused today",
+              "low": "Low",
+              "normal": "Normal",
+              "high": "High",
+              "unknown": "Unknown"
+            }
+          },
+          "cleaning_recommendation": {
+            "name": "Cleaning recommendation",
+            "state": {
+              "postpone": "Postpone while occupied",
+              "allowed": "Allowed",
+              "preferred": "Preferred now",
+              "unknown": "Unknown"
+            }
+          },
+          "current_occupancy_duration": {"name": "Current occupancy duration"},
+          "occupied_duration_today": {"name": "Occupied duration today"},
+          "occupancy_sessions_today": {"name": "Occupancy sessions today"},
+          "time_since_last_occupancy": {"name": "Time since last occupancy"},
+          "humidity_warning_duration_seconds": {"name": "High-humidity duration"},
+          "last_occupied": {"name": "Last occupied"},
+          "last_cleared": {"name": "Last cleared"},
+          "context": {"name": "Context"},
+          "reason_codes": {
+            "name": "Reason codes",
+            "state": {
+              "health_alert": "An Area health warning is active",
+              "very_high_co2": "CO₂ is very high",
+              "high_co2": "CO₂ is high",
+              "co2_hysteresis": "CO₂ remains above the clearing threshold",
+              "high_pm25": "PM2.5 is elevated",
+              "high_pm10": "PM10 is elevated",
+              "high_co": "Carbon monoxide is elevated",
+              "high_no2": "Nitrogen dioxide is elevated",
+              "high_aqi": "Air quality index is elevated",
+              "high_voc": "VOC level is elevated",
+              "mould_risk_elevated": "Mould risk is elevated",
+              "mould_risk_high": "Mould risk is high",
+              "high_humidity": "Humidity is very high",
+              "prolonged_high_humidity": "Humidity has remained high",
+              "rapid_humidity_rise": "Humidity is rising rapidly",
+              "window_already_open": "A relevant window is already open",
+              "room_too_warm": "The room is too warm",
+              "outdoor_air_cooler": "Outdoor air is cooler",
+              "passive_cooling_available": "Passive cooling is available",
+              "outdoor_air_warmer": "Outdoor air is warmer",
+              "active_cooling_recommended": "Active cooling is recommended",
+              "window_closed": "A relevant window is closed",
+              "ventilation_complete": "Ventilation demand has cleared",
+              "room_usage_high": "Room usage is high",
+              "cleaning_postponed_occupied": "Cleaning is postponed while occupied",
+              "cleaning_preferred_room_clear": "A highly used room is clear for cleaning",
+              "room_clear": "The room is clear"
             }
           },
           "decision_context": {
             "name": "Decision context",
             "state": {
               "very_high_co2": "CO₂ is very high",
+              "health_alert": "An Area health warning is active",
               "high_co2": "CO₂ is high",
               "co2_hysteresis": "CO₂ remains above the clearing threshold",
               "high_voc": "VOC level is high",
+              "high_pm25": "PM2.5 is elevated",
+              "high_pm10": "PM10 is elevated",
+              "high_co": "Carbon monoxide is elevated",
+              "high_no2": "Nitrogen dioxide is elevated",
+              "high_aqi": "Air quality index is elevated",
               "poor_aqi": "Air quality index is poor",
               "high_humidity": "Humidity is very high",
               "prolonged_high_humidity": "Humidity has remained high",
@@ -611,7 +716,14 @@
               "passive_cooling_available": "Passive cooling is available",
               "outdoor_air_warmer": "Outdoor air is warmer",
               "active_cooling_recommended": "Active cooling is recommended",
-              "ventilation_complete": "Ventilation demand has cleared"
+              "window_closed": "A relevant window is closed",
+              "ventilation_complete": "Ventilation demand has cleared",
+              "mould_risk_elevated": "Mould risk is elevated",
+              "mould_risk_high": "Mould risk is high",
+              "room_usage_high": "Room usage is high",
+              "cleaning_postponed_occupied": "Cleaning is postponed while occupied",
+              "cleaning_preferred_room_clear": "A highly used room is clear for cleaning",
+              "room_clear": "The room is clear"
             }
           }
         }

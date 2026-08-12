@@ -37,8 +37,8 @@
         }
       },
       "show_menu": {
-        "title": "Opcje obszarów magicznych",
-        "description": "Adaptive Areas domyślnie wykrywa obecność, ale można wykorzystać jego pełne możliwości konfigurując zaawansowane śledzenie stanu oraz dostosowując parametry śledzenia obecności i włączając magiczne funkcje! Ustawienia nie zostaną zapisane, dopóki nie naciśniesz przycisku `Zapisz i Wyjdź`.",
+        "title": "Opcje Adaptive Areas",
+        "description": "Adaptive Areas domyślnie wykrywa obecność, ale można wykorzystać jego pełne możliwości, konfigurując zaawansowane śledzenie stanu, dostosowując parametry śledzenia obecności i włączając dodatkowe funkcje. Ustawienia nie zostaną zapisane, dopóki nie naciśniesz przycisku `Zapisz i Wyjdź`.",
         "menu_options": {
           "area_config": "Podstawowe opcje obszaru",
           "secondary_states": "Zaawansowane śledzenie stanu obszaru",
@@ -219,7 +219,7 @@
       },
       "secondary_states": {
         "title": "Zaawansowane śledzenie stanu obszaru",
-        "description": "Możesz włączyć stan drugorzędny dla obszaru magicznego, przypisując mu encję. Stany drugorzędne są używane przez funkcje włączające oświetlenie tylko wtedy, gdy jest ciemno, włączające urządzenia klimatyzacyjne dopiero po upływie dłuższego czasu lub nie wysyłające powiadomień do obszaru, gdy jest on w trybie uśpienia.",
+        "description": "Możesz włączyć stan drugorzędny dla Adaptive Area, przypisując mu encję. Stany drugorzędne są używane przez funkcje włączające oświetlenie tylko wtedy, gdy jest ciemno, włączające urządzenia klimatyzacyjne dopiero po upływie dłuższego czasu lub niewysyłające powiadomień do obszaru, gdy jest on w trybie uśpienia.",
         "data": {
           "dark_entity": "Sensor oświetlenia obszaru",
           "sleep_entity": "Encja stanu uśpienia",
@@ -246,7 +246,7 @@
           "include_entities": "Dołącz encje do tego obszaru",
           "exclude_entities": "Wyłącz encje z analizy",
           "type": "Typ obszaru (wewnętrzny/zewnętrzny)",
-          "reload_on_registry_change": "Automatycznie przeładuj ten obszar magiczny podczas aktualizacji rejestru",
+          "reload_on_registry_change": "Automatycznie przeładuj ten Adaptive Area podczas aktualizacji rejestru",
           "ignore_diagnostic_entities": "Ignoruj encje diagnostyczne i konfiguracyjne"
         },
         "data_description": {
@@ -254,7 +254,7 @@
           "exclude_entities": "Encje wymienione tutaj będą całkowicie ignorowane przez Obszary Adaptivezne. Użyj tej opcji, jeśli używasz encji zakłócających dane, takie jak sensory temperatury urządzeń",
           "type": "Zdefiniowanie typu obszaru umożliwia tworzenie metaobszarów dla wnętrza/zewnętrza.",
           "reload_on_registry_change": "Automatycznie przeładuj ten Obszar Adaptivezny, gdy jakiekolwiek urządzenie lub encja zostaną przypisane do obszaru lub przeniesione do niego.",
-          "ignore_diagnostic_entities": "Obszary magiczne mogą ignorować encje diagnostyczne i konfiguracyjne, które zazwyczaj nie są istotne."
+          "ignore_diagnostic_entities": "Adaptive Areas może ignorować encje diagnostyczne i konfiguracyjne, które zazwyczaj nie są istotne."
         }
       },
       "presence_tracking": {

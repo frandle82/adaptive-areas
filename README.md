@@ -1,7 +1,7 @@
 [![Build Status][ci-status]][actions] [![GitHub Release][releases-shield]][releases] [![License][license-shield]](LICENSE)
 [![HACS][hacs-shield]][hacs]
 
-# Adaptive Areas for Home Assistant: Your areas so smart it's almost magic! 🪄
+# Adaptive Areas for Home Assistant: Smarter areas, adaptive automation
 
 Adaptive Areas is a Home Assistant custom integration that makes your smart home think for itself through rock-solid presence tracking — the foundation for a truly smart home.
 
