@@ -4,9 +4,18 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant import config_entries
 from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_NAME
+from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
+    ATTR_FRIENDLY_NAME,
+    ATTR_NAME,
+    ATTR_UNIT_OF_MEASUREMENT,
+    UnitOfTemperature,
+)
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
+from homeassistant.helpers.device_registry import async_get as async_get_device_registry
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+from homeassistant.setup import async_setup_component
 
 from custom_components.adaptive_areas.config_flow import (
     LEGACY_DOMAIN,
@@ -48,6 +57,7 @@ from custom_components.adaptive_areas.const import (
     OPTIONS_AREA_META,
     CONF_FEATURE_LIST_META,
     MODULE_DATA,
+    REGULAR_AREA_SCHEMA,
     AdaptiveConfigEntryVersion,
     RoomCategory,
 )
@@ -63,6 +73,21 @@ def test_room_usage_is_not_a_meta_area_option() -> None:
     """Cleaning suitability remains limited to physical regular Areas."""
     assert CONF_FEATURE_ROOM_USAGE not in CONF_FEATURE_LIST_META
     assert CONF_FEATURE_ROOM_USAGE not in {option[0] for option in OPTIONS_AREA_META}
+
+
+def test_regular_area_schema_preserves_primary_climate_sources() -> None:
+    """Full options validation must retain authoritative primary sensors."""
+    options = {
+        CONF_AREA_TEMPERATURE_SENSOR: "sensor.arbeitszimmer_temperatur",
+        CONF_AREA_HUMIDITY_SENSOR: "sensor.arbeitszimmer_luftfeuchtigkeit",
+    }
+
+    validated = REGULAR_AREA_SCHEMA(options)
+
+    assert validated[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.arbeitszimmer_temperatur"
+    assert (
+        validated[CONF_AREA_HUMIDITY_SENSOR] == "sensor.arbeitszimmer_luftfeuchtigkeit"
+    )
 
 
 def test_legacy_environmental_sensors_are_discarded_only_on_import() -> None:
@@ -443,7 +468,7 @@ async def test_room_climate_standard_feature_form(hass) -> None:
 
 
 async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
-    """Saved general sources survive reload into an explicitly enabled engine."""
+    """Primary sources survive every options stage, reopening, and reload."""
     temperature_id = "sensor.options_temperature"
     humidity_id = "sensor.options_humidity"
     hass.states.async_set(
@@ -475,10 +500,30 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
         }
     )
     assert result["type"] == "menu"
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     result = await flow.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
     assert result["type"] == "menu"
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    result = await flow.async_step_feature_conf_environment({})
+    assert result["type"] == "menu"
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    result = await flow.async_step_select_features(
+        {
+            CONF_FEATURE_ENVIRONMENT: True,
+            CONF_FEATURE_LIGHT_GROUPS: True,
+            CONF_FEATURE_ROOM_USAGE: True,
+        }
+    )
+    assert result["type"] == "menu"
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     result = await flow.async_step_finish()
     assert result["type"] == "create_entry"
+    assert result["data"][CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert result["data"][CONF_AREA_HUMIDITY_SENSOR] == humidity_id
 
     hass.config_entries.async_update_entry(config_entry, options=result["data"])
     await hass.async_block_till_done()
@@ -486,6 +531,253 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     assert area.config[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert area.config[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     assert area.environment is not None
-    assert area.environment.assessment["state"] != "unknown"
+    assert area.environment.primary_temperature_entity == temperature_id
+    assert area.environment.primary_humidity_entity == humidity_id
+    assessment = area.environment.assessment
+    assert assessment["source_entities"]["temperature"]["configured"] is True
+    assert assessment["source_entities"]["temperature"]["available"] is True
+    assert assessment["source_entities"]["humidity"]["configured"] is True
+    assert assessment["source_entities"]["humidity"]["available"] is True
+    assert "primary_temperature_sensor_not_configured" not in assessment["reason_codes"]
+    assert "primary_humidity_sensor_not_configured" not in assessment["reason_codes"]
+    for key in (
+        "temperature",
+        "relative_humidity",
+        "dew_point",
+        "absolute_humidity",
+        "humidity_ratio",
+        "enthalpy",
+    ):
+        assert assessment[key] is not None
+    diagnostics = area.environment.diagnostics()
+    assert diagnostics["primary_sources"] == {
+        "temperature": {"configured": True, "available": True},
+        "humidity": {"configured": True, "available": True},
+    }
+    for key in (
+        "temperature",
+        "relative_humidity",
+        "dew_point",
+        "absolute_humidity",
+        "humidity_ratio",
+        "enthalpy",
+    ):
+        assert diagnostics["derived"][key] is not None
+
+    reopened = OptionsFlowHandler()
+    reopened.hass = hass
+    reopened.handler = config_entry.entry_id
+    result = await reopened.async_step_init()
+    assert result["type"] == "menu"
+    assert reopened.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert reopened.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    result = await reopened.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
+    assert result["type"] == "menu"
+    assert reopened.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert reopened.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    result = await reopened.async_step_feature_conf_environment({})
+    assert result["type"] == "menu"
+    assert reopened.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert reopened.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    result = await reopened.async_step_finish()
+    hass.config_entries.async_update_entry(config_entry, options=result["data"])
+    await hass.async_block_till_done()
+    assert config_entry.options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert config_entry.options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
 
     await shutdown_integration(hass, [config_entry])
+
+
+async def test_arbeitszimmer_primary_sources_survive_real_options_workflow(
+    hass,
+) -> None:
+    """Device-Area climate sources persist through the complete reported flow."""
+    area_registry = async_get_area_registry(hass)
+    area_entry = area_registry.async_create("Arbeitszimmer")
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    device_registry = async_get_device_registry(hass)
+    entity_registry = async_get_entity_registry(hass)
+    device = device_registry.async_get_or_create(
+        config_entry_id=source_entry.entry_id,
+        identifiers={("test", "arbeitszimmer_klima")},
+        name="Arbeitszimmer Klima",
+    )
+    device_registry.async_update_device(device.id, area_id=area_entry.id)
+
+    source_specs = (
+        (
+            "arbeitszimmer_temperatur",
+            SensorDeviceClass.TEMPERATURE,
+            "21.5",
+            UnitOfTemperature.CELSIUS,
+            "Temperatur",
+        ),
+        (
+            "arbeitszimmer_luftfeuchtigkeit",
+            SensorDeviceClass.HUMIDITY,
+            "50",
+            "%",
+            "Luftfeuchtigkeit",
+        ),
+    )
+    for object_id, device_class, value, unit, friendly_name in source_specs:
+        entity = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            object_id,
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            device_id=device.id,
+            original_device_class=device_class,
+            unit_of_measurement=unit,
+        )
+        hass.states.async_set(
+            entity.entity_id,
+            value,
+            {
+                ATTR_DEVICE_CLASS: device_class,
+                ATTR_UNIT_OF_MEASUREMENT: unit,
+                ATTR_FRIENDLY_NAME: friendly_name,
+            },
+        )
+
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data.update({CONF_ID: area_entry.id, ATTR_NAME: "Arbeitszimmer"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Arbeitszimmer",
+        data=data,
+        version=AdaptiveConfigEntryVersion.MAJOR,
+        minor_version=AdaptiveConfigEntryVersion.MINOR,
+    )
+    entry.add_to_hass(hass)
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+
+    temperature_id = "sensor.arbeitszimmer_temperatur"
+    humidity_id = "sensor.arbeitszimmer_luftfeuchtigkeit"
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    await flow.async_step_init()
+    await flow.async_step_area_config(
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
+            CONF_AREA_HUMIDITY_SENSOR: humidity_id,
+        }
+    )
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    await flow.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    await flow.async_step_feature_conf_environment({})
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    result = await flow.async_step_finish()
+    hass.config_entries.async_update_entry(entry, options=result["data"])
+    await hass.async_block_till_done()
+
+    assert entry.options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert entry.options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.config[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert area.config[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    assert area.environment is not None
+    assert area.environment.primary_temperature_entity == temperature_id
+    assert area.environment.primary_humidity_entity == humidity_id
+    assessment = area.environment.assessment
+    assert assessment["source_entities"]["temperature"] == {
+        "mode": "primary",
+        "configured": True,
+        "available": True,
+        "entity_id": temperature_id,
+        "name": "Temperatur",
+    }
+    assert assessment["source_entities"]["humidity"] == {
+        "mode": "primary",
+        "configured": True,
+        "available": True,
+        "entity_id": humidity_id,
+        "name": "Luftfeuchtigkeit",
+    }
+    room_climate = hass.states.get(f"sensor.adaptive_areas_environment_{area_entry.id}")
+    assert room_climate is not None
+    for key in (
+        "temperature",
+        "relative_humidity",
+        "dew_point",
+        "absolute_humidity",
+        "humidity_ratio",
+        "enthalpy",
+    ):
+        assert room_climate.attributes[key] is not None
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_primary_climate_sources_can_be_cleared_independently(hass) -> None:
+    """Clearing one primary source neither clears nor replaces the other."""
+    temperature_id = "sensor.options_temperature"
+    humidity_id = "sensor.options_humidity"
+    hass.states.async_set(
+        temperature_id, "21.5", {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE}
+    )
+    hass.states.async_set(
+        humidity_id, "50", {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY}
+    )
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    options = {
+        **data,
+        CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
+        CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
+        CONF_AREA_HUMIDITY_SENSOR: humidity_id,
+        CONF_ENABLED_FEATURES: {CONF_FEATURE_ENVIRONMENT: {}},
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=options)
+    await init_integration(hass, [entry])
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    await flow.async_step_init()
+    await flow.async_step_area_config(
+        {
+            CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
+            CONF_AREA_TEMPERATURE_SENSOR: "",
+            CONF_AREA_HUMIDITY_SENSOR: humidity_id,
+        }
+    )
+    result = await flow.async_step_finish()
+    hass.config_entries.async_update_entry(entry, options=result["data"])
+    await hass.async_block_till_done()
+    assert entry.options[CONF_AREA_TEMPERATURE_SENSOR] == ""
+    assert entry.options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is not None
+    assert area.environment.primary_temperature_entity == ""
+    assert area.environment.primary_humidity_entity == humidity_id
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    await flow.async_step_init()
+    await flow.async_step_area_config(
+        {
+            CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
+            CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
+            CONF_AREA_HUMIDITY_SENSOR: "",
+        }
+    )
+    result = await flow.async_step_finish()
+    hass.config_entries.async_update_entry(entry, options=result["data"])
+    await hass.async_block_till_done()
+    assert entry.options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert entry.options[CONF_AREA_HUMIDITY_SENSOR] == ""
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is not None
+    assert area.environment.primary_temperature_entity == temperature_id
+    assert area.environment.primary_humidity_entity == ""
+
+    await shutdown_integration(hass, [entry])

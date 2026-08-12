@@ -179,6 +179,17 @@ ROLLING_DEVICE_CLASSES = (
 ROLLING_WINDOW = timedelta(hours=24)
 ROLLING_MIN_COVERAGE = timedelta(hours=18)
 
+POLLUTANT_NAMES = {
+    SensorDeviceClass.CO2: "co2",
+    SensorDeviceClass.PM25: "pm25",
+    SensorDeviceClass.PM10: "pm10",
+    SensorDeviceClass.CO: "co",
+    SensorDeviceClass.NITROGEN_DIOXIDE: "no2",
+    SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS: "voc",
+    SensorDeviceClass.AQI: "aqi",
+    SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS: "voc_parts",
+}
+
 AIR_QUALITY_RANK = {
     AirQualityState.UNKNOWN: 0,
     AirQualityState.GOOD: 1,
@@ -388,6 +399,17 @@ class AreaEnvironmentEngine:
         self.area.logger.debug(
             "Primary humidity source: %s",
             self.primary_humidity_entity or "not configured",
+        )
+        self.area.logger.debug(
+            "Pollutant sources: %s",
+            {
+                POLLUTANT_NAMES[device_class]: entity_ids
+                for device_class, entity_ids in (
+                    (device_class, self._sensor_ids.get(str(device_class), []))
+                    for device_class in POLLUTANT_NAMES
+                )
+                if entity_ids
+            },
         )
         self.area.logger.debug(
             "Evaluated capabilities: %s",
@@ -615,12 +637,14 @@ class AreaEnvironmentEngine:
                 continue
             values.append(value)
             used.append(entity_id)
-        self._source_entities[str(device_class)] = {
-            "mode": "direct",
-            "entities": [
-                self._source_descriptor(entity_id) for entity_id in sorted(used)
-            ],
-        }
+        if candidate_ids:
+            source_key = POLLUTANT_NAMES.get(device_class, str(device_class))
+            self._source_entities[source_key] = {
+                "mode": "direct",
+                "entities": [
+                    self._source_descriptor(entity_id) for entity_id in sorted(used)
+                ],
+            }
         return values
 
     def _explicit_value(
@@ -938,20 +962,19 @@ class AreaEnvironmentEngine:
         assessments: dict[str, Any] = {}
         reasons: list[str] = []
         limited_coverage = False
-        reason_names = {
-            SensorDeviceClass.CO2: "co2",
-            SensorDeviceClass.PM25: "pm25",
-            SensorDeviceClass.PM10: "pm10",
-            SensorDeviceClass.CO: "co",
-            SensorDeviceClass.NITROGEN_DIOXIDE: "no2",
-            SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS: "voc",
-        }
         for device_class, band in AIR_QUALITY_MATRIX.items():
             values = self._values(device_class)
             current = max(values) if values else None
-            name = reason_names[device_class]
-            if current is not None:
-                measurements[name] = round(current, 2)
+            if current is None:
+                if device_class in ROLLING_DEVICE_CLASSES and self._sensor_ids.get(
+                    str(device_class)
+                ):
+                    # Close a real source's previous interval during an outage,
+                    # but never create history or assessments for absent types.
+                    self._rolling_pollutant(device_class, None)
+                continue
+            name = POLLUTANT_NAMES[device_class]
+            measurements[name] = round(current, 2)
             if device_class in ROLLING_DEVICE_CLASSES:
                 value, coverage = self._rolling_pollutant(device_class, current)
                 quality = (
@@ -970,8 +993,6 @@ class AreaEnvironmentEngine:
                 if quality == "limited" or value is None:
                     limited_coverage = True
                     continue
-            elif current is None:
-                continue
             elif device_class == SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS:
                 state = (
                     AirQualityState.DEGRADED
@@ -1495,14 +1516,6 @@ class AreaEnvironmentEngine:
             "apparent_temperature": (
                 round(humidex, 2) if humidex is not None else None
             ),
-            "surface_temperature": (
-                round(surface_temperature, 2)
-                if surface_temperature is not None
-                else None
-            ),
-            "surface_relative_humidity": (
-                round(surface_humidity, 2) if surface_humidity is not None else None
-            ),
             "mould_quality": mould_quality,
             "mould_warning_duration_seconds": int(mould_duration),
             "outdoor_temperature": round(outdoor, 2) if outdoor is not None else None,
@@ -1532,6 +1545,10 @@ class AreaEnvironmentEngine:
             "reason_codes": list(dict.fromkeys(reasons)),
             "humidity_warning_duration_seconds": int(humidity_duration),
         }
+        if surface_temperature is not None:
+            assessment["surface_temperature"] = round(surface_temperature, 2)
+        if surface_humidity is not None:
+            assessment["surface_relative_humidity"] = round(surface_humidity, 2)
         dominant_decision, context = self._context(assessment)
         assessment["dominant_decision"] = dominant_decision
         assessment["context"] = context
@@ -1608,7 +1625,11 @@ class AreaEnvironmentEngine:
         )
         return {
             "capabilities": dict(self.assessment.get("capabilities", {})),
-            "derived": {key: self.assessment.get(key) for key in derived_keys},
+            "derived": {
+                key: self.assessment[key]
+                for key in derived_keys
+                if key in self.assessment and self.assessment[key] is not None
+            },
             "assessment": {
                 key: str(self.assessment.get(key, "unknown")) for key in assessment_keys
             },
@@ -1639,6 +1660,11 @@ class AreaEnvironmentEngine:
                 if key in ("temperature", "humidity")
             },
             "pollutant_assessments": self.assessment.get("pollutant_assessments", {}),
+            "pollutant_sources": {
+                key: len(value.get("entities", []))
+                for key, value in self.assessment.get("source_entities", {}).items()
+                if key in POLLUTANT_NAMES.values() and value.get("entities")
+            },
             "humidity_warning_duration_seconds": self.assessment.get(
                 "humidity_warning_duration_seconds", 0
             ),

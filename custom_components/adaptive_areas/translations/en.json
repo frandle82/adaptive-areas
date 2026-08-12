@@ -674,7 +674,7 @@
           },
           "temperature": {"name": "Temperature"},
           "relative_humidity": {"name": "Relative humidity"},
-          "dew_point": {"name": "Dew point"},
+          "dew_point": {"name": "Dew-point temperature"},
           "absolute_humidity": {"name": "Absolute humidity"},
           "humidity_ratio": {"name": "Humidity ratio"},
           "enthalpy": {"name": "Moist-air enthalpy"},

@@ -674,7 +674,7 @@
                     },
                     "temperature": {"name": "Temperatur"},
                     "relative_humidity": {"name": "Relative Luftfeuchtigkeit"},
-                    "dew_point": {"name": "Taupunkt"},
+                    "dew_point": {"name": "Taupunkttemperatur"},
                     "absolute_humidity": {"name": "Absolute Luftfeuchtigkeit"},
                     "humidity_ratio": {"name": "Feuchteverhältnis"},
                     "enthalpy": {"name": "Enthalpie der feuchten Luft"},

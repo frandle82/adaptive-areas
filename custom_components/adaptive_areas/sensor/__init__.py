@@ -198,7 +198,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         assessment = self.area.environment.assessment
         pollutants = assessment.get("pollutants", {})
         self._attr_native_value = str(assessment.get("state", "unknown"))
-        self._attr_extra_state_attributes = {
+        attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
             "comfort_confidence": assessment.get("comfort_confidence", "unknown"),
             "comfort_quality": assessment.get("comfort_quality", "unknown"),
@@ -220,8 +220,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "enthalpy": assessment.get("enthalpy"),
             "humidex": assessment.get("humidex"),
             "apparent_temperature": assessment.get("apparent_temperature"),
-            "surface_temperature": assessment.get("surface_temperature"),
-            "surface_relative_humidity": assessment.get("surface_relative_humidity"),
             "mould_quality": assessment.get("mould_quality", "unknown"),
             "mould_warning_duration_seconds": assessment.get(
                 "mould_warning_duration_seconds", 0
@@ -256,6 +254,10 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             # Compatibility alias retained for 1.3 release-candidate users.
             "decision_context": list(assessment.get("reason_codes", [])),
         }
+        for key in ("surface_temperature", "surface_relative_humidity"):
+            if key in assessment:
+                attributes[key] = assessment[key]
+        self._attr_extra_state_attributes = attributes
         self.async_write_ha_state()
 
 

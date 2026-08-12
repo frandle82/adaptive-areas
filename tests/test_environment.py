@@ -11,6 +11,7 @@ from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
+    ATTR_FRIENDLY_NAME,
     ATTR_UNIT_OF_MEASUREMENT,
     SERVICE_TURN_ON,
     STATE_OFF,
@@ -20,6 +21,8 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
+from homeassistant.helpers.device_registry import async_get as async_get_device_registry
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
 from custom_components.adaptive_areas import (
     _migrate_primary_area_sources,
@@ -44,6 +47,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_ROOM_USAGE,
     CONF_ID,
+    CONF_INCLUDE_ENTITIES,
     CONF_NAME,
     CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
@@ -161,7 +165,8 @@ def test_temperature_and_humidity_produce_derived_comfort(
         UnitOfTemperature.CELSIUS,
     )
     _sensor(hass, area, "sensor.humidity", 70, SensorDeviceClass.HUMIDITY, "%")
-    assessment = AreaEnvironmentEngine(area).assessment
+    engine = AreaEnvironmentEngine(area)
+    assessment = engine.assessment
 
     assert assessment["comfort_confidence"] == "enhanced"
     assert assessment["dew_point"] == 22.01
@@ -169,6 +174,8 @@ def test_temperature_and_humidity_produce_derived_comfort(
     assert assessment["humidity_ratio"] > 10
     assert assessment["enthalpy"] > 50
     assert assessment["humidex"] > assessment["temperature"]
+    assert "surface_temperature" not in assessment
+    assert "surface_relative_humidity" not in assessment
     assert assessment["source_entities"]["humidity"] == {
         "mode": "primary",
         "configured": True,
@@ -284,6 +291,25 @@ def test_missing_climate_sources_do_not_disable_co2(hass: HomeAssistant) -> None
     assert assessment["dominant_decision"] == "air_quality_critical"
     assert "CO₂" in assessment["context"]
     assert "primary_temperature_sensor_not_configured" in assessment["reason_codes"]
+
+
+def test_absent_pollutants_do_not_create_phantom_assessments(
+    hass: HomeAssistant,
+) -> None:
+    """Unmeasured rolling pollutants neither appear nor poison valid CO2."""
+    area = _area(hass)
+    _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
+    engine = AreaEnvironmentEngine(area)
+    assessment = engine.assessment
+
+    assert assessment["air_quality"] == AirQualityState.GOOD
+    assert assessment["pollutants"] == {"co2": 800.0}
+    assert set(assessment["pollutant_assessments"]) == {"co2"}
+    for absent in ("pm25", "pm10", "no2", "co", "voc"):
+        assert absent not in assessment["pollutants"]
+        assert absent not in assessment["pollutant_assessments"]
+        assert absent not in assessment["source_entities"]
+    assert engine.diagnostics()["pollutant_sources"] == {"co2": 1}
 
 
 def test_psychrometric_reference_calculations() -> None:
@@ -517,6 +543,12 @@ def test_worst_pollutant_does_not_request_ventilation_fan(
     area = _area(hass)
     _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
     _sensor(hass, area, "sensor.pm25", 80, SensorDeviceClass.PM25, "µg/m³")
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    area.entities["binary_sensor"] = [{ATTR_ENTITY_ID: "binary_sensor.window"}]
     engine = AreaEnvironmentEngine(area)
     assessment = engine.assessment
 
@@ -527,12 +559,42 @@ def test_worst_pollutant_does_not_request_ventilation_fan(
     )
     assert assessment["ventilation"] == VentilationState.NOT_REQUIRED
     assert assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
+    assert assessment["window_recommendation"] == WindowRecommendation.NONE
 
     freezer.tick(18 * 60 * 60)
     engine.evaluate()
     assert engine.assessment["air_quality"] == AirQualityState.CRITICAL
     assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
+    assert engine.assessment["window_recommendation"] == WindowRecommendation.NONE
     assert "high_pm25" in engine.assessment["reason_codes"]
+
+
+def test_no2_does_not_request_window_ventilation(hass: HomeAssistant, freezer) -> None:
+    """Indoor NO2 affects air quality without claiming outdoor air is safer."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.no2",
+        120,
+        SensorDeviceClass.NITROGEN_DIOXIDE,
+        "µg/m³",
+    )
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    area.entities["binary_sensor"] = [{ATTR_ENTITY_ID: "binary_sensor.window"}]
+    engine = AreaEnvironmentEngine(area)
+
+    freezer.tick(18 * 60 * 60)
+    engine.evaluate()
+
+    assert engine.assessment["air_quality"] == AirQualityState.CRITICAL
+    assert engine.assessment["ventilation"] == VentilationState.UNKNOWN
+    assert engine.assessment["window_recommendation"] == WindowRecommendation.NONE
+    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
 
 
 def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
@@ -543,6 +605,116 @@ def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
 
     assert assessment["air_quality"] == AirQualityState.UNKNOWN
     assert assessment["capabilities"]["pm25"] is False
+
+
+def test_pollutant_exclusion_is_authoritative(hass: HomeAssistant) -> None:
+    """General exclusions remove pollutant sources from every output."""
+    area = _area(hass, {CONF_EXCLUDE_ENTITIES: ["sensor.pm25"]})
+    _sensor(hass, area, "sensor.pm25", 80, SensorDeviceClass.PM25, "µg/m³")
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["capabilities"]["pm25"] is False
+    assert "pm25" not in assessment["pollutants"]
+    assert "pm25" not in assessment["pollutant_assessments"]
+    assert "pm25" not in assessment["source_entities"]
+
+
+async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
+    hass: HomeAssistant,
+) -> None:
+    """Registry discovery covers device Area, entity Area, and explicit include."""
+    area = _area(
+        hass,
+        {
+            CONF_INCLUDE_ENTITIES: ["sensor.included_voc"],
+        },
+    )
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    device_registry = async_get_device_registry(hass)
+    entity_registry = async_get_entity_registry(hass)
+    device = device_registry.async_get_or_create(
+        config_entry_id=source_entry.entry_id,
+        identifiers={("test", "arbeitszimmer_klima")},
+        name="Arbeitszimmer Klima",
+    )
+    device_registry.async_update_device(device.id, area_id=area.id)
+
+    sources = (
+        (
+            "device_pm25",
+            "arbeitszimmer_pm25",
+            SensorDeviceClass.PM25,
+            "µg/m³",
+            device.id,
+            None,
+        ),
+        (
+            "device_voc",
+            "arbeitszimmer_voc",
+            SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+            "µg/m³",
+            device.id,
+            None,
+        ),
+        (
+            "entity_pm25",
+            "entity_area_pm25",
+            SensorDeviceClass.PM25,
+            "µg/m³",
+            None,
+            area.id,
+        ),
+        (
+            "included_voc",
+            "included_voc",
+            SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+            "µg/m³",
+            None,
+            None,
+        ),
+    )
+    for unique_id, object_id, device_class, unit, device_id, area_id in sources:
+        registry_entry = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            unique_id,
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            device_id=device_id,
+            original_device_class=device_class,
+            unit_of_measurement=unit,
+        )
+        if area_id:
+            entity_registry.async_update_entity(
+                registry_entry.entity_id, area_id=area_id
+            )
+        hass.states.async_set(
+            registry_entry.entity_id,
+            "20" if device_class == SensorDeviceClass.PM25 else "951",
+            {
+                ATTR_DEVICE_CLASS: device_class,
+                ATTR_UNIT_OF_MEASUREMENT: unit,
+                ATTR_FRIENDLY_NAME: object_id,
+            },
+        )
+
+    await area.load_entities()
+    engine = AreaEnvironmentEngine(area)
+
+    assert engine._sensor_ids[str(SensorDeviceClass.PM25)] == [
+        "sensor.arbeitszimmer_pm25",
+        "sensor.entity_area_pm25",
+    ]
+    assert engine._sensor_ids[str(SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS)] == [
+        "sensor.arbeitszimmer_voc",
+        "sensor.included_voc",
+    ]
+    assert len(engine.assessment["source_entities"]["pm25"]["entities"]) == 2
+    assert len(engine.assessment["source_entities"]["voc"]["entities"]) == 2
+
+    engine.unload()
 
 
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
@@ -1006,6 +1178,8 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
     assert "room_usage" not in state.attributes
     assert "cleaning_recommendation" not in state.attributes
+    assert "surface_temperature" not in state.attributes
+    assert "surface_relative_humidity" not in state.attributes
 
     await shutdown_integration(hass, [entry])
 

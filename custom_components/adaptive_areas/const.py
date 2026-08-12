@@ -1575,6 +1575,10 @@ REGULAR_AREA_SCHEMA = vol.Schema(
         ),
         vol.Optional(CONF_INCLUDE_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
+        vol.Optional(CONF_AREA_TEMPERATURE_SENSOR, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_AREA_HUMIDITY_SENSOR, default=""): vol.Any("", cv.entity_id),
         vol.Optional(CONF_PRESENCE_CONTROL_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
