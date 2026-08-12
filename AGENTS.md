@@ -8,7 +8,7 @@ This file is the authoritative repository-specific guide for coding agents worki
 - Repository: `frandle82/adaptive-areas`
 - Product: Home Assistant custom integration distributed through HACS
 - Integration domain: `adaptive_areas`
-- Manifest version: `1.2.0`
+- Manifest version: `1.3.0-rc.1`
 - Main language: Python
 - License: MIT
 - Minimum Home Assistant version declared by HACS: `2026.8.0`
