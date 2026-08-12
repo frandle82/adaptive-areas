@@ -277,6 +277,9 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     area.environment.evaluate()
     await hass.async_block_till_done()
     assert hass.states.get(fan.entity_id).state == STATE_ON
+    environment_state = hass.states.get(environment_entity_id)
+    assert environment_state is not None
+    assert environment_state.attributes["decision_context"] == ["room_too_warm"]
 
     await shutdown_integration(hass, [entry])
 
@@ -300,6 +303,23 @@ def test_environment_translation_value_coverage() -> None:
             "aqi",
             "windows",
             "outdoor_temperature",
+        },
+        "decision_context": {
+            "very_high_co2",
+            "high_co2",
+            "co2_hysteresis",
+            "high_voc",
+            "poor_aqi",
+            "high_humidity",
+            "prolonged_high_humidity",
+            "rapid_humidity_rise",
+            "window_already_open",
+            "room_too_warm",
+            "outdoor_air_cooler",
+            "passive_cooling_available",
+            "outdoor_air_warmer",
+            "active_cooling_recommended",
+            "ventilation_complete",
         },
     }
 

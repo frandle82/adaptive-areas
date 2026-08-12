@@ -212,5 +212,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 for capability, available in assessment.get("capabilities", {}).items()
                 if available
             ),
+            "decision_context": list(assessment.get("reason_codes", [])),
         }
         self.async_write_ha_state()

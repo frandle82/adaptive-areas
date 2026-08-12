@@ -13,6 +13,8 @@ The sensor summarizes four independent results:
 * Ventilation: `not_required`, `recommended`, `required`, `urgent`, `ventilating`, or `unknown`.
 * Cooling: `not_required`, `passive_recommended`, `active_recommended`, or `unknown`.
 
+The `decision_context` attribute explains active recommendations with privacy-safe reasons such as high CO₂, prolonged humidity, a rapid humidity rise, or cooler outdoor air. These values are translated in the Home Assistant UI while their stable machine values remain suitable for automations.
+
 CO₂ is the strongest ventilation indicator. The defaults recommend ventilation above 1000 ppm, require it above 1400 ppm, and mark it urgent above 2000 ppm. A recommendation that has started does not clear until CO₂ falls below 850 ppm. VOC, AQI, prolonged humidity above 65%, humidity above 75%, and a rapid humidity rise can contribute when available. These defaults are Adaptive Areas product rules, not universal medical limits.
 
 The default comfort band is 20–24 °C. Passive cooling is recommended only when the room is above the configured maximum and outdoor air is at least 2 K cooler. If outdoor temperature is unavailable, Adaptive Areas does not claim that opening a window will cool the room. Air-quality and humidity needs take priority over thermal efficiency.

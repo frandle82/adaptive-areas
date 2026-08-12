@@ -593,6 +593,26 @@
                             "windows": "Fenster",
                             "outdoor_temperature": "Außentemperatur"
                         }
+                    },
+                    "decision_context": {
+                        "name": "Entscheidungskontext",
+                        "state": {
+                            "very_high_co2": "CO₂ ist sehr hoch",
+                            "high_co2": "CO₂ ist hoch",
+                            "co2_hysteresis": "CO₂ liegt weiterhin über der Entwarnungsschwelle",
+                            "high_voc": "VOC-Wert ist hoch",
+                            "poor_aqi": "Luftqualitätsindex ist schlecht",
+                            "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
+                            "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
+                            "rapid_humidity_rise": "Luftfeuchtigkeit steigt schnell",
+                            "window_already_open": "Ein relevantes Fenster ist bereits offen",
+                            "room_too_warm": "Der Raum ist zu warm",
+                            "outdoor_air_cooler": "Die Außenluft ist kühler",
+                            "passive_cooling_available": "Passive Kühlung ist möglich",
+                            "outdoor_air_warmer": "Die Außenluft ist wärmer",
+                            "active_cooling_recommended": "Aktive Kühlung wird empfohlen",
+                            "ventilation_complete": "Der Lüftungsbedarf ist beendet"
+                        }
                     }
                 }
             }
