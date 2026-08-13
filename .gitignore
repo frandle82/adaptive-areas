@@ -16,6 +16,9 @@ old/*
 tmp/*
 temp/*
 
+# Local AI / coding-agent instructions
+AGENTS.md
+AGENTS.override.md
 
 # Home Assistant configuration
 config/*
