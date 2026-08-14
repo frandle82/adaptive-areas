@@ -60,6 +60,22 @@ Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery 
 
 ## Room Usage
 
-Room Usage is independent optional feature enabled under **Feature selection**. It creates dedicated **Room Usage** sensor and has no empty configuration page. Daily usage is `unused`, `low`, `normal`, or `high`, derived only from occupied duration and session count. While occupied, cleaning is `postpone`; when a highly used room clears it is `preferred`; otherwise it is `allowed`. `context` and `reason_codes` explain that decision. Counters are in memory and reset at the next evaluated day boundary or integration reload. No movement history is stored and no cleaning device is controlled.
+The optional **Cleaning Tracker** replaces the former daily Room Usage classifier while preserving its existing sensor and unique IDs. It uses the Area's established Adaptive Areas presence events; no separate presence detection is created.
+
+For every regular Home Assistant Area, the tracker accumulates occupied seconds since the last cleaning. The value is persisted across Home Assistant restarts and config-entry reloads and is refreshed every minute while the Area remains occupied. Configure **Presence time until cleaning is due** per Area; the default is 28,800 seconds (8 hours).
+
+The existing `sensor.adaptive_areas_room_usage_<area>` now reports a numeric Cleaning Score from 0 to 100%:
+
+```text
+min(100, cumulative_presence_seconds / presence_seconds_to_due * 100)
+```
+
+`binary_sensor.adaptive_areas_room_usage_<area>_cleaning_due` turns on when the accumulated presence reaches the configured threshold.
+
+The following services accept one or more Home Assistant Area IDs:
+
+- `adaptive_areas.mark_cleaned` resets the score to 0% and records `last_cleaned`.
+- `adaptive_areas.reset` completely clears the saved tracker state, including `last_cleaned`.
+- `adaptive_areas.set_score` sets a value from 0 to 100% and recalculates the underlying occupied seconds so normal accumulation can continue.
 
 Manual Override remains limited to Light Groups. Room Climate and Room Usage do not extend it.

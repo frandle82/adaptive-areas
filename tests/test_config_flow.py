@@ -48,6 +48,7 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
+    CONF_PRESENCE_SECONDS_TO_DUE,
     CONF_ROOM_CATEGORY,
     DATA_AREA_OBJECT,
     DOMAIN,
@@ -128,7 +129,17 @@ async def test_optional_feature_menu_follows_enabled_features(hass) -> None:
     )
     assert "feature_conf_environment" in enabled["menu_options"]
     assert "feature_conf_light_groups" in enabled["menu_options"]
-    assert "feature_conf_room_usage" not in enabled["menu_options"]
+    assert "feature_conf_room_usage" in enabled["menu_options"]
+
+    form = await flow.async_step_feature_conf_room_usage()
+    assert form["type"] is FlowResultType.FORM
+    configured = await flow.async_step_feature_conf_room_usage(
+        {CONF_PRESENCE_SECONDS_TO_DUE: 3600}
+    )
+    assert configured["type"] is FlowResultType.MENU
+    assert flow.area_options[CONF_ENABLED_FEATURES][CONF_FEATURE_ROOM_USAGE] == {
+        CONF_PRESENCE_SECONDS_TO_DUE: 3600
+    }
 
     disabled = await flow.async_step_select_features(
         {

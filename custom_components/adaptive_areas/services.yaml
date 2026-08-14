@@ -1,0 +1,32 @@
+mark_cleaned:
+  fields:
+    area_id:
+      required: true
+      selector:
+        area:
+          multiple: true
+
+reset:
+  fields:
+    area_id:
+      required: true
+      selector:
+        area:
+          multiple: true
+
+set_score:
+  fields:
+    area_id:
+      required: true
+      selector:
+        area:
+          multiple: true
+    score:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.1
+          unit_of_measurement: "%"
+          mode: box

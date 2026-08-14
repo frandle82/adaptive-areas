@@ -35,7 +35,7 @@
                     "switch_groups": "Schaltergruppen",
                     "wasp_in_a_box": "Wasp in a Box",
                     "environment": "Raumklima",
-                    "room_usage": "Raumnutzung"
+                    "room_usage": "Reinigungs-Tracker"
                 }
             },
             "show_menu": {
@@ -57,7 +57,8 @@
                     "feature_conf_ble_trackers": "BLE-Tracker-Überwachung konfigurieren",
                     "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
                     "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
-                    "feature_conf_environment": "Raumklima konfigurieren"
+                    "feature_conf_environment": "Raumklima konfigurieren",
+                    "feature_conf_room_usage": "Reinigungs-Tracker konfigurieren"
                 }
             },
             "feature_conf_health": {
@@ -182,6 +183,16 @@
                 "description": "Erstellt einen Schalter, der einen Bereich als belegt markiert hält (während der Schalter eingeschaltet ist). Wenn der Schalter häufig eingeschaltet bleibt, kann ein Timeout definiert werden, nach dessen Ablauf der Schalter automatisch ausgeschaltet wird.",
                 "data": {
                     "presence_hold_timeout": "Zeit, nach der der Schalter automatisch ausgeschaltet wird. (0 = Timeout deaktiviert)."
+                }
+            },
+            "feature_conf_room_usage": {
+                "title": "Reinigungs-Tracker",
+                "description": "Erfasst die kumulierte Anwesenheit seit der letzten Reinigung und berechnet, wann die Reinigung fällig ist.",
+                "data": {
+                    "presence_seconds_to_due": "Anwesenheitszeit bis zur fälligen Reinigung"
+                },
+                "data_description": {
+                    "presence_seconds_to_due": "Kumulierte belegte Sekunden, die einem Reinigungswert von 100 % entsprechen."
                 }
             },
             "feature_conf_area_aware_media_player": {
@@ -421,6 +432,19 @@
             },
             "ble_tracker_monitor": {
               "name": "BLE-Tracker Belegung"
+            },
+            "cleaning_due": {
+                "name": "Reinigung fällig",
+                "state": {
+                    "off": "Nicht fällig",
+                    "on": "Fällig"
+                },
+                "state_attributes": {
+                    "cleaning_score": {"name": "Reinigungswert"},
+                    "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
+                    "presence_seconds_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
+                    "last_cleaned": {"name": "Zuletzt gereinigt"}
+                }
             },
             "health_problem": {
                 "name": "Umwelt",
@@ -733,39 +757,12 @@
                 }
             },
             "room_usage": {
-                "name": "Raumnutzung",
-                "state": {
-                    "unused": "Heute ungenutzt",
-                    "low": "Niedrig",
-                    "normal": "Normal",
-                    "high": "Hoch",
-                    "unknown": "Unbekannt"
-                },
+                "name": "Reinigungswert",
                 "state_attributes": {
-                    "cleaning_recommendation": {
-                        "name": "Reinigungsempfehlung",
-                        "state": {
-                            "postpone": "Bei Anwesenheit verschieben",
-                            "allowed": "Möglich",
-                            "preferred": "Jetzt bevorzugt",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "current_occupancy_duration": {"name": "Aktuelle Anwesenheitsdauer"},
-                    "occupied_duration_today": {"name": "Heutige Anwesenheitsdauer"},
-                    "occupancy_sessions_today": {"name": "Heutige Anwesenheitsphasen"},
-                    "time_since_last_occupancy": {"name": "Zeit seit letzter Anwesenheit"},
-                    "last_occupied": {"name": "Zuletzt belegt"},
-                    "last_cleared": {"name": "Zuletzt frei"},
-                    "context": {"name": "Kontext"},
-                    "reason_codes": {
-                        "name": "Grundcodes",
-                        "state": {
-                            "cleaning_postponed_occupied": "Die Reinigung wird bei Anwesenheit verschoben",
-                            "cleaning_preferred_room_clear": "Ein stark genutzter Raum ist zur Reinigung frei",
-                            "cleaning_allowed_room_clear": "Der Raum ist zur Reinigung frei"
-                        }
-                    }
+                    "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
+                    "presence_seconds_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
+                    "current_occupancy_duration_seconds": {"name": "Aktuelle Anwesenheitsdauer"},
+                    "last_cleaned": {"name": "Zuletzt gereinigt"}
                 }
             }
         },
@@ -865,6 +862,30 @@
           "circulation_transient": "Flur / Durchgang",
           "service_storage": "Technik / Lager",
           "unconditioned": "Unbeheizt"
+        }
+      }
+    },
+    "services": {
+      "mark_cleaned": {
+        "name": "Bereich als gereinigt markieren",
+        "description": "Setzt den Reinigungswert der ausgewählten Bereiche auf 0 % und speichert den Reinigungszeitpunkt.",
+        "fields": {
+          "area_id": {"name": "Bereiche", "description": "Bereiche, die als gereinigt markiert werden sollen."}
+        }
+      },
+      "reset": {
+        "name": "Reinigungs-Tracker zurücksetzen",
+        "description": "Setzt den gespeicherten Reinigungs-Tracker-Zustand der ausgewählten Bereiche vollständig zurück.",
+        "fields": {
+          "area_id": {"name": "Bereiche", "description": "Bereiche, deren Tracker-Zustand zurückgesetzt werden soll."}
+        }
+      },
+      "set_score": {
+        "name": "Reinigungswert setzen",
+        "description": "Setzt den Reinigungswert der ausgewählten Bereiche und passt ihre kumulierte Anwesenheit entsprechend an.",
+        "fields": {
+          "area_id": {"name": "Bereiche", "description": "Bereiche, deren Reinigungswert gesetzt werden soll."},
+          "score": {"name": "Wert", "description": "Reinigungswert von 0 bis 100 %."}
         }
       }
     },

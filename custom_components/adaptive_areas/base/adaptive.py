@@ -523,7 +523,7 @@ class AdaptiveArea:
             self.logger.debug("Room Climate disabled for %s", self.name)
 
         if not self.is_meta() and self.has_feature(CONF_FEATURE_ROOM_USAGE):
-            self.room_usage = RoomUsageEngine(self)
+            self.room_usage = await RoomUsageEngine.async_create(self)
 
         self.finalize_init()
 

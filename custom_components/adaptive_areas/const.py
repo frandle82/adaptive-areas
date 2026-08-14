@@ -365,7 +365,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 6
+    MINOR = 7
 
 
 class AdaptiveAreasFeatureInfo:
@@ -441,11 +441,17 @@ class AdaptiveAreasFeatureInfoEnvironment(AdaptiveAreasFeatureInfo):
 
 
 class AdaptiveAreasFeatureInfoRoomUsage(AdaptiveAreasFeatureInfo):
-    """Entity information for optional Room Usage."""
+    """Entity information for the optional Cleaning Tracker."""
 
     id = "room_usage"
-    translation_keys = {SENSOR_DOMAIN: "room_usage"}
-    icons = {SENSOR_DOMAIN: "mdi:chart-timeline-variant"}
+    translation_keys = {
+        BINARY_SENSOR_DOMAIN: "cleaning_due",
+        SENSOR_DOMAIN: "room_usage",
+    }
+    icons = {
+        BINARY_SENSOR_DOMAIN: "mdi:broom",
+        SENSOR_DOMAIN: "mdi:broom",
+    }
 
 
 class AdaptiveAreasFeatureInfoLightGroups(AdaptiveAreasFeatureInfo):
@@ -903,6 +909,19 @@ CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
 CONF_FEATURE_ENVIRONMENT = "environment"
 CONF_FEATURE_ROOM_USAGE = "room_usage"
 
+# Cleaning Tracker options
+CONF_PRESENCE_SECONDS_TO_DUE, DEFAULT_PRESENCE_SECONDS_TO_DUE = (
+    "presence_seconds_to_due",
+    8 * 60 * 60,
+)
+CLEANING_TRACKER_UPDATE_INTERVAL_SECONDS = 60
+
+# Cleaning Tracker services
+SERVICE_MARK_CLEANED = "mark_cleaned"
+SERVICE_RESET = "reset"
+SERVICE_SET_SCORE = "set_score"
+ATTR_SCORE = "score"
+
 CONF_FEATURE_LIST_META = [
     CONF_FEATURE_MEDIA_PLAYER_GROUPS,
     CONF_FEATURE_LIGHT_GROUPS,
@@ -1122,7 +1141,7 @@ class MouldRiskState(StrEnum):
 
 
 class RoomUsageState(StrEnum):
-    """Operational occupancy-based usage classification."""
+    """Legacy Room Usage states retained for import compatibility."""
 
     UNUSED = "unused"
     LOW = "low"
@@ -1132,7 +1151,7 @@ class RoomUsageState(StrEnum):
 
 
 class CleaningRecommendation(StrEnum):
-    """Area-level cleaning opportunity without vacuum control."""
+    """Legacy cleaning recommendations retained for import compatibility."""
 
     POSTPONE = "postpone"
     ALLOWED = "allowed"
@@ -1182,6 +1201,16 @@ PRESENCE_HOLD_FEATURE_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_PRESENCE_HOLD_TIMEOUT, default=DEFAULT_PRESENCE_HOLD_TIMEOUT
         ): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
+CLEANING_TRACKER_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_PRESENCE_SECONDS_TO_DUE,
+            default=DEFAULT_PRESENCE_SECONDS_TO_DUE,
+        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1428,6 +1457,7 @@ ALL_FEATURES = set(CONF_FEATURE_LIST) | set(CONF_FEATURE_LIST_GLOBAL)
 
 CONFIGURABLE_FEATURES = {
     CONF_FEATURE_ENVIRONMENT: AREA_EVALUATION_OPTIONS_SCHEMA,
+    CONF_FEATURE_ROOM_USAGE: CLEANING_TRACKER_FEATURE_SCHEMA,
     CONF_FEATURE_LIGHT_GROUPS: LIGHT_GROUP_FEATURE_SCHEMA,
     CONF_FEATURE_SWITCH_GROUPS: SWITCH_GROUP_FEATURE_SCHEMA,
     CONF_FEATURE_CLIMATE_CONTROL: CLIMATE_CONTROL_FEATURE_SCHEMA,
@@ -1829,6 +1859,14 @@ OPTIONS_HEALTH_SENSOR = [
 
 OPTIONS_PRESENCE_HOLD = [
     (CONF_PRESENCE_HOLD_TIMEOUT, DEFAULT_PRESENCE_HOLD_TIMEOUT, int),
+]
+
+OPTIONS_ROOM_USAGE = [
+    (
+        CONF_PRESENCE_SECONDS_TO_DUE,
+        DEFAULT_PRESENCE_SECONDS_TO_DUE,
+        vol.All(vol.Coerce(int), vol.Range(min=1)),
+    ),
 ]
 
 OPTIONS_BLE_TRACKERS = [

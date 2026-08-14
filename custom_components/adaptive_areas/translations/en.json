@@ -35,7 +35,7 @@
           "ble_trackers": "Monitor Bluetooth tracker sensors",
           "wasp_in_a_box": "Create a Wasp in a Box sensor",
           "environment": "Room Climate",
-          "room_usage": "Room Usage"
+          "room_usage": "Cleaning Tracker"
         }
       },
       "show_menu": {
@@ -57,7 +57,8 @@
           "feature_conf_presence_hold": "Configure presence hold switch",
           "feature_conf_ble_trackers": "Configure BLE Tracker monitoring",
           "feature_conf_wasp_in_a_box": "Configure Wasp in a Box",
-          "feature_conf_environment": "Configure Room Climate"
+          "feature_conf_environment": "Configure Room Climate",
+          "feature_conf_room_usage": "Configure Cleaning Tracker"
         }
       },
       "feature_conf_health": {
@@ -168,6 +169,16 @@
         "description": "Creates a switch that will hold an area occupied while it's on. You can configure a timeout to have the switch automatically turn off after a certain period of time, if you often see yourself leaving it on.",
         "data": {
           "presence_hold_timeout": "Time after the switch will be automatically turned `off`. (0 = timeout disabled)."
+        }
+      },
+      "feature_conf_room_usage": {
+        "title": "Cleaning Tracker",
+        "description": "Track cumulative Area presence since the last cleaning and calculate when cleaning is due.",
+        "data": {
+          "presence_seconds_to_due": "Presence time until cleaning is due"
+        },
+        "data_description": {
+          "presence_seconds_to_due": "Cumulative occupied seconds corresponding to a Cleaning Score of 100%."
         }
       },
       "feature_conf_switch_groups": {
@@ -421,6 +432,19 @@
       },
       "ble_tracker_monitor": {
         "name": "BLE Tracker Occupancy"
+      },
+      "cleaning_due": {
+        "name": "Cleaning due",
+        "state": {
+          "off": "Not due",
+          "on": "Due"
+        },
+        "state_attributes": {
+          "cleaning_score": {"name": "Cleaning score"},
+          "cumulative_presence_seconds": {"name": "Cumulative presence"},
+          "presence_seconds_to_due": {"name": "Presence time until due"},
+          "last_cleaned": {"name": "Last cleaned"}
+        }
       },
       "health_problem": {
         "name": "Area Health",
@@ -733,39 +757,12 @@
         }
       },
       "room_usage": {
-        "name": "Room Usage",
-        "state": {
-          "unused": "Unused today",
-          "low": "Low",
-          "normal": "Normal",
-          "high": "High",
-          "unknown": "Unknown"
-        },
+        "name": "Cleaning score",
         "state_attributes": {
-          "cleaning_recommendation": {
-            "name": "Cleaning recommendation",
-            "state": {
-              "postpone": "Postpone while occupied",
-              "allowed": "Allowed",
-              "preferred": "Preferred now",
-              "unknown": "Unknown"
-            }
-          },
-          "current_occupancy_duration": {"name": "Current occupancy duration"},
-          "occupied_duration_today": {"name": "Occupied duration today"},
-          "occupancy_sessions_today": {"name": "Occupancy sessions today"},
-          "time_since_last_occupancy": {"name": "Time since last occupancy"},
-          "last_occupied": {"name": "Last occupied"},
-          "last_cleared": {"name": "Last cleared"},
-          "context": {"name": "Context"},
-          "reason_codes": {
-            "name": "Reason codes",
-            "state": {
-              "cleaning_postponed_occupied": "Cleaning is postponed while occupied",
-              "cleaning_preferred_room_clear": "A highly used room is clear for cleaning",
-              "cleaning_allowed_room_clear": "The room is clear for cleaning"
-            }
-          }
+          "cumulative_presence_seconds": {"name": "Cumulative presence"},
+          "presence_seconds_to_due": {"name": "Presence time until due"},
+          "current_occupancy_duration_seconds": {"name": "Current occupancy duration"},
+          "last_cleaned": {"name": "Last cleaned"}
         }
       }
     },
@@ -865,6 +862,30 @@
         "circulation_transient": "Hall / transient",
         "service_storage": "Service / storage",
         "unconditioned": "Unconditioned"
+      }
+    }
+  },
+  "services": {
+    "mark_cleaned": {
+      "name": "Mark Area cleaned",
+      "description": "Sets the Cleaning Score of the selected Areas to 0% and records the cleaning time.",
+      "fields": {
+        "area_id": {"name": "Areas", "description": "Areas to mark as cleaned."}
+      }
+    },
+    "reset": {
+      "name": "Reset Cleaning Tracker",
+      "description": "Completely resets the stored Cleaning Tracker state of the selected Areas.",
+      "fields": {
+        "area_id": {"name": "Areas", "description": "Areas whose tracker state should be reset."}
+      }
+    },
+    "set_score": {
+      "name": "Set Cleaning Score",
+      "description": "Sets the Cleaning Score of the selected Areas and adjusts their cumulative presence accordingly.",
+      "fields": {
+        "area_id": {"name": "Areas", "description": "Areas whose Cleaning Score should be set."},
+        "score": {"name": "Score", "description": "Cleaning Score from 0 to 100%."}
       }
     }
   },

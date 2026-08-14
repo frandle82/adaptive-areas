@@ -24,6 +24,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+from homeassistant.util import dt as dt_util
 
 from custom_components.adaptive_areas import (
     _migrate_primary_area_sources,
@@ -50,6 +51,7 @@ from custom_components.adaptive_areas.const import (
     CONF_ID,
     CONF_INCLUDE_ENTITIES,
     CONF_NAME,
+    CONF_PRESENCE_SECONDS_TO_DUE,
     CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
     CONF_TYPE,
@@ -57,18 +59,17 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_EXTERIOR,
     AirQualityState,
     CirculationFanRequest,
-    CleaningRecommendation,
     ComfortState,
     CoolingState,
     EnvironmentState,
     HumidityState,
     MouldRiskState,
-    RoomUsageState,
     RoomCategory,
     VentilationFanRequest,
     VentilationState,
     WindowRecommendation,
     DATA_AREA_OBJECT,
+    DEFAULT_PRESENCE_SECONDS_TO_DUE,
     DOMAIN,
     MODULE_DATA,
 )
@@ -986,37 +987,34 @@ def test_tvoc_mass_is_precaution_only_and_generic_scale_is_unclassified(
     )
 
 
-def test_room_usage_uses_presence_transitions_only(
+async def test_room_usage_uses_presence_transitions_only(
     hass: HomeAssistant, freezer
 ) -> None:
-    """Opt-in usage records sessions and recommends cleaning after clearing."""
-    area = _area(hass, environment=False)
-    engine = RoomUsageEngine(area)
-    assert engine.assessment["room_usage"] == RoomUsageState.UNUSED
-    assert (
-        engine.assessment["cleaning_recommendation"] == CleaningRecommendation.ALLOWED
+    """Cleaning Tracker accumulates from existing presence transitions."""
+    area = _area(
+        hass,
+        {
+            CONF_ENABLED_FEATURES: {
+                CONF_FEATURE_ROOM_USAGE: {CONF_PRESENCE_SECONDS_TO_DUE: 7200}
+            }
+        },
+        environment=False,
     )
+    engine = await RoomUsageEngine.async_create(area)
+    assert engine.assessment["score"] == 0
 
     area.states = ["occupied"]
     engine._area_state_changed(area.id, None)
-    assert engine.assessment["reason_codes"] == ["cleaning_postponed_occupied"]
-    assert "occupied" in engine.assessment["context"]
     assert len(area.decision_trace.export()) == 1
     freezer.tick(2 * 60 * 60)
-    engine.assessment = engine._evaluate()
-    assert engine.assessment["room_usage"] == RoomUsageState.HIGH
-    assert (
-        engine.assessment["cleaning_recommendation"] == CleaningRecommendation.POSTPONE
-    )
+    await engine._async_periodic_update(dt_util.utcnow())
+    assert engine.assessment["score"] == 100
+    assert engine.assessment["due"] is True
 
     area.states = ["clear"]
     engine._area_state_changed(area.id, None)
-    assert (
-        engine.assessment["cleaning_recommendation"] == CleaningRecommendation.PREFERRED
-    )
-    assert engine.assessment["reason_codes"] == ["cleaning_preferred_room_clear"]
     assert len(area.decision_trace.export()) == 2
-    engine.unload()
+    await engine.async_unload()
 
 
 def test_health_warning_has_highest_context_priority(hass: HomeAssistant) -> None:
@@ -1076,12 +1074,16 @@ async def test_room_usage_is_independent_optional_feature(
     assert area.room_usage is not None
     state = hass.states.get(f"sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}")
     assert state is not None
-    assert state.state == RoomUsageState.UNUSED
-    assert state.attributes["cleaning_recommendation"] == str(
-        CleaningRecommendation.ALLOWED
+    assert state.state == "0.0"
+    assert state.attributes["cumulative_presence_seconds"] == 0
+    assert state.attributes["presence_seconds_to_due"] == (
+        DEFAULT_PRESENCE_SECONDS_TO_DUE
     )
-    assert state.attributes["context"]
-    assert state.attributes["reason_codes"] == ["cleaning_allowed_room_clear"]
+    due = hass.states.get(
+        f"binary_sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}_cleaning_due"
+    )
+    assert due is not None
+    assert due.state == STATE_OFF
 
     await shutdown_integration(hass, [entry])
 
@@ -1324,7 +1326,7 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 6
+    assert entry.minor_version == 7
     assert entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
@@ -1404,7 +1406,7 @@ async def test_rc6_migration_keeps_evaluation_disabled(hass: HomeAssistant) -> N
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=4)
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 6
+    assert entry.minor_version == 7
     assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
     assert entry.data[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.saved_temperature"
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.saved_outdoor"
@@ -1424,7 +1426,7 @@ async def test_legacy_room_usage_toggle_migrates_to_independent_feature(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 6
+    assert entry.minor_version == 7
     assert CONF_TRACK_ROOM_USAGE not in entry.data
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert CONF_FEATURE_ROOM_USAGE in area.config[CONF_ENABLED_FEATURES]
@@ -1453,6 +1455,9 @@ def test_legacy_room_usage_storage_migration() -> None:
     assert set(migrated[CONF_ENABLED_FEATURES]) == {
         CONF_FEATURE_ENVIRONMENT,
         CONF_FEATURE_ROOM_USAGE,
+    }
+    assert migrated[CONF_ENABLED_FEATURES][CONF_FEATURE_ROOM_USAGE] == {
+        CONF_PRESENCE_SECONDS_TO_DUE: DEFAULT_PRESENCE_SECONDS_TO_DUE
     }
     assert options == {}
     assert data_changed is True
@@ -1605,17 +1610,14 @@ def test_environment_translation_value_coverage() -> None:
             assert set(translation["state"]) == values
             assert all(translation["state"].values())
         usage = content["entity"]["sensor"]["room_usage"]
-        assert set(usage["state"]) == {str(state) for state in RoomUsageState}
-        cleaning = usage["state_attributes"]["cleaning_recommendation"]
-        assert set(cleaning["state"]) == {
-            str(state) for state in CleaningRecommendation
+        assert set(usage["state_attributes"]) == {
+            "cumulative_presence_seconds",
+            "presence_seconds_to_due",
+            "current_occupancy_duration_seconds",
+            "last_cleaned",
         }
-        reasons = usage["state_attributes"]["reason_codes"]
-        assert set(reasons["state"]) == {
-            "cleaning_postponed_occupied",
-            "cleaning_preferred_room_clear",
-            "cleaning_allowed_room_clear",
-        }
+        due = content["entity"]["binary_sensor"]["cleaning_due"]
+        assert set(due["state"]) == {"off", "on"}
         serialized = json.dumps(content)
         assert "Area Evaluation" not in serialized
         assert "Bereichsauswertung" not in serialized

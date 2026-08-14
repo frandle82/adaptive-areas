@@ -97,6 +97,7 @@ from .const import (
     CONF_FEATURE_LIST_GLOBAL,
     CONF_FEATURE_LIST_META,
     CONF_FEATURE_PRESENCE_HOLD,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_HEALTH_SENSOR_DEVICE_CLASSES,
@@ -122,6 +123,7 @@ from .const import (
     CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_HOLD_TIMEOUT,
+    CONF_PRESENCE_SECONDS_TO_DUE,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_ROOM_CATEGORY,
@@ -182,6 +184,7 @@ from .const import (
     OPTIONS_HEALTH_SENSOR,
     OPTIONS_LIGHT_GROUP,
     OPTIONS_PRESENCE_HOLD,
+    OPTIONS_ROOM_USAGE,
     OPTIONS_PRESENCE_TRACKING,
     OPTIONS_PRESENCE_TRACKING_META,
     OPTIONS_SWITCH_GROUP,
@@ -1776,6 +1779,21 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         return await self.do_feature_config(
             name=CONF_FEATURE_PRESENCE_HOLD,
             options=OPTIONS_PRESENCE_HOLD,
+            selectors=selectors,
+            user_input=user_input,
+        )
+
+    async def async_step_feature_conf_room_usage(self, user_input=None):
+        """Configure the Cleaning Tracker feature."""
+        selectors = {
+            CONF_PRESENCE_SECONDS_TO_DUE: self._build_selector_number(
+                min_value=1,
+                unit_of_measurement="seconds",
+            )
+        }
+        return await self.do_feature_config(
+            name=CONF_FEATURE_ROOM_USAGE,
+            options=OPTIONS_ROOM_USAGE,
             selectors=selectors,
             user_input=user_input,
         )

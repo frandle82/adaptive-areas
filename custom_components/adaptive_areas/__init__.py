@@ -46,6 +46,7 @@ from custom_components.adaptive_areas.const import (
     CONF_INCLUDE_ENTITIES,
     CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
+    CONF_PRESENCE_SECONDS_TO_DUE,
     CONF_TRACK_ROOM_USAGE,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_SLEEP_SWITCHES,
@@ -61,6 +62,7 @@ from custom_components.adaptive_areas.const import (
     DATA_TRACKED_LISTENERS,
     DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
     DEFAULT_ROOM_CATEGORY,
+    DEFAULT_PRESENCE_SECONDS_TO_DUE,
     MODULE_DATA,
     AdaptiveConfigEntryVersion,
 )
@@ -73,6 +75,10 @@ from custom_components.adaptive_areas.helpers.light_groups import (
 from custom_components.adaptive_areas.repairs import (
     async_evaluate_config_entry,
     async_remove_config_entry_issues,
+)
+from custom_components.adaptive_areas.services import (
+    async_setup_services,
+    async_unload_services,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -192,25 +198,54 @@ def _migrate_room_usage_feature(
     """Move legacy top-level Room Usage toggle into enabled features."""
     migrated_data = dict(data)
     migrated_options = dict(options)
-    enabled = bool(
+    legacy_enabled = bool(
         migrated_options.get(
             CONF_TRACK_ROOM_USAGE,
             migrated_data.get(CONF_TRACK_ROOM_USAGE, False),
         )
     )
-    data_changed = migrated_data.pop(CONF_TRACK_ROOM_USAGE, None) is not None
-    options_changed = migrated_options.pop(CONF_TRACK_ROOM_USAGE, None) is not None
-    if enabled:
-        features = dict(migrated_data.get(CONF_ENABLED_FEATURES, {}))
-        features.update(migrated_options.get(CONF_ENABLED_FEATURES, {}))
-        if CONF_FEATURE_ROOM_USAGE not in features:
-            features[CONF_FEATURE_ROOM_USAGE] = {}
-            if options:
-                migrated_options[CONF_ENABLED_FEATURES] = features
-                options_changed = True
-            else:
-                migrated_data[CONF_ENABLED_FEATURES] = features
-                data_changed = True
+    data_changed = CONF_TRACK_ROOM_USAGE in migrated_data
+    options_changed = CONF_TRACK_ROOM_USAGE in migrated_options
+    migrated_data.pop(CONF_TRACK_ROOM_USAGE, None)
+    migrated_options.pop(CONF_TRACK_ROOM_USAGE, None)
+
+    data_features = dict(migrated_data.get(CONF_ENABLED_FEATURES, {}))
+    options_features = dict(migrated_options.get(CONF_ENABLED_FEATURES, {}))
+    configured_in_options = CONF_FEATURE_ROOM_USAGE in options_features
+    configured_in_data = CONF_FEATURE_ROOM_USAGE in data_features
+
+    if legacy_enabled and not (configured_in_options or configured_in_data):
+        if options:
+            options_features[CONF_FEATURE_ROOM_USAGE] = {}
+            configured_in_options = True
+        else:
+            data_features[CONF_FEATURE_ROOM_USAGE] = {}
+            configured_in_data = True
+
+    if configured_in_options:
+        feature_config = options_features.get(CONF_FEATURE_ROOM_USAGE)
+        feature_config = (
+            dict(feature_config) if isinstance(feature_config, dict) else {}
+        )
+        if CONF_PRESENCE_SECONDS_TO_DUE not in feature_config:
+            feature_config[CONF_PRESENCE_SECONDS_TO_DUE] = (
+                DEFAULT_PRESENCE_SECONDS_TO_DUE
+            )
+            options_changed = True
+        options_features[CONF_FEATURE_ROOM_USAGE] = feature_config
+        migrated_options[CONF_ENABLED_FEATURES] = options_features
+    elif configured_in_data:
+        feature_config = data_features.get(CONF_FEATURE_ROOM_USAGE)
+        feature_config = (
+            dict(feature_config) if isinstance(feature_config, dict) else {}
+        )
+        if CONF_PRESENCE_SECONDS_TO_DUE not in feature_config:
+            feature_config[CONF_PRESENCE_SECONDS_TO_DUE] = (
+                DEFAULT_PRESENCE_SECONDS_TO_DUE
+            )
+            data_changed = True
+        data_features[CONF_FEATURE_ROOM_USAGE] = feature_config
+        migrated_data[CONF_ENABLED_FEATURES] = data_features
     return migrated_data, migrated_options, data_changed, options_changed
 
 
@@ -395,6 +430,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         await hass.config_entries.async_forward_entry_setups(
             config_entry, adaptive_area.available_platforms()
         )
+        async_setup_services(hass)
         return True
 
     hass.data.setdefault(MODULE_DATA, {})
@@ -435,6 +471,8 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
         config_entry, area.available_platforms()
     )
 
+    if area.room_usage is not None:
+        await area.room_usage.async_unload()
     area.unload()
 
     for tracked_listener in area_data[DATA_TRACKED_LISTENERS]:
@@ -444,6 +482,7 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
         data.pop(config_entry.entry_id)
 
     if not data:
+        async_unload_services(hass)
         hass.data.pop(MODULE_DATA)
 
     return True

@@ -10,6 +10,7 @@ from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
     ATTR_UNIT_OF_MEASUREMENT,
+    PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
@@ -26,7 +27,6 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatureInfoEnvironment,
     AdaptiveAreasFeatureInfoRoomUsage,
     EnvironmentState,
-    RoomUsageState,
 )
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
@@ -278,11 +278,11 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
 
 
 class RoomUsageSensor(AdaptiveEntity, SensorEntity):
-    """Expose independent Room Usage and cleaning suitability."""
+    """Expose the Area Cleaning Score under the legacy Room Usage ID."""
 
     feature_info = AdaptiveAreasFeatureInfoRoomUsage()
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [str(state) for state in RoomUsageState]
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_suggested_display_precision = 2
 
     def __init__(self, area: AdaptiveArea) -> None:
         """Initialize Room Usage sensor."""
@@ -302,10 +302,10 @@ class RoomUsageSensor(AdaptiveEntity, SensorEntity):
         if self.area.room_usage is None:
             return
         assessment = self.area.room_usage.assessment
-        self._attr_native_value = str(assessment["room_usage"])
+        self._attr_native_value = assessment["score"]
         self._attr_extra_state_attributes = {
-            key: str(value) if key == "cleaning_recommendation" else value
+            key: value
             for key, value in assessment.items()
-            if key != "room_usage"
+            if key not in ("score", "due")
         }
         self.async_write_ha_state()

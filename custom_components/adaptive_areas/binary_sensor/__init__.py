@@ -5,6 +5,7 @@ import logging
 from homeassistant.components.binary_sensor import (
     DOMAIN as BINARY_SENSOR_DOMAIN,
     BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_ENTITY_ID
@@ -36,13 +37,16 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_BLE_TRACKERS,
     CONF_FEATURE_HEALTH,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_HEALTH_SENSOR_DEVICE_CLASSES,
     DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
     DEFAULT_HEALTH_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoHealth,
+    AdaptiveAreasFeatureInfoRoomUsage,
 )
+from custom_components.adaptive_areas.base.entities import BinaryAdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
 from custom_components.adaptive_areas.threshold import create_illuminance_threshold
 from custom_components.adaptive_areas.util import cleanup_removed_entries
@@ -62,6 +66,41 @@ class AreaHealthBinarySensor(AreaSensorGroupBinarySensor):
     """Aggregate sensor for the area."""
 
     feature_info = AdaptiveAreasFeatureInfoHealth()
+
+
+class CleaningDueBinarySensor(BinaryAdaptiveEntity, BinarySensorEntity):
+    """Report whether an Area's Cleaning Score has reached its threshold."""
+
+    feature_info = AdaptiveAreasFeatureInfoRoomUsage()
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, area: AdaptiveArea) -> None:
+        """Initialize the cleaning-due sensor."""
+        BinaryAdaptiveEntity.__init__(self, area, domain=BINARY_SENSOR_DOMAIN)
+        BinarySensorEntity.__init__(self)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to Cleaning Tracker updates."""
+        await super().async_added_to_hass()
+        assert self.area.room_usage is not None
+        self.async_on_remove(
+            self.area.room_usage.register_listener(self._assessment_changed)
+        )
+        self._assessment_changed()
+
+    def _assessment_changed(self) -> None:
+        """Publish the current due state."""
+        if self.area.room_usage is None:
+            return
+        assessment = self.area.room_usage.assessment
+        self._attr_is_on = assessment["due"]
+        self._attr_extra_state_attributes = {
+            "cleaning_score": assessment["score"],
+            "cumulative_presence_seconds": assessment["cumulative_presence_seconds"],
+            "presence_seconds_to_due": assessment["presence_seconds_to_due"],
+            "last_cleaned": assessment["last_cleaned"],
+        }
+        self.async_write_ha_state()
 
 
 # Setup
@@ -103,6 +142,9 @@ async def async_setup_entry(
 
     if area.has_feature(CONF_FEATURE_BLE_TRACKERS):
         entities.extend(create_ble_tracker_sensor(area))
+
+    if area.room_usage is not None and area.has_feature(CONF_FEATURE_ROOM_USAGE):
+        entities.append(CleaningDueBinarySensor(area))
 
     # Add all entities
     async_add_entities(entities)
