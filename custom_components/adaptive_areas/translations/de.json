@@ -545,15 +545,6 @@
                             "unknown": "Unbekannt"
                         }
                     },
-                    "comfort_quality": {
-                        "name": "Qualität der Komfortbewertung",
-                        "state": {
-                            "enhanced": "Temperatur und Luftfeuchtigkeit verfügbar",
-                            "basic": "Nur Temperatur verfügbar",
-                            "not_applicable": "Nicht anwendbar",
-                            "unknown": "Unbekannt"
-                        }
-                    },
                     "room_category": {
                         "name": "Raumkategorie",
                         "state": {
@@ -637,7 +628,7 @@
                         }
                     },
                     "ventilation_fan_request": {
-                        "name": "Anforderung an Lüftungsventilator",
+                        "name": "Lüfterbedarf",
                         "state": {
                             "none": "Keine",
                             "low": "Niedrig",
@@ -645,7 +636,7 @@
                         }
                     },
                     "circulation_fan_request": {
-                        "name": "Anforderung an Umluftventilator",
+                        "name": "Umluftbedarf",
                         "state": {
                             "none": "Keine",
                             "low": "Niedrig",
@@ -696,7 +687,7 @@
                     "outdoor_humidity_ratio": {"name": "Feuchteverhältnis außen"},
                     "outdoor_enthalpy": {"name": "Enthalpie der Außenluft"},
                     "moisture_ventilation": {
-                        "name": "Eignung der Lüftung zur Entfeuchtung",
+                        "name": "Entfeuchtung durch Lüften",
                         "state": {
                             "favorable": "Außenluft ist trockener",
                             "unfavorable": "Außenluft ist nicht trockener",
@@ -705,7 +696,7 @@
                     },
                     "pollutant_measurements": {"name": "Schadstoffmesswerte"},
                     "pollutant_assessments": {"name": "Schadstoffbewertungen"},
-                    "source_entities": {"name": "Quellentitäten"},
+                    "source_entities": {"name": "Verwendete Entitäten"},
                     "humidity_warning_duration_seconds": {"name": "Dauer der hohen Luftfeuchtigkeit"},
                     "context": {"name": "Kontext"},
                     "reason_codes": {
@@ -737,38 +728,6 @@
                             "outdoor_air_more_humid": "Die Außenluft enthält gleich viel oder mehr Feuchtigkeit",
                             "window_closed": "Ein relevantes Fenster ist geschlossen",
                             "ventilation_complete": "Der Lüftungsbedarf ist beendet"
-                        }
-                    },
-                    "decision_context": {
-                        "name": "Entscheidungskontext",
-                        "state": {
-                            "very_high_co2": "CO₂ ist sehr hoch",
-                            "health_alert": "Eine Gesundheitswarnung des Bereichs ist aktiv",
-                            "high_co2": "CO₂ ist hoch",
-                            "co2_hysteresis": "CO₂ liegt weiterhin über der Entwarnungsschwelle",
-                            "high_voc": "VOC-Wert ist hoch",
-                            "high_pm25": "PM2,5 ist erhöht",
-                            "high_pm10": "PM10 ist erhöht",
-                            "high_co": "Kohlenmonoxid ist erhöht",
-                            "high_no2": "Stickstoffdioxid ist erhöht",
-                            "high_aqi": "Luftqualitätsindex ist erhöht",
-                            "poor_aqi": "Luftqualitätsindex ist schlecht",
-                            "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
-                            "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
-                            "rapid_humidity_rise": "Luftfeuchtigkeit steigt schnell",
-                            "window_already_open": "Ein relevantes Fenster ist bereits offen",
-                            "room_too_warm": "Der Raum ist zu warm",
-                            "outdoor_air_cooler": "Die Außenluft ist kühler",
-                            "passive_cooling_available": "Passive Kühlung ist möglich",
-                            "outdoor_air_warmer": "Die Außenluft ist wärmer",
-                            "active_cooling_recommended": "Aktive Kühlung wird empfohlen",
-                            "outdoor_air_moisture_penalty": "Kühlere Außenluft bietet keinen Enthalpievorteil",
-                            "outdoor_air_drier": "Die Außenluft enthält weniger Feuchtigkeit",
-                            "outdoor_air_more_humid": "Die Außenluft enthält gleich viel oder mehr Feuchtigkeit",
-                            "window_closed": "Ein relevantes Fenster ist geschlossen",
-                            "ventilation_complete": "Der Lüftungsbedarf ist beendet",
-                            "mould_risk_elevated": "Schimmelrisiko ist erhöht",
-                            "mould_risk_high": "Schimmelrisiko ist hoch"
                         }
                     }
                 }

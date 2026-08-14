@@ -54,7 +54,7 @@ Air-quality severity remains separate from ventilation safety. Particles, CO, NO
 
 ## Recommendations, context, and fan roles
 
-Room Climate sensor exposes independent comfort, humidity, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains dominant current decision in English or German; `reason_codes` supplies stable machine values. RC compatibility attribute `decision_context` mirrors those codes.
+Room Climate sensor exposes independent comfort, humidity, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values.
 
 Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Room Climate publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
 

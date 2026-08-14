@@ -809,7 +809,7 @@ def test_room_category_can_make_comfort_not_applicable(hass: HomeAssistant) -> N
     assessment = AreaEnvironmentEngine(area).assessment
 
     assert assessment["comfort"] == ComfortState.NOT_APPLICABLE
-    assert assessment["comfort_quality"] == "not_applicable"
+    assert assessment["comfort_confidence"] == "not_applicable"
     assert assessment["cooling"] == CoolingState.NOT_REQUIRED
 
 
@@ -1146,8 +1146,16 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
         native_unit_of_measurement="%",
         unit_of_measurement="%",
     )
+    pm25 = MockSensor(
+        name="pm25",
+        unique_id="pm25_runtime",
+        native_value=12,
+        device_class=SensorDeviceClass.PM25,
+        native_unit_of_measurement="µg/m³",
+        unit_of_measurement="µg/m³",
+    )
     await setup_mock_entities(
-        hass, "sensor", {DEFAULT_MOCK_AREA: [temperature, humidity]}
+        hass, "sensor", {DEFAULT_MOCK_AREA: [temperature, humidity, pm25]}
     )
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     entry = MockConfigEntry(
@@ -1174,8 +1182,17 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
     assert state.state == EnvironmentState.GOOD
     assert state.attributes["temperature"] == 21.5
     assert state.attributes["relative_humidity"] == 50
+    assert state.attributes["humidex"] is not None
     assert state.attributes["comfort"] != ComfortState.UNKNOWN
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
+    assert state.attributes["source_entities"] == sorted(
+        [temperature.entity_id, humidity.entity_id, pm25.entity_id]
+    )
+    assert all(
+        isinstance(entity_id, str) for entity_id in state.attributes["source_entities"]
+    )
+    assert "comfort_quality" not in state.attributes
+    assert "decision_context" not in state.attributes
     assert "room_usage" not in state.attributes
     assert "cleaning_recommendation" not in state.attributes
     assert "surface_temperature" not in state.attributes
@@ -1483,10 +1500,6 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     assert hass.states.get(fan.entity_id).state == STATE_ON
     environment_state = hass.states.get(environment_entity_id)
     assert environment_state is not None
-    assert environment_state.attributes["decision_context"] == [
-        "primary_humidity_sensor_not_configured",
-        "room_too_warm",
-    ]
     assert environment_state.attributes["reason_codes"] == [
         "primary_humidity_sensor_not_configured",
         "room_too_warm",
@@ -1499,10 +1512,23 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
 def test_environment_translation_value_coverage() -> None:
     """English and German translate every Environment state and attribute value."""
     translations = Path("custom_components/adaptive_areas/translations")
+    expected_attribute_names = {
+        "en": {
+            "ventilation_fan_request": "Fan need",
+            "circulation_fan_request": "Air circulation need",
+            "moisture_ventilation": "Dehumidification by ventilation",
+            "source_entities": "Entities used",
+        },
+        "de": {
+            "ventilation_fan_request": "Lüfterbedarf",
+            "circulation_fan_request": "Umluftbedarf",
+            "moisture_ventilation": "Entfeuchtung durch Lüften",
+            "source_entities": "Verwendete Entitäten",
+        },
+    }
     expected_values = {
         "comfort": {str(state) for state in ComfortState},
         "comfort_confidence": {"enhanced", "basic", "not_applicable", "unknown"},
-        "comfort_quality": {"enhanced", "basic", "not_applicable", "unknown"},
         "thermal_input_quality": {"enhanced", "basic", "unavailable"},
         "room_category": {str(category) for category in RoomCategory} | {"unknown"},
         "humidity": {str(state) for state in HumidityState},
@@ -1564,6 +1590,8 @@ def test_environment_translation_value_coverage() -> None:
         )
         assert set(environment["state"]) == {str(state) for state in EnvironmentState}
         assert set(expected_values) | named_only <= set(environment["state_attributes"])
+        for attribute, name in expected_attribute_names[language].items():
+            assert environment["state_attributes"][attribute]["name"] == name
         for attribute, values in expected_values.items():
             translation = environment["state_attributes"][attribute]
             assert translation["name"]

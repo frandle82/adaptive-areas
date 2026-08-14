@@ -545,15 +545,6 @@
               "unknown": "Unknown"
             }
           },
-          "comfort_quality": {
-            "name": "Comfort quality",
-            "state": {
-              "enhanced": "Temperature and humidity available",
-              "basic": "Temperature only",
-              "not_applicable": "Not applicable",
-              "unknown": "Unknown"
-            }
-          },
           "room_category": {
             "name": "Room category",
             "state": {
@@ -637,7 +628,7 @@
             }
           },
           "ventilation_fan_request": {
-            "name": "Ventilation fan request",
+            "name": "Fan need",
             "state": {
               "none": "None",
               "low": "Low",
@@ -645,7 +636,7 @@
             }
           },
           "circulation_fan_request": {
-            "name": "Circulation fan request",
+            "name": "Air circulation need",
             "state": {
               "none": "None",
               "low": "Low",
@@ -696,7 +687,7 @@
           "outdoor_humidity_ratio": {"name": "Outdoor humidity ratio"},
           "outdoor_enthalpy": {"name": "Outdoor moist-air enthalpy"},
           "moisture_ventilation": {
-            "name": "Moisture ventilation suitability",
+            "name": "Dehumidification by ventilation",
             "state": {
               "favorable": "Outdoor air is drier",
               "unfavorable": "Outdoor air is not drier",
@@ -705,7 +696,7 @@
           },
           "pollutant_measurements": {"name": "Pollutant measurements"},
           "pollutant_assessments": {"name": "Pollutant assessments"},
-          "source_entities": {"name": "Source entities"},
+          "source_entities": {"name": "Entities used"},
           "humidity_warning_duration_seconds": {"name": "High-humidity duration"},
           "context": {"name": "Context"},
           "reason_codes": {
@@ -737,38 +728,6 @@
               "outdoor_air_more_humid": "Outdoor air has equal or greater moisture",
               "window_closed": "A relevant window is closed",
               "ventilation_complete": "Ventilation demand has cleared"
-            }
-          },
-          "decision_context": {
-            "name": "Decision context",
-            "state": {
-              "very_high_co2": "CO₂ is very high",
-              "health_alert": "An Area health warning is active",
-              "high_co2": "CO₂ is high",
-              "co2_hysteresis": "CO₂ remains above the clearing threshold",
-              "high_voc": "VOC level is high",
-              "high_pm25": "PM2.5 is elevated",
-              "high_pm10": "PM10 is elevated",
-              "high_co": "Carbon monoxide is elevated",
-              "high_no2": "Nitrogen dioxide is elevated",
-              "high_aqi": "Air quality index is elevated",
-              "poor_aqi": "Air quality index is poor",
-              "high_humidity": "Humidity is very high",
-              "prolonged_high_humidity": "Humidity has remained high",
-              "rapid_humidity_rise": "Humidity is rising rapidly",
-              "window_already_open": "A relevant window is already open",
-              "room_too_warm": "The room is too warm",
-              "outdoor_air_cooler": "Outdoor air is cooler",
-              "passive_cooling_available": "Passive cooling is available",
-              "outdoor_air_warmer": "Outdoor air is warmer",
-              "active_cooling_recommended": "Active cooling is recommended",
-              "outdoor_air_moisture_penalty": "Cooler outdoor air has no enthalpy advantage",
-              "outdoor_air_drier": "Outdoor air has less moisture",
-              "outdoor_air_more_humid": "Outdoor air has equal or greater moisture",
-              "window_closed": "A relevant window is closed",
-              "ventilation_complete": "Ventilation demand has cleared",
-              "mould_risk_elevated": "Mould risk is elevated",
-              "mould_risk_high": "Mould risk is high"
             }
           }
         }

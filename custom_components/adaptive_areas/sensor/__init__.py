@@ -191,6 +191,25 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         )
         self._assessment_changed()
 
+    @staticmethod
+    def _used_entity_ids(assessment: dict) -> list[str]:
+        """Return a flat list of entities that contributed to the assessment."""
+        entity_ids: set[str] = set()
+        for source in assessment.get("source_entities", {}).values():
+            entity_id = source.get("entity_id")
+            if (
+                source.get("available")
+                and isinstance(entity_id, str)
+                and entity_id.startswith("sensor.")
+            ):
+                entity_ids.add(entity_id)
+            entity_ids.update(
+                entity["entity_id"]
+                for entity in source.get("entities", [])
+                if entity.get("entity_id", "").startswith("sensor.")
+            )
+        return sorted(entity_ids)
+
     def _assessment_changed(self) -> None:
         """Publish stable assessment outputs and transparent source attribution."""
         if self.area.environment is None:
@@ -201,7 +220,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
             "comfort_confidence": assessment.get("comfort_confidence", "unknown"),
-            "comfort_quality": assessment.get("comfort_quality", "unknown"),
             "thermal_input_quality": assessment.get(
                 "thermal_input_quality", "unavailable"
             ),
@@ -231,7 +249,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "moisture_ventilation": assessment.get("moisture_ventilation", "unknown"),
             "pollutant_measurements": dict(pollutants),
             "pollutant_assessments": assessment.get("pollutant_assessments", {}),
-            "source_entities": assessment.get("source_entities", {}),
+            "source_entities": self._used_entity_ids(assessment),
             "window_recommendation": str(
                 assessment.get("window_recommendation", "none")
             ),
@@ -251,8 +269,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             ),
             "context": assessment.get("context", ""),
             "reason_codes": list(assessment.get("reason_codes", [])),
-            # Compatibility alias retained for 1.3 release-candidate users.
-            "decision_context": list(assessment.get("reason_codes", [])),
         }
         for key in ("surface_temperature", "surface_relative_humidity"):
             if key in assessment:

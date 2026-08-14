@@ -754,7 +754,7 @@ class AreaEnvironmentEngine:
 
     @staticmethod
     def _humidex(temperature: float, dew_point: float) -> float:
-        """Calculate published Canadian humidex at warm temperatures."""
+        """Calculate the published Canadian humidex."""
         vapour_pressure = 6.11 * math.exp(
             5417.753 * (1 / 273.15 - 1 / (dew_point + 273.15))
         )
@@ -805,9 +805,7 @@ class AreaEnvironmentEngine:
             self._dew_point(temperature, humidity) if humidity is not None else None
         )
         humidex = (
-            self._humidex(temperature, dew_point)
-            if dew_point is not None and temperature >= 26
-            else None
+            self._humidex(temperature, dew_point) if dew_point is not None else None
         )
         quality = "enhanced" if humidity is not None else "basic"
         assert self.comfort_min is not None
@@ -1491,7 +1489,6 @@ class AreaEnvironmentEngine:
             },
             "comfort": comfort,
             "comfort_confidence": comfort_quality,
-            "comfort_quality": comfort_quality,
             "thermal_input_quality": (
                 "enhanced"
                 if temperature is not None and humidity is not None
