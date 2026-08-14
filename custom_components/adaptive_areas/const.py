@@ -365,7 +365,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 7
+    MINOR = 8
 
 
 class AdaptiveAreasFeatureInfo:
@@ -910,10 +910,12 @@ CONF_FEATURE_ENVIRONMENT = "environment"
 CONF_FEATURE_ROOM_USAGE = "room_usage"
 
 # Cleaning Tracker options
-CONF_PRESENCE_SECONDS_TO_DUE, DEFAULT_PRESENCE_SECONDS_TO_DUE = (
-    "presence_seconds_to_due",
-    8 * 60 * 60,
+CONF_PRESENCE_MINUTES_TO_DUE, DEFAULT_PRESENCE_MINUTES_TO_DUE = (
+    "presence_minutes_to_due",
+    8 * 60,
 )
+# Legacy config key retained for migration and defensive runtime loading.
+CONF_PRESENCE_SECONDS_TO_DUE = "presence_seconds_to_due"
 CLEANING_TRACKER_UPDATE_INTERVAL_SECONDS = 60
 
 # Cleaning Tracker services
@@ -1208,9 +1210,9 @@ PRESENCE_HOLD_FEATURE_SCHEMA = vol.Schema(
 CLEANING_TRACKER_FEATURE_SCHEMA = vol.Schema(
     {
         vol.Optional(
-            CONF_PRESENCE_SECONDS_TO_DUE,
-            default=DEFAULT_PRESENCE_SECONDS_TO_DUE,
-        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            CONF_PRESENCE_MINUTES_TO_DUE,
+            default=DEFAULT_PRESENCE_MINUTES_TO_DUE,
+        ): vol.All(vol.Coerce(float), vol.Range(min=1 / 60)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1863,9 +1865,9 @@ OPTIONS_PRESENCE_HOLD = [
 
 OPTIONS_ROOM_USAGE = [
     (
-        CONF_PRESENCE_SECONDS_TO_DUE,
-        DEFAULT_PRESENCE_SECONDS_TO_DUE,
-        vol.All(vol.Coerce(int), vol.Range(min=1)),
+        CONF_PRESENCE_MINUTES_TO_DUE,
+        DEFAULT_PRESENCE_MINUTES_TO_DUE,
+        vol.All(vol.Coerce(float), vol.Range(min=1 / 60)),
     ),
 ]
 

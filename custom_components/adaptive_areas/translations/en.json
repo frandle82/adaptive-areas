@@ -175,10 +175,10 @@
         "title": "Cleaning Tracker",
         "description": "Track cumulative Area presence since the last cleaning and calculate when cleaning is due.",
         "data": {
-          "presence_seconds_to_due": "Presence time until cleaning is due"
+          "presence_minutes_to_due": "Presence time until cleaning is due"
         },
         "data_description": {
-          "presence_seconds_to_due": "Cumulative occupied seconds corresponding to a Cleaning Score of 100%."
+          "presence_minutes_to_due": "Cumulative occupied minutes corresponding to a Cleaning Score of 100%."
         }
       },
       "feature_conf_switch_groups": {
@@ -442,7 +442,7 @@
         "state_attributes": {
           "cleaning_score": {"name": "Cleaning score"},
           "cumulative_presence_seconds": {"name": "Cumulative presence"},
-          "presence_seconds_to_due": {"name": "Presence time until due"},
+          "presence_minutes_to_due": {"name": "Presence time until due"},
           "last_cleaned": {"name": "Last cleaned"}
         }
       },
@@ -760,7 +760,7 @@
         "name": "Cleaning score",
         "state_attributes": {
           "cumulative_presence_seconds": {"name": "Cumulative presence"},
-          "presence_seconds_to_due": {"name": "Presence time until due"},
+          "presence_minutes_to_due": {"name": "Presence time until due"},
           "current_occupancy_duration_seconds": {"name": "Current occupancy duration"},
           "last_cleaned": {"name": "Last cleaned"}
         }

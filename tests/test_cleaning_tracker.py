@@ -13,7 +13,7 @@ from custom_components.adaptive_areas.const import (
     ATTR_SCORE,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_ROOM_USAGE,
-    CONF_PRESENCE_SECONDS_TO_DUE,
+    CONF_PRESENCE_MINUTES_TO_DUE,
     DATA_AREA_OBJECT,
     DOMAIN,
     MODULE_DATA,
@@ -31,13 +31,13 @@ from tests.helpers import (
 )
 
 
-def _entry(area_id: MockAreaIds, threshold: int) -> MockConfigEntry:
+def _entry(area_id: MockAreaIds, threshold_minutes: float) -> MockConfigEntry:
     """Create a current-version Cleaning Tracker config entry."""
     data = get_basic_config_entry_data(area_id)
     data[CONF_ENABLED_FEATURES] = {
-        CONF_FEATURE_ROOM_USAGE: {CONF_PRESENCE_SECONDS_TO_DUE: threshold}
+        CONF_FEATURE_ROOM_USAGE: {CONF_PRESENCE_MINUTES_TO_DUE: threshold_minutes}
     }
-    return MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=7)
+    return MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=8)
 
 
 def _score_entity(area_id: MockAreaIds) -> str:
@@ -53,8 +53,8 @@ async def test_two_areas_accumulate_independently_and_services_support_multiple(
     freezer,
 ) -> None:
     """Parallel Areas do not share counters and services accept Area lists."""
-    kitchen_entry = _entry(MockAreaIds.KITCHEN, 100)
-    living_entry = _entry(MockAreaIds.LIVING_ROOM, 100)
+    kitchen_entry = _entry(MockAreaIds.KITCHEN, 2)
+    living_entry = _entry(MockAreaIds.LIVING_ROOM, 2)
     entries = [kitchen_entry, living_entry]
     await init_integration(
         hass,
@@ -75,7 +75,7 @@ async def test_two_areas_accumulate_independently_and_services_support_multiple(
     assert kitchen.room_usage.assessment["cumulative_presence_seconds"] == 40
     assert living.room_usage.assessment["cumulative_presence_seconds"] == 0
 
-    freezer.tick(60)
+    freezer.tick(80)
     await kitchen.room_usage._async_periodic_update(dt_util.utcnow())
     assert kitchen.room_usage.assessment["score"] == 100
     assert hass.states.get(_due_entity(MockAreaIds.KITCHEN)).state == STATE_ON
@@ -133,7 +133,7 @@ async def test_persistence_and_clean_unload_reload(
     hass: HomeAssistant,
 ) -> None:
     """A reload restores state and retires the old engine's callbacks."""
-    entry = _entry(MockAreaIds.KITCHEN, 200)
+    entry = _entry(MockAreaIds.KITCHEN, 10)
     await init_integration(hass, [entry])
     old_area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     old_engine = old_area.room_usage
@@ -145,7 +145,7 @@ async def test_persistence_and_clean_unload_reload(
         {ATTR_AREA_ID: [old_area.id], ATTR_SCORE: 37.5},
         blocking=True,
     )
-    assert old_engine.assessment["cumulative_presence_seconds"] == 75
+    assert old_engine.assessment["cumulative_presence_seconds"] == 225
 
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
@@ -158,9 +158,7 @@ async def test_persistence_and_clean_unload_reload(
     restored = hass.states.get(_score_entity(MockAreaIds.KITCHEN))
     assert restored is not None
     assert restored.state == "37.5"
-    assert restored.attributes[
-        "cumulative_presence_seconds"
-    ] == 75
+    assert restored.attributes["cumulative_presence_seconds"] == 225
     assert hass.services.has_service(DOMAIN, SERVICE_MARK_CLEANED)
 
     await shutdown_integration(hass, [entry])

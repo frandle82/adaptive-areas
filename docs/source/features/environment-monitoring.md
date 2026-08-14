@@ -62,12 +62,12 @@ Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery 
 
 The optional **Cleaning Tracker** replaces the former daily Room Usage classifier while preserving its existing sensor and unique IDs. It uses the Area's established Adaptive Areas presence events; no separate presence detection is created.
 
-For every regular Home Assistant Area, the tracker accumulates occupied seconds since the last cleaning. The value is persisted across Home Assistant restarts and config-entry reloads and is refreshed every minute while the Area remains occupied. Configure **Presence time until cleaning is due** per Area; the default is 28,800 seconds (8 hours).
+For every regular Home Assistant Area, the tracker accumulates occupied time since the last cleaning. The value is persisted across Home Assistant restarts and config-entry reloads and is refreshed every minute while the Area remains occupied. Configure **Presence time until cleaning is due** in minutes per Area; the default is 480 minutes (8 hours).
 
 The existing `sensor.adaptive_areas_room_usage_<area>` now reports a numeric Cleaning Score from 0 to 100%:
 
 ```text
-min(100, cumulative_presence_seconds / presence_seconds_to_due * 100)
+min(100, cumulative_presence_seconds / (presence_minutes_to_due * 60) * 100)
 ```
 
 `binary_sensor.adaptive_areas_room_usage_<area>_cleaning_due` turns on when the accumulated presence reaches the configured threshold.

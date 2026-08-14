@@ -189,10 +189,10 @@
                 "title": "Reinigungs-Tracker",
                 "description": "Erfasst die kumulierte Anwesenheit seit der letzten Reinigung und berechnet, wann die Reinigung fällig ist.",
                 "data": {
-                    "presence_seconds_to_due": "Anwesenheitszeit bis zur fälligen Reinigung"
+                    "presence_minutes_to_due": "Anwesenheitszeit bis zur fälligen Reinigung"
                 },
                 "data_description": {
-                    "presence_seconds_to_due": "Kumulierte belegte Sekunden, die einem Reinigungswert von 100 % entsprechen."
+                    "presence_minutes_to_due": "Kumulierte belegte Minuten, die einem Reinigungswert von 100 % entsprechen."
                 }
             },
             "feature_conf_area_aware_media_player": {
@@ -442,7 +442,7 @@
                 "state_attributes": {
                     "cleaning_score": {"name": "Reinigungswert"},
                     "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
-                    "presence_seconds_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
+                    "presence_minutes_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
                     "last_cleaned": {"name": "Zuletzt gereinigt"}
                 }
             },
@@ -760,7 +760,7 @@
                 "name": "Reinigungswert",
                 "state_attributes": {
                     "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
-                    "presence_seconds_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
+                    "presence_minutes_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
                     "current_occupancy_duration_seconds": {"name": "Aktuelle Anwesenheitsdauer"},
                     "last_cleaned": {"name": "Zuletzt gereinigt"}
                 }

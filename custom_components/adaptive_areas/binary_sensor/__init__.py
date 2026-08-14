@@ -97,7 +97,7 @@ class CleaningDueBinarySensor(BinaryAdaptiveEntity, BinarySensorEntity):
         self._attr_extra_state_attributes = {
             "cleaning_score": assessment["score"],
             "cumulative_presence_seconds": assessment["cumulative_presence_seconds"],
-            "presence_seconds_to_due": assessment["presence_seconds_to_due"],
+            "presence_minutes_to_due": assessment["presence_minutes_to_due"],
             "last_cleaned": assessment["last_cleaned"],
         }
         self.async_write_ha_state()

@@ -51,7 +51,7 @@ from custom_components.adaptive_areas.const import (
     CONF_ID,
     CONF_INCLUDE_ENTITIES,
     CONF_NAME,
-    CONF_PRESENCE_SECONDS_TO_DUE,
+    CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_ROOM_CATEGORY,
     CONF_TRACK_ROOM_USAGE,
     CONF_TYPE,
@@ -69,7 +69,7 @@ from custom_components.adaptive_areas.const import (
     VentilationState,
     WindowRecommendation,
     DATA_AREA_OBJECT,
-    DEFAULT_PRESENCE_SECONDS_TO_DUE,
+    DEFAULT_PRESENCE_MINUTES_TO_DUE,
     DOMAIN,
     MODULE_DATA,
 )
@@ -995,7 +995,7 @@ async def test_room_usage_uses_presence_transitions_only(
         hass,
         {
             CONF_ENABLED_FEATURES: {
-                CONF_FEATURE_ROOM_USAGE: {CONF_PRESENCE_SECONDS_TO_DUE: 7200}
+                CONF_FEATURE_ROOM_USAGE: {CONF_PRESENCE_MINUTES_TO_DUE: 120}
             }
         },
         environment=False,
@@ -1076,8 +1076,8 @@ async def test_room_usage_is_independent_optional_feature(
     assert state is not None
     assert state.state == "0.0"
     assert state.attributes["cumulative_presence_seconds"] == 0
-    assert state.attributes["presence_seconds_to_due"] == (
-        DEFAULT_PRESENCE_SECONDS_TO_DUE
+    assert state.attributes["presence_minutes_to_due"] == (
+        DEFAULT_PRESENCE_MINUTES_TO_DUE
     )
     due = hass.states.get(
         f"binary_sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}_cleaning_due"
@@ -1326,7 +1326,7 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 7
+    assert entry.minor_version == 8
     assert entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
@@ -1406,7 +1406,7 @@ async def test_rc6_migration_keeps_evaluation_disabled(hass: HomeAssistant) -> N
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=4)
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 7
+    assert entry.minor_version == 8
     assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
     assert entry.data[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.saved_temperature"
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.saved_outdoor"
@@ -1426,7 +1426,7 @@ async def test_legacy_room_usage_toggle_migrates_to_independent_feature(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 7
+    assert entry.minor_version == 8
     assert CONF_TRACK_ROOM_USAGE not in entry.data
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert CONF_FEATURE_ROOM_USAGE in area.config[CONF_ENABLED_FEATURES]
@@ -1457,7 +1457,7 @@ def test_legacy_room_usage_storage_migration() -> None:
         CONF_FEATURE_ROOM_USAGE,
     }
     assert migrated[CONF_ENABLED_FEATURES][CONF_FEATURE_ROOM_USAGE] == {
-        CONF_PRESENCE_SECONDS_TO_DUE: DEFAULT_PRESENCE_SECONDS_TO_DUE
+        CONF_PRESENCE_MINUTES_TO_DUE: DEFAULT_PRESENCE_MINUTES_TO_DUE
     }
     assert options == {}
     assert data_changed is True
@@ -1612,7 +1612,7 @@ def test_environment_translation_value_coverage() -> None:
         usage = content["entity"]["sensor"]["room_usage"]
         assert set(usage["state_attributes"]) == {
             "cumulative_presence_seconds",
-            "presence_seconds_to_due",
+            "presence_minutes_to_due",
             "current_occupancy_duration_seconds",
             "last_cleaned",
         }

@@ -13,8 +13,9 @@ from homeassistant.util import dt as dt_util
 from custom_components.adaptive_areas.const import (
     CLEANING_TRACKER_UPDATE_INTERVAL_SECONDS,
     CONF_FEATURE_ROOM_USAGE,
+    CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SECONDS_TO_DUE,
-    DEFAULT_PRESENCE_SECONDS_TO_DUE,
+    DEFAULT_PRESENCE_MINUTES_TO_DUE,
     DOMAIN,
     AdaptiveAreasEvents,
 )
@@ -34,15 +35,22 @@ class RoomUsageEngine:
             STORAGE_VERSION,
             f"{STORAGE_KEY_PREFIX}.{area.id}",
         )
-        self._presence_seconds_to_due = max(
-            1,
-            int(
-                area.feature_config(CONF_FEATURE_ROOM_USAGE).get(
-                    CONF_PRESENCE_SECONDS_TO_DUE,
-                    DEFAULT_PRESENCE_SECONDS_TO_DUE,
-                )
-            ),
-        )
+        feature_config = area.feature_config(CONF_FEATURE_ROOM_USAGE)
+        if CONF_PRESENCE_MINUTES_TO_DUE in feature_config:
+            presence_minutes_to_due = float(
+                feature_config[CONF_PRESENCE_MINUTES_TO_DUE]
+            )
+            self._presence_seconds_to_due = max(1, presence_minutes_to_due * 60)
+        else:
+            self._presence_seconds_to_due = max(
+                1,
+                float(
+                    feature_config.get(
+                        CONF_PRESENCE_SECONDS_TO_DUE,
+                        DEFAULT_PRESENCE_MINUTES_TO_DUE * 60,
+                    )
+                ),
+            )
         self._cumulative_presence_seconds = 0.0
         self._last_cleaned: datetime | None = None
         self._occupied = area.is_occupied()
@@ -125,7 +133,7 @@ class RoomUsageEngine:
             "score": round(score, 2),
             "due": (self._cumulative_presence_seconds >= self._presence_seconds_to_due),
             "cumulative_presence_seconds": round(self._cumulative_presence_seconds, 3),
-            "presence_seconds_to_due": self._presence_seconds_to_due,
+            "presence_minutes_to_due": round(self._presence_seconds_to_due / 60, 3),
             "current_occupancy_duration_seconds": current_duration,
             "last_cleaned": (
                 self._last_cleaned.isoformat() if self._last_cleaned else None

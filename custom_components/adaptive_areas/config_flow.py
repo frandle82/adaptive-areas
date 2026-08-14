@@ -123,7 +123,7 @@ from .const import (
     CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_HOLD_TIMEOUT,
-    CONF_PRESENCE_SECONDS_TO_DUE,
+    CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_ROOM_CATEGORY,
@@ -1786,9 +1786,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
     async def async_step_feature_conf_room_usage(self, user_input=None):
         """Configure the Cleaning Tracker feature."""
         selectors = {
-            CONF_PRESENCE_SECONDS_TO_DUE: self._build_selector_number(
-                min_value=1,
-                unit_of_measurement="seconds",
+            CONF_PRESENCE_MINUTES_TO_DUE: self._build_selector_number(
+                min_value=1 / 60,
+                step=1 / 60,
+                unit_of_measurement="minutes",
             )
         }
         return await self.do_feature_config(

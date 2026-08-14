@@ -46,6 +46,7 @@ from custom_components.adaptive_areas.const import (
     CONF_INCLUDE_ENTITIES,
     CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
+    CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SECONDS_TO_DUE,
     CONF_TRACK_ROOM_USAGE,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
@@ -62,7 +63,7 @@ from custom_components.adaptive_areas.const import (
     DATA_TRACKED_LISTENERS,
     DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
     DEFAULT_ROOM_CATEGORY,
-    DEFAULT_PRESENCE_SECONDS_TO_DUE,
+    DEFAULT_PRESENCE_MINUTES_TO_DUE,
     MODULE_DATA,
     AdaptiveConfigEntryVersion,
 )
@@ -196,6 +197,23 @@ def _migrate_room_usage_feature(
     data: dict[str, Any], options: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], bool, bool]:
     """Move legacy top-level Room Usage toggle into enabled features."""
+
+    def migrate_threshold(feature_config: dict[str, Any]) -> bool:
+        """Convert a legacy seconds threshold to minutes in place."""
+        legacy_seconds = feature_config.pop(CONF_PRESENCE_SECONDS_TO_DUE, None)
+        if CONF_PRESENCE_MINUTES_TO_DUE in feature_config:
+            return legacy_seconds is not None
+        try:
+            minutes = (
+                max(1 / 60, float(legacy_seconds) / 60)
+                if legacy_seconds is not None
+                else DEFAULT_PRESENCE_MINUTES_TO_DUE
+            )
+        except TypeError, ValueError:
+            minutes = DEFAULT_PRESENCE_MINUTES_TO_DUE
+        feature_config[CONF_PRESENCE_MINUTES_TO_DUE] = minutes
+        return True
+
     migrated_data = dict(data)
     migrated_options = dict(options)
     legacy_enabled = bool(
@@ -218,31 +236,27 @@ def _migrate_room_usage_feature(
         if options:
             options_features[CONF_FEATURE_ROOM_USAGE] = {}
             configured_in_options = True
+            options_changed = True
         else:
             data_features[CONF_FEATURE_ROOM_USAGE] = {}
             configured_in_data = True
+            data_changed = True
 
     if configured_in_options:
         feature_config = options_features.get(CONF_FEATURE_ROOM_USAGE)
         feature_config = (
             dict(feature_config) if isinstance(feature_config, dict) else {}
         )
-        if CONF_PRESENCE_SECONDS_TO_DUE not in feature_config:
-            feature_config[CONF_PRESENCE_SECONDS_TO_DUE] = (
-                DEFAULT_PRESENCE_SECONDS_TO_DUE
-            )
+        if migrate_threshold(feature_config):
             options_changed = True
         options_features[CONF_FEATURE_ROOM_USAGE] = feature_config
         migrated_options[CONF_ENABLED_FEATURES] = options_features
-    elif configured_in_data:
+    if configured_in_data:
         feature_config = data_features.get(CONF_FEATURE_ROOM_USAGE)
         feature_config = (
             dict(feature_config) if isinstance(feature_config, dict) else {}
         )
-        if CONF_PRESENCE_SECONDS_TO_DUE not in feature_config:
-            feature_config[CONF_PRESENCE_SECONDS_TO_DUE] = (
-                DEFAULT_PRESENCE_SECONDS_TO_DUE
-            )
+        if migrate_threshold(feature_config):
             data_changed = True
         data_features[CONF_FEATURE_ROOM_USAGE] = feature_config
         migrated_data[CONF_ENABLED_FEATURES] = data_features
