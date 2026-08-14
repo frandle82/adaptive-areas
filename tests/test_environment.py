@@ -17,6 +17,7 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
+    EntityCategory,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -684,6 +685,9 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
             config_entry=source_entry,
             device_id=device_id,
             original_device_class=device_class,
+            entity_category=(
+                EntityCategory.DIAGNOSTIC if unique_id == "device_pm25" else None
+            ),
             unit_of_measurement=unit,
         )
         if area_id:
@@ -713,6 +717,9 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     ]
     assert len(engine.assessment["source_entities"]["pm25"]["entities"]) == 2
     assert len(engine.assessment["source_entities"]["voc"]["entities"]) == 2
+    assert engine.assessment["pollutants"]["pm25"] == 20
+    assert engine.assessment["pollutant_assessments"]["pm25"]["current"] == 20
+    assert engine.assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
 
     engine.unload()
 

@@ -68,7 +68,10 @@ from custom_components.adaptive_areas.helpers.decision_trace import (
     DecisionTrace,
     safe_record,
 )
-from custom_components.adaptive_areas.helpers.environment import AreaEnvironmentEngine
+from custom_components.adaptive_areas.helpers.environment import (
+    POLLUTANT_NAMES,
+    AreaEnvironmentEngine,
+)
 from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
 from custom_components.adaptive_areas.repairs import (
     get_configured_entity_references,
@@ -306,11 +309,18 @@ class AdaptiveArea:
         if self.config.get(
             CONF_IGNORE_DIAGNOSTIC_ENTITIES, DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
         ):
-            if entity.entity_category in [
-                EntityCategory.CONFIG,
-                EntityCategory.DIAGNOSTIC,
-            ]:
+            if entity.entity_category == EntityCategory.CONFIG:
                 return True
+            if entity.entity_category == EntityCategory.DIAGNOSTIC:
+                state = self.hass.states.get(entity.entity_id)
+                is_room_climate_source = (
+                    self.has_feature(CONF_FEATURE_ENVIRONMENT)
+                    and entity.domain == "sensor"
+                    and state is not None
+                    and state.attributes.get(ATTR_DEVICE_CLASS) in POLLUTANT_NAMES
+                )
+                if not is_room_climate_source:
+                    return True
 
         return False
 
