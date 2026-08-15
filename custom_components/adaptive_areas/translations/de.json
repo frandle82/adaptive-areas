@@ -343,7 +343,7 @@
                     "type": "Bereichsart (innen/außen)",
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
                     "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren",
-                    "room_category": "Raumkategorie",
+                    "room_category": "Bereichskategorie",
                     "area_temperature_sensor": "Temperatursensor des Bereichs",
                     "area_humidity_sensor": "Luftfeuchtigkeitssensor des Bereichs"
                 },
@@ -354,7 +354,7 @@
                     "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
                     "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
                     "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind.",
-                    "room_category": "Legt den Raumzweck für die kategoriespezifische thermische Einordnung fest. Das Profil ist eine betriebliche Einordnung und kein universeller Komfortstandard.",
+                    "room_category": "Legt den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
                     "area_temperature_sensor": "Sensor, dessen Messwert als Raumtemperatur dieses Bereichs verwendet wird.",
                     "area_humidity_sensor": "Sensor, dessen Messwert als relative Luftfeuchtigkeit dieses Bereichs verwendet wird."
                 }
@@ -537,6 +537,11 @@
                 "name": "Schlaflichter"
             }
         },
+        "number": {
+            "environment_reference_temperature": {
+                "name": "Raumklima-Referenztemperatur"
+            }
+        },
         "sensor": {
             "environment": {
                 "name": "Raumklima",
@@ -556,21 +561,12 @@
                             "warm": "Warm",
                             "hot": "Heiß",
                             "very_hot": "Sehr heiß",
-                            "not_applicable": "Für diese Raumkategorie nicht anwendbar",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "comfort_confidence": {
-                        "name": "Qualität der Komfortbewertung",
-                        "state": {
-                            "enhanced": "Temperatur und Luftfeuchtigkeit verfügbar",
-                            "basic": "Nur Temperatur verfügbar",
-                            "not_applicable": "Nicht anwendbar",
+                            "not_applicable": "Für diese Bereichskategorie nicht anwendbar",
                             "unknown": "Unbekannt"
                         }
                     },
                     "room_category": {
-                        "name": "Raumkategorie",
+                        "name": "Bereichskategorie",
                         "state": {
                             "living_sedentary": "Wohnen / sitzende Nutzung",
                             "sleeping_rest": "Schlafen / Ruhe",
@@ -579,18 +575,11 @@
                             "circulation_transient": "Flur / Durchgang",
                             "service_storage": "Technik / Lager",
                             "unconditioned": "Unbeheizt",
+                            "manual": "Manuell",
                             "unknown": "Unbekannt"
                         }
                     },
                     "thermal_profile": {"name": "Thermisches Profil"},
-                    "thermal_input_quality": {
-                        "name": "Qualität der thermischen Eingangsdaten",
-                        "state": {
-                            "enhanced": "Primäre Temperatur und Luftfeuchtigkeit verfügbar",
-                            "basic": "Nur primäre Temperatur verfügbar",
-                            "unavailable": "Primäre Temperatur nicht verfügbar"
-                        }
-                    },
                     "humidity": {
                         "name": "Luftfeuchtigkeit",
                         "state": {
@@ -680,6 +669,7 @@
                             "aqi": "Luftqualitätsindex",
                             "co": "Kohlenmonoxid",
                             "no2": "Stickstoffdioxid",
+                            "ventilation_fans": "Lüftungsventilatoren",
                             "windows": "Fenster",
                             "outdoor_temperature": "Außentemperatur",
                             "outdoor_humidity": "Außenluftfeuchtigkeit",
@@ -687,8 +677,6 @@
                             "health": "Gesundheitswarnungen des Bereichs"
                         }
                     },
-                    "temperature": {"name": "Temperatur"},
-                    "relative_humidity": {"name": "Relative Luftfeuchtigkeit"},
                     "dew_point": {"name": "Taupunkttemperatur"},
                     "absolute_humidity": {"name": "Absolute Luftfeuchtigkeit"},
                     "humidity_ratio": {"name": "Feuchteverhältnis"},
@@ -706,8 +694,6 @@
                         }
                     },
                     "mould_warning_duration_seconds": {"name": "Dauer der Schimmelrisikowarnung"},
-                    "outdoor_temperature": {"name": "Außentemperatur"},
-                    "outdoor_relative_humidity": {"name": "Relative Außenluftfeuchtigkeit"},
                     "outdoor_humidity_ratio": {"name": "Feuchteverhältnis außen"},
                     "outdoor_enthalpy": {"name": "Enthalpie der Außenluft"},
                     "moisture_ventilation": {
@@ -861,7 +847,8 @@
           "active_domestic": "Aktive Hausarbeit",
           "circulation_transient": "Flur / Durchgang",
           "service_storage": "Technik / Lager",
-          "unconditioned": "Unbeheizt"
+          "unconditioned": "Unbeheizt",
+          "manual": "Manuell"
         }
       }
     },

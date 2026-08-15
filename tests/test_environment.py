@@ -37,6 +37,7 @@ from custom_components.adaptive_areas.const import (
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
+    CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_COMFORT_MAX,
     CONF_ENVIRONMENT_COMFORT_MIN,
     CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
@@ -72,6 +73,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_PRESENCE_MINUTES_TO_DUE,
     DOMAIN,
     MODULE_DATA,
+    AdaptiveConfigEntryVersion,
 )
 from custom_components.adaptive_areas.helpers.environment import AreaEnvironmentEngine
 from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
@@ -351,12 +353,13 @@ def test_fahrenheit_temperature_is_converted(hass: HomeAssistant) -> None:
 
 
 def test_passive_and_active_cooling(hass: HomeAssistant) -> None:
-    """Outdoor comparison distinguishes passive and active cooling."""
+    """Windows and fans enable passive and active cooling recommendations."""
     area = _area(
         hass,
         {
             CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: "sensor.outdoor_temperature",
             CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"],
+            CONF_ENVIRONMENT_VENTILATION_FANS: ["fan.ventilation"],
         },
     )
     _sensor(
@@ -400,7 +403,7 @@ def test_passive_and_active_cooling(hass: HomeAssistant) -> None:
 
 
 def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
-    """CO2 is the primary ventilation input and clears below 850 ppm."""
+    """Without a fan, CO2 ventilation is recommended through a window only."""
     area = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
     _sensor(hass, area, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
     hass.states.async_set(
@@ -412,7 +415,7 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     engine = AreaEnvironmentEngine(area)
     assert engine.assessment["ventilation"] == VentilationState.RECOMMENDED
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
-    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.LOW
+    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
 
     hass.states.async_set(
         "sensor.co2", "900", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
@@ -435,6 +438,30 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     engine.evaluate()
     assert engine.assessment["ventilation"] == VentilationState.NOT_REQUIRED
     assert engine.assessment["window_recommendation"] == WindowRecommendation.CLOSE
+
+
+def test_co2_requests_fan_and_window_when_both_are_configured(
+    hass: HomeAssistant,
+) -> None:
+    """A configured fan and window both receive suitable ventilation advice."""
+    area = _area(
+        hass,
+        {
+            CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"],
+            CONF_ENVIRONMENT_VENTILATION_FANS: ["fan.ventilation"],
+        },
+    )
+    _sensor(hass, area, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["window_recommendation"] == WindowRecommendation.OPEN
+    assert assessment["ventilation_fan_request"] == VentilationFanRequest.LOW
 
 
 def test_humidity_immediate_and_duration_design(hass: HomeAssistant) -> None:
@@ -705,7 +732,6 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
             },
         )
 
-    await area.load_entities()
     engine = AreaEnvironmentEngine(area)
 
     assert engine._sensor_ids[str(SensorDeviceClass.PM25)] == [
@@ -942,7 +968,7 @@ async def test_late_exterior_area_refreshes_automatic_sources(
     engine._area_loaded(AREA_TYPE_EXTERIOR, None, exterior.id)
 
     assert engine.assessment["outdoor_temperature"] == 20
-    assert engine.assessment["cooling"] == CoolingState.PASSIVE_RECOMMENDED
+    assert engine.assessment["cooling"] == CoolingState.UNKNOWN
     hass.states.async_set(
         "sensor.garden_temperature",
         "30",
@@ -1189,8 +1215,6 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert state is not None
     assert state.state == EnvironmentState.GOOD
-    assert state.attributes["temperature"] == 21.5
-    assert state.attributes["relative_humidity"] == 50
     assert state.attributes["humidex"] is not None
     assert state.attributes["comfort"] != ComfortState.UNKNOWN
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
@@ -1201,11 +1225,72 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
         isinstance(entity_id, str) for entity_id in state.attributes["source_entities"]
     )
     assert "comfort_quality" not in state.attributes
+    assert "comfort_confidence" not in state.attributes
+    assert "thermal_input_quality" not in state.attributes
+    assert "temperature" not in state.attributes
+    assert "relative_humidity" not in state.attributes
+    assert "outdoor_temperature" not in state.attributes
+    assert "outdoor_relative_humidity" not in state.attributes
     assert "decision_context" not in state.attributes
     assert "room_usage" not in state.attributes
     assert "cleaning_recommendation" not in state.attributes
     assert "surface_temperature" not in state.attributes
     assert "surface_relative_humidity" not in state.attributes
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_manual_category_creates_reference_temperature_number(
+    hass: HomeAssistant,
+) -> None:
+    """Manual category exposes a restorable half-degree thermal reference."""
+    temperature = MockSensor(
+        name="manual_temperature",
+        unique_id="manual_temperature_runtime",
+        native_value=20,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        unit_of_measurement=UnitOfTemperature.CELSIUS,
+    )
+    await setup_mock_entities(hass, "sensor", {DEFAULT_MOCK_AREA: [temperature]})
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data.update(
+        {
+            CONF_ENABLED_FEATURES: {CONF_FEATURE_ENVIRONMENT: {}},
+            CONF_AREA_TEMPERATURE_SENSOR: temperature.entity_id,
+            CONF_ROOM_CATEGORY: RoomCategory.MANUAL,
+        }
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        version=AdaptiveConfigEntryVersion.MAJOR,
+        minor_version=AdaptiveConfigEntryVersion.MINOR,
+    )
+    await init_integration(hass, [entry])
+
+    entity_id = (
+        f"number.adaptive_areas_environment_reference_temperature_"
+        f"{DEFAULT_MOCK_AREA}"
+    )
+    reference = hass.states.get(entity_id)
+    assert reference is not None
+    assert reference.state == "20.0"
+    assert reference.attributes["step"] == 0.5
+
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {ATTR_ENTITY_ID: entity_id, "value": 23.0},
+        blocking=True,
+    )
+
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.environment is not None
+    assert (
+        area.environment.assessment["thermal_profile"]["reference_temperature"] == 23.0
+    )
+    assert area.environment.assessment["comfort"] == ComfortState.COOL
 
     await shutdown_integration(hass, [entry])
 
@@ -1540,8 +1625,6 @@ def test_environment_translation_value_coverage() -> None:
     }
     expected_values = {
         "comfort": {str(state) for state in ComfortState},
-        "comfort_confidence": {"enhanced", "basic", "not_applicable", "unknown"},
-        "thermal_input_quality": {"enhanced", "basic", "unavailable"},
         "room_category": {str(category) for category in RoomCategory} | {"unknown"},
         "humidity": {str(state) for state in HumidityState},
         "mould_risk": {str(state) for state in MouldRiskState},
@@ -1563,6 +1646,7 @@ def test_environment_translation_value_coverage() -> None:
             "aqi",
             "co",
             "no2",
+            "ventilation_fans",
             "windows",
             "outdoor_temperature",
             "outdoor_humidity",
@@ -1571,8 +1655,6 @@ def test_environment_translation_value_coverage() -> None:
         },
     }
     named_only = {
-        "temperature",
-        "relative_humidity",
         "dew_point",
         "absolute_humidity",
         "humidity_ratio",
@@ -1583,8 +1665,6 @@ def test_environment_translation_value_coverage() -> None:
         "surface_temperature",
         "surface_relative_humidity",
         "mould_warning_duration_seconds",
-        "outdoor_temperature",
-        "outdoor_relative_humidity",
         "outdoor_humidity_ratio",
         "outdoor_enthalpy",
         "pollutant_measurements",

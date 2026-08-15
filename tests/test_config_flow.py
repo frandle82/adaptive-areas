@@ -438,6 +438,12 @@ async def test_room_climate_standard_feature_form(hass) -> None:
     area_result = await flow.async_step_area_config()
     area_fields = {marker.schema for marker in area_result["data_schema"].schema}
     assert CONF_ROOM_CATEGORY in area_fields
+    category_selector = next(
+        field
+        for marker, field in area_result["data_schema"].schema.items()
+        if marker.schema == CONF_ROOM_CATEGORY
+    )
+    assert RoomCategory.MANUAL in category_selector.config["options"]
     assert CONF_AREA_TEMPERATURE_SENSOR in area_fields
     assert CONF_AREA_HUMIDITY_SENSOR in area_fields
 
@@ -599,6 +605,60 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     await shutdown_integration(hass, [config_entry])
 
 
+async def test_manual_category_number_follows_options_flow_lifecycle(hass) -> None:
+    """The reference number exists only while Manual category is selected."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ROOM_CATEGORY] = RoomCategory.LIVING_SEDENTARY
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        version=AdaptiveConfigEntryVersion.MAJOR,
+        minor_version=AdaptiveConfigEntryVersion.MINOR,
+    )
+    await init_integration(hass, [entry])
+    entity_id = (
+        f"number.adaptive_areas_environment_reference_temperature_"
+        f"{DEFAULT_MOCK_AREA}"
+    )
+    entity_registry = async_get_entity_registry(hass)
+
+    assert hass.states.get(entity_id) is None
+    assert entity_registry.async_get(entity_id) is None
+
+    async def select_category(
+        category: RoomCategory, *, enable_environment: bool = False
+    ) -> None:
+        flow = OptionsFlowHandler()
+        flow.hass = hass
+        flow.handler = entry.entry_id
+        await flow.async_step_init()
+        result = await flow.async_step_area_config({CONF_ROOM_CATEGORY: category})
+        assert result["type"] == "menu"
+        if enable_environment:
+            result = await flow.async_step_select_features(
+                {CONF_FEATURE_ENVIRONMENT: True}
+            )
+            assert result["type"] == "menu"
+        result = await flow.async_step_finish()
+        assert result["type"] == "create_entry"
+        hass.config_entries.async_update_entry(entry, options=result["data"])
+        await hass.async_block_till_done()
+
+    await select_category(RoomCategory.MANUAL, enable_environment=True)
+
+    assert entry.options[CONF_ROOM_CATEGORY] == RoomCategory.MANUAL
+    assert hass.states.get(entity_id) is not None
+    assert entity_registry.async_get(entity_id) is not None
+
+    await select_category(RoomCategory.SLEEPING_REST)
+
+    assert entry.options[CONF_ROOM_CATEGORY] == RoomCategory.SLEEPING_REST
+    assert hass.states.get(entity_id) is None
+    assert entity_registry.async_get(entity_id) is None
+
+    await shutdown_integration(hass, [entry])
+
+
 async def test_arbeitszimmer_primary_sources_survive_real_options_workflow(
     hass,
 ) -> None:
@@ -716,14 +776,21 @@ async def test_arbeitszimmer_primary_sources_survive_real_options_workflow(
     room_climate = hass.states.get(f"sensor.adaptive_areas_environment_{area_entry.id}")
     assert room_climate is not None
     for key in (
-        "temperature",
-        "relative_humidity",
         "dew_point",
         "absolute_humidity",
         "humidity_ratio",
         "enthalpy",
     ):
         assert room_climate.attributes[key] is not None
+    for key in (
+        "temperature",
+        "relative_humidity",
+        "outdoor_temperature",
+        "outdoor_relative_humidity",
+        "comfort_confidence",
+        "thermal_input_quality",
+    ):
+        assert key not in room_climate.attributes
 
     await shutdown_integration(hass, [entry])
 

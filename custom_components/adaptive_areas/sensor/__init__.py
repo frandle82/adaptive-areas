@@ -215,14 +215,9 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         if self.area.environment is None:
             return
         assessment = self.area.environment.assessment
-        pollutants = assessment.get("pollutants", {})
         self._attr_native_value = str(assessment.get("state", "unknown"))
         attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
-            "comfort_confidence": assessment.get("comfort_confidence", "unknown"),
-            "thermal_input_quality": assessment.get(
-                "thermal_input_quality", "unavailable"
-            ),
             "room_category": str(assessment.get("room_category", "unknown")),
             "thermal_profile": assessment.get("thermal_profile", {}),
             "humidity": str(assessment.get("humidity", "unknown")),
@@ -230,8 +225,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "air_quality": str(assessment.get("air_quality", "unknown")),
             "ventilation": str(assessment.get("ventilation", "unknown")),
             "cooling": str(assessment.get("cooling", "unknown")),
-            "temperature": assessment.get("temperature"),
-            "relative_humidity": assessment.get("relative_humidity"),
             "dew_point": assessment.get("dew_point"),
             "absolute_humidity": assessment.get("absolute_humidity"),
             "humidity_ratio": assessment.get("humidity_ratio"),
@@ -242,12 +235,10 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "mould_warning_duration_seconds": assessment.get(
                 "mould_warning_duration_seconds", 0
             ),
-            "outdoor_temperature": assessment.get("outdoor_temperature"),
-            "outdoor_relative_humidity": assessment.get("outdoor_relative_humidity"),
             "outdoor_humidity_ratio": assessment.get("outdoor_humidity_ratio"),
             "outdoor_enthalpy": assessment.get("outdoor_enthalpy"),
             "moisture_ventilation": assessment.get("moisture_ventilation", "unknown"),
-            "pollutant_measurements": dict(pollutants),
+            "pollutant_measurements": dict(assessment.get("pollutants", {})),
             "pollutant_assessments": assessment.get("pollutant_assessments", {}),
             "source_entities": self._used_entity_ids(assessment),
             "window_recommendation": str(

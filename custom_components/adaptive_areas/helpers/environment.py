@@ -21,6 +21,8 @@ from homeassistant.const import (
 )
 from homeassistant.core import Event, EventStateChangedData, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.device_registry import async_get as async_get_device_registry
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util.unit_conversion import TemperatureConverter
 
@@ -40,6 +42,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_ENVIRONMENT,
     CONF_EXCLUDE_ENTITIES,
+    CONF_INCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
     DATA_AREA_OBJECT,
     DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
@@ -146,6 +149,7 @@ THERMAL_PROFILES: dict[RoomCategory, ThermalProfile] = {
     RoomCategory.CIRCULATION_TRANSIENT: ThermalProfile(15.0, True, "transient"),
     RoomCategory.SERVICE_STORAGE: ThermalProfile(None, False, "service_storage"),
     RoomCategory.UNCONDITIONED: ThermalProfile(None, False, "unconditioned"),
+    RoomCategory.MANUAL: ThermalProfile(20.0, True, "manual"),
 }
 
 
@@ -292,6 +296,7 @@ class AreaEnvironmentEngine:
         except ValueError:
             self.room_category = RoomCategory(DEFAULT_ROOM_CATEGORY)
         self.thermal_profile = THERMAL_PROFILES[self.room_category]
+        self._manual_reference_temperature = self.thermal_profile.reference
         self.comfort_min = (
             self.thermal_profile.reference + COMFORT_POLICY.cold_offset
             if self.thermal_profile.reference is not None
@@ -471,6 +476,7 @@ class AreaEnvironmentEngine:
         self.evaluate()
 
     def _discover_sensor_ids(self) -> dict[str, list[str]]:
+        """Discover current pollutant sensors assigned to or included by the Area."""
         supported = set(AIR_QUALITY_MATRIX) | {
             SensorDeviceClass.AQI,
             SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -481,16 +487,39 @@ class AreaEnvironmentEngine:
             self.config.get(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY),
             self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE),
         }
-        for entity in self.area.entities.get("sensor", []):
-            if entity[ATTR_ENTITY_ID] in self._excluded_ids:
-                continue
-            if entity[ATTR_ENTITY_ID] in dedicated_sources:
-                continue
-            state = self.area.hass.states.get(entity[ATTR_ENTITY_ID])
-            if state and state.attributes.get(ATTR_DEVICE_CLASS) in supported:
-                result[str(state.attributes[ATTR_DEVICE_CLASS])].append(
-                    entity[ATTR_ENTITY_ID]
+        candidate_ids = {
+            entity[ATTR_ENTITY_ID] for entity in self.area.entities.get("sensor", [])
+        }
+        entity_registry = async_get_entity_registry(self.area.hass)
+        device_registry = async_get_device_registry(self.area.hass)
+        candidate_ids.update(
+            entry.entity_id
+            for entry in entity_registry.entities.get_entries_for_area_id(self.area.id)
+        )
+        for device in device_registry.devices.get_devices_for_area_id(self.area.id):
+            candidate_ids.update(
+                entry.entity_id
+                for entry in entity_registry.entities.get_entries_for_device_id(
+                    device.id
                 )
+            )
+        candidate_ids.update(self.config.get(CONF_INCLUDE_ENTITIES, []))
+        for entity_id in candidate_ids:
+            entry = entity_registry.async_get(entity_id)
+            if not entity_id.startswith("sensor."):
+                continue
+            if entry is not None and (
+                entry.disabled
+                or entry.config_entry_id == self.area.hass_config.entry_id
+            ):
+                continue
+            if entity_id in self._excluded_ids:
+                continue
+            if entity_id in dedicated_sources:
+                continue
+            state = self.area.hass.states.get(entity_id)
+            if state and state.attributes.get(ATTR_DEVICE_CLASS) in supported:
+                result[str(state.attributes[ATTR_DEVICE_CLASS])].append(entity_id)
         for entity_ids in result.values():
             entity_ids.sort()
         return result
@@ -1206,7 +1235,7 @@ class AreaEnvironmentEngine:
         enthalpy: float | None,
         outdoor_enthalpy: float | None,
     ) -> tuple[CoolingState, list[str]]:
-        """Return cooling advice with psychrometric comparison where available."""
+        """Return cooling advice limited to available windows and fans."""
         if not self.thermal_profile.comfort_relevant:
             return CoolingState.NOT_REQUIRED, []
         if temperature is None:
@@ -1219,27 +1248,40 @@ class AreaEnvironmentEngine:
             return CoolingState.NOT_REQUIRED, []
         if outdoor is None:
             return CoolingState.UNKNOWN, ["room_too_warm"]
-        if outdoor > temperature - self.cooling_delta:
+        outdoor_cooler = outdoor <= temperature - self.cooling_delta
+        passive_cooling_suitable = outdoor_cooler
+        moisture_penalty = False
+        if passive_cooling_suitable and self._window_ids:
+            if (
+                enthalpy is not None
+                and outdoor_enthalpy is not None
+                and outdoor_enthalpy >= enthalpy
+            ):
+                passive_cooling_suitable = False
+                moisture_penalty = True
+            else:
+                return CoolingState.PASSIVE_RECOMMENDED, [
+                    "room_too_warm",
+                    "outdoor_air_cooler",
+                    "passive_cooling_available",
+                ]
+        if self.ventilation_fans or self.circulation_fans:
             return CoolingState.ACTIVE_RECOMMENDED, [
                 "room_too_warm",
-                "outdoor_air_warmer",
+                ("outdoor_air_cooler" if outdoor_cooler else "outdoor_air_warmer"),
+                *(["outdoor_air_moisture_penalty"] if moisture_penalty else []),
                 "active_cooling_recommended",
             ]
-        if (
-            enthalpy is not None
-            and outdoor_enthalpy is not None
-            and outdoor_enthalpy >= enthalpy
-        ):
-            return CoolingState.ACTIVE_RECOMMENDED, [
-                "room_too_warm",
-                "outdoor_air_cooler",
-                "outdoor_air_moisture_penalty",
-            ]
-        return CoolingState.PASSIVE_RECOMMENDED, [
-            "room_too_warm",
-            "outdoor_air_cooler",
-            "passive_cooling_available",
-        ]
+        return CoolingState.UNKNOWN, ["room_too_warm"]
+
+    def set_manual_reference_temperature(self, value: float) -> None:
+        """Apply a restored or user-selected manual thermal reference."""
+        if self.room_category != RoomCategory.MANUAL:
+            return
+        self._manual_reference_temperature = value
+        self.comfort_min = value + COMFORT_POLICY.cold_offset
+        self.comfort_max = value + 4.0
+        self.evaluate()
 
     def evaluate(self, *, trace: bool = True) -> None:
         """Evaluate all available dimensions and notify subscribers."""
@@ -1380,22 +1422,22 @@ class AreaEnvironmentEngine:
         elif not self.windows_open:
             self._had_window_need = False
 
-        if (
-            ventilation in (VentilationState.REQUIRED, VentilationState.URGENT)
-            or rapid
-            or any(
-                reason in {"very_high_co2", "high_humidity", "rapid_humidity_rise"}
-                for reason in reasons
-            )
-        ):
-            ventilation_request = VentilationFanRequest.HIGH
-        elif ventilation in (
-            VentilationState.RECOMMENDED,
-            VentilationState.VENTILATING,
-        ):
-            ventilation_request = VentilationFanRequest.LOW
-        else:
-            ventilation_request = VentilationFanRequest.NONE
+        ventilation_request = VentilationFanRequest.NONE
+        if self.ventilation_fans:
+            if (
+                ventilation in (VentilationState.REQUIRED, VentilationState.URGENT)
+                or rapid
+                or any(
+                    reason in {"very_high_co2", "high_humidity", "rapid_humidity_rise"}
+                    for reason in reasons
+                )
+            ):
+                ventilation_request = VentilationFanRequest.HIGH
+            elif ventilation in (
+                VentilationState.RECOMMENDED,
+                VentilationState.VENTILATING,
+            ):
+                ventilation_request = VentilationFanRequest.LOW
         if humidity_ventilation and not co2_ventilation and not air_exchange_suitable:
             ventilation_request = VentilationFanRequest.NONE
 
@@ -1473,6 +1515,7 @@ class AreaEnvironmentEngine:
             "no2": "no2" in pollutants,
             "air_quality": bool(pollutants),
             "windows": bool(self._window_ids),
+            "ventilation_fans": bool(self.ventilation_fans),
             "outdoor_temperature": outdoor is not None,
             "outdoor_humidity": outdoor_humidity is not None,
             "surface_temperature": surface_temperature is not None,
@@ -1482,7 +1525,7 @@ class AreaEnvironmentEngine:
             "state": overall,
             "room_category": self.room_category,
             "thermal_profile": {
-                "reference_temperature": self.thermal_profile.reference,
+                "reference_temperature": self._manual_reference_temperature,
                 "activity": self.thermal_profile.activity,
                 "basis": self.thermal_profile.basis,
                 "basis_type": "scientific_reference_with_operational_offsets",

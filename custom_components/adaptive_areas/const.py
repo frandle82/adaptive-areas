@@ -19,6 +19,7 @@ from homeassistant.components.fan import DOMAIN as FAN_DOMAIN
 from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
 from homeassistant.components.media_player.const import DOMAIN as MEDIA_PLAYER_DOMAIN
+from homeassistant.components.number.const import DOMAIN as NUMBER_DOMAIN
 from homeassistant.components.remote import DOMAIN as REMOTE_DOMAIN
 from homeassistant.components.sensor.const import (
     DOMAIN as SENSOR_DOMAIN,
@@ -440,6 +441,14 @@ class AdaptiveAreasFeatureInfoEnvironment(AdaptiveAreasFeatureInfo):
     icons = {SENSOR_DOMAIN: "mdi:home-thermometer-outline"}
 
 
+class AdaptiveAreasFeatureInfoEnvironmentReferenceTemperature(AdaptiveAreasFeatureInfo):
+    """Entity information for a manually configured thermal reference."""
+
+    id = "environment_reference_temperature"
+    translation_keys = {NUMBER_DOMAIN: "environment_reference_temperature"}
+    icons = {NUMBER_DOMAIN: "mdi:thermometer-lines"}
+
+
 class AdaptiveAreasFeatureInfoRoomUsage(AdaptiveAreasFeatureInfo):
     """Entity information for the optional Cleaning Tracker."""
 
@@ -665,6 +674,7 @@ ADAPTIVE_AREAS_COMPONENTS = [
     COVER_DOMAIN,
     SWITCH_DOMAIN,
     SENSOR_DOMAIN,
+    NUMBER_DOMAIN,
     LIGHT_DOMAIN,
     FAN_DOMAIN,
 ]
@@ -1041,6 +1051,7 @@ class RoomCategory(StrEnum):
     CIRCULATION_TRANSIENT = "circulation_transient"
     SERVICE_STORAGE = "service_storage"
     UNCONDITIONED = "unconditioned"
+    MANUAL = "manual"
 
 
 class ComfortState(StrEnum):

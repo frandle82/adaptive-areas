@@ -343,7 +343,7 @@
           "type": "Area type (interior/exterior)",
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
           "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
-          "room_category": "Room category",
+          "room_category": "Area category",
           "area_temperature_sensor": "Primary temperature sensor",
           "area_humidity_sensor": "Primary humidity sensor"
         },
@@ -354,7 +354,7 @@
           "type": "Defining an area type allows Meta areas for Interior/Exterior to be created.",
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
           "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
-          "room_category": "Select the room purpose used for category-specific thermal interpretation. This is an operational profile, not a claim of universal comfort.",
+          "room_category": "Select the Area purpose used for category-specific thermal interpretation. Choose Manual to set the reference temperature with the generated number entity.",
           "area_temperature_sensor": "Temperature sensor used as the indoor temperature for this Area.",
           "area_humidity_sensor": "Relative-humidity sensor used as the indoor humidity for this Area."
         }
@@ -537,6 +537,11 @@
         "name": "Sleep Lights"
       }
     },
+    "number": {
+      "environment_reference_temperature": {
+        "name": "Room Climate reference temperature"
+      }
+    },
     "sensor": {
       "environment": {
         "name": "Room Climate",
@@ -556,21 +561,12 @@
               "warm": "Warm",
               "hot": "Hot",
               "very_hot": "Very hot",
-              "not_applicable": "Not applicable for this room category",
-              "unknown": "Unknown"
-            }
-          },
-          "comfort_confidence": {
-            "name": "Comfort quality",
-            "state": {
-              "enhanced": "Temperature and humidity available",
-              "basic": "Temperature only",
-              "not_applicable": "Not applicable",
+              "not_applicable": "Not applicable for this Area category",
               "unknown": "Unknown"
             }
           },
           "room_category": {
-            "name": "Room category",
+            "name": "Area category",
             "state": {
               "living_sedentary": "Living / sedentary",
               "sleeping_rest": "Sleeping / rest",
@@ -579,18 +575,11 @@
               "circulation_transient": "Hall / transient",
               "service_storage": "Service / storage",
               "unconditioned": "Unconditioned",
+              "manual": "Manual",
               "unknown": "Unknown"
             }
           },
           "thermal_profile": {"name": "Thermal profile"},
-          "thermal_input_quality": {
-            "name": "Thermal input quality",
-            "state": {
-              "enhanced": "Primary temperature and humidity available",
-              "basic": "Primary temperature only",
-              "unavailable": "Primary temperature unavailable"
-            }
-          },
           "humidity": {
             "name": "Humidity",
             "state": {
@@ -680,6 +669,7 @@
               "aqi": "Air quality index",
               "co": "Carbon monoxide",
               "no2": "Nitrogen dioxide",
+              "ventilation_fans": "Ventilation fans",
               "windows": "Windows",
               "outdoor_temperature": "Outdoor temperature",
               "outdoor_humidity": "Outdoor humidity",
@@ -687,8 +677,6 @@
               "health": "Area health"
             }
           },
-          "temperature": {"name": "Temperature"},
-          "relative_humidity": {"name": "Relative humidity"},
           "dew_point": {"name": "Dew-point temperature"},
           "absolute_humidity": {"name": "Absolute humidity"},
           "humidity_ratio": {"name": "Humidity ratio"},
@@ -706,8 +694,6 @@
             }
           },
           "mould_warning_duration_seconds": {"name": "Mould warning duration"},
-          "outdoor_temperature": {"name": "Outdoor temperature"},
-          "outdoor_relative_humidity": {"name": "Outdoor relative humidity"},
           "outdoor_humidity_ratio": {"name": "Outdoor humidity ratio"},
           "outdoor_enthalpy": {"name": "Outdoor moist-air enthalpy"},
           "moisture_ventilation": {
@@ -861,7 +847,8 @@
         "active_domestic": "Active domestic work",
         "circulation_transient": "Hall / transient",
         "service_storage": "Service / storage",
-        "unconditioned": "Unconditioned"
+        "unconditioned": "Unconditioned",
+        "manual": "Manual"
       }
     }
   },
