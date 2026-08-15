@@ -17,6 +17,7 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    UnitOfDensity,
     UnitOfTemperature,
 )
 from homeassistant.core import Event, EventStateChangedData, callback
@@ -63,8 +64,8 @@ from custom_components.adaptive_areas.const import (
     WindowRecommendation,
 )
 
-MICROGRAMS_PER_CUBIC_METER = "µg/m³"
-MILLIGRAMS_PER_CUBIC_METER = "mg/m³"
+MICROGRAMS_PER_CUBIC_METER = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
+MILLIGRAMS_PER_CUBIC_METER = UnitOfDensity.MILLIGRAMS_PER_CUBIC_METER
 PARTS_PER_MILLION = "ppm"
 
 
@@ -209,6 +210,7 @@ CONTEXT: dict[str, dict[str, str]] = {
         "air_co2_poor": "Ventilation required: the CO₂ concentration is significantly elevated.",
         "health_alert": "An Area health sensor reports a hazard. Address that warning first.",
         "air_poor": "Air quality is poor: {reason}.",
+        "air_provisional": "The current measurement indicates elevated pollution: {reason}. The 24-hour assessment remains provisional until enough history is available.",
         "ventilation_urgent": "Ventilate immediately: {reason}.",
         "ventilation_required": "Ventilation required: {reason}.",
         "ventilation_recommended": "Ventilation recommended: {reason}.",
@@ -245,6 +247,7 @@ CONTEXT: dict[str, dict[str, str]] = {
         "air_co2_poor": "Lüften erforderlich: Die CO₂-Konzentration ist deutlich erhöht.",
         "health_alert": "Ein Gesundheitswarnsensor des Bereichs meldet eine Gefahr. Diese Warnung hat Vorrang.",
         "air_poor": "Die Luftqualität ist schlecht: {reason}.",
+        "air_provisional": "Der aktuelle Messwert zeigt eine erhöhte Schadstoffbelastung: {reason}. Die 24-Stunden-Bewertung bleibt vorläufig, bis genügend Messhistorie vorliegt.",
         "ventilation_urgent": "Sofort lüften: {reason}.",
         "ventilation_required": "Lüften erforderlich: {reason}.",
         "ventilation_recommended": "Lüften empfohlen: {reason}.",
@@ -1013,6 +1016,7 @@ class AreaEnvironmentEngine:
             measurements[name] = round(current, 2)
             if device_class in ROLLING_DEVICE_CLASSES:
                 value, coverage = self._rolling_pollutant(device_class, current)
+                current_state = self._classify_air_value(current, band)
                 quality = (
                     "sufficient"
                     if coverage >= ROLLING_MIN_COVERAGE.total_seconds() / 3600
@@ -1020,6 +1024,7 @@ class AreaEnvironmentEngine:
                 )
                 assessments[name] = {
                     "current": round(current, 2) if current is not None else None,
+                    "current_state": str(current_state),
                     "rolling_24h": round(value, 2) if value is not None else None,
                     "coverage_hours": round(coverage, 2),
                     "quality": quality,
@@ -1028,6 +1033,12 @@ class AreaEnvironmentEngine:
                 }
                 if quality == "limited" or value is None:
                     limited_coverage = True
+                    if current_state in (
+                        AirQualityState.DEGRADED,
+                        AirQualityState.POOR,
+                        AirQualityState.CRITICAL,
+                    ):
+                        reasons.append(f"high_{name}_current")
                     continue
             elif device_class == SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS:
                 state = (
@@ -1156,9 +1167,13 @@ class AreaEnvironmentEngine:
             "high_co2": "co2",
             "very_high_co2": "co2",
             "high_pm25": "pm25",
+            "high_pm25_current": "pm25",
             "high_pm10": "pm10",
+            "high_pm10_current": "pm10",
             "high_co": "co",
+            "high_co_current": "co",
             "high_no2": "no2",
+            "high_no2_current": "no2",
             "high_aqi": "aqi",
             "high_voc": "voc",
         }
@@ -1178,6 +1193,10 @@ class AreaEnvironmentEngine:
             if dominant_reason == "co2":
                 return "air_quality_poor", text["air_co2_poor"]
             return "air_quality_poor", text["air_poor"].format(
+                reason=text[dominant_reason]
+            )
+        if any(reason.endswith("_current") for reason in reasons):
+            return "air_quality_provisional", text["air_provisional"].format(
                 reason=text[dominant_reason]
             )
         if assessment["ventilation"] == VentilationState.URGENT:
@@ -1478,6 +1497,7 @@ class AreaEnvironmentEngine:
         )
         attention = (
             air_quality == AirQualityState.DEGRADED
+            or any(reason.endswith("_current") for reason in air_reasons)
             or ventilation
             in (VentilationState.RECOMMENDED, VentilationState.VENTILATING)
             or mould_risk == MouldRiskState.ELEVATED

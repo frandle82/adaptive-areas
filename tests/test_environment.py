@@ -18,6 +18,7 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNAVAILABLE,
     EntityCategory,
+    UnitOfDensity,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -571,7 +572,14 @@ def test_worst_pollutant_does_not_request_ventilation_fan(
     """Limited PM coverage stays unknown and never requests outdoor ventilation."""
     area = _area(hass)
     _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
-    _sensor(hass, area, "sensor.pm25", 80, SensorDeviceClass.PM25, "µg/m³")
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        80,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
     hass.states.async_set(
         "binary_sensor.window",
         STATE_OFF,
@@ -583,6 +591,12 @@ def test_worst_pollutant_does_not_request_ventilation_fan(
 
     assert assessment["air_quality"] == AirQualityState.UNKNOWN
     assert assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
+    assert assessment["pollutant_assessments"]["pm25"]["current_state"] == (
+        AirQualityState.CRITICAL
+    )
+    assert assessment["state"] == EnvironmentState.ATTENTION
+    assert assessment["dominant_decision"] == "air_quality_provisional"
+    assert "PM2.5" in assessment["context"]
     assert assessment["source_entities"]["pm25"]["entities"][0]["entity_id"] == (
         "sensor.pm25"
     )
@@ -607,7 +621,7 @@ def test_no2_does_not_request_window_ventilation(hass: HomeAssistant, freezer) -
         "sensor.no2",
         120,
         SensorDeviceClass.NITROGEN_DIOXIDE,
-        "µg/m³",
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     )
     hass.states.async_set(
         "binary_sensor.window",
@@ -639,7 +653,14 @@ def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
 def test_pollutant_exclusion_is_authoritative(hass: HomeAssistant) -> None:
     """General exclusions remove pollutant sources from every output."""
     area = _area(hass, {CONF_EXCLUDE_ENTITIES: ["sensor.pm25"]})
-    _sensor(hass, area, "sensor.pm25", 80, SensorDeviceClass.PM25, "µg/m³")
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        80,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
 
     assessment = AreaEnvironmentEngine(area).assessment
 
@@ -675,7 +696,7 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
             "device_pm25",
             "arbeitszimmer_pm25",
             SensorDeviceClass.PM25,
-            "µg/m³",
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
             device.id,
             None,
         ),
@@ -683,7 +704,7 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
             "device_voc",
             "arbeitszimmer_voc",
             SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
-            "µg/m³",
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
             device.id,
             None,
         ),
@@ -691,7 +712,7 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
             "entity_pm25",
             "entity_area_pm25",
             SensorDeviceClass.PM25,
-            "µg/m³",
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
             None,
             area.id,
         ),
@@ -699,7 +720,7 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
             "included_voc",
             "included_voc",
             SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
-            "µg/m³",
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
             None,
             None,
         ),
@@ -768,7 +789,7 @@ async def test_registry_pollutants_recover_when_states_arrive_late(
             suggested_object_id=str(device_class),
             config_entry=source_entry,
             original_device_class=device_class,
-            unit_of_measurement="µg/m³",
+            unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
         )
         entity_registry.async_update_entity(registry_entry.entity_id, area_id=area.id)
 
@@ -783,7 +804,7 @@ async def test_registry_pollutants_recover_when_states_arrive_late(
         "20",
         {
             ATTR_DEVICE_CLASS: SensorDeviceClass.PM25,
-            ATTR_UNIT_OF_MEASUREMENT: "µg/m³",
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
         },
     )
     hass.states.async_set(
@@ -791,7 +812,7 @@ async def test_registry_pollutants_recover_when_states_arrive_late(
         "50",
         {
             ATTR_DEVICE_CLASS: SensorDeviceClass.PM10,
-            ATTR_UNIT_OF_MEASUREMENT: "µg/m³",
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
         },
     )
     await hass.async_block_till_done()
@@ -807,11 +828,19 @@ async def test_registry_pollutants_recover_when_states_arrive_late(
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
     """PM uses elapsed-time weighting, coverage quality, and a 24-hour window."""
     area = _area(hass)
-    _sensor(hass, area, "sensor.pm25", 10, SensorDeviceClass.PM25, "µg/m³")
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        10,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
     engine = AreaEnvironmentEngine(area)
     assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
     assert engine.assessment["pollutant_assessments"]["pm25"] == {
         "current": 10.0,
+        "current_state": AirQualityState.GOOD,
         "rolling_24h": None,
         "coverage_hours": 0.0,
         "quality": "limited",
@@ -826,7 +855,7 @@ def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
         "80",
         {
             ATTR_DEVICE_CLASS: SensorDeviceClass.PM25,
-            ATTR_UNIT_OF_MEASUREMENT: "µg/m³",
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
         },
     )
     engine.evaluate()
@@ -1045,7 +1074,7 @@ def test_tvoc_mass_is_precaution_only_and_generic_scale_is_unclassified(
         "sensor.tvoc",
         951,
         SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
-        "µg/m³",
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     )
     _sensor(
         hass,
@@ -1214,7 +1243,7 @@ async def test_room_climate_is_disabled_by_default(
     await shutdown_integration(hass, [entry])
 
 
-async def test_enabled_room_climate_uses_options_and_publishes_good(
+async def test_enabled_room_climate_publishes_pollutant_context(
     hass: HomeAssistant,
 ) -> None:
     """Real setup path overlays options and publishes a capability-aware state."""
@@ -1237,10 +1266,10 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
     pm25 = MockSensor(
         name="pm25",
         unique_id="pm25_runtime",
-        native_value=12,
+        native_value=80,
         device_class=SensorDeviceClass.PM25,
-        native_unit_of_measurement="µg/m³",
-        unit_of_measurement="µg/m³",
+        native_unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     )
     await setup_mock_entities(
         hass, "sensor", {DEFAULT_MOCK_AREA: [temperature, humidity, pm25]}
@@ -1267,13 +1296,18 @@ async def test_enabled_room_climate_uses_options_and_publishes_good(
     assert area.environment is not None
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert state is not None
-    assert state.state == EnvironmentState.GOOD
+    assert state.state == EnvironmentState.ATTENTION
     assert state.attributes["humidex"] is not None
     assert state.attributes["comfort"] != ComfortState.UNKNOWN
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
     assert state.attributes["source_entities"] == sorted(
         [temperature.entity_id, humidity.entity_id, pm25.entity_id]
     )
+    assert state.attributes["pollutant_measurements"]["pm25"] == 80
+    assert state.attributes["pollutant_assessments"]["pm25"]["current_state"] == (
+        AirQualityState.CRITICAL
+    )
+    assert "PM2.5" in state.attributes["context"]
     assert all(
         isinstance(entity_id, str) for entity_id in state.attributes["source_entities"]
     )
