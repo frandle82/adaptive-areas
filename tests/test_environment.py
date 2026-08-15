@@ -751,6 +751,59 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     engine.unload()
 
 
+async def test_registry_pollutants_recover_when_states_arrive_late(
+    hass: HomeAssistant,
+) -> None:
+    """Registry device classes keep late PM states tracked after startup."""
+    area = _area(hass)
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+
+    for device_class in (SensorDeviceClass.PM25, SensorDeviceClass.PM10):
+        registry_entry = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            str(device_class),
+            suggested_object_id=str(device_class),
+            config_entry=source_entry,
+            original_device_class=device_class,
+            unit_of_measurement="µg/m³",
+        )
+        entity_registry.async_update_entity(registry_entry.entity_id, area_id=area.id)
+
+    engine = AreaEnvironmentEngine(area)
+
+    assert engine._sensor_ids[str(SensorDeviceClass.PM25)] == ["sensor.pm25"]
+    assert engine._sensor_ids[str(SensorDeviceClass.PM10)] == ["sensor.pm10"]
+    assert engine.assessment["pollutants"] == {}
+
+    hass.states.async_set(
+        "sensor.pm25",
+        "20",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.PM25,
+            ATTR_UNIT_OF_MEASUREMENT: "µg/m³",
+        },
+    )
+    hass.states.async_set(
+        "sensor.pm10",
+        "50",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.PM10,
+            ATTR_UNIT_OF_MEASUREMENT: "µg/m³",
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert engine.assessment["pollutants"] == {"pm25": 20.0, "pm10": 50.0}
+    assert set(engine.assessment["pollutant_assessments"]) == {"pm25", "pm10"}
+    assert engine.assessment["capabilities"]["pm25"] is True
+    assert engine.assessment["capabilities"]["pm10"] is True
+
+    engine.unload()
+
+
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
     """PM uses elapsed-time weighting, coverage quality, and a 24-hour window."""
     area = _area(hass)

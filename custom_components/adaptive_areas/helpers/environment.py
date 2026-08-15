@@ -518,8 +518,13 @@ class AreaEnvironmentEngine:
             if entity_id in dedicated_sources:
                 continue
             state = self.area.hass.states.get(entity_id)
-            if state and state.attributes.get(ATTR_DEVICE_CLASS) in supported:
-                result[str(state.attributes[ATTR_DEVICE_CLASS])].append(entity_id)
+            device_class = (
+                state.attributes.get(ATTR_DEVICE_CLASS) if state is not None else None
+            )
+            if device_class is None and entry is not None:
+                device_class = entry.device_class or entry.original_device_class
+            if device_class in supported:
+                result[str(device_class)].append(entity_id)
         for entity_ids in result.values():
             entity_ids.sort()
         return result
@@ -647,7 +652,11 @@ class AreaEnvironmentEngine:
         expected_unit = AIR_QUALITY_MATRIX.get(device_class)
         for entity_id in candidate_ids:
             state = self.area.hass.states.get(entity_id)
-            if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            if (
+                state is None
+                or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                or state.attributes.get(ATTR_DEVICE_CLASS) != device_class
+            ):
                 continue
             try:
                 value = float(state.state)
