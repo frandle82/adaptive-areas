@@ -636,11 +636,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             for feature in NON_CONFIGURABLE_FEATURES_META:
                 if feature in filtered_configurable_features:
                     filtered_configurable_features.remove(feature)
-        if self.area.is_exterior() and CONF_FEATURE_ENVIRONMENT in (
-            filtered_configurable_features
-        ):
-            filtered_configurable_features.remove(CONF_FEATURE_ENVIRONMENT)
-
         # Hide switch groups from UI feature configuration menu.
         if CONF_FEATURE_SWITCH_GROUPS in filtered_configurable_features:
             filtered_configurable_features.remove(CONF_FEATURE_SWITCH_GROUPS)
@@ -1418,6 +1413,19 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         manual_candidates = sorted(
             set(unclassified_sensor_entities) | configured_manual_entities
         )
+        primary_candidate_ids = set(self.area_entities)
+        primary_candidate_ids.update(self.area_options.get(CONF_INCLUDE_ENTITIES, []))
+        for key in (CONF_AREA_TEMPERATURE_SENSOR, CONF_AREA_HUMIDITY_SENSOR):
+            if entity_id := self.area_options.get(key):
+                primary_candidate_ids.add(entity_id)
+        exterior_primary_candidates = {
+            CONF_AREA_TEMPERATURE_SENSOR: sorted(
+                primary_candidate_ids & set(temperature_entities)
+            ),
+            CONF_AREA_HUMIDITY_SENSOR: sorted(
+                primary_candidate_ids & set(humidity_entities)
+            ),
+        }
         if user_input is not None:
             raw_input = dict(user_input)
             role_sets = (
@@ -1457,21 +1465,35 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                         # fallbacks, but are no longer writable through regular UI.
                         validated.pop(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, None)
                         validated.pop(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, None)
-                        self.area_options.update(validated)
-                        self.all_area_entities = sorted(
-                            set(self.all_area_entities)
-                            | {
-                                entity_id
-                                for key in (CONF_ENVIRONMENT_SURFACE_TEMPERATURE,)
-                                if (entity_id := validated.get(key))
-                            }
-                            | {
-                                entity_id
-                                for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-                                for entity_id in validated.get(key, [])
-                            }
-                        )
-                        return await self.async_step_show_menu()
+                        if self.area.is_exterior():
+                            excluded = set(
+                                self.area_options.get(CONF_EXCLUDE_ENTITIES, [])
+                            )
+                            for key, candidates in exterior_primary_candidates.items():
+                                entity_id = raw_input.get(key, "")
+                                if entity_id and entity_id in excluded:
+                                    errors[key] = "excluded_primary_source"
+                                    break
+                                if entity_id and entity_id not in candidates:
+                                    errors[key] = "invalid_primary_source"
+                                    break
+                                validated[key] = entity_id
+                        if not errors:
+                            self.area_options.update(validated)
+                            self.all_area_entities = sorted(
+                                set(self.all_area_entities)
+                                | {
+                                    entity_id
+                                    for key in (CONF_ENVIRONMENT_SURFACE_TEMPERATURE,)
+                                    if (entity_id := validated.get(key))
+                                }
+                                | {
+                                    entity_id
+                                    for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+                                    for entity_id in validated.get(key, [])
+                                }
+                            )
+                            return await self.async_step_show_menu()
 
         manual_validators = {
             key: cv.multi_select(manual_candidates)
@@ -1486,13 +1508,32 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             if not self.area.is_exterior()
             else [
                 option
+                for option in OPTIONS_AREA
+                if option[0]
+                in (CONF_AREA_TEMPERATURE_SENSOR, CONF_AREA_HUMIDITY_SENSOR)
+            ]
+            + [
+                option
                 for option in OPTIONS_AREA_EVALUATION
                 if option[0] in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
             ]
         )
         dynamic_validators = dict(manual_validators)
         selectors = dict(manual_selectors)
-        if not self.area.is_exterior():
+        if self.area.is_exterior():
+            dynamic_validators.update(
+                {
+                    key: vol.In(EMPTY_ENTRY + candidates)
+                    for key, candidates in exterior_primary_candidates.items()
+                }
+            )
+            selectors.update(
+                {
+                    key: self._build_selector_entity_simple(EMPTY_ENTRY + candidates)
+                    for key, candidates in exterior_primary_candidates.items()
+                }
+            )
+        else:
             dynamic_validators.update(
                 {
                     CONF_ENVIRONMENT_SURFACE_TEMPERATURE: vol.In(

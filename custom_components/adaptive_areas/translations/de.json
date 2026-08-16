@@ -239,6 +239,8 @@
                 "title": "Bereichsklima",
                 "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung anhand der konfigurierten Sensoren.",
                 "data": {
+                    "area_temperature_sensor": "Bereichstemperatursensor",
+                    "area_humidity_sensor": "Bereichsluftfeuchtigkeitssensor",
                     "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
                     "outdoor_humidity_entity": "Außenluftfeuchtequelle (optional)",
                     "surface_temperature_entity": "Temperatur einer kühlen Oberfläche (optional)",
@@ -259,6 +261,8 @@
                     "manual_voc_parts_sensors": "Manuell zugeordnete VOC-Anteil-Sensoren"
                 },
                 "data_description": {
+                    "area_temperature_sensor": "Autoritative Temperaturquelle dieses Außenbereichs.",
+                    "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Außenbereichs.",
                     "outdoor_temperature_entity": "Eine explizite Außenquelle auswählen, wenn die automatische Erkennung über Außenbereiche nicht eindeutig ist.",
                     "outdoor_humidity_entity": "Wird zusammen mit der Außentemperatur zum Vergleich von Feuchtegehalt und Enthalpie verwendet. Leer lassen für automatische Erkennung aus Außenbereichen.",
                     "surface_temperature_entity": "Optionale Messung einer kühlen Oberfläche. Ermöglicht eine schimmelbezogene Auswertung der Oberflächenfeuchte; sonst wird konservativ aus der Raumluft geschätzt.",

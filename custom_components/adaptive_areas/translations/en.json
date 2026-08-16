@@ -239,6 +239,8 @@
         "title": "Area Climate",
         "description": "Evaluate Area temperature, humidity and air quality plus indoor comfort, mould risk, ventilation and cooling using configured Area sensors.",
         "data": {
+          "area_temperature_sensor": "Area temperature sensor",
+          "area_humidity_sensor": "Area humidity sensor",
           "outdoor_temperature_entity": "Outdoor temperature source (optional)",
           "outdoor_humidity_entity": "Outdoor humidity source (optional)",
           "surface_temperature_entity": "Cool surface temperature source (optional)",
@@ -259,6 +261,8 @@
           "manual_voc_parts_sensors": "Manually assigned VOC parts sensors"
         },
         "data_description": {
+          "area_temperature_sensor": "Authoritative temperature source for this exterior Area.",
+          "area_humidity_sensor": "Authoritative relative-humidity source for this exterior Area.",
           "outdoor_temperature_entity": "Select an explicit outdoor source when automatic exterior-area discovery is ambiguous.",
           "outdoor_humidity_entity": "Used with outdoor temperature to compare moisture content and moist-air enthalpy. Exterior Area sources are discovered automatically when empty.",
           "surface_temperature_entity": "Optional measured cool surface. Enables surface-relative-humidity mould-risk evaluation; otherwise a conservative room-air estimate is used.",
