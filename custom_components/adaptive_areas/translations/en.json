@@ -239,6 +239,7 @@
         "title": "Area Climate",
         "description": "Evaluate Area temperature, humidity and air quality plus indoor comfort, mould risk, ventilation and cooling using configured Area sensors.",
         "data": {
+          "room_category": "Area category",
           "area_temperature_sensor": "Area temperature sensor",
           "area_humidity_sensor": "Area humidity sensor",
           "outdoor_temperature_entity": "Outdoor temperature source (optional)",
@@ -247,9 +248,6 @@
           "relevant_windows": "Relevant windows (automatic when empty)",
           "passive_cooling_temperature_difference": "Passive cooling minimum temperature difference",
           "humidity_warning_duration": "High humidity warning duration",
-          "ventilation_fans": "Ventilation fans",
-          "circulation_fans": "Circulation fans",
-          "disabled_fans": "Fans excluded from evaluation requests",
           "manual_co2_sensors": "Manually assigned CO₂ sensors",
           "manual_pm25_sensors": "Manually assigned PM2.5 sensors",
           "manual_pm10_sensors": "Manually assigned PM10 sensors",
@@ -261,24 +259,22 @@
           "manual_voc_parts_sensors": "Manually assigned VOC parts sensors"
         },
         "data_description": {
-          "area_temperature_sensor": "Authoritative temperature source for this exterior Area.",
-          "area_humidity_sensor": "Authoritative relative-humidity source for this exterior Area.",
+          "room_category": "Select the indoor Area purpose used for category-specific thermal interpretation. Choose Manual to set the reference temperature with the generated number entity.",
+          "area_temperature_sensor": "Authoritative Area temperature source. Every sensor assigned to this Home Assistant Area is selectable; device class is used only for an automatic suggestion.",
+          "area_humidity_sensor": "Authoritative Area relative-humidity source. Every sensor assigned to this Home Assistant Area is selectable; device class is used only for an automatic suggestion.",
           "outdoor_temperature_entity": "Select an explicit outdoor source when automatic exterior-area discovery is ambiguous.",
           "outdoor_humidity_entity": "Used with outdoor temperature to compare moisture content and moist-air enthalpy. Exterior Area sources are discovered automatically when empty.",
-          "surface_temperature_entity": "Optional measured cool surface. Enables surface-relative-humidity mould-risk evaluation; otherwise a conservative room-air estimate is used.",
+          "surface_temperature_entity": "Optional measured cool surface. Every sensor assigned to this Home Assistant Area is selectable.",
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area.",
-          "ventilation_fans": "Fans that exchange air, such as extractor or mechanical ventilation fans.",
-          "circulation_fans": "Fans that move indoor air, such as ceiling or pedestal fans. Unclassified area fans default to this safer role.",
-          "disabled_fans": "Fans that Area Climate must never request. Passive grouping remains unchanged.",
-          "manual_co2_sensors": "Only for sensors without a pollutant device class. Values require ppm for health evaluation.",
-          "manual_pm25_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
-          "manual_pm10_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
-          "manual_co_sensors": "Only for sensors without a pollutant device class. Values require mg/m³ for health evaluation.",
-          "manual_no2_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
-          "manual_ozone_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
-          "manual_voc_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for precautionary evaluation.",
-          "manual_aqi_sensors": "Only for sensors without a pollutant device class. AQI scales remain unclassified and are not used for health thresholds.",
-          "manual_voc_parts_sensors": "Only for sensors without a pollutant device class. VOC parts scales remain unclassified and are not used for health thresholds."
+          "manual_co2_sensors": "Manual assignment overrides device class. Values require ppm for health evaluation.",
+          "manual_pm25_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
+          "manual_pm10_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
+          "manual_co_sensors": "Manual assignment overrides device class. Values require mg/m³ for health evaluation.",
+          "manual_no2_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
+          "manual_ozone_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
+          "manual_voc_sensors": "Manual assignment overrides device class. Values require µg/m³ for precautionary evaluation.",
+          "manual_aqi_sensors": "Manual assignment overrides device class. AQI scales remain unclassified and are not used for health thresholds.",
+          "manual_voc_parts_sensors": "Manual assignment overrides device class. VOC parts scales remain unclassified and are not used for health thresholds."
         }
       },
       "feature_conf_climate_control": {
@@ -364,10 +360,7 @@
           "presence_control_entities": "Presence control entities",
           "type": "Area type (interior/exterior)",
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
-          "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
-          "room_category": "Area category",
-          "area_temperature_sensor": "Temperature sensor",
-          "area_humidity_sensor": "Humidity sensor"
+          "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities"
         },
         "data_description": {
           "include_entities": "Adaptive Areas can consider entities from other areas including other Adaptive entities. You can use this to make a room's presence binary sensor to act as another room's presence sensor as well.",
@@ -375,10 +368,7 @@
           "presence_control_entities": "Optional. If entities are set, room motion is only evaluated when at least one of these entities is active. These entities do not mark the room occupied by themselves.",
           "type": "Defining an area type allows Meta areas for Interior/Exterior to be created.",
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
-          "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
-          "room_category": "Select the Area purpose used for category-specific thermal interpretation. Choose Manual to set the reference temperature with the generated number entity.",
-          "area_temperature_sensor": "Authoritative temperature source for this Area.",
-          "area_humidity_sensor": "Authoritative relative-humidity source for this Area."
+          "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant."
         }
       },
       "presence_tracking": {
@@ -405,7 +395,7 @@
       "invalid_entity": "Invalid entity selected",
       "climate_no_preset_support": "Climate entity does not support preset modes",
       "excluded_primary_source": "A primary Area climate sensor cannot also be excluded",
-      "invalid_primary_source": "Select an available Area sensor with the required device class"
+      "invalid_primary_source": "Select a sensor assigned to this Home Assistant Area"
     }
   },
   "entity": {

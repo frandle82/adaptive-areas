@@ -408,7 +408,7 @@ def test_passive_and_active_cooling(hass: HomeAssistant) -> None:
 
 
 def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
-    """Without a fan, CO2 ventilation is recommended through a window only."""
+    """CO2 emits abstract ventilation and window requests without fan entities."""
     area = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
     _sensor(hass, area, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
     hass.states.async_set(
@@ -420,7 +420,7 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     engine = AreaEnvironmentEngine(area)
     assert engine.assessment["ventilation"] == VentilationState.RECOMMENDED
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
-    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
+    assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.LOW
 
     hass.states.async_set(
         "sensor.co2", "900", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
@@ -677,7 +677,7 @@ def test_pollutant_exclusion_is_authoritative(hass: HomeAssistant) -> None:
 async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     hass: HomeAssistant,
 ) -> None:
-    """Registry discovery covers device Area, entity Area, and explicit include."""
+    """Automatic discovery uses device and entity Area, never general includes."""
     area = _area(
         hass,
         {
@@ -765,10 +765,9 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     ]
     assert engine._sensor_ids[str(SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS)] == [
         "sensor.arbeitszimmer_voc",
-        "sensor.included_voc",
     ]
     assert len(engine.assessment["source_entities"]["pm25"]["entities"]) == 2
-    assert len(engine.assessment["source_entities"]["voc"]["entities"]) == 2
+    assert len(engine.assessment["source_entities"]["voc"]["entities"]) == 1
     assert engine.assessment["pollutants"]["pm25"] == 20
     assert engine.assessment["pollutant_assessments"]["pm25"]["current"] == 20
     assert engine.assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
@@ -834,12 +833,21 @@ def test_unclassified_pollutants_require_safe_manual_assignment(
 ) -> None:
     """Names and units do not classify sensors; explicit mappings still validate units."""
     pm25_id = "sensor.vendor_pm25"
+    misclassified_pm25_id = "sensor.vendor_misclassified_pm25"
     ozone_id = "sensor.vendor_ozone"
     attributes = {
         ATTR_FRIENDLY_NAME: "PM2.5",
         ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     }
     hass.states.async_set(pm25_id, "13", attributes)
+    hass.states.async_set(
+        misclassified_pm25_id,
+        "13",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        },
+    )
     hass.states.async_set(ozone_id, "19.1", {ATTR_FRIENDLY_NAME: "Ozone"})
 
     automatic_area = _area(hass)
@@ -855,12 +863,14 @@ def test_unclassified_pollutants_require_safe_manual_assignment(
         hass,
         {
             CONF_TYPE: AREA_TYPE_EXTERIOR,
-            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [pm25_id],
+            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [misclassified_pm25_id],
             CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS: [ozone_id],
         },
     )
     exterior_engine = AreaEnvironmentEngine(exterior)
-    assert exterior_engine._sensor_ids[str(SensorDeviceClass.PM25)] == [pm25_id]
+    assert exterior_engine._sensor_ids[str(SensorDeviceClass.PM25)] == [
+        misclassified_pm25_id
+    ]
     assert exterior_engine._sensor_ids[str(SensorDeviceClass.OZONE)] == [ozone_id]
     assert exterior_engine.assessment["pollutants"] == {"pm25": 13.0}
     assert exterior_engine.assessment["source_entities"]["pm25"]["mode"] == "manual"
@@ -876,6 +886,33 @@ def test_unclassified_pollutants_require_safe_manual_assignment(
     interior_engine.unload()
     exterior_engine.unload()
     automatic_engine.unload()
+
+
+def test_explicit_primary_sources_override_device_class(hass: HomeAssistant) -> None:
+    """Manual temperature and humidity roles outrank incorrect metadata."""
+    area = _area(
+        hass,
+        {
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.manual_temperature",
+            CONF_AREA_HUMIDITY_SENSOR: "sensor.manual_humidity",
+        },
+    )
+    hass.states.async_set(
+        "sensor.manual_temperature",
+        "21.5",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.PRESSURE,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfTemperature.CELSIUS,
+        },
+    )
+    hass.states.async_set("sensor.manual_humidity", "48")
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["temperature"] == 21.5
+    assert assessment["relative_humidity"] == 48
+    assert assessment["source_entities"]["temperature"]["mode"] == "primary"
+    assert assessment["source_entities"]["humidity"]["mode"] == "primary"
 
 
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
@@ -1027,7 +1064,7 @@ def test_outdoor_moisture_can_keep_window_closed(hass: HomeAssistant) -> None:
 def test_exclusion_is_authoritative_and_sources_are_transparent(
     hass: HomeAssistant,
 ) -> None:
-    """General exclusions remove evaluation inputs; retained sources show ID and name."""
+    """Explicit climate assignments override exclusions and expose their source."""
     area = _area(
         hass,
         {
@@ -1062,16 +1099,16 @@ def test_exclusion_is_authoritative_and_sources_are_transparent(
     )
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["temperature"] is None
+    assert assessment["temperature"] == 40
     assert assessment["outdoor_temperature"] is None
     assert assessment["source_entities"]["temperature"] == {
         "mode": "primary",
         "configured": True,
-        "available": False,
+        "available": True,
         "entity_id": "sensor.bad_temperature",
         "name": "bad temperature",
     }
-    assert "primary_temperature_sensor_unavailable" in assessment["reason_codes"]
+    assert "primary_temperature_sensor_unavailable" not in assessment["reason_codes"]
 
 
 async def test_late_exterior_area_refreshes_automatic_sources(
@@ -1104,7 +1141,7 @@ async def test_late_exterior_area_refreshes_automatic_sources(
     engine._area_loaded(AREA_TYPE_EXTERIOR, None, exterior.id)
 
     assert engine.assessment["outdoor_temperature"] == 20
-    assert engine.assessment["cooling"] == CoolingState.UNKNOWN
+    assert engine.assessment["cooling"] == CoolingState.ACTIVE_RECOMMENDED
     hass.states.async_set(
         "sensor.garden_temperature",
         "30",
@@ -1308,7 +1345,9 @@ def test_exterior_assessment_omits_indoor_actions(hass: HomeAssistant) -> None:
         "comfort",
         "combined_comfort",
         "ventilation",
+        "ventilation_state",
         "cooling",
+        "air_exchange_suitability",
         "window_recommendation",
         "ventilation_fan_request",
         "circulation_fan_request",
@@ -1683,7 +1722,9 @@ async def test_enabled_exterior_publishes_reduced_area_climate_sensor(
     for absent in (
         "comfort",
         "ventilation",
+        "ventilation_state",
         "cooling",
+        "air_exchange_suitability",
         "window_recommendation",
         "ventilation_fan_request",
         "circulation_fan_request",

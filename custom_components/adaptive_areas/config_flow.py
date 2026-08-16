@@ -24,6 +24,7 @@ from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_ENTITY_ID, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers.area_registry import async_get as areareg_async_get
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.device_registry import async_get as devicereg_async_get
 from homeassistant.helpers.entity_registry import async_get as entityreg_async_get
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -109,9 +110,6 @@ from .const import (
     CONF_ENVIRONMENT_WINDOWS,
     CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
-    CONF_ENVIRONMENT_VENTILATION_FANS,
-    CONF_ENVIRONMENT_CIRCULATION_FANS,
-    CONF_ENVIRONMENT_DISABLED_FANS,
     CONF_INCLUDE_ENTITIES,
     CONF_KEEP_ONLY_ENTITIES,
     CONF_NOTIFICATION_DEVICES,
@@ -843,28 +841,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
     async def async_step_area_config(self, user_input=None):
         """Gather basic settings for the area."""
-
-        def primary_candidates(
-            device_class: str, include_entities=None, *, preserve_current: bool = True
-        ) -> list[str]:
-            """Return eligible Area or explicitly included primary sensors."""
-            candidates = set(self.area_entities)
-            candidates.update(
-                include_entities or self.area_options.get(CONF_INCLUDE_ENTITIES, [])
-            )
-            if preserve_current:
-                for key in (CONF_AREA_TEMPERATURE_SENSOR, CONF_AREA_HUMIDITY_SENSOR):
-                    if entity_id := self.area_options.get(key):
-                        candidates.add(entity_id)
-            return sorted(
-                entity_id
-                for entity_id in candidates
-                if entity_id.startswith(f"{SENSOR_DOMAIN}.")
-                and not entity_id.startswith(f"{SENSOR_DOMAIN}.{DOMAIN}_")
-                and (state := self.hass.states.get(entity_id)) is not None
-                and state.attributes.get(ATTR_DEVICE_CLASS) == device_class
-            )
-
         errors: dict[str, str] = {}
         if user_input is not None:
             _LOGGER.debug(
@@ -879,34 +855,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             )
             try:
                 validated = options_schema(user_input)
-                if not self.area.is_meta():
-                    excluded = set(validated.get(CONF_EXCLUDE_ENTITIES, []))
-                    allowed = {
-                        CONF_AREA_TEMPERATURE_SENSOR: set(
-                            primary_candidates(
-                                "temperature",
-                                validated.get(CONF_INCLUDE_ENTITIES, []),
-                                preserve_current=False,
-                            )
-                        ),
-                        CONF_AREA_HUMIDITY_SENSOR: set(
-                            primary_candidates(
-                                "humidity",
-                                validated.get(CONF_INCLUDE_ENTITIES, []),
-                                preserve_current=False,
-                            )
-                        ),
-                    }
-                    for key, candidates in allowed.items():
-                        entity_id = validated.get(key)
-                        if entity_id and entity_id in excluded:
-                            raise vol.MultipleInvalid(
-                                [vol.Invalid("excluded_primary_source", path=[key])]
-                            )
-                        if entity_id and entity_id not in candidates:
-                            raise vol.MultipleInvalid(
-                                [vol.Invalid("invalid_primary_source", path=[key])]
-                            )
                 self.area_options.update(validated)
             except vol.MultipleInvalid as validation:
                 errors = {
@@ -956,21 +904,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             ),
             CONF_RELOAD_ON_REGISTRY_CHANGE: self._build_selector_boolean(),
             CONF_IGNORE_DIAGNOSTIC_ENTITIES: self._build_selector_boolean(),
-            CONF_ROOM_CATEGORY: self._build_selector_select(
-                list(RoomCategory),
-                translation_key=SelectorTranslationKeys.ROOM_CATEGORY,
-            ),
-            CONF_AREA_TEMPERATURE_SENSOR: self._build_selector_entity_simple(
-                [""] + primary_candidates("temperature")
-            ),
-            CONF_AREA_HUMIDITY_SENSOR: self._build_selector_entity_simple(
-                [""] + primary_candidates("humidity")
-            ),
         }
 
         options = OPTIONS_AREA_META if self.area.is_meta() else OPTIONS_AREA
-        if self.area.is_exterior():
-            options = [option for option in options if option[0] != CONF_ROOM_CATEGORY]
         selectors = {}
 
         # Apply options for given area type (regular/meta)
@@ -1372,190 +1308,199 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             user_input=user_input,
         )
 
+    def _current_area_entity_ids(self) -> set[str]:
+        """Return entities assigned directly or through a device to this HA Area."""
+        entity_registry = entityreg_async_get(self.hass)
+        device_registry = devicereg_async_get(self.hass)
+        entity_ids = {
+            entry.entity_id
+            for entry in entity_registry.entities.get_entries_for_area_id(self.area.id)
+        }
+        for device in device_registry.devices.get_devices_for_area_id(self.area.id):
+            entity_ids.update(
+                entry.entity_id
+                for entry in entity_registry.entities.get_entries_for_device_id(
+                    device.id
+                )
+            )
+        return entity_ids
+
     async def async_step_feature_conf_environment(self, user_input=None):
         """Configure Area Climate roles and explicit pollutant assignments."""
-        temperature_entities = []
-        humidity_entities = []
-        window_entities = []
-        fan_entities = []
-        unclassified_sensor_entities = []
         entity_registry = entityreg_async_get(self.hass)
-        for entity_id in self.all_entities:
+        area_entity_ids = self._current_area_entity_ids()
+
+        def is_adaptive_sensor(entity_id: str) -> bool:
+            """Return whether an entity is generated by Adaptive Areas."""
+            registry_entry = entity_registry.async_get(entity_id)
+            return entity_id.startswith(
+                f"{SENSOR_DOMAIN}.{ADAPTIVEAREAS_UNIQUEID_PREFIX}_"
+            ) or bool(
+                registry_entry
+                and (
+                    registry_entry.platform == DOMAIN
+                    or registry_entry.config_entry_id == self.config_entry.entry_id
+                )
+            )
+
+        sensor_candidates = sorted(
+            entity_id
+            for entity_id in area_entity_ids
+            if entity_id.startswith(f"{SENSOR_DOMAIN}.")
+            and not is_adaptive_sensor(entity_id)
+        )
+
+        def permitted_candidates(key: str) -> set[str]:
+            """Preserve only this field's legacy selection outside the Area."""
+            permitted = set(sensor_candidates)
+            saved = self.area_options.get(key, [])
+            if isinstance(saved, str):
+                saved = [saved]
+            permitted.update(
+                entity_id
+                for entity_id in saved
+                if entity_id.startswith(f"{SENSOR_DOMAIN}.")
+                and not is_adaptive_sensor(entity_id)
+            )
+            return permitted
+
+        def device_class(entity_id: str) -> str | None:
+            """Return state or registry device class for automatic suggestions."""
+            state = self.hass.states.get(entity_id)
+            value = state.attributes.get(ATTR_DEVICE_CLASS) if state else None
+            if value is None and (entry := entity_registry.async_get(entity_id)):
+                value = entry.device_class or entry.original_device_class
+            return str(value) if value is not None else None
+
+        display_options = dict(self.area_options)
+        for key, expected_class in (
+            (CONF_AREA_TEMPERATURE_SENSOR, "temperature"),
+            (CONF_AREA_HUMIDITY_SENSOR, "humidity"),
+        ):
+            automatic = [
+                entity_id
+                for entity_id in sensor_candidates
+                if device_class(entity_id) == expected_class
+            ]
+            if not display_options.get(key) and len(automatic) == 1:
+                display_options[key] = automatic[0]
+
+        window_entities = []
+        for entity_id in area_entity_ids:
             state = self.hass.states.get(entity_id)
             if state is None:
                 continue
             domain = entity_id.split(".", 1)[0]
-            registry_entry = entity_registry.async_get(entity_id)
-            device_class = state.attributes.get(ATTR_DEVICE_CLASS)
-            if device_class is None and registry_entry is not None:
-                device_class = (
-                    registry_entry.device_class or registry_entry.original_device_class
-                )
-            if domain == SENSOR_DOMAIN and device_class is None:
-                unclassified_sensor_entities.append(entity_id)
-            if domain == SENSOR_DOMAIN and device_class == "temperature":
-                temperature_entities.append(entity_id)
-            elif domain == SENSOR_DOMAIN and device_class == "humidity":
-                humidity_entities.append(entity_id)
-            elif domain == BINARY_SENSOR_DOMAIN and state.attributes.get(
+            if domain == BINARY_SENSOR_DOMAIN and state.attributes.get(
                 ATTR_DEVICE_CLASS
             ) in ("window", "opening"):
                 window_entities.append(entity_id)
-            elif domain == "fan" and entity_id in self.area_entities:
-                fan_entities.append(entity_id)
 
         errors: dict[str, str] = {}
-        configured_manual_entities = {
-            entity_id
-            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-            for entity_id in self.area_options.get(key, [])
-        }
-        manual_candidates = sorted(
-            set(unclassified_sensor_entities) | configured_manual_entities
-        )
-        primary_candidate_ids = set(self.area_entities)
-        primary_candidate_ids.update(self.area_options.get(CONF_INCLUDE_ENTITIES, []))
-        for key in (CONF_AREA_TEMPERATURE_SENSOR, CONF_AREA_HUMIDITY_SENSOR):
-            if entity_id := self.area_options.get(key):
-                primary_candidate_ids.add(entity_id)
-        exterior_primary_candidates = {
-            CONF_AREA_TEMPERATURE_SENSOR: sorted(
-                primary_candidate_ids & set(temperature_entities)
-            ),
-            CONF_AREA_HUMIDITY_SENSOR: sorted(
-                primary_candidate_ids & set(humidity_entities)
-            ),
-        }
         if user_input is not None:
             raw_input = dict(user_input)
-            role_sets = (
-                set(raw_input.get(CONF_ENVIRONMENT_VENTILATION_FANS, [])),
-                set(raw_input.get(CONF_ENVIRONMENT_CIRCULATION_FANS, [])),
-                set(raw_input.get(CONF_ENVIRONMENT_DISABLED_FANS, [])),
-            )
-            if any(
-                left & right
-                for index, left in enumerate(role_sets)
-                for right in role_sets[index + 1 :]
+            for key in (
+                CONF_AREA_TEMPERATURE_SENSOR,
+                CONF_AREA_HUMIDITY_SENSOR,
+                CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
             ):
-                errors[CONF_ENVIRONMENT_CIRCULATION_FANS] = "malformed_input"
-            else:
-                manual_role_sets = [
-                    set(raw_input.get(key, []))
-                    for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-                ]
-                if any(
-                    left & right
-                    for index, left in enumerate(manual_role_sets)
-                    for right in manual_role_sets[index + 1 :]
-                ):
-                    errors[next(iter(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES))] = (
-                        "malformed_input"
-                    )
+                entity_id = raw_input.get(key, "")
+                if entity_id and entity_id not in permitted_candidates(key):
+                    errors[key] = "invalid_primary_source"
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES:
+                if set(raw_input.get(key, [])) - permitted_candidates(key):
+                    errors[key] = "invalid_primary_source"
+            manual_role_sets = [
+                set(raw_input.get(key, []))
+                for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+            ]
+            if not errors and any(
+                left & right
+                for index, left in enumerate(manual_role_sets)
+                for right in manual_role_sets[index + 1 :]
+            ):
+                errors[next(iter(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES))] = (
+                    "malformed_input"
+                )
+            if not errors:
+                try:
+                    validated = AREA_EVALUATION_OPTIONS_SCHEMA(raw_input)
+                except vol.MultipleInvalid as validation:
+                    errors = {
+                        str(error.path[0]): str(error.msg)
+                        for error in validation.errors
+                    }
                 else:
-                    try:
-                        validated = AREA_EVALUATION_OPTIONS_SCHEMA(raw_input)
-                    except vol.MultipleInvalid as validation:
-                        errors = {
-                            str(error.path[0]): str(error.msg)
-                            for error in validation.errors
-                        }
-                    else:
-                        # Legacy explicit outdoor sources remain stored runtime
-                        # fallbacks, but are no longer writable through regular UI.
-                        validated.pop(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, None)
-                        validated.pop(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, None)
-                        if self.area.is_exterior():
-                            excluded = set(
-                                self.area_options.get(CONF_EXCLUDE_ENTITIES, [])
-                            )
-                            for key, candidates in exterior_primary_candidates.items():
-                                entity_id = raw_input.get(key, "")
-                                if entity_id and entity_id in excluded:
-                                    errors[key] = "excluded_primary_source"
-                                    break
-                                if entity_id and entity_id not in candidates:
-                                    errors[key] = "invalid_primary_source"
-                                    break
-                                validated[key] = entity_id
-                        if not errors:
-                            self.area_options.update(validated)
-                            self.all_area_entities = sorted(
-                                set(self.all_area_entities)
-                                | {
-                                    entity_id
-                                    for key in (CONF_ENVIRONMENT_SURFACE_TEMPERATURE,)
-                                    if (entity_id := validated.get(key))
-                                }
-                                | {
-                                    entity_id
-                                    for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-                                    for entity_id in validated.get(key, [])
-                                }
-                            )
-                            return await self.async_step_show_menu()
+                    # Legacy explicit outdoor sources remain stored runtime
+                    # fallbacks, but are no longer writable through regular UI.
+                    validated.pop(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, None)
+                    validated.pop(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, None)
+                    if self.area.is_exterior():
+                        for key in (
+                            CONF_ROOM_CATEGORY,
+                            CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+                            CONF_ENVIRONMENT_WINDOWS,
+                            CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+                            CONF_ENVIRONMENT_HUMIDITY_DURATION,
+                        ):
+                            validated.pop(key, None)
+                    if not errors:
+                        self.area_options.update(validated)
+                        return await self.async_step_show_menu()
 
         manual_validators = {
-            key: cv.multi_select(manual_candidates)
+            key: cv.multi_select(sorted(permitted_candidates(key)))
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
         }
         manual_selectors = {
-            key: self._build_selector_entity_simple(manual_candidates, multiple=True)
+            key: self._build_selector_entity_simple(sensor_candidates, multiple=True)
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
         }
-        options = (
-            OPTIONS_AREA_EVALUATION
-            if not self.area.is_exterior()
-            else [
-                option
-                for option in OPTIONS_AREA
-                if option[0]
-                in (CONF_AREA_TEMPERATURE_SENSOR, CONF_AREA_HUMIDITY_SENSOR)
-            ]
-            + [
-                option
-                for option in OPTIONS_AREA_EVALUATION
-                if option[0] in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-            ]
-        )
+        options = list(OPTIONS_AREA_EVALUATION)
+        if self.area.is_exterior():
+            exterior_hidden = {
+                CONF_ROOM_CATEGORY,
+                CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+                CONF_ENVIRONMENT_WINDOWS,
+                CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
+                CONF_ENVIRONMENT_HUMIDITY_DURATION,
+            }
+            options = [option for option in options if option[0] not in exterior_hidden]
         dynamic_validators = dict(manual_validators)
         selectors = dict(manual_selectors)
-        if self.area.is_exterior():
+        climate_sensor_keys = (
+            CONF_AREA_TEMPERATURE_SENSOR,
+            CONF_AREA_HUMIDITY_SENSOR,
+            CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+        )
+        dynamic_validators.update(
+            {
+                key: (
+                    vol.In(EMPTY_ENTRY + sensor_candidates)
+                    if not self.area_options.get(key)
+                    else vol.In(EMPTY_ENTRY + sorted(permitted_candidates(key)))
+                )
+                for key in climate_sensor_keys
+            }
+        )
+        selectors.update(
+            {
+                key: self._build_selector_entity_simple(EMPTY_ENTRY + sensor_candidates)
+                for key in climate_sensor_keys
+            }
+        )
+        selectors[CONF_ROOM_CATEGORY] = self._build_selector_select(
+            list(RoomCategory),
+            translation_key=SelectorTranslationKeys.ROOM_CATEGORY,
+        )
+        if not self.area.is_exterior():
             dynamic_validators.update(
                 {
-                    key: vol.In(EMPTY_ENTRY + candidates)
-                    for key, candidates in exterior_primary_candidates.items()
-                }
-            )
-            selectors.update(
-                {
-                    key: self._build_selector_entity_simple(EMPTY_ENTRY + candidates)
-                    for key, candidates in exterior_primary_candidates.items()
-                }
-            )
-        else:
-            dynamic_validators.update(
-                {
-                    CONF_ENVIRONMENT_SURFACE_TEMPERATURE: vol.In(
-                        EMPTY_ENTRY + sorted(temperature_entities)
-                    ),
                     CONF_ENVIRONMENT_WINDOWS: cv.multi_select(sorted(window_entities)),
-                    CONF_ENVIRONMENT_VENTILATION_FANS: cv.multi_select(
-                        sorted(fan_entities)
-                    ),
-                    CONF_ENVIRONMENT_CIRCULATION_FANS: cv.multi_select(
-                        sorted(fan_entities)
-                    ),
-                    CONF_ENVIRONMENT_DISABLED_FANS: cv.multi_select(
-                        sorted(fan_entities)
-                    ),
                 }
             )
             selectors.update(
                 {
-                    CONF_ENVIRONMENT_SURFACE_TEMPERATURE: self._build_selector_entity_simple(
-                        EMPTY_ENTRY + sorted(temperature_entities)
-                    ),
                     CONF_ENVIRONMENT_WINDOWS: self._build_selector_entity_simple(
                         sorted(window_entities), multiple=True
                     ),
@@ -1565,15 +1510,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     CONF_ENVIRONMENT_HUMIDITY_DURATION: self._build_selector_number(
                         unit_of_measurement="minutes", max_value=1440
                     ),
-                    CONF_ENVIRONMENT_VENTILATION_FANS: self._build_selector_entity_simple(
-                        sorted(fan_entities), multiple=True
-                    ),
-                    CONF_ENVIRONMENT_CIRCULATION_FANS: self._build_selector_entity_simple(
-                        sorted(fan_entities), multiple=True
-                    ),
-                    CONF_ENVIRONMENT_DISABLED_FANS: self._build_selector_entity_simple(
-                        sorted(fan_entities), multiple=True
-                    ),
                 }
             )
 
@@ -1581,7 +1517,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             step_id="feature_conf_environment",
             data_schema=self._build_options_schema(
                 options=options,
-                saved_options=self.area_options,
+                saved_options=display_options,
                 dynamic_validators=dynamic_validators,
                 selectors=selectors,
             ),

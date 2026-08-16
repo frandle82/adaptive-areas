@@ -4,9 +4,11 @@
 
 Area Climate is optional and disabled by default. It retains the existing `environment` entity and unique IDs for compatibility. Indoor Areas receive the full assessment and recommendations. Exterior Areas receive a reduced measurement and air-quality assessment without comfort, mould, ventilation, window, fan, or cooling outputs. Missing dimensions remain `unknown`; never interpreted as healthy.
 
-Enable **Area Climate** under **Feature selection**. Choose one primary temperature sensor and one primary humidity sensor under **Basic area options** for either Area type. The **Area Climate** menu repeats these authoritative source selectors for exterior Areas alongside manual pollutant assignments. Indoor Areas configure surface, window, and fan roles there instead. Explicit outdoor temperature/humidity fields are no longer offered. General exclusion list remains authoritative. `source_entities` provides traceability.
+Enable **Area Climate** under **Feature selection**. **Area Climate** is the single configuration menu for climate sources in both indoor and exterior Areas. It contains temperature, relative humidity, and manual pollutant assignments for both Area types. Indoor Areas additionally contain the room category, cool-surface temperature, relevant windows, passive-cooling difference, and humidity-warning duration. Exterior Areas intentionally omit those indoor-only controls. Explicit outdoor temperature/humidity and concrete fan fields are not offered. `source_entities` provides traceability.
 
-Exterior Areas are the central outdoor reference. Only their configured primary temperature and humidity sensors are used; Adaptive Areas never substitutes another same-Area sensor. Multiple exterior primary values use a deterministic mean. Supported exterior PM2.5, PM10, NO₂, ozone, CO, and TVOC sensors are interpreted as outdoor measurements; pollutant aggregation uses the conservative maximum. Legacy explicit outdoor fields remain runtime fallbacks only when no valid exterior primary source exists.
+Every climate source selector uses the same candidate basis: all `sensor.*` entities assigned directly or through a device to the current Home Assistant Area. Adaptive Areas-generated sensors are excluded to prevent self-reference. Device class, unit, integration, manufacturer, and names never remove a candidate. Existing saved assignments remain readable for compatibility.
+
+Exterior Areas are the central outdoor reference. Their primary temperature and humidity values plus supported PM2.5, PM10, NO₂, ozone, CO, and TVOC sensors are interpreted as outdoor measurements. Multiple exterior values use deterministic aggregation: a mean for primary climate values and the conservative maximum for pollutants. Legacy explicit outdoor fields remain runtime fallbacks only when no valid exterior Area source exists.
 
 ## Area Health
 
@@ -18,9 +20,9 @@ Adaptive Areas combines published formulas and guidance with clearly labelled op
 
 ### Primary Area climate sensors
 
-Adaptive Areas does not average every temperature and humidity sensor in an Area for thermal assessment. Select one representative indoor temperature sensor and one representative indoor relative-humidity sensor in **Basic area options**. Those deterministic sources form the operational indoor reference used by thermal, psychrometric, humidity, mould-risk, and cooling calculations. Area Aggregate Temperature and Humidity sensors remain separate statistical features and are never substituted.
+Adaptive Areas does not average every temperature and humidity sensor in an Area for thermal assessment. Select one representative temperature sensor and one representative relative-humidity sensor under **Area Climate**. An explicit selection is authoritative even when its device class is missing or incorrect. When no source is selected, exactly one same-Area sensor with the matching official Home Assistant device class is used automatically; ambiguous discovery remains unknown. Area Aggregate Temperature and Humidity sensors remain separate statistical features and are never substituted.
 
-If a primary source is unconfigured, excluded, unavailable, invalid, or deleted, its measurement stays unknown. Adaptive Areas does not fall back to another Area sensor, a climate attribute, or an Aggregate. Temperature-only category assessment can continue at `basic` input quality; calculations requiring relative humidity remain unknown. CO₂ and other independently discovered air-quality measurements continue to work.
+If neither an explicit source nor one unambiguous device-class source is available, the measurement stays unknown. Adaptive Areas never uses entity-name or friendly-name heuristics, climate attributes, or an Aggregate as a fallback. Temperature-only category assessment can continue at `basic` input quality; calculations requiring relative humidity remain unknown. CO₂ and other independently discovered air-quality measurements continue to work.
 
 One point measurement is not necessarily the spatial mean of a room. Position, mounting height, sunlight, exterior walls, heat sources, and local airflow influence readings. A representative sensor should generally avoid direct sunlight, radiators, supply/exhaust jets, exterior-door drafts, and appliance heat. Adaptive Areas does not validate placement.
 
@@ -48,7 +50,7 @@ A future mould model should incorporate surface moisture, surface temperature, e
 
 ## Air quality
 
-Pollutant discovery first uses official Home Assistant `SensorDeviceClass` metadata and is independent of the source integration. Sensors without a pollutant device class are never classified from their entity ID, display name, or unit alone. They can be assigned explicitly under **Area Climate** to CO₂, PM2.5, PM10, CO, NO₂, ozone, TVOC, VOC parts, or AQI. One entity may have only one manual assignment, and an official pollutant device class always takes precedence. Manual concentration sources enter health evaluation only when their reported unit exactly matches the supported measurement unit; otherwise they remain unavailable for that assessment. Generic AQI and VOC-parts scales remain exposed but unclassified.
+Pollutant discovery uses official Home Assistant `SensorDeviceClass` metadata and is independent of the source integration. Sensors are never classified from their entity ID, display name, or unit alone. Every same-Area sensor can instead be assigned explicitly under **Area Climate** to CO₂, PM2.5, PM10, CO, NO₂, ozone, TVOC, VOC parts, or AQI. One entity may have only one manual assignment, and that assignment takes precedence over its device class. Manual concentration sources enter health evaluation only when their reported unit exactly matches the supported measurement unit; otherwise they remain unavailable for that assessment. Generic AQI and VOC-parts scales remain exposed but unclassified.
 
 CO₂ uses the German Environment Agency categories: up to 1000 ppm hygienically unremarkable, 1000–2000 ppm elevated with ventilation recommended, and above 2000 ppm hygienically unacceptable with urgent ventilation. The 850 ppm clearing value is an Adaptive Areas operational hysteresis threshold.
 
@@ -64,7 +66,7 @@ TVOC mass concentration is only a [German AIR precaution indicator](https://www.
 
 Indoor Area Climate sensor exposes independent temperature, humidity, combined comfort, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values. Dominance order is hazard, critical air quality, urgent ventilation, high mould risk, recommended ventilation, cooling, comfort, then unremarkable state.
 
-Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Area Climate publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
+Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Area Climate publishes abstract ventilation and circulation requests but never stores or controls concrete `fan.*` entities. The Fan Groups feature owns actual fan membership and consumes Area Climate requests when both features are enabled.
 
 ## Room Usage
 

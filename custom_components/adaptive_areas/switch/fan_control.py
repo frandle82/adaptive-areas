@@ -73,10 +73,7 @@ class FanControlSwitch(SwitchBase):
                 self.area_state_changed,
             )
         )
-        if (
-            self.area.environment is not None
-            and self.area.environment.uses_fan_requests
-        ):
+        if self.area.environment is not None and not self.area.is_exterior():
             self.async_on_remove(
                 self.area.environment.register_listener(
                     lambda: self.hass.async_create_task(
@@ -135,10 +132,7 @@ class FanControlSwitch(SwitchBase):
             f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
         )
 
-        if (
-            self.area.environment is not None
-            and self.area.environment.uses_fan_requests
-        ):
+        if self.area.environment is not None and not self.area.is_exterior():
             await self._run_environment_request(trigger)
             return
 
@@ -198,41 +192,26 @@ class FanControlSwitch(SwitchBase):
         assessment = self.area.environment.assessment
         ventilation_request = str(assessment.get("ventilation_fan_request", "none"))
         circulation_request = str(assessment.get("circulation_fan_request", "none"))
-        on_targets: list[str] = []
-        if ventilation_request != "none":
-            on_targets.extend(self.area.environment.ventilation_fans)
-        if circulation_request != "none":
-            on_targets.extend(self.area.environment.circulation_fans)
-        on_targets = list(dict.fromkeys(on_targets))
-
-        all_targets = list(
-            dict.fromkeys(
-                self.area.environment.ventilation_fans
-                + self.area.environment.circulation_fans
-            )
+        request_active = any(
+            request != "none" for request in (ventilation_request, circulation_request)
         )
-        off_targets = [
-            entity_id
-            for entity_id in all_targets
-            if entity_id not in on_targets
-            and (state := self.hass.states.get(entity_id)) is not None
-            and state.state != STATE_OFF
-        ]
-        if on_targets:
+        fan_group_entity_id = (
+            f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
+        )
+        fan_group_state = self.hass.states.get(fan_group_entity_id)
+        if request_active:
             await self._async_apply_service(
                 SERVICE_TURN_ON,
                 "environment_request",
-                entity_ids=on_targets,
                 trigger=trigger,
             )
-        if off_targets:
+        elif fan_group_state is not None and fan_group_state.state != STATE_OFF:
             await self._async_apply_service(
                 SERVICE_TURN_OFF,
                 "environment_request_cleared",
-                entity_ids=off_targets,
                 trigger=trigger,
             )
-        if not on_targets and not off_targets:
+        else:
             self.area.trace_decision(
                 feature="fan_control",
                 trigger=trigger,

@@ -239,6 +239,7 @@
                 "title": "Bereichsklima",
                 "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung anhand der konfigurierten Sensoren.",
                 "data": {
+                    "room_category": "Bereichskategorie",
                     "area_temperature_sensor": "Bereichstemperatursensor",
                     "area_humidity_sensor": "Bereichsluftfeuchtigkeitssensor",
                     "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
@@ -247,9 +248,6 @@
                     "relevant_windows": "Relevante Fenster (automatisch, wenn leer)",
                     "passive_cooling_temperature_difference": "Mindesttemperaturdifferenz für passive Kühlung",
                     "humidity_warning_duration": "Warnzeit bei hoher Luftfeuchtigkeit",
-                    "ventilation_fans": "Lüftungsventilatoren",
-                    "circulation_fans": "Umluftventilatoren",
-                    "disabled_fans": "Von Auswertungsanforderungen ausgeschlossene Ventilatoren",
                     "manual_co2_sensors": "Manuell zugeordnete CO₂-Sensoren",
                     "manual_pm25_sensors": "Manuell zugeordnete PM2,5-Sensoren",
                     "manual_pm10_sensors": "Manuell zugeordnete PM10-Sensoren",
@@ -261,24 +259,22 @@
                     "manual_voc_parts_sensors": "Manuell zugeordnete VOC-Anteil-Sensoren"
                 },
                 "data_description": {
-                    "area_temperature_sensor": "Autoritative Temperaturquelle dieses Außenbereichs.",
-                    "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Außenbereichs.",
+                    "room_category": "Legt bei Innenbereichen den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
+                    "area_temperature_sensor": "Autoritative Temperaturquelle dieses Bereichs. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar; die Geräteklasse dient nur als automatischer Vorschlag.",
+                    "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Bereichs. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar; die Geräteklasse dient nur als automatischer Vorschlag.",
                     "outdoor_temperature_entity": "Eine explizite Außenquelle auswählen, wenn die automatische Erkennung über Außenbereiche nicht eindeutig ist.",
                     "outdoor_humidity_entity": "Wird zusammen mit der Außentemperatur zum Vergleich von Feuchtegehalt und Enthalpie verwendet. Leer lassen für automatische Erkennung aus Außenbereichen.",
-                    "surface_temperature_entity": "Optionale Messung einer kühlen Oberfläche. Ermöglicht eine schimmelbezogene Auswertung der Oberflächenfeuchte; sonst wird konservativ aus der Raumluft geschätzt.",
+                    "surface_temperature_entity": "Optionale Messung einer kühlen Oberfläche. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar.",
                     "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften.",
-                    "ventilation_fans": "Ventilatoren mit Luftaustausch, etwa Abluft- oder mechanische Lüftungsanlagen.",
-                    "circulation_fans": "Ventilatoren, die Innenluft bewegen, etwa Decken- oder Standventilatoren. Nicht klassifizierte Bereichsventilatoren erhalten standardmäßig diese sichere Rolle.",
-                    "disabled_fans": "Ventilatoren, die vom Bereichsklima niemals angefordert werden dürfen. Die passive Gruppierung bleibt unverändert.",
-                    "manual_co2_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in ppm vorliegen.",
-                    "manual_pm25_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_pm10_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_co_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in mg/m³ vorliegen.",
-                    "manual_no2_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_ozone_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_voc_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. Für eine vorsorgliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_aqi_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. AQI-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet.",
-                    "manual_voc_parts_sensors": "Nur für Sensoren ohne Schadstoff-Geräteklasse. VOC-Anteil-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet."
+                    "manual_co2_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in ppm vorliegen.",
+                    "manual_pm25_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
+                    "manual_pm10_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
+                    "manual_co_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in mg/m³ vorliegen.",
+                    "manual_no2_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
+                    "manual_ozone_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
+                    "manual_voc_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine vorsorgliche Bewertung müssen Werte in µg/m³ vorliegen.",
+                    "manual_aqi_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. AQI-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet.",
+                    "manual_voc_parts_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. VOC-Anteil-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet."
                 }
             },
             "feature_conf_climate_control": {
@@ -364,10 +360,7 @@
                     "presence_control_entities": "Anwesenheitsfreigabe durch Entitäten",
                     "type": "Bereichsart (innen/außen)",
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
-                    "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren",
-                    "room_category": "Bereichskategorie",
-                    "area_temperature_sensor": "Temperatursensor",
-                    "area_humidity_sensor": "Luftfeuchtigkeitssensor"
+                    "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren"
                 },
                 "data_description": {
                     "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer Adaptive-Areas-Entitäten. Damit kann der binäre Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs dienen.",
@@ -375,10 +368,7 @@
                     "presence_control_entities": "Optional. Wenn Entitäten gesetzt sind, wird Bewegung im Raum nur ausgewertet, wenn mindestens eine dieser Entitäten aktiv ist. Die Entitäten setzen den Raum nicht selbst auf belegt.",
                     "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
                     "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
-                    "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind.",
-                    "room_category": "Legt den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
-                    "area_temperature_sensor": "Autoritative Temperaturquelle dieses Bereichs.",
-                    "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Bereichs."
+                    "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind."
                 }
             },
             "presence_tracking": {
@@ -405,7 +395,7 @@
             "invalid_entity": "Ungültige Entität ausgewählt",
             "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi",
             "excluded_primary_source": "Ein primärer Bereichsklimasensor kann nicht zugleich ausgeschlossen werden",
-            "invalid_primary_source": "Einen verfügbaren Bereichssensor mit passender Geräteklasse auswählen"
+            "invalid_primary_source": "Einen Sensor auswählen, der diesem Home-Assistant-Bereich zugeordnet ist"
         }
     },
     "entity": {

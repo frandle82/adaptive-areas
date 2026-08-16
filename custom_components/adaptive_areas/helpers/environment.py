@@ -31,24 +31,21 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_EXTERIOR,
     CONF_AREA_HUMIDITY_SENSOR,
     CONF_AREA_TEMPERATURE_SENSOR,
-    CONF_ENVIRONMENT_CIRCULATION_FANS,
-    CONF_ENVIRONMENT_DISABLED_FANS,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
     CONF_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
-    CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_WINDOWS,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_ENVIRONMENT,
     CONF_EXCLUDE_ENTITIES,
-    CONF_INCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
     DATA_AREA_OBJECT,
     DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
     DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     DEFAULT_ROOM_CATEGORY,
+    DOMAIN,
     ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
     MODULE_DATA,
     AdaptiveAreasEvents,
@@ -355,8 +352,10 @@ class AreaEnvironmentEngine:
         self._excluded_ids = set(self.config.get(CONF_EXCLUDE_ENTITIES, []))
         self.primary_temperature_entity = self.config.get(
             CONF_AREA_TEMPERATURE_SENSOR, ""
-        )
-        self.primary_humidity_entity = self.config.get(CONF_AREA_HUMIDITY_SENSOR, "")
+        ) or self._automatic_primary_source(SensorDeviceClass.TEMPERATURE)
+        self.primary_humidity_entity = self.config.get(
+            CONF_AREA_HUMIDITY_SENSOR, ""
+        ) or self._automatic_primary_source(SensorDeviceClass.HUMIDITY)
         self._sensor_ids = self._discover_sensor_ids()
         self._window_ids = [] if self.is_exterior else self._discover_window_ids()
         self.outdoor_temperature_entity = self.config.get(
@@ -469,6 +468,17 @@ class AreaEnvironmentEngine:
             exterior = runtime.get(DATA_AREA_OBJECT)
             if exterior is None or exterior is self.area or not exterior.is_exterior():
                 continue
+            exterior_environment = exterior.environment
+            if exterior_environment is not None:
+                result.update(
+                    filter(
+                        None,
+                        (
+                            exterior_environment.primary_temperature_entity,
+                            exterior_environment.primary_humidity_entity,
+                        ),
+                    )
+                )
             result.update(
                 entity_id
                 for key in (
@@ -529,7 +539,7 @@ class AreaEnvironmentEngine:
         self.evaluate()
 
     def _discover_sensor_ids(self) -> dict[str, list[str]]:
-        """Discover current pollutant sensors assigned to or included by the Area."""
+        """Discover official Area pollutants plus explicit manual assignments."""
         supported = set(AIR_QUALITY_MATRIX) | {
             SensorDeviceClass.AQI,
             SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -540,28 +550,13 @@ class AreaEnvironmentEngine:
             self.config.get(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY),
             self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE),
         }
-        candidate_ids = {
-            entity[ATTR_ENTITY_ID] for entity in self.area.entities.get("sensor", [])
-        }
         entity_registry = async_get_entity_registry(self.area.hass)
-        device_registry = async_get_device_registry(self.area.hass)
-        candidate_ids.update(
-            entry.entity_id
-            for entry in entity_registry.entities.get_entries_for_area_id(self.area.id)
-        )
-        for device in device_registry.devices.get_devices_for_area_id(self.area.id):
-            candidate_ids.update(
-                entry.entity_id
-                for entry in entity_registry.entities.get_entries_for_device_id(
-                    device.id
-                )
-            )
-        candidate_ids.update(self.config.get(CONF_INCLUDE_ENTITIES, []))
-        candidate_ids.update(
+        manual_ids = {
             entity_id
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
             for entity_id in self.config.get(key, [])
-        )
+        }
+        candidate_ids = self._area_sensor_ids() | manual_ids
         for entity_id in candidate_ids:
             entry = entity_registry.async_get(entity_id)
             if not entity_id.startswith("sensor."):
@@ -571,7 +566,7 @@ class AreaEnvironmentEngine:
                 or entry.config_entry_id == self.area.hass_config.entry_id
             ):
                 continue
-            if entity_id in self._excluded_ids:
+            if entity_id in self._excluded_ids and entity_id not in manual_ids:
                 continue
             if entity_id in dedicated_sources:
                 continue
@@ -582,10 +577,43 @@ class AreaEnvironmentEngine:
             entity_ids.sort()
         return result
 
-    def _official_pollutant_device_class(
-        self, entity_id: str
-    ) -> SensorDeviceClass | None:
-        """Return an official Home Assistant pollutant device class."""
+    def _area_sensor_ids(self) -> set[str]:
+        """Return non-Adaptive sensor entities belonging to this HA Area."""
+        entity_registry = async_get_entity_registry(self.area.hass)
+        device_registry = async_get_device_registry(self.area.hass)
+        entity_ids = {
+            entry.entity_id
+            for entry in entity_registry.entities.get_entries_for_area_id(self.area.id)
+        }
+        for device in device_registry.devices.get_devices_for_area_id(self.area.id):
+            entity_ids.update(
+                entry.entity_id
+                for entry in entity_registry.entities.get_entries_for_device_id(
+                    device.id
+                )
+            )
+        # Test doubles and registry-startup races can expose valid Area members
+        # through the loaded Area snapshot before a registry entry is available.
+        entity_ids.update(
+            entity[ATTR_ENTITY_ID]
+            for entity in self.area.entities.get("sensor", [])
+            if async_get_entity_registry(self.area.hass).async_get(
+                entity[ATTR_ENTITY_ID]
+            )
+            is None
+        )
+        return {
+            entity_id
+            for entity_id in entity_ids
+            if entity_id.startswith("sensor.")
+            and not (
+                (entry := entity_registry.async_get(entity_id))
+                and (entry.disabled or entry.platform == DOMAIN)
+            )
+        }
+
+    def _sensor_device_class(self, entity_id: str) -> SensorDeviceClass | None:
+        """Return an official sensor device class from state or registry."""
         state = self.area.hass.states.get(entity_id)
         device_class = (
             state.attributes.get(ATTR_DEVICE_CLASS) if state is not None else None
@@ -595,9 +623,31 @@ class AreaEnvironmentEngine:
             if entry is not None:
                 device_class = entry.device_class or entry.original_device_class
         try:
-            normalized = SensorDeviceClass(device_class)
+            return SensorDeviceClass(device_class)
         except TypeError, ValueError:
             return None
+
+    def _automatic_primary_source(self, device_class: SensorDeviceClass) -> str:
+        """Return one unambiguous Area source discovered by device class."""
+        dedicated_sources = {
+            self.config.get(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE),
+            self.config.get(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY),
+            self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE),
+        }
+        candidates = sorted(
+            entity_id
+            for entity_id in self._area_sensor_ids()
+            if entity_id not in self._excluded_ids
+            and entity_id not in dedicated_sources
+            and self._sensor_device_class(entity_id) == device_class
+        )
+        return candidates[0] if len(candidates) == 1 else ""
+
+    def _official_pollutant_device_class(
+        self, entity_id: str
+    ) -> SensorDeviceClass | None:
+        """Return an official Home Assistant pollutant device class."""
+        normalized = self._sensor_device_class(entity_id)
         return normalized if normalized in POLLUTANT_NAMES else None
 
     def _manual_pollutant_device_class(
@@ -615,31 +665,40 @@ class AreaEnvironmentEngine:
     def _pollutant_device_class(
         self, entity_id: str, config: dict[str, Any] | None = None
     ) -> SensorDeviceClass | None:
-        """Return official or explicitly assigned pollutant type."""
-        return self._official_pollutant_device_class(
-            entity_id
-        ) or self._manual_pollutant_device_class(entity_id, config)
+        """Return explicit pollutant type before automatic metadata discovery."""
+        return self._manual_pollutant_device_class(
+            entity_id, config
+        ) or self._official_pollutant_device_class(entity_id)
 
     def _primary_value(
         self, entity_id: str, device_class: SensorDeviceClass, source_key: str
     ) -> float | None:
         """Read one configured authoritative indoor source without fallback."""
+        config_key = (
+            CONF_AREA_TEMPERATURE_SENSOR
+            if source_key == "temperature"
+            else CONF_AREA_HUMIDITY_SENSOR
+        )
+        manually_configured = bool(self.config.get(config_key))
         source: dict[str, Any] = {
-            "mode": "exterior_area_primary" if self.is_exterior else "primary",
-            "configured": bool(entity_id),
+            "mode": (
+                "exterior_area_primary"
+                if self.is_exterior and manually_configured
+                else "primary" if manually_configured else "automatic_device_class"
+            ),
+            "configured": manually_configured,
             "available": False,
         }
         if entity_id:
             source.update(self._source_descriptor(entity_id))
         self._source_entities[source_key] = source
-        if not entity_id or entity_id in self._excluded_ids:
+        if not entity_id:
             return None
         state = self.area.hass.states.get(entity_id)
         if (
             state is None
             or not entity_id.startswith("sensor.")
             or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
-            or state.attributes.get(ATTR_DEVICE_CLASS) != device_class
         ):
             return None
         try:
@@ -838,15 +897,15 @@ class AreaEnvironmentEngine:
                 if device_class == SensorDeviceClass.TEMPERATURE
                 else CONF_AREA_HUMIDITY_SENSOR
             )
-            entity_id = exterior.config.get(key, "")
+            entity_id = (
+                getattr(exterior.environment, "primary_temperature_entity", "")
+                if key == CONF_AREA_TEMPERATURE_SENSOR
+                else getattr(exterior.environment, "primary_humidity_entity", "")
+            ) or exterior.config.get(key, "")
             if not entity_id or entity_id in self._excluded_ids:
                 continue
             state = self.area.hass.states.get(entity_id)
-            if (
-                not state
-                or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
-                or state.attributes.get(ATTR_DEVICE_CLASS) != device_class
-            ):
+            if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                 continue
             try:
                 value = float(state.state)
@@ -1705,15 +1764,13 @@ class AreaEnvironmentEngine:
                     "outdoor_air_cooler",
                     "passive_cooling_available",
                 ]
-        if self.ventilation_fans or self.circulation_fans:
-            return CoolingState.ACTIVE_RECOMMENDED, [
-                "room_too_warm",
-                ("outdoor_air_cooler" if outdoor_cooler else "outdoor_air_warmer"),
-                *(["outdoor_air_moisture_penalty"] if moisture_penalty else []),
-                *(["air_exchange_unfavorable"] if pollution_penalty else []),
-                "active_cooling_recommended",
-            ]
-        return CoolingState.UNKNOWN, ["room_too_warm"]
+        return CoolingState.ACTIVE_RECOMMENDED, [
+            "room_too_warm",
+            ("outdoor_air_cooler" if outdoor_cooler else "outdoor_air_warmer"),
+            *(["outdoor_air_moisture_penalty"] if moisture_penalty else []),
+            *(["air_exchange_unfavorable"] if pollution_penalty else []),
+            "active_cooling_recommended",
+        ]
 
     def set_manual_reference_temperature(self, value: float) -> None:
         """Apply a restored or user-selected manual thermal reference."""
@@ -1981,21 +2038,20 @@ class AreaEnvironmentEngine:
             self._had_window_need = False
 
         ventilation_request = VentilationFanRequest.NONE
-        if self.ventilation_fans:
-            if (
-                ventilation in (VentilationState.REQUIRED, VentilationState.URGENT)
-                or rapid
-                or any(
-                    reason in {"very_high_co2", "high_humidity", "rapid_humidity_rise"}
-                    for reason in reasons
-                )
-            ):
-                ventilation_request = VentilationFanRequest.HIGH
-            elif ventilation in (
-                VentilationState.RECOMMENDED,
-                VentilationState.VENTILATING,
-            ):
-                ventilation_request = VentilationFanRequest.LOW
+        if (
+            ventilation in (VentilationState.REQUIRED, VentilationState.URGENT)
+            or rapid
+            or any(
+                reason in {"very_high_co2", "high_humidity", "rapid_humidity_rise"}
+                for reason in reasons
+            )
+        ):
+            ventilation_request = VentilationFanRequest.HIGH
+        elif ventilation in (
+            VentilationState.RECOMMENDED,
+            VentilationState.VENTILATING,
+        ):
+            ventilation_request = VentilationFanRequest.LOW
         if humidity_ventilation and not co2_ventilation and not air_exchange_suitable:
             ventilation_request = VentilationFanRequest.NONE
 
@@ -2074,7 +2130,6 @@ class AreaEnvironmentEngine:
             "no2": "no2" in pollutants,
             "air_quality": bool(pollutants),
             "windows": bool(self._window_ids),
-            "ventilation_fans": bool(self.ventilation_fans),
             "outdoor_temperature": outdoor is not None,
             "outdoor_humidity": outdoor_humidity is not None,
             "surface_temperature": surface_temperature is not None,
@@ -2171,39 +2226,6 @@ class AreaEnvironmentEngine:
         self._last_dominant_decision = dominant_decision
         for subscriber in list(self._subscribers):
             subscriber()
-
-    @property
-    def ventilation_fans(self) -> list[str]:
-        """Return fans explicitly configured for outdoor-air exchange."""
-        if self.is_exterior:
-            return []
-        return list(self.config.get(CONF_ENVIRONMENT_VENTILATION_FANS, []))
-
-    @property
-    def uses_fan_requests(self) -> bool:
-        """Return whether explicit Area Climate fan roles opt into requests."""
-        if self.is_exterior:
-            return False
-        return bool(
-            self.config.get(CONF_ENVIRONMENT_VENTILATION_FANS)
-            or self.config.get(CONF_ENVIRONMENT_CIRCULATION_FANS)
-        )
-
-    @property
-    def circulation_fans(self) -> list[str]:
-        """Return fans classified for indoor-air circulation."""
-        if self.is_exterior:
-            return []
-        explicit = list(self.config.get(CONF_ENVIRONMENT_CIRCULATION_FANS, []))
-        if explicit:
-            return explicit
-        disabled = set(self.config.get(CONF_ENVIRONMENT_DISABLED_FANS, []))
-        return [
-            entity[ATTR_ENTITY_ID]
-            for entity in self.area.entities.get("fan", [])
-            if entity[ATTR_ENTITY_ID] not in self.ventilation_fans
-            and entity[ATTR_ENTITY_ID] not in disabled
-        ]
 
     def diagnostics(self) -> dict[str, Any]:
         """Return privacy-safe capabilities, outputs, and recommendations."""

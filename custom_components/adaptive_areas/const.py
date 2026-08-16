@@ -1410,6 +1410,13 @@ ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
 # migration can validate 1.3 RC data before moving supported keys to this schema.
 AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
     {
+        vol.Optional(CONF_AREA_TEMPERATURE_SENSOR, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_AREA_HUMIDITY_SENSOR, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(CONF_ROOM_CATEGORY, default=DEFAULT_ROOM_CATEGORY): vol.In(
+            RoomCategory
+        ),
         vol.Optional(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, default=""): vol.Any(
             "", cv.entity_id
         ),
@@ -1428,9 +1435,6 @@ AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
             CONF_ENVIRONMENT_HUMIDITY_DURATION,
             default=DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
         ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
-        vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
-        vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
         **{
             vol.Optional(key, default=[]): cv.entity_ids
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
@@ -1610,10 +1614,6 @@ REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
         ),
         vol.Optional(CONF_INCLUDE_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
-        vol.Optional(CONF_AREA_TEMPERATURE_SENSOR, default=""): vol.Any(
-            "", cv.entity_id
-        ),
-        vol.Optional(CONF_AREA_HUMIDITY_SENSOR, default=""): vol.Any("", cv.entity_id),
         vol.Optional(CONF_PRESENCE_CONTROL_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
@@ -1621,9 +1621,6 @@ REGULAR_AREA_BASIC_OPTIONS_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_IGNORE_DIAGNOSTIC_ENTITIES, default=DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES
         ): cv.boolean,
-        vol.Optional(CONF_ROOM_CATEGORY, default=DEFAULT_ROOM_CATEGORY): vol.In(
-            RoomCategory
-        ),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1761,9 +1758,6 @@ _DOMAIN_SCHEMA = vol.Schema(
 # VALIDATION_TUPLES
 OPTIONS_AREA = [
     (CONF_TYPE, DEFAULT_TYPE, vol.In([AREA_TYPE_INTERIOR, AREA_TYPE_EXTERIOR])),
-    (CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY, vol.In(RoomCategory)),
-    (CONF_AREA_TEMPERATURE_SENSOR, "", cv.entity_id),
-    (CONF_AREA_HUMIDITY_SENSOR, "", cv.entity_id),
     (CONF_INCLUDE_ENTITIES, [], cv.entity_ids),
     (CONF_EXCLUDE_ENTITIES, [], cv.entity_ids),
     (CONF_PRESENCE_CONTROL_ENTITIES, [], cv.entity_ids),
@@ -1995,6 +1989,9 @@ OPTIONS_FAN_GROUP = [
 ]
 
 OPTIONS_AREA_EVALUATION = [
+    (CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY, vol.In(RoomCategory)),
+    (CONF_AREA_TEMPERATURE_SENSOR, "", cv.entity_id),
+    (CONF_AREA_HUMIDITY_SENSOR, "", cv.entity_id),
     (CONF_ENVIRONMENT_SURFACE_TEMPERATURE, "", cv.entity_id),
     (CONF_ENVIRONMENT_WINDOWS, [], cv.entity_ids),
     (
@@ -2007,9 +2004,6 @@ OPTIONS_AREA_EVALUATION = [
         DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
         int,
     ),
-    (CONF_ENVIRONMENT_VENTILATION_FANS, [], cv.entity_ids),
-    (CONF_ENVIRONMENT_CIRCULATION_FANS, [], cv.entity_ids),
-    (CONF_ENVIRONMENT_DISABLED_FANS, [], cv.entity_ids),
     *[(key, [], cv.entity_ids) for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES],
 ]
 

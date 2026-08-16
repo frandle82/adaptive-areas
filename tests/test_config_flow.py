@@ -34,18 +34,15 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
     CONF_DARK_ENTITY,
-    CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS,
     CONF_ENVIRONMENT_MANUAL_PM25_SENSORS,
     CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
-    CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_ROOM_USAGE,
-    CONF_EXCLUDE_ENTITIES,
     CONF_INCLUDE_ENTITIES,
     CONF_ID,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
@@ -400,6 +397,47 @@ async def test_light_group_form_only_exposes_room_state_rules(hass) -> None:
 
 async def test_room_climate_standard_feature_form(hass) -> None:
     """Room Climate uses the standard enabled-feature configuration menu."""
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+    area_sensor_specs = (
+        ("room_temperature", SensorDeviceClass.TEMPERATURE),
+        ("room_humidity", None),
+        ("wrong_class_temperature", SensorDeviceClass.PRESSURE),
+        ("unclassified_air_quality", None),
+        ("classified_co2", SensorDeviceClass.CO2),
+    )
+    for object_id, device_class in area_sensor_specs:
+        entity = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            object_id,
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            original_device_class=device_class,
+        )
+        entity_registry.async_update_entity(
+            entity.entity_id, area_id=DEFAULT_MOCK_AREA.value
+        )
+    other_area = async_get_area_registry(hass).async_create("Other")
+    other_sensor = entity_registry.async_get_or_create(
+        "sensor",
+        "test",
+        "other_area_sensor",
+        suggested_object_id="other_area_sensor",
+        config_entry=source_entry,
+    )
+    entity_registry.async_update_entity(other_sensor.entity_id, area_id=other_area.id)
+    area_fan = entity_registry.async_get_or_create(
+        "fan",
+        "test",
+        "room_fan",
+        suggested_object_id="room_fan",
+        config_entry=source_entry,
+    )
+    entity_registry.async_update_entity(
+        area_fan.entity_id, area_id=DEFAULT_MOCK_AREA.value
+    )
     config_entry_options = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     config_entry_options[CONF_ENABLED_FEATURES] = {CONF_FEATURE_ENVIRONMENT: {}}
     config_entry_options[CONF_INCLUDE_ENTITIES] = [
@@ -447,15 +485,9 @@ async def test_room_climate_standard_feature_form(hass) -> None:
 
     area_result = await flow.async_step_area_config()
     area_fields = {marker.schema for marker in area_result["data_schema"].schema}
-    assert CONF_ROOM_CATEGORY in area_fields
-    category_selector = next(
-        field
-        for marker, field in area_result["data_schema"].schema.items()
-        if marker.schema == CONF_ROOM_CATEGORY
-    )
-    assert RoomCategory.MANUAL in category_selector.config["options"]
-    assert CONF_AREA_TEMPERATURE_SENSOR in area_fields
-    assert CONF_AREA_HUMIDITY_SENSOR in area_fields
+    assert CONF_ROOM_CATEGORY not in area_fields
+    assert CONF_AREA_TEMPERATURE_SENSOR not in area_fields
+    assert CONF_AREA_HUMIDITY_SENSOR not in area_fields
 
     environment_result = await flow.async_step_feature_conf_environment()
     environment_fields = {
@@ -464,33 +496,36 @@ async def test_room_climate_standard_feature_form(hass) -> None:
     assert CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE not in environment_fields
     assert CONF_ENVIRONMENT_OUTDOOR_HUMIDITY not in environment_fields
     assert CONF_ENVIRONMENT_SURFACE_TEMPERATURE in environment_fields
-    assert CONF_AREA_TEMPERATURE_SENSOR not in environment_fields
-    assert CONF_AREA_HUMIDITY_SENSOR not in environment_fields
+    assert CONF_ROOM_CATEGORY in environment_fields
+    assert CONF_AREA_TEMPERATURE_SENSOR in environment_fields
+    assert CONF_AREA_HUMIDITY_SENSOR in environment_fields
     assert set(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES) <= environment_fields
-
-    excluded_primary = await flow.async_step_area_config(
-        {
-            CONF_AREA_TEMPERATURE_SENSOR: "sensor.room_temperature",
-            CONF_AREA_HUMIDITY_SENSOR: "sensor.room_humidity",
-            CONF_INCLUDE_ENTITIES: [
-                "sensor.room_temperature",
-                "sensor.room_humidity",
-            ],
-            CONF_EXCLUDE_ENTITIES: ["sensor.room_temperature"],
+    assert (
+        not {
+            "ventilation_fans",
+            "circulation_fans",
+            "disabled_fans",
         }
+        & environment_fields
     )
-    assert excluded_primary["errors"] == {
-        CONF_AREA_TEMPERATURE_SENSOR: "excluded_primary_source"
+
+    expected_candidates = {
+        f"sensor.{object_id}" for object_id, _device_class in area_sensor_specs
     }
-
-    invalid = await flow.async_step_feature_conf_environment(
-        {
-            CONF_ENVIRONMENT_VENTILATION_FANS: ["fan.shared"],
-            CONF_ENVIRONMENT_CIRCULATION_FANS: ["fan.shared"],
-        }
-    )
-    assert invalid["type"] == "form"
-    assert invalid["errors"] == {CONF_ENVIRONMENT_CIRCULATION_FANS: "malformed_input"}
+    for key in (
+        CONF_AREA_TEMPERATURE_SENSOR,
+        CONF_AREA_HUMIDITY_SENSOR,
+        CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+        *ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
+    ):
+        field = next(
+            selector
+            for marker, selector in environment_result["data_schema"].schema.items()
+            if marker.schema == key
+        )
+        assert set(field.config["include_entities"]) - {""} == expected_candidates
+        assert other_sensor.entity_id not in field.config["include_entities"]
+        assert area_fan.entity_id not in field.config["include_entities"]
 
     duplicate_pollutant = await flow.async_step_feature_conf_environment(
         {
@@ -517,6 +552,8 @@ async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
     for object_id, device_class in (
         ("outdoor_temperature", SensorDeviceClass.TEMPERATURE),
         ("outdoor_humidity", SensorDeviceClass.HUMIDITY),
+        ("unclassified_outdoor_pm25", None),
+        ("wrong_class_outdoor_sensor", SensorDeviceClass.PRESSURE),
     ):
         registry_entry = entity_registry.async_get_or_create(
             "sensor",
@@ -558,6 +595,34 @@ async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
         CONF_AREA_TEMPERATURE_SENSOR,
         CONF_AREA_HUMIDITY_SENSOR,
     }
+    for absent in (
+        CONF_ROOM_CATEGORY,
+        CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+        "relevant_windows",
+        "passive_cooling_temperature_difference",
+        "humidity_warning_duration",
+        "ventilation_fans",
+        "circulation_fans",
+        "disabled_fans",
+    ):
+        assert absent not in fields
+    expected_candidates = {
+        temperature_id,
+        humidity_id,
+        entity_id,
+        "sensor.wrong_class_outdoor_sensor",
+    }
+    for key in (
+        CONF_AREA_TEMPERATURE_SENSOR,
+        CONF_AREA_HUMIDITY_SENSOR,
+        *ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
+    ):
+        field = next(
+            selector
+            for marker, selector in result["data_schema"].schema.items()
+            if marker.schema == key
+        )
+        assert set(field.config["include_entities"]) - {""} == expected_candidates
     invalid = await flow.async_step_feature_conf_environment(
         {CONF_AREA_TEMPERATURE_SENSOR: "sensor.not_an_area_source"}
     )
@@ -565,14 +630,16 @@ async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
     assert invalid["errors"] == {CONF_AREA_TEMPERATURE_SENSOR: "invalid_primary_source"}
     saved = await flow.async_step_feature_conf_environment(
         {
-            CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
+            CONF_AREA_TEMPERATURE_SENSOR: "sensor.wrong_class_outdoor_sensor",
             CONF_AREA_HUMIDITY_SENSOR: humidity_id,
             CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [entity_id],
         }
     )
     assert saved["type"] == "menu"
     assert flow.area_options[CONF_ENVIRONMENT_MANUAL_PM25_SENSORS] == [entity_id]
-    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
+    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == (
+        "sensor.wrong_class_outdoor_sensor"
+    )
     assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
 
     await shutdown_integration(hass, [entry])
@@ -582,6 +649,24 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     """Primary sources survive every options stage, reopening, and reload."""
     temperature_id = "sensor.options_temperature"
     humidity_id = "sensor.options_humidity"
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+    for object_id, device_class in (
+        ("options_temperature", SensorDeviceClass.TEMPERATURE),
+        ("options_humidity", SensorDeviceClass.HUMIDITY),
+    ):
+        source = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            object_id,
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            original_device_class=device_class,
+        )
+        entity_registry.async_update_entity(
+            source.entity_id, area_id=DEFAULT_MOCK_AREA.value
+        )
     hass.states.async_set(
         temperature_id, "21.5", {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE}
     )
@@ -605,12 +690,11 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     flow.hass = hass
     flow.handler = config_entry.entry_id
     await flow.async_step_init()
-    result = await flow.async_step_area_config(
+    result = await flow.async_step_feature_conf_environment(
         {
             CONF_ROOM_CATEGORY: RoomCategory.LIVING_SEDENTARY,
             CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
             CONF_AREA_HUMIDITY_SENSOR: humidity_id,
-            CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
         }
     )
     assert result["type"] == "menu"
@@ -626,8 +710,8 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     assert result["type"] == "menu"
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
-    result = await flow.async_step_feature_conf_environment({})
-    assert result["type"] == "menu"
+    result = await flow.async_step_feature_conf_environment()
+    assert result["type"] == "form"
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     assert flow.area_options[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == (
@@ -701,8 +785,8 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     assert result["type"] == "menu"
     assert reopened.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert reopened.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
-    result = await reopened.async_step_feature_conf_environment({})
-    assert result["type"] == "menu"
+    result = await reopened.async_step_feature_conf_environment()
+    assert result["type"] == "form"
     assert reopened.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert reopened.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     result = await reopened.async_step_finish()
@@ -741,13 +825,15 @@ async def test_manual_category_number_follows_options_flow_lifecycle(hass) -> No
         flow.hass = hass
         flow.handler = entry.entry_id
         await flow.async_step_init()
-        result = await flow.async_step_area_config({CONF_ROOM_CATEGORY: category})
-        assert result["type"] == "menu"
         if enable_environment:
             result = await flow.async_step_select_features(
                 {CONF_FEATURE_ENVIRONMENT: True}
             )
             assert result["type"] == "menu"
+        result = await flow.async_step_feature_conf_environment(
+            {CONF_ROOM_CATEGORY: category}
+        )
+        assert result["type"] == "menu"
         result = await flow.async_step_finish()
         assert result["type"] == "create_entry"
         hass.config_entries.async_update_entry(entry, options=result["data"])
@@ -841,18 +927,13 @@ async def test_arbeitszimmer_primary_sources_survive_real_options_workflow(
     flow.hass = hass
     flow.handler = entry.entry_id
     await flow.async_step_init()
-    await flow.async_step_area_config(
+    await flow.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
+    await flow.async_step_feature_conf_environment(
         {
             CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
             CONF_AREA_HUMIDITY_SENSOR: humidity_id,
         }
     )
-    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
-    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
-    await flow.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
-    assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
-    assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
-    await flow.async_step_feature_conf_environment({})
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     result = await flow.async_step_finish()
@@ -905,9 +986,27 @@ async def test_arbeitszimmer_primary_sources_survive_real_options_workflow(
 
 
 async def test_primary_climate_sources_can_be_cleared_independently(hass) -> None:
-    """Clearing one primary source neither clears nor replaces the other."""
+    """Cleared manual sources fall back independently to safe auto-discovery."""
     temperature_id = "sensor.options_temperature"
     humidity_id = "sensor.options_humidity"
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+    for object_id, device_class in (
+        ("options_temperature", SensorDeviceClass.TEMPERATURE),
+        ("options_humidity", SensorDeviceClass.HUMIDITY),
+    ):
+        source = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            object_id,
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            original_device_class=device_class,
+        )
+        entity_registry.async_update_entity(
+            source.entity_id, area_id=DEFAULT_MOCK_AREA.value
+        )
     hass.states.async_set(
         temperature_id, "21.5", {ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE}
     )
@@ -929,9 +1028,8 @@ async def test_primary_climate_sources_can_be_cleared_independently(hass) -> Non
     flow.hass = hass
     flow.handler = entry.entry_id
     await flow.async_step_init()
-    await flow.async_step_area_config(
+    await flow.async_step_feature_conf_environment(
         {
-            CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
             CONF_AREA_TEMPERATURE_SENSOR: "",
             CONF_AREA_HUMIDITY_SENSOR: humidity_id,
         }
@@ -943,16 +1041,15 @@ async def test_primary_climate_sources_can_be_cleared_independently(hass) -> Non
     assert entry.options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert area.environment is not None
-    assert area.environment.primary_temperature_entity == ""
+    assert area.environment.primary_temperature_entity == temperature_id
     assert area.environment.primary_humidity_entity == humidity_id
 
     flow = OptionsFlowHandler()
     flow.hass = hass
     flow.handler = entry.entry_id
     await flow.async_step_init()
-    await flow.async_step_area_config(
+    await flow.async_step_feature_conf_environment(
         {
-            CONF_INCLUDE_ENTITIES: [temperature_id, humidity_id],
             CONF_AREA_TEMPERATURE_SENSOR: temperature_id,
             CONF_AREA_HUMIDITY_SENSOR: "",
         }
@@ -965,6 +1062,6 @@ async def test_primary_climate_sources_can_be_cleared_independently(hass) -> Non
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert area.environment is not None
     assert area.environment.primary_temperature_entity == temperature_id
-    assert area.environment.primary_humidity_entity == ""
+    assert area.environment.primary_humidity_entity == humidity_id
 
     await shutdown_integration(hass, [entry])
