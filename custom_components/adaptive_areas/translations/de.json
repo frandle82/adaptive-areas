@@ -661,6 +661,23 @@
                             "unknown": "Unbekannt"
                         }
                     },
+                    "ventilation_demand": {
+                        "name": "Lüftungsbedarf",
+                        "state": {
+                            "not_required": "Nicht erforderlich",
+                            "recommended": "Empfohlen",
+                            "required": "Erforderlich",
+                            "urgent": "Dringend erforderlich",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "ventilation_activity": {
+                        "name": "Lüftungsaktivität",
+                        "state": {
+                            "inactive": "Inaktiv",
+                            "ventilating": "Wird gelüftet"
+                        }
+                    },
                     "cooling": {
                         "name": "Kühlung",
                         "state": {

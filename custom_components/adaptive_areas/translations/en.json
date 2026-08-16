@@ -661,6 +661,23 @@
               "unknown": "Unknown"
             }
           },
+          "ventilation_demand": {
+            "name": "Ventilation demand",
+            "state": {
+              "not_required": "Not required",
+              "recommended": "Recommended",
+              "required": "Required",
+              "urgent": "Urgent",
+              "unknown": "Unknown"
+            }
+          },
+          "ventilation_activity": {
+            "name": "Ventilation activity",
+            "state": {
+              "inactive": "Inactive",
+              "ventilating": "Ventilating"
+            }
+          },
           "cooling": {
             "name": "Cooling",
             "state": {

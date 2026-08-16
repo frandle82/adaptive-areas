@@ -1129,7 +1129,7 @@ class HumidityState(StrEnum):
 
 
 class VentilationState(StrEnum):
-    """Ventilation assessment states."""
+    """Legacy ventilation assessment states."""
 
     NOT_REQUIRED = "not_required"
     RECOMMENDED = "recommended"
@@ -1137,6 +1137,23 @@ class VentilationState(StrEnum):
     URGENT = "urgent"
     VENTILATING = "ventilating"
     UNKNOWN = "unknown"
+
+
+class VentilationDemand(StrEnum):
+    """Required level of ventilation independent of current activity."""
+
+    NOT_REQUIRED = "not_required"
+    RECOMMENDED = "recommended"
+    REQUIRED = "required"
+    URGENT = "urgent"
+    UNKNOWN = "unknown"
+
+
+class VentilationActivity(StrEnum):
+    """Whether ventilation is currently taking place through an open window."""
+
+    INACTIVE = "inactive"
+    VENTILATING = "ventilating"
 
 
 class CoolingState(StrEnum):

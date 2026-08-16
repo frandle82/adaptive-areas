@@ -254,6 +254,10 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "mould_risk": str(assessment.get("mould_risk", "unknown")),
             "air_quality": str(assessment.get("air_quality", "unknown")),
             "ventilation": str(assessment.get("ventilation", "unknown")),
+            "ventilation_demand": str(assessment.get("ventilation_demand", "unknown")),
+            "ventilation_activity": str(
+                assessment.get("ventilation_activity", "inactive")
+            ),
             "cooling": str(assessment.get("cooling", "unknown")),
             "dew_point": assessment.get("dew_point"),
             "absolute_humidity": assessment.get("absolute_humidity"),

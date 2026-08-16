@@ -71,6 +71,8 @@ from custom_components.adaptive_areas.const import (
     HumidityState,
     MouldRiskState,
     RoomCategory,
+    VentilationActivity,
+    VentilationDemand,
     VentilationFanRequest,
     VentilationState,
     WindowRecommendation,
@@ -359,6 +361,7 @@ def test_fahrenheit_temperature_is_converted(hass: HomeAssistant) -> None:
 
 def test_passive_and_active_cooling(hass: HomeAssistant) -> None:
     """Windows and fans enable passive and active cooling recommendations."""
+    hass.config.language = "de"
     area = _area(
         hass,
         {
@@ -405,10 +408,15 @@ def test_passive_and_active_cooling(hass: HomeAssistant) -> None:
     assert (
         engine.assessment["window_recommendation"] == WindowRecommendation.KEEP_CLOSED
     )
+    assert engine.assessment["context"] == (
+        "Fenster geschlossen halten: Die Außenluft ist derzeit wärmer und würde den "
+        "Bereich zusätzlich aufheizen."
+    )
 
 
 def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     """CO2 emits abstract ventilation and window requests without fan entities."""
+    hass.config.language = "de"
     area = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
     _sensor(hass, area, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
     hass.states.async_set(
@@ -419,8 +427,13 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     area.entities["binary_sensor"] = [{ATTR_ENTITY_ID: "binary_sensor.window"}]
     engine = AreaEnvironmentEngine(area)
     assert engine.assessment["ventilation"] == VentilationState.RECOMMENDED
+    assert engine.assessment["ventilation_demand"] == VentilationDemand.RECOMMENDED
+    assert engine.assessment["ventilation_activity"] == VentilationActivity.INACTIVE
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
     assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.LOW
+    assert engine.assessment["context"] == (
+        "Lüften empfohlen: Die CO₂-Konzentration ist erhöht."
+    )
 
     hass.states.async_set(
         "sensor.co2", "900", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
@@ -434,8 +447,14 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
         {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
     )
     engine.evaluate()
-    assert engine.assessment["ventilation"] == VentilationState.VENTILATING
+    assert engine.assessment["ventilation"] == VentilationState.RECOMMENDED
+    assert engine.assessment["ventilation_demand"] == VentilationDemand.RECOMMENDED
+    assert engine.assessment["ventilation_activity"] == VentilationActivity.VENTILATING
     assert engine.assessment["window_recommendation"] == WindowRecommendation.NONE
+    assert engine.assessment["context"] == (
+        "Weiter lüften: Die CO₂-Konzentration liegt weiterhin über der "
+        "Entwarnungsschwelle."
+    )
 
     hass.states.async_set(
         "sensor.co2", "800", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
@@ -443,6 +462,44 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     engine.evaluate()
     assert engine.assessment["ventilation"] == VentilationState.NOT_REQUIRED
     assert engine.assessment["window_recommendation"] == WindowRecommendation.CLOSE
+    assert engine.assessment["context"] == (
+        "Lüften beenden und Fenster schließen: Die Lüftung ist nicht mehr "
+        "erforderlich."
+    )
+
+
+def test_urgent_co2_context_reflects_current_ventilation_activity(
+    hass: HomeAssistant,
+) -> None:
+    """Urgent CO2 demand remains urgent while an open window changes the action."""
+    hass.config.language = "de"
+    area = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
+    _sensor(hass, area, "sensor.co2", 2200, SensorDeviceClass.CO2, "ppm")
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    engine = AreaEnvironmentEngine(area)
+
+    assert engine.assessment["ventilation_demand"] == VentilationDemand.URGENT
+    assert engine.assessment["ventilation_activity"] == VentilationActivity.INACTIVE
+    assert engine.assessment["context"] == (
+        "Sofort lüften: Die CO₂-Konzentration ist sehr hoch."
+    )
+
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_ON,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    engine.evaluate()
+
+    assert engine.assessment["ventilation_demand"] == VentilationDemand.URGENT
+    assert engine.assessment["ventilation_activity"] == VentilationActivity.VENTILATING
+    assert engine.assessment["context"] == (
+        "Sofort weiterlüften: Die CO₂-Konzentration ist weiterhin sehr hoch."
+    )
 
 
 def test_co2_requests_fan_and_window_when_both_are_configured(
@@ -1022,6 +1079,7 @@ def test_room_category_can_make_comfort_not_applicable(hass: HomeAssistant) -> N
 
 def test_outdoor_moisture_can_keep_window_closed(hass: HomeAssistant) -> None:
     """Humidity advice compares moisture ratio instead of relative humidity alone."""
+    hass.config.language = "de"
     area = _area(
         hass,
         {
@@ -1059,6 +1117,10 @@ def test_outdoor_moisture_can_keep_window_closed(hass: HomeAssistant) -> None:
     assert assessment["moisture_ventilation"] == "unfavorable"
     assert assessment["window_recommendation"] == WindowRecommendation.KEEP_CLOSED
     assert assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
+    assert assessment["context"] == (
+        "Nicht lüften: Die Außenluft ist derzeit feuchter und würde den Feuchteabbau "
+        "nicht unterstützen."
+    )
 
 
 def test_exclusion_is_authoritative_and_sources_are_transparent(
@@ -1281,6 +1343,7 @@ def test_humidity_changes_combined_comfort(hass: HomeAssistant) -> None:
 
 def test_polluted_exterior_air_blocks_window_exchange(hass: HomeAssistant) -> None:
     """Conservative exterior pollution maximum blocks window ventilation."""
+    hass.config.language = "de"
     interior = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
     _sensor(hass, interior, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
     _sensor(
@@ -1315,6 +1378,48 @@ def test_polluted_exterior_air_blocks_window_exchange(hass: HomeAssistant) -> No
     assert assessment["source_entities"]["outdoor_pm25"]["mode"] == (
         "exterior_air_quality"
     )
+    assert assessment["context"] == (
+        "Fenster geschlossen halten: Die Außenluft ist derzeit stark belastet."
+    )
+
+
+def test_more_polluted_outdoor_air_keeps_window_closed(hass: HomeAssistant) -> None:
+    """Unfavorable outdoor pollution blocks a generic ventilation prompt."""
+    hass.config.language = "de"
+    interior = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
+    _sensor(hass, interior, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
+    _sensor(
+        hass,
+        interior,
+        "sensor.indoor_pm25",
+        20,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    exterior = _area(hass, {CONF_TYPE: AREA_TYPE_EXTERIOR})
+    _sensor(
+        hass,
+        exterior,
+        "sensor.exterior_pm25",
+        25,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: exterior}
+
+    assessment = AreaEnvironmentEngine(interior).assessment
+
+    assert assessment["air_exchange_suitability"] == AirExchangeSuitability.UNFAVORABLE
+    assert assessment["window_recommendation"] == WindowRecommendation.KEEP_CLOSED
+    assert assessment["context"] == (
+        "Fenster geschlossen halten: Die Außenluft ist derzeit stärker belastet "
+        "als die Innenluft."
+    )
 
 
 def test_exterior_assessment_omits_indoor_actions(hass: HomeAssistant) -> None:
@@ -1346,6 +1451,8 @@ def test_exterior_assessment_omits_indoor_actions(hass: HomeAssistant) -> None:
         "combined_comfort",
         "ventilation",
         "ventilation_state",
+        "ventilation_demand",
+        "ventilation_activity",
         "cooling",
         "air_exchange_suitability",
         "window_recommendation",
@@ -1723,6 +1830,8 @@ async def test_enabled_exterior_publishes_reduced_area_climate_sensor(
         "comfort",
         "ventilation",
         "ventilation_state",
+        "ventilation_demand",
+        "ventilation_activity",
         "cooling",
         "air_exchange_suitability",
         "window_recommendation",
@@ -1987,6 +2096,8 @@ def test_environment_translation_value_coverage() -> None:
         "mould_quality": {"surface_based", "room_air_estimate", "unknown"},
         "air_quality": {str(state) for state in AirQualityState},
         "ventilation": {str(state) for state in VentilationState},
+        "ventilation_demand": {str(state) for state in VentilationDemand},
+        "ventilation_activity": {str(state) for state in VentilationActivity},
         "cooling": {str(state) for state in CoolingState},
         "window_recommendation": {str(state) for state in WindowRecommendation},
         "ventilation_fan_request": {str(state) for state in VentilationFanRequest},
