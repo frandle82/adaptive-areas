@@ -51,8 +51,10 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_ROOM_CATEGORY,
     MODULE_DATA,
     AdaptiveAreasEvents,
+    AirExchangeSuitability,
     AirQualityState,
     CirculationFanRequest,
+    CombinedComfortState,
     ComfortState,
     CoolingState,
     EnvironmentState,
@@ -143,14 +145,33 @@ MOULD_POLICY = MouldPolicy()
 VENTILATION_POLICY = VentilationPolicy()
 
 THERMAL_PROFILES: dict[RoomCategory, ThermalProfile] = {
-    RoomCategory.LIVING_SEDENTARY: ThermalProfile(20.0, True, "sedentary"),
-    RoomCategory.SLEEPING_REST: ThermalProfile(17.0, True, "resting"),
-    RoomCategory.HYGIENE_WET: ThermalProfile(23.0, True, "hygiene_wet"),
-    RoomCategory.ACTIVE_DOMESTIC: ThermalProfile(18.0, True, "active_domestic"),
-    RoomCategory.CIRCULATION_TRANSIENT: ThermalProfile(15.0, True, "transient"),
-    RoomCategory.SERVICE_STORAGE: ThermalProfile(None, False, "service_storage"),
-    RoomCategory.UNCONDITIONED: ThermalProfile(None, False, "unconditioned"),
-    RoomCategory.MANUAL: ThermalProfile(20.0, True, "manual"),
+    RoomCategory.LIVING_SEDENTARY: ThermalProfile(
+        20.0, True, "sedentary", "UBA living-room reference"
+    ),
+    RoomCategory.SLEEPING_REST: ThermalProfile(
+        17.0, True, "resting", "UBA bedroom reference"
+    ),
+    RoomCategory.HYGIENE_WET: ThermalProfile(
+        23.0, True, "hygiene_wet", "Adaptive Areas operational reference"
+    ),
+    RoomCategory.ACTIVE_DOMESTIC: ThermalProfile(
+        18.0,
+        True,
+        "active_domestic",
+        "UBA kitchen reference; Adaptive Areas operational category mapping",
+    ),
+    RoomCategory.CIRCULATION_TRANSIENT: ThermalProfile(
+        15.0, True, "transient", "UBA hallway reference"
+    ),
+    RoomCategory.SERVICE_STORAGE: ThermalProfile(
+        None, False, "service_storage", "Adaptive Areas operational reference"
+    ),
+    RoomCategory.UNCONDITIONED: ThermalProfile(
+        None, False, "unconditioned", "Adaptive Areas operational reference"
+    ),
+    RoomCategory.MANUAL: ThermalProfile(
+        20.0, True, "manual", "User-configured operational reference"
+    ),
 }
 
 
@@ -170,6 +191,9 @@ AIR_QUALITY_MATRIX: dict[SensorDeviceClass, EvaluationBand] = {
     SensorDeviceClass.NITROGEN_DIOXIDE: EvaluationBand(
         25, 50, 100, MICROGRAMS_PER_CUBIC_METER, "WHO-24h"
     ),
+    SensorDeviceClass.OZONE: EvaluationBand(
+        100, 160, 240, MICROGRAMS_PER_CUBIC_METER, "WHO-8h"
+    ),
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS: EvaluationBand(
         950, 950, 950, MICROGRAMS_PER_CUBIC_METER, "UBA-TVOC-precaution"
     ),
@@ -180,9 +204,12 @@ ROLLING_DEVICE_CLASSES = (
     SensorDeviceClass.PM10,
     SensorDeviceClass.CO,
     SensorDeviceClass.NITROGEN_DIOXIDE,
+    SensorDeviceClass.OZONE,
 )
 ROLLING_WINDOW = timedelta(hours=24)
 ROLLING_MIN_COVERAGE = timedelta(hours=18)
+OZONE_ROLLING_WINDOW = timedelta(hours=8)
+OZONE_MIN_COVERAGE = timedelta(hours=6)
 
 POLLUTANT_NAMES = {
     SensorDeviceClass.CO2: "co2",
@@ -190,6 +217,7 @@ POLLUTANT_NAMES = {
     SensorDeviceClass.PM10: "pm10",
     SensorDeviceClass.CO: "co",
     SensorDeviceClass.NITROGEN_DIOXIDE: "no2",
+    SensorDeviceClass.OZONE: "ozone",
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS: "voc",
     SensorDeviceClass.AQI: "aqi",
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS: "voc_parts",
@@ -259,7 +287,7 @@ CONTEXT: dict[str, dict[str, str]] = {
         "clean_postpone": "Reinigung verschieben: Der Raum wird derzeit genutzt.",
         "clean_preferred": "Der Raum wurde intensiv genutzt und ist jetzt frei. Ein guter Zeitpunkt für die Reinigung.",
         "clean_allowed": "Der Raum ist frei; eine Reinigung ist möglich.",
-        "good": "Raumklima im verfügbaren Messumfang unauffällig.",
+        "good": "Bereichsklima im verfügbaren Messumfang unauffällig.",
         "partial": "Die verfügbaren Messwerte zeigen kein vorrangiges Problem; einige Umweltbereiche sind nicht bewertbar.",
         "temperature_not_configured": "Für die Temperaturbewertung ist kein Temperatursensor des Bereichs festgelegt.",
         "temperature_unavailable": "Die Temperaturbewertung ist eingeschränkt: Der festgelegte Temperatursensor des Bereichs ist derzeit nicht verfügbar.",
@@ -282,11 +310,12 @@ CONTEXT: dict[str, dict[str, str]] = {
 
 
 class AreaEnvironmentEngine:
-    """Evaluate Room Climate without controlling devices."""
+    """Evaluate Area Climate without controlling devices."""
 
     def __init__(self, area) -> None:
         """Initialize capability discovery, histories, and listeners."""
         self.area = area
+        self.is_exterior = area.is_exterior()
         self.config = dict(area.config)
         # Read RC4 nested values until config-entry migration has persisted them.
         if area.has_feature(CONF_FEATURE_ENVIRONMENT):
@@ -328,19 +357,21 @@ class AreaEnvironmentEngine:
         )
         self.primary_humidity_entity = self.config.get(CONF_AREA_HUMIDITY_SENSOR, "")
         self._sensor_ids = self._discover_sensor_ids()
-        self._window_ids = self._discover_window_ids()
+        self._window_ids = [] if self.is_exterior else self._discover_window_ids()
         self.outdoor_temperature_entity = self.config.get(
             CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, ""
         )
         self.outdoor_humidity_entity = self.config.get(
             CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, ""
         )
-        self.surface_temperature_entity = self.config.get(
-            CONF_ENVIRONMENT_SURFACE_TEMPERATURE, ""
+        self.surface_temperature_entity = (
+            ""
+            if self.is_exterior
+            else self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE, "")
         )
         self.health_entity = (
             f"binary_sensor.adaptive_areas_health_{self.area.slug}"
-            if area.has_feature(CONF_FEATURE_HEALTH)
+            if not self.is_exterior and area.has_feature(CONF_FEATURE_HEALTH)
             else ""
         )
         self._humidity_history: deque[tuple[datetime, float]] = deque(maxlen=60)
@@ -398,7 +429,8 @@ class AreaEnvironmentEngine:
                 self._area_loaded,
             )
         )
-        self._refresh_outdoor_listener()
+        if not self.is_exterior:
+            self._refresh_outdoor_listener()
         self.evaluate(trace=False)
         self.area.logger.debug(
             "Primary temperature source: %s",
@@ -426,29 +458,33 @@ class AreaEnvironmentEngine:
             ),
         )
         self.area.logger.debug(
-            "Initial Room Climate state: %s", self.assessment["state"]
+            "Initial Area Climate state: %s", self.assessment["state"]
         )
 
     def _exterior_sensor_ids(self) -> list[str]:
-        """Return currently eligible automatic exterior temperature/RH sources."""
-        explicit = {
-            self.outdoor_temperature_entity,
-            self.outdoor_humidity_entity,
-        }
+        """Return authoritative exterior primary and air-quality sources."""
         result: set[str] = set()
         for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
             exterior = runtime.get(DATA_AREA_OBJECT)
             if exterior is None or exterior is self.area or not exterior.is_exterior():
                 continue
+            result.update(
+                entity_id
+                for key in (
+                    CONF_AREA_TEMPERATURE_SENSOR,
+                    CONF_AREA_HUMIDITY_SENSOR,
+                )
+                if (entity_id := exterior.config.get(key))
+            )
             for entity in exterior.entities.get("sensor", []):
                 entity_id = entity[ATTR_ENTITY_ID]
+                if entity_id in self._excluded_ids:
+                    continue
                 state = self.area.hass.states.get(entity_id)
                 if (
                     entity_id not in self._excluded_ids
-                    and entity_id not in explicit
                     and state is not None
-                    and state.attributes.get(ATTR_DEVICE_CLASS)
-                    in (SensorDeviceClass.TEMPERATURE, SensorDeviceClass.HUMIDITY)
+                    and state.attributes.get(ATTR_DEVICE_CLASS) in AIR_QUALITY_MATRIX
                 ):
                     result.add(entity_id)
         return sorted(result)
@@ -537,7 +573,7 @@ class AreaEnvironmentEngine:
     ) -> float | None:
         """Read one configured authoritative indoor source without fallback."""
         source: dict[str, Any] = {
-            "mode": "primary",
+            "mode": "exterior_area_primary" if self.is_exterior else "primary",
             "configured": bool(entity_id),
             "available": False,
         }
@@ -725,10 +761,71 @@ class AreaEnvironmentEngine:
         explicit_entity: str,
         source_key: str,
     ) -> float | None:
-        if explicit_entity:
-            return self._explicit_value(explicit_entity, device_class, source_key)
         values: list[float] = []
         used: list[str] = []
+        for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
+            exterior = runtime.get(DATA_AREA_OBJECT)
+            if exterior is None or exterior is self.area or not exterior.is_exterior():
+                continue
+            key = (
+                CONF_AREA_TEMPERATURE_SENSOR
+                if device_class == SensorDeviceClass.TEMPERATURE
+                else CONF_AREA_HUMIDITY_SENSOR
+            )
+            entity_id = exterior.config.get(key, "")
+            if not entity_id or entity_id in self._excluded_ids:
+                continue
+            state = self.area.hass.states.get(entity_id)
+            if (
+                not state
+                or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                or state.attributes.get(ATTR_DEVICE_CLASS) != device_class
+            ):
+                continue
+            try:
+                value = float(state.state)
+                unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+                if (
+                    device_class == SensorDeviceClass.TEMPERATURE
+                    and unit
+                    and unit != UnitOfTemperature.CELSIUS
+                ):
+                    value = TemperatureConverter.convert(
+                        value, unit, UnitOfTemperature.CELSIUS
+                    )
+                values.append(value)
+                used.append(entity_id)
+            except TypeError, ValueError:
+                continue
+        if not values and explicit_entity:
+            value = self._explicit_value(explicit_entity, device_class, source_key)
+            self._source_entities.setdefault(
+                source_key, {"mode": "legacy_explicit", "entities": []}
+            )["mode"] = "legacy_explicit"
+            return value
+        self._source_entities[source_key] = {
+            "mode": (
+                "exterior_area_primary" if len(used) == 1 else "exterior_area_aggregate"
+            ),
+            "entities": [
+                self._source_descriptor(entity_id) for entity_id in sorted(used)
+            ],
+        }
+        return mean(values) if values else None
+
+    def _outdoor_pollutants(self) -> tuple[dict[str, float], dict[str, Any]]:
+        """Return conservative maxima from valid exterior Area pollutant sensors."""
+        values: dict[str, list[tuple[float, str]]] = {
+            POLLUTANT_NAMES[device_class]: []
+            for device_class in (
+                SensorDeviceClass.PM25,
+                SensorDeviceClass.PM10,
+                SensorDeviceClass.NITROGEN_DIOXIDE,
+                SensorDeviceClass.OZONE,
+                SensorDeviceClass.CO,
+                SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+            )
+        }
         for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
             exterior = runtime.get(DATA_AREA_OBJECT)
             if exterior is None or exterior is self.area or not exterior.is_exterior():
@@ -738,30 +835,46 @@ class AreaEnvironmentEngine:
                 if entity_id in self._excluded_ids:
                     continue
                 state = self.area.hass.states.get(entity_id)
-                if not state or state.attributes.get(ATTR_DEVICE_CLASS) != device_class:
+                if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                    continue
+                device_class = state.attributes.get(ATTR_DEVICE_CLASS)
+                if device_class not in (
+                    SensorDeviceClass.PM25,
+                    SensorDeviceClass.PM10,
+                    SensorDeviceClass.NITROGEN_DIOXIDE,
+                    SensorDeviceClass.OZONE,
+                    SensorDeviceClass.CO,
+                    SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+                ):
+                    continue
+                band = AIR_QUALITY_MATRIX[device_class]
+                if state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) != band.unit:
                     continue
                 try:
                     value = float(state.state)
-                    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
-                    if (
-                        device_class == SensorDeviceClass.TEMPERATURE
-                        and unit
-                        and unit != UnitOfTemperature.CELSIUS
-                    ):
-                        value = TemperatureConverter.convert(
-                            value, unit, UnitOfTemperature.CELSIUS
-                        )
-                    values.append(value)
-                    used.append(entity_id)
                 except TypeError, ValueError:
                     continue
-        self._source_entities[source_key] = {
-            "mode": "exterior_area_mean",
-            "entities": [
-                self._source_descriptor(entity_id) for entity_id in sorted(used)
-            ],
-        }
-        return mean(values) if values else None
+                values[POLLUTANT_NAMES[device_class]].append((value, entity_id))
+        measurements: dict[str, float] = {}
+        assessments: dict[str, Any] = {}
+        for name, samples in values.items():
+            if not samples:
+                continue
+            highest = max(value for value, _entity_id in samples)
+            used = [entity_id for _value, entity_id in samples]
+            measurements[name] = round(highest, 2)
+            assessments[name] = {
+                "value": round(highest, 2),
+                "aggregation": "conservative_maximum",
+                "source_entities": sorted(used),
+            }
+            self._source_entities[f"outdoor_{name}"] = {
+                "mode": "exterior_air_quality",
+                "entities": [
+                    self._source_descriptor(entity_id) for entity_id in sorted(used)
+                ],
+            }
+        return measurements, assessments
 
     def _outdoor_temperature(self) -> float | None:
         return self._outdoor_value(
@@ -879,6 +992,40 @@ class AreaEnvironmentEngine:
         return comfort, quality, dew_point, humidex
 
     @staticmethod
+    def _combined_comfort(
+        temperature_state: ComfortState, humidity_state: HumidityState
+    ) -> CombinedComfortState:
+        """Combine explicit temperature and humidity dimensions."""
+        if temperature_state == ComfortState.NOT_APPLICABLE:
+            return CombinedComfortState.NOT_APPLICABLE
+        if temperature_state == ComfortState.UNKNOWN:
+            return CombinedComfortState.UNKNOWN
+        temperature_map = {
+            ComfortState.COLD: CombinedComfortState.TEMPERATURE_COLD,
+            ComfortState.COOL: CombinedComfortState.TEMPERATURE_COOL,
+            ComfortState.WARM: CombinedComfortState.TEMPERATURE_WARM,
+            ComfortState.HOT: CombinedComfortState.TEMPERATURE_HOT,
+            ComfortState.VERY_HOT: CombinedComfortState.TEMPERATURE_VERY_HOT,
+        }
+        temperature_deviation = temperature_map.get(temperature_state)
+        humidity_deviation = (
+            CombinedComfortState.HUMIDITY_TOO_DRY
+            if humidity_state in (HumidityState.VERY_DRY, HumidityState.DRY)
+            else (
+                CombinedComfortState.HUMIDITY_TOO_HIGH
+                if humidity_state in (HumidityState.HIGH, HumidityState.VERY_HIGH)
+                else None
+            )
+        )
+        if temperature_deviation and humidity_deviation:
+            return CombinedComfortState.MULTIPLE_DEVIATIONS
+        return (
+            temperature_deviation
+            or humidity_deviation
+            or CombinedComfortState.COMFORTABLE
+        )
+
+    @staticmethod
     def _humidity(value: float | None) -> HumidityState:
         if value is None:
             return HumidityState.UNKNOWN
@@ -967,7 +1114,10 @@ class AreaEnvironmentEngine:
         return AirQualityState.CRITICAL
 
     def _rolling_pollutant(
-        self, device_class: SensorDeviceClass, value: float | None
+        self,
+        device_class: SensorDeviceClass,
+        value: float | None,
+        window: timedelta = ROLLING_WINDOW,
     ) -> tuple[float | None, float]:
         key = str(device_class)
         now = datetime.now(UTC)
@@ -981,12 +1131,27 @@ class AreaEnvironmentEngine:
             else:
                 history.append((start, now, previous_value))
         self._last_pollutant_sample[key] = (now, value)
-        cutoff = now - ROLLING_WINDOW
+        cutoff = now - window
         while history and history[0][1] <= cutoff:
             history.popleft()
         weighted = 0.0
         coverage = 0.0
         for start, end, sample in history:
+            overlap_start = max(start, cutoff)
+            seconds = max(0.0, (min(end, now) - overlap_start).total_seconds())
+            weighted += sample * seconds
+            coverage += seconds
+        return (weighted / coverage if coverage else None, coverage / 3600)
+
+    def _rolling_average(
+        self, device_class: SensorDeviceClass, window: timedelta
+    ) -> tuple[float | None, float]:
+        """Read a time-weighted average from already recorded source history."""
+        now = datetime.now(UTC)
+        cutoff = now - window
+        weighted = 0.0
+        coverage = 0.0
+        for start, end, sample in self._pollutant_history[str(device_class)]:
             overlap_start = max(start, cutoff)
             seconds = max(0.0, (min(end, now) - overlap_start).total_seconds())
             weighted += sample * seconds
@@ -1002,6 +1167,16 @@ class AreaEnvironmentEngine:
         reasons: list[str] = []
         limited_coverage = False
         for device_class, band in AIR_QUALITY_MATRIX.items():
+            rolling_window = (
+                OZONE_ROLLING_WINDOW
+                if device_class == SensorDeviceClass.OZONE
+                else ROLLING_WINDOW
+            )
+            minimum_coverage = (
+                OZONE_MIN_COVERAGE
+                if device_class == SensorDeviceClass.OZONE
+                else ROLLING_MIN_COVERAGE
+            )
             values = self._values(device_class)
             current = max(values) if values else None
             if current is None:
@@ -1010,27 +1185,87 @@ class AreaEnvironmentEngine:
                 ):
                     # Close a real source's previous interval during an outage,
                     # but never create history or assessments for absent types.
-                    self._rolling_pollutant(device_class, None)
+                    self._rolling_pollutant(device_class, None, rolling_window)
                 continue
             name = POLLUTANT_NAMES[device_class]
             measurements[name] = round(current, 2)
             if device_class in ROLLING_DEVICE_CLASSES:
-                value, coverage = self._rolling_pollutant(device_class, current)
+                value, coverage = self._rolling_pollutant(
+                    device_class, current, rolling_window
+                )
                 current_state = self._classify_air_value(current, band)
                 quality = (
                     "sufficient"
-                    if coverage >= ROLLING_MIN_COVERAGE.total_seconds() / 3600
+                    if coverage >= minimum_coverage.total_seconds() / 3600
                     else "limited"
                 )
                 assessments[name] = {
                     "current": round(current, 2) if current is not None else None,
                     "current_state": str(current_state),
-                    "rolling_24h": round(value, 2) if value is not None else None,
+                    (
+                        "rolling_8h"
+                        if device_class == SensorDeviceClass.OZONE
+                        else "rolling_24h"
+                    ): (round(value, 2) if value is not None else None),
                     "coverage_hours": round(coverage, 2),
                     "quality": quality,
+                    "assessment_quality": quality,
                     "basis": band.basis,
                     "basis_type": "scientific_guideline",
+                    "guideline": band.basis,
+                    "guideline_value": band.degraded,
+                    "guideline_period": (
+                        "8h" if device_class == SensorDeviceClass.OZONE else "24h"
+                    ),
+                    "guideline_exceeded": bool(value and value > band.degraded),
                 }
+                severity = (
+                    self._classify_air_value(value, band) if value else current_state
+                )
+                assessments[name]["severity"] = str(severity)
+                assessments[name]["severity_basis"] = (
+                    "scientific_guideline"
+                    if severity in (AirQualityState.GOOD, AirQualityState.DEGRADED)
+                    else "adaptive_areas_operational"
+                )
+                if device_class == SensorDeviceClass.NITROGEN_DIOXIDE:
+                    short_value, short_coverage = self._rolling_average(
+                        device_class, timedelta(hours=1)
+                    )
+                    short_quality = (
+                        "sufficient" if short_coverage >= 0.75 else "limited"
+                    )
+                    short_state = AirQualityState.UNKNOWN
+                    if short_value is not None and short_quality == "sufficient":
+                        short_state = (
+                            AirQualityState.CRITICAL
+                            if short_value > 250
+                            else (
+                                AirQualityState.DEGRADED
+                                if short_value > 80
+                                else AirQualityState.GOOD
+                            )
+                        )
+                        if short_state == AirQualityState.CRITICAL:
+                            reasons.append("no2_short_term_critical")
+                        elif short_state == AirQualityState.DEGRADED:
+                            reasons.append("no2_short_term_elevated")
+                    assessments[name]["rolling_1h"] = (
+                        round(short_value, 2) if short_value is not None else None
+                    )
+                    assessments[name]["short_term_coverage_hours"] = round(
+                        short_coverage, 2
+                    )
+                    assessments[name]["short_term_quality"] = short_quality
+                    assessments[name]["short_term_state"] = str(short_state)
+                    assessments[name]["short_term_guidelines"] = {
+                        "guideline_period": "1h",
+                        "richtwert_i": 80,
+                        "richtwert_ii": 250,
+                        "basis": "German indoor precaution values",
+                    }
+                    if AIR_QUALITY_RANK[short_state] > AIR_QUALITY_RANK[worst]:
+                        worst = short_state
                 if quality == "limited" or value is None:
                     limited_coverage = True
                     if current_state in (
@@ -1051,6 +1286,13 @@ class AreaEnvironmentEngine:
                     "quality": "precaution_indicator",
                     "basis": band.basis,
                     "basis_type": "precaution_indicator",
+                    "guideline": band.basis,
+                    "guideline_value": band.degraded,
+                    "guideline_period": "current",
+                    "guideline_exceeded": current > band.degraded,
+                    "severity": str(state),
+                    "severity_basis": "precaution_indicator",
+                    "assessment_quality": "precaution_indicator",
                 }
                 if state == AirQualityState.DEGRADED:
                     reasons.append("high_voc")
@@ -1067,6 +1309,17 @@ class AreaEnvironmentEngine:
                     "quality": "immediate",
                     "basis": band.basis,
                     "basis_type": "scientific_guideline",
+                    "guideline": band.basis,
+                    "guideline_value": band.degraded,
+                    "guideline_period": "current",
+                    "guideline_exceeded": value > band.degraded,
+                    "severity": str(self._classify_air_value(value, band)),
+                    "severity_basis": (
+                        "scientific_guideline"
+                        if value <= band.poor
+                        else "adaptive_areas_operational"
+                    ),
+                    "assessment_quality": "immediate",
                 },
             )
             if state in (
@@ -1107,8 +1360,12 @@ class AreaEnvironmentEngine:
                 state, reasons = VentilationState.RECOMMENDED, ["co2_hysteresis"]
             else:
                 state = VentilationState.NOT_REQUIRED
+        humidity_high_70 = humidity is not None and humidity > 70
         if humidity is not None and (
-            humidity > HUMIDITY_POLICY.very_high or sustained or rapid
+            humidity_high_70
+            or humidity > HUMIDITY_POLICY.very_high
+            or sustained
+            or rapid
         ):
             reasons.extend(
                 code
@@ -1116,6 +1373,8 @@ class AreaEnvironmentEngine:
                     ("high_humidity", humidity > HUMIDITY_POLICY.very_high),
                     ("prolonged_high_humidity", sustained),
                     ("rapid_humidity_rise", rapid),
+                    ("humidity_persistent_65", sustained),
+                    ("humidity_high_70", humidity_high_70),
                 )
                 if active
             )
@@ -1255,6 +1514,67 @@ class AreaEnvironmentEngine:
             return "environment_good", text["good"]
         return "environment_partial", text["partial"]
 
+    @staticmethod
+    def _air_exchange_suitability(
+        indoor: dict[str, float], outdoor: dict[str, float]
+    ) -> tuple[AirExchangeSuitability, dict[str, str], list[str]]:
+        """Compare relevant indoor and outdoor pollutants conservatively."""
+        comparisons: dict[str, str] = {}
+        worse = False
+        cleaner = False
+        hazardous = False
+        for device_class in (
+            SensorDeviceClass.PM25,
+            SensorDeviceClass.PM10,
+            SensorDeviceClass.NITROGEN_DIOXIDE,
+            SensorDeviceClass.OZONE,
+        ):
+            name = POLLUTANT_NAMES[device_class]
+            outside = outdoor.get(name)
+            if outside is None:
+                continue
+            inside = indoor.get(name)
+            band = AIR_QUALITY_MATRIX[device_class]
+            if outside > band.critical:
+                comparisons[name] = "hazardous"
+                hazardous = True
+            elif inside is None:
+                comparisons[name] = "worse" if outside > band.degraded else "comparable"
+                worse |= outside > band.degraded
+            elif outside > inside * 1.1:
+                comparisons[name] = "worse"
+                worse = True
+            elif outside < inside * 0.9:
+                comparisons[name] = "cleaner"
+                cleaner = True
+            else:
+                comparisons[name] = "comparable"
+        if hazardous:
+            return (
+                AirExchangeSuitability.HAZARDOUS,
+                comparisons,
+                ["outdoor_air_polluted", "air_exchange_hazardous"],
+            )
+        if worse:
+            return (
+                AirExchangeSuitability.UNFAVORABLE,
+                comparisons,
+                ["outdoor_air_polluted", "air_exchange_unfavorable"],
+            )
+        if cleaner:
+            return (
+                AirExchangeSuitability.FAVORABLE,
+                comparisons,
+                ["outdoor_air_cleaner"],
+            )
+        if comparisons:
+            return AirExchangeSuitability.ACCEPTABLE, comparisons, []
+        return (
+            AirExchangeSuitability.UNKNOWN,
+            comparisons,
+            [],
+        )
+
     def _cooling_recommendation(
         self,
         temperature: float | None,
@@ -1262,6 +1582,7 @@ class AreaEnvironmentEngine:
         outdoor: float | None,
         enthalpy: float | None,
         outdoor_enthalpy: float | None,
+        air_exchange: AirExchangeSuitability,
     ) -> tuple[CoolingState, list[str]]:
         """Return cooling advice limited to available windows and fans."""
         if not self.thermal_profile.comfort_relevant:
@@ -1277,8 +1598,17 @@ class AreaEnvironmentEngine:
         if outdoor is None:
             return CoolingState.UNKNOWN, ["room_too_warm"]
         outdoor_cooler = outdoor <= temperature - self.cooling_delta
-        passive_cooling_suitable = outdoor_cooler
+        passive_cooling_suitable = outdoor_cooler and air_exchange in (
+            AirExchangeSuitability.FAVORABLE,
+            AirExchangeSuitability.ACCEPTABLE,
+            AirExchangeSuitability.UNKNOWN,
+        )
         moisture_penalty = False
+        pollution_penalty = outdoor_cooler and air_exchange not in (
+            AirExchangeSuitability.FAVORABLE,
+            AirExchangeSuitability.ACCEPTABLE,
+            AirExchangeSuitability.UNKNOWN,
+        )
         if passive_cooling_suitable and self._window_ids:
             if (
                 enthalpy is not None
@@ -1298,6 +1628,7 @@ class AreaEnvironmentEngine:
                 "room_too_warm",
                 ("outdoor_air_cooler" if outdoor_cooler else "outdoor_air_warmer"),
                 *(["outdoor_air_moisture_penalty"] if moisture_penalty else []),
+                *(["air_exchange_unfavorable"] if pollution_penalty else []),
                 "active_cooling_recommended",
             ]
         return CoolingState.UNKNOWN, ["room_too_warm"]
@@ -1351,6 +1682,7 @@ class AreaEnvironmentEngine:
             else None
         )
         humidity_state = self._humidity(humidity)
+        combined_comfort = self._combined_comfort(comfort, humidity_state)
         sustained, rapid, humidity_duration = self._humidity_signals(humidity)
         mould_risk, mould_quality, mould_duration = self._mould_risk(
             temperature, humidity, surface_humidity
@@ -1358,6 +1690,101 @@ class AreaEnvironmentEngine:
         air_quality, pollutants, pollutant_assessments, air_reasons = (
             self._air_quality()
         )
+        if self.is_exterior:
+            reasons = [*air_reasons, *self._primary_source_reasons()]
+            attention = (
+                air_quality == AirQualityState.DEGRADED
+                or any(reason.endswith("_current") for reason in air_reasons)
+                or humidity_state
+                in (HumidityState.ELEVATED, HumidityState.HIGH, HumidityState.VERY_HIGH)
+            )
+            overall = (
+                EnvironmentState.ACTION_REQUIRED
+                if air_quality in (AirQualityState.POOR, AirQualityState.CRITICAL)
+                else (
+                    EnvironmentState.ATTENTION
+                    if attention
+                    else (
+                        EnvironmentState.GOOD
+                        if temperature is not None
+                        or humidity is not None
+                        or bool(pollutants)
+                        else EnvironmentState.UNKNOWN
+                    )
+                )
+            )
+            dominant = (
+                "air_quality_critical"
+                if air_quality == AirQualityState.CRITICAL
+                else (
+                    "air_quality_poor"
+                    if air_quality == AirQualityState.POOR
+                    else (
+                        "environment_good"
+                        if overall == EnvironmentState.GOOD
+                        else "environment_partial"
+                    )
+                )
+            )
+            assessment = {
+                "state": overall,
+                "humidity": humidity_state,
+                "air_quality": air_quality,
+                "temperature": (
+                    round(temperature, 2) if temperature is not None else None
+                ),
+                "relative_humidity": (
+                    round(humidity, 2) if humidity is not None else None
+                ),
+                "dew_point": round(dew_point, 2) if dew_point is not None else None,
+                "absolute_humidity": (
+                    round(absolute_humidity, 2)
+                    if absolute_humidity is not None
+                    else None
+                ),
+                "humidity_ratio": (
+                    round(humidity_ratio, 2) if humidity_ratio is not None else None
+                ),
+                "enthalpy": round(enthalpy, 2) if enthalpy is not None else None,
+                "pollutants": pollutants,
+                "pollutant_assessments": pollutant_assessments,
+                "source_entities": dict(self._source_entities),
+                "capabilities": {
+                    "temperature": temperature is not None,
+                    "humidity": humidity is not None,
+                    "air_quality": bool(pollutants),
+                    **{name: name in pollutants for name in POLLUTANT_NAMES.values()},
+                },
+                "evaluated_dimensions": [
+                    name
+                    for name, available in (
+                        ("humidity", humidity_state != HumidityState.UNKNOWN),
+                        ("air_quality", air_quality != AirQualityState.UNKNOWN),
+                    )
+                    if available
+                ],
+                "reason_codes": list(dict.fromkeys(reasons)),
+                "dominant_decision": dominant,
+                "context": (
+                    "Messwerte und Luftqualitätsbewertung des Außenbereichs."
+                    if str(self.area.hass.config.language).startswith("de")
+                    else "Exterior Area environmental measurements and air quality assessment."
+                ),
+            }
+            self.assessment = assessment
+            self._trace_primary_status(trace=trace)
+            if trace and dominant != self._last_dominant_decision:
+                self.area.trace_decision(
+                    feature="environment",
+                    trigger="area_input_changed",
+                    decision=dominant,
+                    outcome="evaluated",
+                    reason_codes=assessment["reason_codes"],
+                )
+            self._last_dominant_decision = dominant
+            for subscriber in list(self._subscribers):
+                subscriber()
+            return
         co2_values = self._values(SensorDeviceClass.CO2)
         co2 = max(co2_values) if co2_values else None
         ventilation, ventilation_reasons = self._ventilation(
@@ -1365,6 +1792,10 @@ class AreaEnvironmentEngine:
         )
         outdoor = self._outdoor_temperature()
         outdoor_humidity = self._outdoor_humidity()
+        outdoor_pollutants, outdoor_pollutant_assessments = self._outdoor_pollutants()
+        air_exchange, pollutant_comparisons, exchange_reasons = (
+            self._air_exchange_suitability(pollutants, outdoor_pollutants)
+        )
         outdoor_humidity_ratio = (
             self._humidity_ratio(outdoor, outdoor_humidity)
             if outdoor is not None and outdoor_humidity is not None
@@ -1375,7 +1806,7 @@ class AreaEnvironmentEngine:
             if outdoor is not None and outdoor_humidity is not None
             else None
         )
-        reasons = [*air_reasons, *ventilation_reasons]
+        reasons = [*air_reasons, *ventilation_reasons, *exchange_reasons]
         reasons.extend(self._primary_source_reasons())
         if mould_risk == MouldRiskState.ELEVATED:
             reasons.append("mould_risk_elevated")
@@ -1383,7 +1814,12 @@ class AreaEnvironmentEngine:
             reasons.append("mould_risk_high")
 
         cooling, cooling_reasons = self._cooling_recommendation(
-            temperature, comfort, outdoor, enthalpy, outdoor_enthalpy
+            temperature,
+            comfort,
+            outdoor,
+            enthalpy,
+            outdoor_enthalpy,
+            air_exchange,
         )
         reasons.extend(cooling_reasons)
 
@@ -1393,6 +1829,11 @@ class AreaEnvironmentEngine:
             VentilationState.URGENT,
             VentilationState.VENTILATING,
         )
+        if air_exchange == AirExchangeSuitability.UNKNOWN and (
+            ventilation_need
+            or comfort in (ComfortState.WARM, ComfortState.HOT, ComfortState.VERY_HOT)
+        ):
+            reasons.append("outdoor_air_quality_unknown")
         humidity_ventilation = any(
             reason
             in {"high_humidity", "prolonged_high_humidity", "rapid_humidity_rise"}
@@ -1414,7 +1855,10 @@ class AreaEnvironmentEngine:
                 if moisture_ventilation == "favorable"
                 else "outdoor_air_more_humid"
             )
-        air_exchange_suitable = (
+        air_exchange_suitable = air_exchange not in (
+            AirExchangeSuitability.UNFAVORABLE,
+            AirExchangeSuitability.HAZARDOUS,
+        ) and (
             co2_ventilation
             or not humidity_ventilation
             or moisture_ventilation != "unfavorable"
@@ -1437,7 +1881,11 @@ class AreaEnvironmentEngine:
             reasons.append("ventilation_complete")
         elif ventilation_need and not air_exchange_suitable:
             window = WindowRecommendation.KEEP_CLOSED
-            reasons.append("outdoor_air_more_humid")
+            reasons.append(
+                "outdoor_air_more_humid"
+                if moisture_ventilation == "unfavorable"
+                else "air_exchange_unfavorable"
+            )
         elif (
             temperature is not None
             and outdoor is not None
@@ -1560,6 +2008,9 @@ class AreaEnvironmentEngine:
                 "basis_type": "scientific_reference_with_operational_offsets",
             },
             "comfort": comfort,
+            "temperature_state": comfort,
+            "humidity_comfort_state": humidity_state,
+            "combined_comfort": combined_comfort,
             "comfort_confidence": comfort_quality,
             "thermal_input_quality": (
                 "enhanced"
@@ -1600,6 +2051,10 @@ class AreaEnvironmentEngine:
                 round(outdoor_enthalpy, 2) if outdoor_enthalpy is not None else None
             ),
             "moisture_ventilation": moisture_ventilation,
+            "air_exchange_suitability": air_exchange,
+            "pollutant_comparisons": pollutant_comparisons,
+            "outdoor_pollutants": outdoor_pollutants,
+            "outdoor_pollutant_assessments": outdoor_pollutant_assessments,
             "pollutants": pollutants,
             "pollutant_assessments": pollutant_assessments,
             "source_entities": dict(self._source_entities),
@@ -1638,11 +2093,15 @@ class AreaEnvironmentEngine:
     @property
     def ventilation_fans(self) -> list[str]:
         """Return fans explicitly configured for outdoor-air exchange."""
+        if self.is_exterior:
+            return []
         return list(self.config.get(CONF_ENVIRONMENT_VENTILATION_FANS, []))
 
     @property
     def uses_fan_requests(self) -> bool:
-        """Return whether explicit Room Climate fan roles opt into requests."""
+        """Return whether explicit Area Climate fan roles opt into requests."""
+        if self.is_exterior:
+            return False
         return bool(
             self.config.get(CONF_ENVIRONMENT_VENTILATION_FANS)
             or self.config.get(CONF_ENVIRONMENT_CIRCULATION_FANS)
@@ -1651,6 +2110,8 @@ class AreaEnvironmentEngine:
     @property
     def circulation_fans(self) -> list[str]:
         """Return fans classified for indoor-air circulation."""
+        if self.is_exterior:
+            return []
         explicit = list(self.config.get(CONF_ENVIRONMENT_CIRCULATION_FANS, []))
         if explicit:
             return explicit
@@ -1664,6 +2125,35 @@ class AreaEnvironmentEngine:
 
     def diagnostics(self) -> dict[str, Any]:
         """Return privacy-safe capabilities, outputs, and recommendations."""
+        if self.is_exterior:
+            return {
+                "capabilities": dict(self.assessment.get("capabilities", {})),
+                "derived": {
+                    key: self.assessment[key]
+                    for key in (
+                        "temperature",
+                        "relative_humidity",
+                        "dew_point",
+                        "absolute_humidity",
+                        "humidity_ratio",
+                        "enthalpy",
+                    )
+                    if self.assessment.get(key) is not None
+                },
+                "assessment": {
+                    key: str(self.assessment.get(key, "unknown"))
+                    for key in ("state", "humidity", "air_quality")
+                },
+                "context": self.assessment.get("context", ""),
+                "reason_codes": list(self.assessment.get("reason_codes", [])),
+                "pollutant_assessments": self.assessment.get(
+                    "pollutant_assessments", {}
+                ),
+                "source_summary": {
+                    key: {"mode": value.get("mode", "unknown")}
+                    for key, value in self.assessment.get("source_entities", {}).items()
+                },
+            }
         derived_keys = (
             "temperature",
             "relative_humidity",

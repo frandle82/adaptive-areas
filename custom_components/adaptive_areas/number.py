@@ -29,7 +29,7 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up manual Room Climate controls for an Area."""
+    """Set up manual Area Climate controls for an Area."""
     area: AdaptiveArea | None = get_area_from_config_entry(hass, config_entry)
     assert area is not None
 
@@ -68,7 +68,7 @@ class EnvironmentReferenceTemperatureNumber(AdaptiveEntity, NumberEntity):
         self._attr_native_value = DEFAULT_MANUAL_REFERENCE_TEMPERATURE
 
     async def async_added_to_hass(self) -> None:
-        """Restore the previous reference and apply it to Room Climate."""
+        """Restore the previous reference and apply it to Area Climate."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state is not None:

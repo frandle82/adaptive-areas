@@ -171,7 +171,7 @@ class AreaAggregateSensor(AreaSensorGroupSensor):
 
 
 class EnvironmentSensor(AdaptiveEntity, SensorEntity):
-    """Expose Room Climate assessment under stable environment IDs."""
+    """Expose Area Climate assessment under stable environment IDs."""
 
     feature_info = AdaptiveAreasFeatureInfoEnvironment()
     _attr_device_class = SensorDeviceClass.ENUM
@@ -216,8 +216,38 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             return
         assessment = self.area.environment.assessment
         self._attr_native_value = str(assessment.get("state", "unknown"))
+        if self.area.is_exterior():
+            self._attr_extra_state_attributes = {
+                "temperature": assessment.get("temperature"),
+                "relative_humidity": assessment.get("relative_humidity"),
+                "humidity": str(assessment.get("humidity", "unknown")),
+                "dew_point": assessment.get("dew_point"),
+                "absolute_humidity": assessment.get("absolute_humidity"),
+                "humidity_ratio": assessment.get("humidity_ratio"),
+                "enthalpy": assessment.get("enthalpy"),
+                "air_quality": str(assessment.get("air_quality", "unknown")),
+                "pollutant_measurements": dict(assessment.get("pollutants", {})),
+                "pollutant_assessments": assessment.get("pollutant_assessments", {}),
+                "source_entities": self._used_entity_ids(assessment),
+                "available_capabilities": sorted(
+                    capability
+                    for capability, available in assessment.get(
+                        "capabilities", {}
+                    ).items()
+                    if available
+                ),
+                "context": assessment.get("context", ""),
+                "reason_codes": list(assessment.get("reason_codes", [])),
+            }
+            self.async_write_ha_state()
+            return
         attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
+            "temperature_state": str(assessment.get("temperature_state", "unknown")),
+            "humidity_comfort_state": str(
+                assessment.get("humidity_comfort_state", "unknown")
+            ),
+            "combined_comfort": str(assessment.get("combined_comfort", "unknown")),
             "room_category": str(assessment.get("room_category", "unknown")),
             "thermal_profile": assessment.get("thermal_profile", {}),
             "humidity": str(assessment.get("humidity", "unknown")),
@@ -238,6 +268,14 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "outdoor_humidity_ratio": assessment.get("outdoor_humidity_ratio"),
             "outdoor_enthalpy": assessment.get("outdoor_enthalpy"),
             "moisture_ventilation": assessment.get("moisture_ventilation", "unknown"),
+            "air_exchange_suitability": str(
+                assessment.get("air_exchange_suitability", "unknown")
+            ),
+            "pollutant_comparisons": assessment.get("pollutant_comparisons", {}),
+            "outdoor_pollutant_measurements": assessment.get("outdoor_pollutants", {}),
+            "outdoor_pollutant_assessments": assessment.get(
+                "outdoor_pollutant_assessments", {}
+            ),
             "pollutant_measurements": dict(assessment.get("pollutants", {})),
             "pollutant_assessments": assessment.get("pollutant_assessments", {}),
             "source_entities": self._used_entity_ids(assessment),

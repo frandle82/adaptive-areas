@@ -34,7 +34,7 @@
           "presence_hold": "Create presence hold switch",
           "ble_trackers": "Monitor Bluetooth tracker sensors",
           "wasp_in_a_box": "Create a Wasp in a Box sensor",
-          "environment": "Room Climate",
+          "environment": "Area Climate",
           "room_usage": "Cleaning Tracker"
         }
       },
@@ -57,7 +57,7 @@
           "feature_conf_presence_hold": "Configure presence hold switch",
           "feature_conf_ble_trackers": "Configure BLE Tracker monitoring",
           "feature_conf_wasp_in_a_box": "Configure Wasp in a Box",
-          "feature_conf_environment": "Configure Room Climate",
+          "feature_conf_environment": "Configure Area Climate",
           "feature_conf_room_usage": "Configure Cleaning Tracker"
         }
       },
@@ -236,8 +236,8 @@
         }
       },
       "feature_conf_environment": {
-        "title": "Room Climate",
-        "description": "Evaluate thermal comfort, humidity, ventilation, air quality, mould risk and cooling using configured Area sensors.",
+        "title": "Area Climate",
+        "description": "Evaluate Area temperature, humidity and air quality plus indoor comfort, mould risk, ventilation and cooling using configured Area sensors.",
         "data": {
           "outdoor_temperature_entity": "Outdoor temperature source (optional)",
           "outdoor_humidity_entity": "Outdoor humidity source (optional)",
@@ -256,7 +256,7 @@
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area.",
           "ventilation_fans": "Fans that exchange air, such as extractor or mechanical ventilation fans.",
           "circulation_fans": "Fans that move indoor air, such as ceiling or pedestal fans. Unclassified area fans default to this safer role.",
-          "disabled_fans": "Fans that Room Climate must never request. Passive grouping remains unchanged."
+          "disabled_fans": "Fans that Area Climate must never request. Passive grouping remains unchanged."
         }
       },
       "feature_conf_climate_control": {
@@ -344,8 +344,8 @@
           "reload_on_registry_change": "Automatically reload this Adaptive Area on registry updates",
           "ignore_diagnostic_entities": "Ignore diagnostic and configuration entities",
           "room_category": "Area category",
-          "area_temperature_sensor": "Primary temperature sensor",
-          "area_humidity_sensor": "Primary humidity sensor"
+          "area_temperature_sensor": "Temperature sensor",
+          "area_humidity_sensor": "Humidity sensor"
         },
         "data_description": {
           "include_entities": "Adaptive Areas can consider entities from other areas including other Adaptive entities. You can use this to make a room's presence binary sensor to act as another room's presence sensor as well.",
@@ -355,8 +355,8 @@
           "reload_on_registry_change": "Automatically reload this Adaptive Area when any entity or device is assigned or moved to an area.",
           "ignore_diagnostic_entities": "Adaptive Areas can ignore diagnostic and configuration entities which are usually not relevant.",
           "room_category": "Select the Area purpose used for category-specific thermal interpretation. Choose Manual to set the reference temperature with the generated number entity.",
-          "area_temperature_sensor": "Temperature sensor used as the indoor temperature for this Area.",
-          "area_humidity_sensor": "Relative-humidity sensor used as the indoor humidity for this Area."
+          "area_temperature_sensor": "Authoritative temperature source for this Area.",
+          "area_humidity_sensor": "Authoritative relative-humidity source for this Area."
         }
       },
       "presence_tracking": {
@@ -539,12 +539,12 @@
     },
     "number": {
       "environment_reference_temperature": {
-        "name": "Room Climate reference temperature"
+        "name": "Area Climate reference temperature"
       }
     },
     "sensor": {
       "environment": {
-        "name": "Room Climate",
+        "name": "Area Climate",
         "state": {
           "good": "Good",
           "attention": "Attention needed",
@@ -562,6 +562,33 @@
               "hot": "Hot",
               "very_hot": "Very hot",
               "not_applicable": "Not applicable for this Area category",
+              "unknown": "Unknown"
+            }
+          },
+          "temperature_state": {
+            "name": "Temperature state",
+            "state": {
+              "cold": "Cold", "cool": "Cool", "comfortable": "Comfortable",
+              "warm": "Warm", "hot": "Hot", "very_hot": "Very hot",
+              "not_applicable": "Not applicable", "unknown": "Unknown"
+            }
+          },
+          "humidity_comfort_state": {
+            "name": "Humidity comfort state",
+            "state": {
+              "very_dry": "Very dry", "dry": "Dry", "normal": "Normal",
+              "elevated": "Elevated", "high": "High", "very_high": "Very high",
+              "unknown": "Unknown"
+            }
+          },
+          "combined_comfort": {
+            "name": "Combined comfort",
+            "state": {
+              "comfortable": "Comfortable", "temperature_cold": "Temperature cold",
+              "temperature_cool": "Temperature cool", "temperature_warm": "Temperature warm",
+              "temperature_hot": "Temperature hot", "temperature_very_hot": "Temperature very hot",
+              "humidity_too_dry": "Humidity too dry", "humidity_too_high": "Humidity too high",
+              "multiple_deviations": "Multiple deviations", "not_applicable": "Not applicable",
               "unknown": "Unknown"
             }
           },
@@ -669,6 +696,7 @@
               "aqi": "Air quality index",
               "co": "Carbon monoxide",
               "no2": "Nitrogen dioxide",
+              "ozone": "Ozone",
               "ventilation_fans": "Ventilation fans",
               "windows": "Windows",
               "outdoor_temperature": "Outdoor temperature",
@@ -678,6 +706,8 @@
             }
           },
           "dew_point": {"name": "Dew-point temperature"},
+          "temperature": {"name": "Temperature"},
+          "relative_humidity": {"name": "Relative humidity"},
           "absolute_humidity": {"name": "Absolute humidity"},
           "humidity_ratio": {"name": "Humidity ratio"},
           "enthalpy": {"name": "Moist-air enthalpy"},
@@ -704,6 +734,16 @@
               "unknown": "Unknown"
             }
           },
+          "air_exchange_suitability": {
+            "name": "Air exchange suitability",
+            "state": {
+              "favorable": "Favorable", "acceptable": "Acceptable",
+              "unfavorable": "Unfavorable", "hazardous": "Hazardous", "unknown": "Unknown"
+            }
+          },
+          "pollutant_comparisons": {"name": "Indoor/outdoor pollutant comparison"},
+          "outdoor_pollutant_measurements": {"name": "Outdoor pollutant measurements"},
+          "outdoor_pollutant_assessments": {"name": "Outdoor pollutant sources"},
           "pollutant_measurements": {"name": "Pollutant measurements"},
           "pollutant_assessments": {"name": "Pollutant assessments"},
           "source_entities": {"name": "Entities used"},
@@ -727,6 +767,15 @@
               "high_humidity": "Humidity is very high",
               "prolonged_high_humidity": "Humidity has remained high",
               "rapid_humidity_rise": "Humidity is rising rapidly",
+              "humidity_persistent_65": "Humidity above 65% has persisted",
+              "humidity_high_70": "Humidity is above 70%",
+              "outdoor_air_polluted": "Outdoor air is polluted",
+              "outdoor_air_cleaner": "Outdoor air is cleaner",
+              "outdoor_air_quality_unknown": "Outdoor air quality is unknown",
+              "air_exchange_unfavorable": "Air exchange is unfavorable",
+              "air_exchange_hazardous": "Air exchange is hazardous",
+              "no2_short_term_elevated": "One-hour NO₂ is elevated",
+              "no2_short_term_critical": "One-hour NO₂ is critical",
               "window_already_open": "A relevant window is already open",
               "room_too_warm": "The room is too warm",
               "outdoor_air_cooler": "Outdoor air is cooler",

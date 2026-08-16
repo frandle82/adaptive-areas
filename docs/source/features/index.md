@@ -27,7 +27,7 @@ Passive entity grouping for easier control.
 ## 📊 Sensor Features
 Sensor logic, tracking, and hazard detection.
 
-* 🌿 [Room Climate](environment-monitoring.md)
+* 🌿 [Area Climate](environment-monitoring.md)
   Optionally evaluates compatible indoor, outdoor, surface, and air-quality sources while keeping missing dimensions unknown and sources traceable. Disabled by default.
 
 * 📊 [Room Usage](environment-monitoring.md#room-usage)

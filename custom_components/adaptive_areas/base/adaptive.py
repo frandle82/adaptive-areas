@@ -512,15 +512,11 @@ class AdaptiveArea:
 
         await self.load_entities()
 
-        if (
-            not self.is_meta()
-            and self.is_interior()
-            and self.has_feature(CONF_FEATURE_ENVIRONMENT)
-        ):
-            self.logger.debug("Room Climate enabled for %s", self.name)
+        if not self.is_meta() and self.has_feature(CONF_FEATURE_ENVIRONMENT):
+            self.logger.debug("Area Climate enabled for %s", self.name)
             self.environment = AreaEnvironmentEngine(self)
         else:
-            self.logger.debug("Room Climate disabled for %s", self.name)
+            self.logger.debug("Area Climate disabled for %s", self.name)
 
         if not self.is_meta() and self.has_feature(CONF_FEATURE_ROOM_USAGE):
             self.room_usage = await RoomUsageEngine.async_create(self)

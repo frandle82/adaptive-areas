@@ -451,8 +451,8 @@ async def test_room_climate_standard_feature_form(hass) -> None:
     environment_fields = {
         marker.schema for marker in environment_result["data_schema"].schema
     }
-    assert CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE in environment_fields
-    assert CONF_ENVIRONMENT_OUTDOOR_HUMIDITY in environment_fields
+    assert CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE not in environment_fields
+    assert CONF_ENVIRONMENT_OUTDOOR_HUMIDITY not in environment_fields
     assert CONF_ENVIRONMENT_SURFACE_TEMPERATURE in environment_fields
     assert CONF_AREA_TEMPERATURE_SENSOR not in environment_fields
     assert CONF_AREA_HUMIDITY_SENSOR not in environment_fields
@@ -495,10 +495,13 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
         humidity_id, "50", {ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY}
     )
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] = "sensor.legacy_outdoor_temperature"
+    data[CONF_ENVIRONMENT_OUTDOOR_HUMIDITY] = "sensor.legacy_outdoor_humidity"
     config_entry = MockConfigEntry(
         domain=DOMAIN,
         title=str(data[ATTR_NAME]),
         data=data,
+        options=data,
         version=AdaptiveConfigEntryVersion.MAJOR,
         minor_version=AdaptiveConfigEntryVersion.MINOR,
     )
@@ -519,6 +522,12 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     assert result["type"] == "menu"
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    assert flow.area_options[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == (
+        "sensor.legacy_outdoor_temperature"
+    )
+    assert flow.area_options[CONF_ENVIRONMENT_OUTDOOR_HUMIDITY] == (
+        "sensor.legacy_outdoor_humidity"
+    )
     result = await flow.async_step_select_features({CONF_FEATURE_ENVIRONMENT: True})
     assert result["type"] == "menu"
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
@@ -527,6 +536,12 @@ async def test_options_primary_sources_reach_enabled_runtime(hass) -> None:
     assert result["type"] == "menu"
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == temperature_id
     assert flow.area_options[CONF_AREA_HUMIDITY_SENSOR] == humidity_id
+    assert flow.area_options[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == (
+        "sensor.legacy_outdoor_temperature"
+    )
+    assert flow.area_options[CONF_ENVIRONMENT_OUTDOOR_HUMIDITY] == (
+        "sensor.legacy_outdoor_humidity"
+    )
     result = await flow.async_step_select_features(
         {
             CONF_FEATURE_ENVIRONMENT: True,

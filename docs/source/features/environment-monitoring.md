@@ -1,14 +1,16 @@
-# Room Climate, Area Health, and Room Usage
+# Area Climate, Area Health, and Room Usage
 
-## Room Climate
+## Area Climate
 
-Room Climate is optional for regular indoor Areas and disabled by default. When enabled, it creates one **Room Climate** sensor while retaining existing `environment` entity and unique IDs for compatibility. It uses configured primary indoor climate sensors and automatically discovered numeric air-quality sensors after normal filters. When disabled, no engine, listeners, pollutant histories, recommendations, or Room Climate entity run. Missing dimensions remain `unknown`; never interpreted as healthy.
+Area Climate is optional and disabled by default. It retains the existing `environment` entity and unique IDs for compatibility. Indoor Areas receive the full assessment and recommendations. Exterior Areas receive a reduced measurement and air-quality assessment without comfort, mould, ventilation, window, fan, or cooling outputs. Missing dimensions remain `unknown`; never interpreted as healthy.
 
-Enable **Room Climate** under **Feature selection**. Choose room category and primary indoor temperature/humidity sensors under **Basic area options**. Configure optional outdoor, surface, window, and fan-role sources under **Room Climate**. General exclusion list remains authoritative. `source_entities` provides traceability; shareable diagnostics contain only modes, counts, and primary configured/available flags.
+Enable **Area Climate** under **Feature selection**. Choose one primary temperature sensor and one primary humidity sensor under **Basic area options** for either Area type. Indoor Areas additionally configure surface, window, and fan roles under **Area Climate**. Explicit outdoor temperature/humidity fields are no longer offered. General exclusion list remains authoritative. `source_entities` provides traceability.
+
+Exterior Areas are the central outdoor reference. Only their configured primary temperature and humidity sensors are used; Adaptive Areas never substitutes another same-Area sensor. Multiple exterior primary values use a deterministic mean. Supported exterior PM2.5, PM10, NO₂, ozone, CO, and TVOC sensors are interpreted as outdoor measurements; pollutant aggregation uses the conservative maximum. Legacy explicit outdoor fields remain runtime fallbacks only when no valid exterior primary source exists.
 
 ## Area Health
 
-Area Health is separate optional feature for smoke, gas, moisture alarms, safety, and problem binary sensors. It replaces no Room Climate measurement. Room Climate performs no generic binary environmental aggregation. Imported legacy Magic Areas `health`/German “Umweltsensoren” configuration is discarded rather than silently enabling Area Health.
+Area Health is separate optional feature for smoke, gas, moisture alarms, safety, and problem binary sensors. It replaces no Area Climate measurement. Area Climate performs no generic binary environmental aggregation. Imported legacy Magic Areas `health`/German “Umweltsensoren” configuration is discarded rather than silently enabling Area Health.
 
 ## Scientific and operational basis
 
@@ -26,7 +28,7 @@ One point measurement is not necessarily the spatial mean of a room. Position, m
 
 Room categories select purpose-based thermal reference profiles: living/sedentary, sleeping/rest, hygiene/wet, active domestic, circulation/transient, service/storage, and unconditioned. [German Environment Agency room-temperature references](https://www.umweltbundesamt.de/umwelttipps-fuer-den-alltag/richtiges-heizen-schuetzt-das-klima-den-geldbeutel) inform these profiles; category offsets and hysteresis are Adaptive Areas operational policy. Service/storage and unconditioned Areas report comfort as `not_applicable` rather than applying residential comfort language.
 
-Temperature alone gives comfort quality `basic`. Temperature plus relative humidity gives `enhanced` and publishes:
+Indoor comfort is split into `temperature_state`, `humidity_comfort_state`, and transparent `combined_comfort`. High, very low, or low humidity changes the combined result even when temperature is comfortable. The legacy `comfort` attribute remains a temperature-state compatibility alias. These are operational categories, not a comprehensive thermal-comfort model. Temperature plus relative humidity also publishes:
 
 * dew point and saturation vapour pressure using the [improved Magnus-form research](https://doi.org/10.1175/1520-0450(1996)035%3C0601:IMFAOS%3E2.0.CO;2);
 * absolute humidity in g/m³;
@@ -34,29 +36,33 @@ Temperature alone gives comfort quality `basic`. Temperature plus relative humid
 * moist-air enthalpy in kJ/kg dry air, using standard-pressure perfect-gas approximations documented by the [ASHRAE Handbook psychrometrics chapter](https://handbook.ashrae.org/Handbooks/F25/SI/F25_Ch01/F25_Ch01_si.aspx);
 * [Environment and Climate Change Canada's Humidex formula](https://climate.weather.gc.ca/glossary_e.html) only as a warm-stress index from 26 °C, never as a universal comfort temperature.
 
-Outdoor temperature plus humidity enables humidity-ratio and enthalpy comparisons. Drying advice uses moisture content, not relative humidity alone. Passive cooling requires a useful temperature difference and, when humidity is known, an enthalpy advantage; cooler but moisture-heavy outdoor air is reported as a penalty.
+Outdoor temperature plus humidity enables humidity-ratio and enthalpy comparisons. Drying advice uses moisture content, not relative humidity alone. Passive cooling requires a useful temperature difference, an enthalpy advantage when humidity is known, and outdoor air quality that is not clearly worse.
 
 ### Humidity and mould-risk indicator
 
-Room humidity above 65% starts a persistence signal. A short peak can request ventilation but does not immediately claim persistent mould risk. Risk becomes `elevated` after six hours and `high` after 24 hours.
+Room humidity from 60–65% is observed as elevated. At 65% a persistence timer starts; after the configured operational duration it recommends ventilation. Values above 70% are weighted more strongly. Values above 75%, or a rise of at least 15 percentage points within five minutes, require ventilation immediately. Other short peaks do not automatically request ventilation. Mould risk becomes `elevated` after six hours and `high` after 24 hours; both durations are Adaptive Areas operational policy, not biological limits.
 
 With an optional measured cool-surface temperature, Adaptive Areas estimates surface relative humidity and uses the [German Environment Agency's 80% surface-RH guidance](https://www.umweltbundesamt.de/system/files/medien/4031/publikationen/240513_uba_fb_schimmelleitfaden_0.pdf); quality is `surface_based`. Without it, the 65% room-RH persistence proxy is labelled `room_air_estimate`. This is a conservative risk indicator, not mould detection.
+
+A future mould model should incorporate surface moisture, surface temperature, exposure duration, and drying phases dynamically. Current fixed persistence durations deliberately remain transparent operational logic.
 
 ## Air quality
 
 CO₂ uses the German Environment Agency categories: up to 1000 ppm hygienically unremarkable, 1000–2000 ppm elevated with ventilation recommended, and above 2000 ppm hygienically unacceptable with urgent ventilation. The 850 ppm clearing value is an Adaptive Areas operational hysteresis threshold.
 
-PM2.5, PM10, CO, and NO₂ use the [WHO 2021 24-hour guideline values](https://www.who.int/publications/i/item/9789240034228): 15 µg/m³, 45 µg/m³, 4 mg/m³, and 25 µg/m³ respectively. Adaptive Areas calculates a true elapsed-time-weighted rolling 24-hour average. Classification remains `unknown`/`limited` until at least 18 hours are covered. Higher severities are explicitly operational multiples, not extra WHO limits. Sensor calibration, placement, gaps, and sampling still matter.
+PM2.5, PM10, CO, and NO₂ use the [WHO 2021 24-hour guideline values](https://www.who.int/publications/i/item/9789240034228): 15 µg/m³, 45 µg/m³, 4 mg/m³, and 25 µg/m³ respectively. Adaptive Areas calculates a true elapsed-time-weighted rolling 24-hour average. Classification remains `unknown`/`limited` until at least 18 hours are covered. Current values may still create provisional warnings. Only the first threshold is the scientific guideline; higher severities are `adaptive_areas_operational`. Each pollutant assessment publishes guideline, period, exceedance, severity basis, coverage, and quality metadata.
+
+NO₂ additionally has a rolling one-hour assessment. [German Environment Agency indoor precaution values](https://www.umweltbundesamt.de/themen/luft/luftschadstoffe-im-ueberblick/stickstoffoxide/stickstoffdioxid-gesundheitliche-bedeutung-von) are 80 µg/m³ (Richtwert I) and 250 µg/m³ (Richtwert II); the more critical valid short- or long-term result wins. Ozone uses the WHO eight-hour guideline of 100 µg/m³ after at least six hours of coverage, with higher levels classified by Adaptive Areas operational policy.
 
 TVOC mass concentration is only a [German AIR precaution indicator](https://www.umweltbundesamt.de/en/topics/health/commissions-working-groups/german-committee-on-indoor-air-guide-values): values above 950 µg/m³ are marked elevated, not toxicological. Generic VOC ppb and AQI values are exposed as `unsupported_scale` and are not mapped to invented universal health bands.
 
-Air-quality severity remains separate from ventilation safety. Particles, CO, NO₂, AQI, or VOC can indicate degraded air without implying that outdoor ventilation is safe.
+`air_exchange_suitability` compares indoor and exterior PM2.5, PM10, NO₂, and ozone as `favorable`, `acceptable`, `unfavorable`, `hazardous`, or `unknown`. Cleaner outdoor air supports exchange. Worse or hazardous outdoor air keeps windows closed and blocks passive cooling; configured mechanical ventilation remains available. Unknown outdoor pollution never becomes “good”.
 
 ## Recommendations, context, and fan roles
 
-Room Climate sensor exposes independent comfort, humidity, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values.
+Indoor Area Climate sensor exposes independent temperature, humidity, combined comfort, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values. Dominance order is hazard, critical air quality, urgent ventilation, high mould risk, recommended ventilation, cooling, comfort, then unremarkable state.
 
-Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Room Climate publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
+Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Ventilation fans exchange indoor and outdoor air. Circulation fans only move indoor air. Area Climate publishes requests but never controls devices directly. Enabled Fan Control consumes them only after fan roles were explicitly configured; otherwise its established aggregate/setpoint behavior remains unchanged.
 
 ## Room Usage
 
@@ -78,4 +84,4 @@ The following services accept one or more Home Assistant Area IDs:
 - `adaptive_areas.reset` completely clears the saved tracker state, including `last_cleaned`.
 - `adaptive_areas.set_score` sets a value from 0 to 100% and recalculates the underlying occupied seconds so normal accumulation can continue.
 
-Manual Override remains limited to Light Groups. Room Climate and Room Usage do not extend it.
+Manual Override remains limited to Light Groups. Area Climate and Room Usage do not extend it.

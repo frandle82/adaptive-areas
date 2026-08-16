@@ -614,7 +614,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             feature_list = CONF_FEATURE_LIST_GLOBAL
 
         feature_list = list(feature_list)
-        if area_type != AREA_TYPE_INTERIOR:
+        if area_type == AREA_TYPE_META:
             feature_list = [
                 feature
                 for feature in feature_list
@@ -635,6 +635,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             for feature in NON_CONFIGURABLE_FEATURES_META:
                 if feature in filtered_configurable_features:
                     filtered_configurable_features.remove(feature)
+        if self.area.is_exterior() and CONF_FEATURE_ENVIRONMENT in (
+            filtered_configurable_features
+        ):
+            filtered_configurable_features.remove(CONF_FEATURE_ENVIRONMENT)
 
         # Hide switch groups from UI feature configuration menu.
         if CONF_FEATURE_SWITCH_GROUPS in filtered_configurable_features:
@@ -716,7 +720,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
 
         self.area_entities = sorted(self.resolve_groups(filtered_area_entities))
 
-        # General exclusions are authoritative for optional Room Climate,
+        # General exclusions are authoritative for optional Area Climate,
         # including explicit and automatically discovered exterior sources.
         evaluation_source_candidates = {
             entity_id
@@ -969,6 +973,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         }
 
         options = OPTIONS_AREA_META if self.area.is_meta() else OPTIONS_AREA
+        if self.area.is_exterior():
+            options = [option for option in options if option[0] != CONF_ROOM_CATEGORY]
         selectors = {}
 
         # Apply options for given area type (regular/meta)
@@ -1371,7 +1377,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         )
 
     async def async_step_feature_conf_environment(self, user_input=None):
-        """Configure sources and roles for enabled Room Climate."""
+        """Configure interior-only roles for enabled Area Climate."""
+        if self.area.is_exterior():
+            if user_input is not None:
+                return await self.async_step_show_menu()
+            return self.async_show_form(
+                step_id="feature_conf_environment",
+                data_schema=vol.Schema({}),
+            )
         temperature_entities = []
         humidity_entities = []
         window_entities = []
@@ -1421,16 +1434,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                         for error in validation.errors
                     }
                 else:
+                    # Legacy explicit outdoor sources remain stored runtime fallbacks,
+                    # but are no longer writable through the regular UI.
+                    validated.pop(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, None)
+                    validated.pop(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, None)
                     self.area_options.update(validated)
                     self.all_area_entities = sorted(
                         set(self.all_area_entities)
                         | {
                             entity_id
-                            for key in (
-                                CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
-                                CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
-                                CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
-                            )
+                            for key in (CONF_ENVIRONMENT_SURFACE_TEMPERATURE,)
                             if (entity_id := validated.get(key))
                         }
                     )
@@ -1442,12 +1455,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 options=OPTIONS_AREA_EVALUATION,
                 saved_options=self.area_options,
                 dynamic_validators={
-                    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: vol.In(
-                        EMPTY_ENTRY + sorted(temperature_entities)
-                    ),
-                    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: vol.In(
-                        EMPTY_ENTRY + sorted(humidity_entities)
-                    ),
                     CONF_ENVIRONMENT_SURFACE_TEMPERATURE: vol.In(
                         EMPTY_ENTRY + sorted(temperature_entities)
                     ),
@@ -1463,12 +1470,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     ),
                 },
                 selectors={
-                    CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE: self._build_selector_entity_simple(
-                        EMPTY_ENTRY + sorted(temperature_entities)
-                    ),
-                    CONF_ENVIRONMENT_OUTDOOR_HUMIDITY: self._build_selector_entity_simple(
-                        EMPTY_ENTRY + sorted(humidity_entities)
-                    ),
                     CONF_ENVIRONMENT_SURFACE_TEMPERATURE: self._build_selector_entity_simple(
                         EMPTY_ENTRY + sorted(temperature_entities)
                     ),

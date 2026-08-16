@@ -34,7 +34,7 @@
                     "ble_trackers": "BLE-Tracker-Überwachung",
                     "switch_groups": "Schaltergruppen",
                     "wasp_in_a_box": "Wasp in a Box",
-                    "environment": "Raumklima",
+                    "environment": "Bereichsklima",
                     "room_usage": "Reinigungs-Tracker"
                 }
             },
@@ -57,7 +57,7 @@
                     "feature_conf_ble_trackers": "BLE-Tracker-Überwachung konfigurieren",
                     "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
                     "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
-                    "feature_conf_environment": "Raumklima konfigurieren",
+                    "feature_conf_environment": "Bereichsklima konfigurieren",
                     "feature_conf_room_usage": "Reinigungs-Tracker konfigurieren"
                 }
             },
@@ -236,8 +236,8 @@
                 }
             },
             "feature_conf_environment": {
-                "title": "Raumklima",
-                "description": "Bewertet Raumkomfort, Luftfeuchtigkeit, Lüftung, Luftqualität, Schimmelrisiko und Kühlung anhand der konfigurierten Sensoren des Bereichs.",
+                "title": "Bereichsklima",
+                "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung anhand der konfigurierten Sensoren.",
                 "data": {
                     "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
                     "outdoor_humidity_entity": "Außenluftfeuchtequelle (optional)",
@@ -256,7 +256,7 @@
                     "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften.",
                     "ventilation_fans": "Ventilatoren mit Luftaustausch, etwa Abluft- oder mechanische Lüftungsanlagen.",
                     "circulation_fans": "Ventilatoren, die Innenluft bewegen, etwa Decken- oder Standventilatoren. Nicht klassifizierte Bereichsventilatoren erhalten standardmäßig diese sichere Rolle.",
-                    "disabled_fans": "Ventilatoren, die vom Raumklima niemals angefordert werden dürfen. Die passive Gruppierung bleibt unverändert."
+                    "disabled_fans": "Ventilatoren, die vom Bereichsklima niemals angefordert werden dürfen. Die passive Gruppierung bleibt unverändert."
                 }
             },
             "feature_conf_climate_control": {
@@ -344,8 +344,8 @@
                     "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
                     "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren",
                     "room_category": "Bereichskategorie",
-                    "area_temperature_sensor": "Temperatursensor des Bereichs",
-                    "area_humidity_sensor": "Luftfeuchtigkeitssensor des Bereichs"
+                    "area_temperature_sensor": "Temperatursensor",
+                    "area_humidity_sensor": "Luftfeuchtigkeitssensor"
                 },
                 "data_description": {
                     "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer Adaptive-Areas-Entitäten. Damit kann der binäre Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs dienen.",
@@ -355,8 +355,8 @@
                     "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
                     "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind.",
                     "room_category": "Legt den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
-                    "area_temperature_sensor": "Sensor, dessen Messwert als Raumtemperatur dieses Bereichs verwendet wird.",
-                    "area_humidity_sensor": "Sensor, dessen Messwert als relative Luftfeuchtigkeit dieses Bereichs verwendet wird."
+                    "area_temperature_sensor": "Autoritative Temperaturquelle dieses Bereichs.",
+                    "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Bereichs."
                 }
             },
             "presence_tracking": {
@@ -539,12 +539,12 @@
         },
         "number": {
             "environment_reference_temperature": {
-                "name": "Raumklima-Referenztemperatur"
+                "name": "Bereichsklima-Referenztemperatur"
             }
         },
         "sensor": {
             "environment": {
-                "name": "Raumklima",
+                "name": "Bereichsklima",
                 "state": {
                     "good": "Gut",
                     "attention": "Aufmerksamkeit erforderlich",
@@ -562,6 +562,33 @@
                             "hot": "Heiß",
                             "very_hot": "Sehr heiß",
                             "not_applicable": "Für diese Bereichskategorie nicht anwendbar",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "temperature_state": {
+                        "name": "Temperaturzustand",
+                        "state": {
+                            "cold": "Kalt", "cool": "Kühl", "comfortable": "Angenehm",
+                            "warm": "Warm", "hot": "Heiß", "very_hot": "Sehr heiß",
+                            "not_applicable": "Nicht anwendbar", "unknown": "Unbekannt"
+                        }
+                    },
+                    "humidity_comfort_state": {
+                        "name": "Feuchtekomfortzustand",
+                        "state": {
+                            "very_dry": "Sehr trocken", "dry": "Trocken", "normal": "Normal",
+                            "elevated": "Erhöht", "high": "Hoch", "very_high": "Sehr hoch",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "combined_comfort": {
+                        "name": "Kombinierter Komfort",
+                        "state": {
+                            "comfortable": "Angenehm", "temperature_cold": "Temperatur kalt",
+                            "temperature_cool": "Temperatur kühl", "temperature_warm": "Temperatur warm",
+                            "temperature_hot": "Temperatur heiß", "temperature_very_hot": "Temperatur sehr heiß",
+                            "humidity_too_dry": "Luft zu trocken", "humidity_too_high": "Luftfeuchte zu hoch",
+                            "multiple_deviations": "Mehrere Abweichungen", "not_applicable": "Nicht anwendbar",
                             "unknown": "Unbekannt"
                         }
                     },
@@ -669,6 +696,7 @@
                             "aqi": "Luftqualitätsindex",
                             "co": "Kohlenmonoxid",
                             "no2": "Stickstoffdioxid",
+                            "ozone": "Ozon",
                             "ventilation_fans": "Lüftungsventilatoren",
                             "windows": "Fenster",
                             "outdoor_temperature": "Außentemperatur",
@@ -678,6 +706,8 @@
                         }
                     },
                     "dew_point": {"name": "Taupunkttemperatur"},
+                    "temperature": {"name": "Temperatur"},
+                    "relative_humidity": {"name": "Relative Luftfeuchtigkeit"},
                     "absolute_humidity": {"name": "Absolute Luftfeuchtigkeit"},
                     "humidity_ratio": {"name": "Feuchteverhältnis"},
                     "enthalpy": {"name": "Enthalpie der feuchten Luft"},
@@ -704,6 +734,16 @@
                             "unknown": "Unbekannt"
                         }
                     },
+                    "air_exchange_suitability": {
+                        "name": "Eignung des Luftaustauschs",
+                        "state": {
+                            "favorable": "Günstig", "acceptable": "Akzeptabel",
+                            "unfavorable": "Ungünstig", "hazardous": "Gefährlich", "unknown": "Unbekannt"
+                        }
+                    },
+                    "pollutant_comparisons": {"name": "Schadstoffvergleich innen/außen"},
+                    "outdoor_pollutant_measurements": {"name": "Schadstoffmesswerte außen"},
+                    "outdoor_pollutant_assessments": {"name": "Schadstoffquellen außen"},
                     "pollutant_measurements": {"name": "Schadstoffmesswerte"},
                     "pollutant_assessments": {"name": "Schadstoffbewertungen"},
                     "source_entities": {"name": "Verwendete Entitäten"},
@@ -727,6 +767,15 @@
                             "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
                             "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
                             "rapid_humidity_rise": "Luftfeuchtigkeit steigt schnell",
+                            "humidity_persistent_65": "Luftfeuchtigkeit über 65 % hält an",
+                            "humidity_high_70": "Luftfeuchtigkeit liegt über 70 %",
+                            "outdoor_air_polluted": "Außenluft ist belastet",
+                            "outdoor_air_cleaner": "Außenluft ist sauberer",
+                            "outdoor_air_quality_unknown": "Außenluftqualität ist unbekannt",
+                            "air_exchange_unfavorable": "Luftaustausch ist ungünstig",
+                            "air_exchange_hazardous": "Luftaustausch ist gefährlich",
+                            "no2_short_term_elevated": "NO₂-Einstundenwert ist erhöht",
+                            "no2_short_term_critical": "NO₂-Einstundenwert ist kritisch",
                             "window_already_open": "Ein relevantes Fenster ist bereits offen",
                             "room_too_warm": "Der Raum ist zu warm",
                             "outdoor_air_cooler": "Die Außenluft ist kühler",

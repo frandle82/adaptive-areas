@@ -434,7 +434,7 @@ class AdaptiveAreasFeatureInfoHealth(AdaptiveAreasFeatureInfo):
 
 
 class AdaptiveAreasFeatureInfoEnvironment(AdaptiveAreasFeatureInfo):
-    """Stable entity information for optional Room Climate."""
+    """Stable entity information for optional Area Climate."""
 
     id = "environment"
     translation_keys = {SENSOR_DOMAIN: "environment"}
@@ -915,7 +915,7 @@ CONF_FEATURE_HEALTH = "health"
 CONF_FEATURE_PRESENCE_HOLD = "presence_hold"
 CONF_FEATURE_BLE_TRACKERS = "ble_trackers"
 CONF_FEATURE_WASP_IN_A_BOX = "wasp_in_a_box"
-# Stable internal key retained for Room Climate entity compatibility.
+# Stable internal key retained for Area Climate entity compatibility.
 CONF_FEATURE_ENVIRONMENT = "environment"
 CONF_FEATURE_ROOM_USAGE = "room_usage"
 
@@ -1013,7 +1013,7 @@ FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS = [
     SensorDeviceClass.SULPHUR_DIOXIDE,
 ]
 
-# Room Climate (legacy Environment keys retained for compatibility)
+# Area Climate (legacy Environment keys retained for compatibility)
 CONF_ENVIRONMENT_COMFORT_MIN, DEFAULT_ENVIRONMENT_COMFORT_MIN = (
     "comfort_min_temperature",
     20.0,
@@ -1064,6 +1064,32 @@ class ComfortState(StrEnum):
     HOT = "hot"
     VERY_HOT = "very_hot"
     NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
+
+
+class CombinedComfortState(StrEnum):
+    """Transparent combined temperature and humidity comfort states."""
+
+    COMFORTABLE = "comfortable"
+    TEMPERATURE_COLD = "temperature_cold"
+    TEMPERATURE_COOL = "temperature_cool"
+    TEMPERATURE_WARM = "temperature_warm"
+    TEMPERATURE_HOT = "temperature_hot"
+    TEMPERATURE_VERY_HOT = "temperature_very_hot"
+    HUMIDITY_TOO_DRY = "humidity_too_dry"
+    HUMIDITY_TOO_HIGH = "humidity_too_high"
+    MULTIPLE_DEVIATIONS = "multiple_deviations"
+    NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
+
+
+class AirExchangeSuitability(StrEnum):
+    """Suitability of exchanging indoor air with available outdoor air."""
+
+    FAVORABLE = "favorable"
+    ACCEPTABLE = "acceptable"
+    UNFAVORABLE = "unfavorable"
+    HAZARDOUS = "hazardous"
     UNKNOWN = "unknown"
 
 
@@ -1126,7 +1152,7 @@ class CirculationFanRequest(StrEnum):
 
 
 class EnvironmentState(StrEnum):
-    """Overall Room Climate states."""
+    """Overall Area Climate states."""
 
     GOOD = "good"
     ATTENTION = "attention"
@@ -1353,7 +1379,7 @@ ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
     extra=vol.REMOVE_EXTRA,
 )
 
-# Room Climate settings. Legacy feature schema above remains only so
+# Area Climate settings. Legacy feature schema above remains only so
 # migration can validate 1.3 RC data before moving supported keys to this schema.
 AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
     {
@@ -1934,8 +1960,6 @@ OPTIONS_FAN_GROUP = [
 ]
 
 OPTIONS_AREA_EVALUATION = [
-    (CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, "", cv.entity_id),
-    (CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, "", cv.entity_id),
     (CONF_ENVIRONMENT_SURFACE_TEMPERATURE, "", cv.entity_id),
     (CONF_ENVIRONMENT_WINDOWS, [], cv.entity_ids),
     (
