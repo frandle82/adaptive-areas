@@ -827,6 +827,86 @@ async def test_registry_pollutants_recover_when_states_arrive_late(
     engine.unload()
 
 
+async def test_waqi_unitless_pollutants_use_registry_metadata(
+    hass: HomeAssistant,
+) -> None:
+    """WAQI pollutant indices are discovered without device classes or units."""
+    area = _area(hass, {CONF_TYPE: AREA_TYPE_EXTERIOR})
+    source_entry = MockConfigEntry(domain="waqi", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+    sources = (
+        (
+            "air_quality",
+            "wendland_germany_luftqualitatsindex",
+            19,
+            SensorDeviceClass.AQI,
+        ),
+        ("ozone", "wendland_germany_ozon", 19.1, None),
+        ("pm10", "wendland_germany_pm10", 6, None),
+        ("pm25", "wendland_germany_pm25", 13, None),
+        ("nitrogen_dioxide", "wendland_germany_stickstoffdioxid", 1.4, None),
+    )
+    entity_ids: dict[str, str] = {}
+    for key, object_id, value, device_class in sources:
+        entry = entity_registry.async_get_or_create(
+            "sensor",
+            "waqi",
+            f"wendland_station_{key}",
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            original_device_class=device_class,
+        )
+        entity_registry.async_update_entity(entry.entity_id, area_id=area.id)
+        attributes = {ATTR_FRIENDLY_NAME: object_id}
+        if device_class is not None:
+            attributes[ATTR_DEVICE_CLASS] = device_class
+        hass.states.async_set(entry.entity_id, str(value), attributes)
+        area.entities.setdefault("sensor", []).append({ATTR_ENTITY_ID: entry.entity_id})
+        entity_ids[key] = entry.entity_id
+
+    engine = AreaEnvironmentEngine(area)
+    assessment = engine.assessment
+
+    for key, device_class in (
+        ("ozone", SensorDeviceClass.OZONE),
+        ("pm10", SensorDeviceClass.PM10),
+        ("pm25", SensorDeviceClass.PM25),
+        ("nitrogen_dioxide", SensorDeviceClass.NITROGEN_DIOXIDE),
+    ):
+        assert engine._sensor_ids[str(device_class)] == [entity_ids[key]]
+    assert assessment["pollutants"] == {
+        "pm25": 13.0,
+        "pm10": 6.0,
+        "no2": 1.4,
+        "ozone": 19.1,
+        "aqi": 19.0,
+    }
+    for name in ("pm25", "pm10", "no2", "ozone"):
+        assert assessment["pollutant_assessments"][name]["scale"] == (
+            "waqi_individual_aqi"
+        )
+        assert assessment["source_entities"][name]["mode"] == ("waqi_individual_aqi")
+    assert assessment["air_quality"] == AirQualityState.GOOD
+
+    interior = _area(hass)
+    hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: area}
+    interior_engine = AreaEnvironmentEngine(interior)
+    outdoor, outdoor_assessments = interior_engine._outdoor_pollutants()
+    assert outdoor == {"pm25": 13.0, "pm10": 6.0, "no2": 1.4, "ozone": 19.1}
+    assert {
+        name: details["scale"] for name, details in outdoor_assessments.items()
+    } == {
+        "pm25": "waqi_individual_aqi",
+        "pm10": "waqi_individual_aqi",
+        "no2": "waqi_individual_aqi",
+        "ozone": "waqi_individual_aqi",
+    }
+
+    interior_engine.unload()
+    engine.unload()
+
+
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
     """PM uses elapsed-time weighting, coverage quality, and a 24-hour window."""
     area = _area(hass)
