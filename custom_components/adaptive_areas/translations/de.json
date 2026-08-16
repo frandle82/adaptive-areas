@@ -806,6 +806,8 @@
                             "no2_short_term_elevated": "NO₂-Einstundenwert ist erhöht",
                             "no2_short_term_critical": "NO₂-Einstundenwert ist kritisch",
                             "window_already_open": "Ein relevantes Fenster ist bereits offen",
+                            "ventilation_should_stop": "Die laufende Lüftung soll beendet werden",
+                            "window_should_remain_closed": "Das Fenster soll geschlossen bleiben",
                             "room_too_warm": "Der Raum ist zu warm",
                             "outdoor_air_cooler": "Die Außenluft ist kühler",
                             "passive_cooling_available": "Passive Kühlung ist möglich",

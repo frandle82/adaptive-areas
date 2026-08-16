@@ -243,6 +243,11 @@ CONTEXT: dict[str, dict[str, str]] = {
         "ventilation_recommended": "Ventilation recommended: {reason}.",
         "ventilation_continue": "Continue ventilating: {reason}.",
         "ventilation_continue_urgent": "Continue ventilating immediately: {reason}.",
+        "ventilation_stop": "Stop ventilating and close the window: air exchange with outdoors is currently unfavorable.",
+        "ventilation_stop_pollution": "Stop ventilating and close the window: outdoor air has become more polluted than indoor air.",
+        "ventilation_stop_hazardous": "Stop ventilating immediately and close the window: outdoor air is currently heavily polluted.",
+        "ventilation_stop_humidity": "Stop ventilating and close the window: outdoor air is currently unfavorable for reducing moisture.",
+        "ventilation_stop_temperature": "Close the window: outdoor air has become warmer and would heat the Area further.",
         "mould_high": "Mould risk is high because moisture has persisted. This is a risk indicator, not mould detection.",
         "humidity_high": "Ventilation recommended: humidity has remained high.",
         "thermal_hot": "Room feels very warm. {cooling}",
@@ -294,6 +299,11 @@ CONTEXT: dict[str, dict[str, str]] = {
         "ventilation_recommended": "Lüften empfohlen: {reason}.",
         "ventilation_continue": "Weiter lüften: {reason}.",
         "ventilation_continue_urgent": "Sofort weiterlüften: {reason}.",
+        "ventilation_stop": "Lüften beenden und Fenster schließen: Der Luftaustausch mit draußen ist derzeit ungünstig.",
+        "ventilation_stop_pollution": "Lüften beenden und Fenster schließen: Die Außenluft ist inzwischen stärker belastet als die Innenluft.",
+        "ventilation_stop_hazardous": "Lüften sofort beenden und Fenster schließen: Die Außenluft ist derzeit stark belastet.",
+        "ventilation_stop_humidity": "Lüften beenden und Fenster schließen: Die Außenluft ist für den Feuchteabbau derzeit ungünstig.",
+        "ventilation_stop_temperature": "Fenster schließen: Die Außenluft ist inzwischen wärmer und würde den Bereich zusätzlich aufheizen.",
         "mould_high": "Das Schimmelrisiko ist wegen anhaltender Feuchtigkeit hoch. Dies ist ein Risikoindikator, keine Schimmelerkennung.",
         "humidity_high": "Lüften empfohlen: Die Luftfeuchtigkeit ist anhaltend hoch.",
         "thermal_hot": "Der Raum fühlt sich sehr warm an. {cooling}",
@@ -1629,6 +1639,30 @@ class AreaEnvironmentEngine:
             context_key = "window_keep_closed"
         return context_key, text[context_key]
 
+    @staticmethod
+    def _window_close_context(
+        assessment: dict[str, Any], reasons: list[str], text: dict[str, str]
+    ) -> tuple[str, str] | None:
+        """Return the reason-specific action for closing an open window."""
+        if assessment["window_recommendation"] != WindowRecommendation.CLOSE:
+            return None
+        if (
+            "ventilation_complete" in reasons
+            and "ventilation_should_stop" not in reasons
+        ):
+            context_key = "window_close"
+        elif "air_exchange_hazardous" in reasons:
+            context_key = "ventilation_stop_hazardous"
+        elif "outdoor_air_polluted" in reasons:
+            context_key = "ventilation_stop_pollution"
+        elif "outdoor_air_more_humid" in reasons:
+            context_key = "ventilation_stop_humidity"
+        elif "outdoor_air_warmer" in reasons:
+            context_key = "ventilation_stop_temperature"
+        else:
+            context_key = "ventilation_stop"
+        return context_key, text[context_key]
+
     def _context(self, assessment: dict[str, Any]) -> tuple[str, str]:
         language = (
             "de" if str(self.area.hass.config.language).startswith("de") else "en"
@@ -1659,6 +1693,9 @@ class AreaEnvironmentEngine:
         )
         if assessment["health_alert"]:
             return "health_alert", text["health_alert"]
+        close_context = self._window_close_context(assessment, reasons, text)
+        if close_context and "ventilation_should_stop" in reasons:
+            return close_context
         if keep_closed := self._window_keep_closed_context(assessment, reasons, text):
             return keep_closed
         if air_quality == AirQualityState.CRITICAL:
@@ -1708,8 +1745,8 @@ class AreaEnvironmentEngine:
                 else "ventilation_recommended"
             )
             return context_key, text[context_key].format(reason=ventilation_reason)
-        if assessment["window_recommendation"] == WindowRecommendation.CLOSE:
-            return "window_close", text["window_close"]
+        if close_context:
+            return close_context
         if any(reason.endswith("_current") for reason in reasons):
             return "air_quality_provisional", text["air_provisional"].format(
                 reason=text[dominant_reason]
@@ -2025,9 +2062,10 @@ class AreaEnvironmentEngine:
         ventilation_demand, ventilation_reasons = self._ventilation(
             co2, humidity, sustained, rapid
         )
+        windows_open = self.windows_open
         ventilation_activity = (
             VentilationActivity.VENTILATING
-            if self.windows_open
+            if windows_open
             else VentilationActivity.INACTIVE
         )
         outdoor = self._outdoor_temperature()
@@ -2102,39 +2140,46 @@ class AreaEnvironmentEngine:
             or not humidity_ventilation
             or moisture_ventilation != "unfavorable"
         )
-        window = WindowRecommendation.NONE
-        if self._window_ids and (
-            (ventilation_need and air_exchange_suitable)
-            or cooling == CoolingState.PASSIVE_RECOMMENDED
-        ):
-            self._had_window_need = True
-            window = (
-                WindowRecommendation.NONE
-                if self.windows_open
-                else WindowRecommendation.OPEN
-            )
-            if not self.windows_open:
-                reasons.append("window_closed")
-        elif self.windows_open and self._had_window_need:
-            window = WindowRecommendation.CLOSE
-            reasons.append("ventilation_complete")
-        elif ventilation_need and not air_exchange_suitable:
-            window = WindowRecommendation.KEEP_CLOSED
-            reasons.append(
-                "outdoor_air_more_humid"
-                if moisture_ventilation == "unfavorable"
-                else "air_exchange_unfavorable"
-            )
-        elif (
+        air_exchange_unsuitable = air_exchange in (
+            AirExchangeSuitability.UNFAVORABLE,
+            AirExchangeSuitability.HAZARDOUS,
+        )
+        outdoor_temperature_unfavorable = (
             temperature is not None
             and outdoor is not None
             and self.comfort_max is not None
             and temperature > self.comfort_max
             and outdoor > temperature
+        )
+        window = WindowRecommendation.NONE
+        if air_exchange_unsuitable or (ventilation_need and not air_exchange_suitable):
+            if windows_open:
+                window = WindowRecommendation.CLOSE
+                reasons.append("ventilation_should_stop")
+            else:
+                window = WindowRecommendation.KEEP_CLOSED
+                reasons.append("window_should_remain_closed")
+        elif outdoor_temperature_unfavorable:
+            if windows_open:
+                window = WindowRecommendation.CLOSE
+                reasons.append("ventilation_should_stop")
+            else:
+                window = WindowRecommendation.KEEP_CLOSED
+                reasons.append("window_should_remain_closed")
+        elif self._window_ids and (
+            (ventilation_need and air_exchange_suitable)
+            or cooling == CoolingState.PASSIVE_RECOMMENDED
         ):
-            window = WindowRecommendation.KEEP_CLOSED
-            self._had_window_need = False
-        elif not self.windows_open:
+            self._had_window_need = ventilation_need and air_exchange_suitable
+            window = (
+                WindowRecommendation.NONE if windows_open else WindowRecommendation.OPEN
+            )
+            if not windows_open:
+                reasons.append("window_closed")
+        elif windows_open and self._had_window_need:
+            window = WindowRecommendation.CLOSE
+            reasons.append("ventilation_complete")
+        elif not windows_open:
             self._had_window_need = False
 
         ventilation_request = VentilationFanRequest.NONE

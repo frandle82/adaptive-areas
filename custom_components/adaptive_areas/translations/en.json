@@ -806,6 +806,8 @@
               "no2_short_term_elevated": "One-hour NO₂ is elevated",
               "no2_short_term_critical": "One-hour NO₂ is critical",
               "window_already_open": "A relevant window is already open",
+              "ventilation_should_stop": "Current ventilation should stop",
+              "window_should_remain_closed": "The window should remain closed",
               "room_too_warm": "The room is too warm",
               "outdoor_air_cooler": "Outdoor air is cooler",
               "passive_cooling_available": "Passive cooling is available",
