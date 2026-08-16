@@ -37,6 +37,8 @@ from custom_components.adaptive_areas.const import (
     CONF_AREA_TEMPERATURE_SENSOR,
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
+    CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS,
+    CONF_ENVIRONMENT_MANUAL_PM25_SENSORS,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_COMFORT_MAX,
@@ -827,84 +829,53 @@ async def test_registry_pollutants_recover_when_states_arrive_late(
     engine.unload()
 
 
-async def test_waqi_unitless_pollutants_use_registry_metadata(
+def test_unclassified_pollutants_require_safe_manual_assignment(
     hass: HomeAssistant,
 ) -> None:
-    """WAQI pollutant indices are discovered without device classes or units."""
-    area = _area(hass, {CONF_TYPE: AREA_TYPE_EXTERIOR})
-    source_entry = MockConfigEntry(domain="waqi", data={})
-    source_entry.add_to_hass(hass)
-    entity_registry = async_get_entity_registry(hass)
-    sources = (
-        (
-            "air_quality",
-            "wendland_germany_luftqualitatsindex",
-            19,
-            SensorDeviceClass.AQI,
-        ),
-        ("ozone", "wendland_germany_ozon", 19.1, None),
-        ("pm10", "wendland_germany_pm10", 6, None),
-        ("pm25", "wendland_germany_pm25", 13, None),
-        ("nitrogen_dioxide", "wendland_germany_stickstoffdioxid", 1.4, None),
-    )
-    entity_ids: dict[str, str] = {}
-    for key, object_id, value, device_class in sources:
-        entry = entity_registry.async_get_or_create(
-            "sensor",
-            "waqi",
-            f"wendland_station_{key}",
-            suggested_object_id=object_id,
-            config_entry=source_entry,
-            original_device_class=device_class,
-        )
-        entity_registry.async_update_entity(entry.entity_id, area_id=area.id)
-        attributes = {ATTR_FRIENDLY_NAME: object_id}
-        if device_class is not None:
-            attributes[ATTR_DEVICE_CLASS] = device_class
-        hass.states.async_set(entry.entity_id, str(value), attributes)
-        area.entities.setdefault("sensor", []).append({ATTR_ENTITY_ID: entry.entity_id})
-        entity_ids[key] = entry.entity_id
-
-    engine = AreaEnvironmentEngine(area)
-    assessment = engine.assessment
-
-    for key, device_class in (
-        ("ozone", SensorDeviceClass.OZONE),
-        ("pm10", SensorDeviceClass.PM10),
-        ("pm25", SensorDeviceClass.PM25),
-        ("nitrogen_dioxide", SensorDeviceClass.NITROGEN_DIOXIDE),
-    ):
-        assert engine._sensor_ids[str(device_class)] == [entity_ids[key]]
-    assert assessment["pollutants"] == {
-        "pm25": 13.0,
-        "pm10": 6.0,
-        "no2": 1.4,
-        "ozone": 19.1,
-        "aqi": 19.0,
+    """Names and units do not classify sensors; explicit mappings still validate units."""
+    pm25_id = "sensor.vendor_pm25"
+    ozone_id = "sensor.vendor_ozone"
+    attributes = {
+        ATTR_FRIENDLY_NAME: "PM2.5",
+        ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     }
-    for name in ("pm25", "pm10", "no2", "ozone"):
-        assert assessment["pollutant_assessments"][name]["scale"] == (
-            "waqi_individual_aqi"
-        )
-        assert assessment["source_entities"][name]["mode"] == ("waqi_individual_aqi")
-    assert assessment["air_quality"] == AirQualityState.GOOD
+    hass.states.async_set(pm25_id, "13", attributes)
+    hass.states.async_set(ozone_id, "19.1", {ATTR_FRIENDLY_NAME: "Ozone"})
+
+    automatic_area = _area(hass)
+    automatic_area.entities["sensor"] = [
+        {ATTR_ENTITY_ID: pm25_id},
+        {ATTR_ENTITY_ID: ozone_id},
+    ]
+    automatic_engine = AreaEnvironmentEngine(automatic_area)
+    assert automatic_engine._sensor_ids[str(SensorDeviceClass.PM25)] == []
+    assert automatic_engine.assessment["pollutants"] == {}
+
+    exterior = _area(
+        hass,
+        {
+            CONF_TYPE: AREA_TYPE_EXTERIOR,
+            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [pm25_id],
+            CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS: [ozone_id],
+        },
+    )
+    exterior_engine = AreaEnvironmentEngine(exterior)
+    assert exterior_engine._sensor_ids[str(SensorDeviceClass.PM25)] == [pm25_id]
+    assert exterior_engine._sensor_ids[str(SensorDeviceClass.OZONE)] == [ozone_id]
+    assert exterior_engine.assessment["pollutants"] == {"pm25": 13.0}
+    assert exterior_engine.assessment["source_entities"]["pm25"]["mode"] == "manual"
+    assert exterior_engine.assessment["source_entities"]["ozone"]["entities"] == []
 
     interior = _area(hass)
-    hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: area}
+    hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: exterior}
     interior_engine = AreaEnvironmentEngine(interior)
     outdoor, outdoor_assessments = interior_engine._outdoor_pollutants()
-    assert outdoor == {"pm25": 13.0, "pm10": 6.0, "no2": 1.4, "ozone": 19.1}
-    assert {
-        name: details["scale"] for name, details in outdoor_assessments.items()
-    } == {
-        "pm25": "waqi_individual_aqi",
-        "pm10": "waqi_individual_aqi",
-        "no2": "waqi_individual_aqi",
-        "ozone": "waqi_individual_aqi",
-    }
+    assert outdoor == {"pm25": 13.0}
+    assert outdoor_assessments["pm25"]["scale"] == "concentration"
 
     interior_engine.unload()
-    engine.unload()
+    exterior_engine.unload()
+    automatic_engine.unload()
 
 
 def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
@@ -1751,7 +1722,7 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 8
+    assert entry.minor_version == 9
     assert entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
@@ -1831,7 +1802,7 @@ async def test_rc6_migration_keeps_evaluation_disabled(hass: HomeAssistant) -> N
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=4)
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 8
+    assert entry.minor_version == 9
     assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
     assert entry.data[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.saved_temperature"
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.saved_outdoor"
@@ -1851,7 +1822,7 @@ async def test_legacy_room_usage_toggle_migrates_to_independent_feature(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 8
+    assert entry.minor_version == 9
     assert CONF_TRACK_ROOM_USAGE not in entry.data
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert CONF_FEATURE_ROOM_USAGE in area.config[CONF_ENABLED_FEATURES]

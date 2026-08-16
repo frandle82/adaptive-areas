@@ -59,7 +59,7 @@ async def test_cleaning_threshold_migrates_from_seconds_to_minutes(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 8
+    assert entry.minor_version == 9
     feature_config = entry.options[CONF_ENABLED_FEATURES][CONF_FEATURE_ROOM_USAGE]
     assert feature_config[CONF_PRESENCE_MINUTES_TO_DUE] == 120
     assert CONF_PRESENCE_SECONDS_TO_DUE not in feature_config

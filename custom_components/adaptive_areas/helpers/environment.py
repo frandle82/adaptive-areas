@@ -49,6 +49,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
     DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     DEFAULT_ROOM_CATEGORY,
+    ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
     MODULE_DATA,
     AdaptiveAreasEvents,
     AirExchangeSuitability,
@@ -222,15 +223,6 @@ POLLUTANT_NAMES = {
     SensorDeviceClass.AQI: "aqi",
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS: "voc_parts",
 }
-
-WAQI_POLLUTANT_DEVICE_CLASSES = {
-    "carbon_monoxide": SensorDeviceClass.CO,
-    "nitrogen_dioxide": SensorDeviceClass.NITROGEN_DIOXIDE,
-    "ozone": SensorDeviceClass.OZONE,
-    "pm10": SensorDeviceClass.PM10,
-    "pm25": SensorDeviceClass.PM25,
-}
-WAQI_AQI_BAND = EvaluationBand(50, 100, 150, None, "WAQI-US-EPA-AQI")
 
 AIR_QUALITY_RANK = {
     AirQualityState.UNKNOWN: 0,
@@ -485,15 +477,28 @@ class AreaEnvironmentEngine:
                 )
                 if (entity_id := exterior.config.get(key))
             )
-            for entity in exterior.entities.get("sensor", []):
-                entity_id = entity[ATTR_ENTITY_ID]
+            exterior_config = (
+                exterior.environment.config
+                if exterior.environment is not None
+                else exterior.config
+            )
+            pollutant_ids = {
+                entity[ATTR_ENTITY_ID] for entity in exterior.entities.get("sensor", [])
+            }
+            pollutant_ids.update(
+                entity_id
+                for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+                for entity_id in exterior_config.get(key, [])
+            )
+            for entity_id in pollutant_ids:
                 if entity_id in self._excluded_ids:
                     continue
                 state = self.area.hass.states.get(entity_id)
                 if (
                     entity_id not in self._excluded_ids
                     and state is not None
-                    and self._pollutant_device_class(entity_id) in AIR_QUALITY_MATRIX
+                    and self._pollutant_device_class(entity_id, exterior_config)
+                    in AIR_QUALITY_MATRIX
                 ):
                     result.add(entity_id)
         return sorted(result)
@@ -552,6 +557,11 @@ class AreaEnvironmentEngine:
                 )
             )
         candidate_ids.update(self.config.get(CONF_INCLUDE_ENTITIES, []))
+        candidate_ids.update(
+            entity_id
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+            for entity_id in self.config.get(key, [])
+        )
         for entity_id in candidate_ids:
             entry = entity_registry.async_get(entity_id)
             if not entity_id.startswith("sensor."):
@@ -572,22 +582,10 @@ class AreaEnvironmentEngine:
             entity_ids.sort()
         return result
 
-    def _waqi_pollutant_device_class(self, entity_id: str) -> SensorDeviceClass | None:
-        """Resolve unitless WAQI pollutant entities from stable registry metadata."""
-        entry = async_get_entity_registry(self.area.hass).async_get(entity_id)
-        if entry is None or entry.platform != "waqi":
-            return None
-        return next(
-            (
-                device_class
-                for key, device_class in WAQI_POLLUTANT_DEVICE_CLASSES.items()
-                if entry.unique_id.endswith(f"_{key}")
-            ),
-            None,
-        )
-
-    def _pollutant_device_class(self, entity_id: str) -> SensorDeviceClass | None:
-        """Return standardized or integration-specific pollutant type."""
+    def _official_pollutant_device_class(
+        self, entity_id: str
+    ) -> SensorDeviceClass | None:
+        """Return an official Home Assistant pollutant device class."""
         state = self.area.hass.states.get(entity_id)
         device_class = (
             state.attributes.get(ATTR_DEVICE_CLASS) if state is not None else None
@@ -596,9 +594,31 @@ class AreaEnvironmentEngine:
             entry = async_get_entity_registry(self.area.hass).async_get(entity_id)
             if entry is not None:
                 device_class = entry.device_class or entry.original_device_class
-        if device_class in POLLUTANT_NAMES:
-            return device_class
-        return self._waqi_pollutant_device_class(entity_id)
+        try:
+            normalized = SensorDeviceClass(device_class)
+        except TypeError, ValueError:
+            return None
+        return normalized if normalized in POLLUTANT_NAMES else None
+
+    def _manual_pollutant_device_class(
+        self, entity_id: str, config: dict[str, Any] | None = None
+    ) -> SensorDeviceClass | None:
+        """Return one explicit pollutant assignment; reject ambiguous mappings."""
+        source_config = self.config if config is None else config
+        matches = {
+            device_class
+            for key, device_class in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES.items()
+            if entity_id in source_config.get(key, [])
+        }
+        return next(iter(matches)) if len(matches) == 1 else None
+
+    def _pollutant_device_class(
+        self, entity_id: str, config: dict[str, Any] | None = None
+    ) -> SensorDeviceClass | None:
+        """Return official or explicitly assigned pollutant type."""
+        return self._official_pollutant_device_class(
+            entity_id
+        ) or self._manual_pollutant_device_class(entity_id, config)
 
     def _primary_value(
         self, entity_id: str, device_class: SensorDeviceClass, source_key: str
@@ -716,9 +736,7 @@ class AreaEnvironmentEngine:
             "name": state.name if state is not None else entity_id,
         }
 
-    def _values(
-        self, device_class: SensorDeviceClass, *, waqi_indices: bool = False
-    ) -> list[float]:
+    def _values(self, device_class: SensorDeviceClass) -> list[float]:
         candidate_ids = [*self._sensor_ids.get(str(device_class), [])]
         values: list[float] = []
         used: list[str] = []
@@ -731,9 +749,10 @@ class AreaEnvironmentEngine:
                 or self._pollutant_device_class(entity_id) != device_class
             ):
                 continue
-            is_waqi_index = self._waqi_pollutant_device_class(entity_id) == device_class
-            if is_waqi_index != waqi_indices:
-                continue
+            is_manual = (
+                self._official_pollutant_device_class(entity_id) is None
+                and self._manual_pollutant_device_class(entity_id) == device_class
+            )
             try:
                 value = float(state.state)
             except TypeError, ValueError:
@@ -747,11 +766,9 @@ class AreaEnvironmentEngine:
                         )
                     except ValueError:
                         continue
-            elif (
-                not is_waqi_index
-                and expected_unit
-                and unit is not None
-                and expected_unit.unit != unit
+            elif expected_unit and (
+                (is_manual and unit != expected_unit.unit)
+                or (not is_manual and unit is not None and expected_unit.unit != unit)
             ):
                 continue
             values.append(value)
@@ -759,7 +776,14 @@ class AreaEnvironmentEngine:
         if candidate_ids:
             source_key = POLLUTANT_NAMES.get(device_class, str(device_class))
             self._source_entities[source_key] = {
-                "mode": "waqi_individual_aqi" if waqi_indices else "direct",
+                "mode": (
+                    "manual"
+                    if any(
+                        self._official_pollutant_device_class(entity_id) is None
+                        for entity_id in used
+                    )
+                    else "direct"
+                ),
                 "entities": [
                     self._source_descriptor(entity_id) for entity_id in sorted(used)
                 ],
@@ -857,7 +881,7 @@ class AreaEnvironmentEngine:
 
     def _outdoor_pollutants(self) -> tuple[dict[str, float], dict[str, Any]]:
         """Return conservative maxima from valid exterior Area pollutant sensors."""
-        values: dict[str, list[tuple[float, str, str]]] = {
+        values: dict[str, list[tuple[float, str]]] = {
             POLLUTANT_NAMES[device_class]: []
             for device_class in (
                 SensorDeviceClass.PM25,
@@ -872,14 +896,26 @@ class AreaEnvironmentEngine:
             exterior = runtime.get(DATA_AREA_OBJECT)
             if exterior is None or exterior is self.area or not exterior.is_exterior():
                 continue
-            for entity in exterior.entities.get("sensor", []):
-                entity_id = entity[ATTR_ENTITY_ID]
+            exterior_config = (
+                exterior.environment.config
+                if exterior.environment is not None
+                else exterior.config
+            )
+            entity_ids = {
+                entity[ATTR_ENTITY_ID] for entity in exterior.entities.get("sensor", [])
+            }
+            entity_ids.update(
+                entity_id
+                for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+                for entity_id in exterior_config.get(key, [])
+            )
+            for entity_id in entity_ids:
                 if entity_id in self._excluded_ids:
                     continue
                 state = self.area.hass.states.get(entity_id)
                 if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                     continue
-                device_class = self._pollutant_device_class(entity_id)
+                device_class = self._pollutant_device_class(entity_id, exterior_config)
                 if device_class not in (
                     SensorDeviceClass.PM25,
                     SensorDeviceClass.PM10,
@@ -890,43 +926,26 @@ class AreaEnvironmentEngine:
                 ):
                     continue
                 band = AIR_QUALITY_MATRIX[device_class]
-                is_waqi_index = (
-                    self._waqi_pollutant_device_class(entity_id) == device_class
-                )
-                if (
-                    not is_waqi_index
-                    and state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) != band.unit
-                ):
+                if state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) != band.unit:
                     continue
                 try:
                     value = float(state.state)
                 except TypeError, ValueError:
                     continue
-                values[POLLUTANT_NAMES[device_class]].append(
-                    (
-                        value,
-                        entity_id,
-                        "waqi_individual_aqi" if is_waqi_index else "concentration",
-                    )
-                )
+                values[POLLUTANT_NAMES[device_class]].append((value, entity_id))
         measurements: dict[str, float] = {}
         assessments: dict[str, Any] = {}
         for name, samples in values.items():
             if not samples:
                 continue
-            concentration_samples = [
-                sample for sample in samples if sample[2] == "concentration"
-            ]
-            selected = concentration_samples or samples
-            highest = max(value for value, _entity_id, _scale in selected)
-            used = [entity_id for _value, entity_id, _scale in selected]
-            scale = selected[0][2]
+            highest = max(value for value, _entity_id in samples)
+            used = [entity_id for _value, entity_id in samples]
             measurements[name] = round(highest, 2)
             assessments[name] = {
                 "value": round(highest, 2),
                 "aggregation": "conservative_maximum",
                 "source_entities": sorted(used),
-                "scale": scale,
+                "scale": "concentration",
             }
             self._source_entities[f"outdoor_{name}"] = {
                 "mode": "exterior_air_quality",
@@ -1239,32 +1258,6 @@ class AreaEnvironmentEngine:
             )
             values = self._values(device_class)
             current = max(values) if values else None
-            if current is None:
-                waqi_values = self._values(device_class, waqi_indices=True)
-                if waqi_values:
-                    current = max(waqi_values)
-                    name = POLLUTANT_NAMES[device_class]
-                    state = self._classify_air_value(current, WAQI_AQI_BAND)
-                    measurements[name] = round(current, 2)
-                    assessments[name] = {
-                        "current": round(current, 2),
-                        "quality": "immediate",
-                        "assessment_quality": "immediate",
-                        "basis": WAQI_AQI_BAND.basis,
-                        "basis_type": "air_quality_index",
-                        "guideline": WAQI_AQI_BAND.basis,
-                        "guideline_value": WAQI_AQI_BAND.degraded,
-                        "guideline_period": "current",
-                        "guideline_exceeded": current > WAQI_AQI_BAND.degraded,
-                        "severity": str(state),
-                        "severity_basis": "air_quality_index",
-                        "scale": "waqi_individual_aqi",
-                    }
-                    if state != AirQualityState.GOOD:
-                        reasons.append(f"high_{name}")
-                    if AIR_QUALITY_RANK[state] > AIR_QUALITY_RANK[worst]:
-                        worst = state
-                    continue
             if current is None:
                 if device_class in ROLLING_DEVICE_CLASSES and self._sensor_ids.get(
                     str(device_class)
@@ -1605,10 +1598,7 @@ class AreaEnvironmentEngine:
 
     @staticmethod
     def _air_exchange_suitability(
-        indoor: dict[str, float],
-        outdoor: dict[str, float],
-        indoor_assessments: dict[str, Any],
-        outdoor_assessments: dict[str, Any],
+        indoor: dict[str, float], outdoor: dict[str, float]
     ) -> tuple[AirExchangeSuitability, dict[str, str], list[str]]:
         """Compare relevant indoor and outdoor pollutants conservatively."""
         comparisons: dict[str, str] = {}
@@ -1626,21 +1616,11 @@ class AreaEnvironmentEngine:
             if outside is None:
                 continue
             inside = indoor.get(name)
-            outside_scale = outdoor_assessments.get(name, {}).get(
-                "scale", "concentration"
-            )
-            inside_scale = indoor_assessments.get(name, {}).get(
-                "scale", "concentration"
-            )
-            band = (
-                WAQI_AQI_BAND
-                if outside_scale == "waqi_individual_aqi"
-                else AIR_QUALITY_MATRIX[device_class]
-            )
+            band = AIR_QUALITY_MATRIX[device_class]
             if outside > band.critical:
                 comparisons[name] = "hazardous"
                 hazardous = True
-            elif inside is None or inside_scale != outside_scale:
+            elif inside is None:
                 comparisons[name] = "worse" if outside > band.degraded else "comparable"
                 worse |= outside > band.degraded
             elif outside > inside * 1.1:
@@ -1896,12 +1876,7 @@ class AreaEnvironmentEngine:
         outdoor_humidity = self._outdoor_humidity()
         outdoor_pollutants, outdoor_pollutant_assessments = self._outdoor_pollutants()
         air_exchange, pollutant_comparisons, exchange_reasons = (
-            self._air_exchange_suitability(
-                pollutants,
-                outdoor_pollutants,
-                pollutant_assessments,
-                outdoor_pollutant_assessments,
-            )
+            self._air_exchange_suitability(pollutants, outdoor_pollutants)
         )
         outdoor_humidity_ratio = (
             self._humidity_ratio(outdoor, outdoor_humidity)

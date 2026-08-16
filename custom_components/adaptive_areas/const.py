@@ -366,7 +366,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 8
+    MINOR = 9
 
 
 class AdaptiveAreasFeatureInfo:
@@ -1035,6 +1035,29 @@ CONF_ENVIRONMENT_HUMIDITY_DURATION, DEFAULT_ENVIRONMENT_HUMIDITY_DURATION = (
 CONF_ENVIRONMENT_VENTILATION_FANS = "ventilation_fans"
 CONF_ENVIRONMENT_CIRCULATION_FANS = "circulation_fans"
 CONF_ENVIRONMENT_DISABLED_FANS = "disabled_fans"
+CONF_ENVIRONMENT_MANUAL_CO2_SENSORS = "manual_co2_sensors"
+CONF_ENVIRONMENT_MANUAL_PM25_SENSORS = "manual_pm25_sensors"
+CONF_ENVIRONMENT_MANUAL_PM10_SENSORS = "manual_pm10_sensors"
+CONF_ENVIRONMENT_MANUAL_CO_SENSORS = "manual_co_sensors"
+CONF_ENVIRONMENT_MANUAL_NO2_SENSORS = "manual_no2_sensors"
+CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS = "manual_ozone_sensors"
+CONF_ENVIRONMENT_MANUAL_VOC_SENSORS = "manual_voc_sensors"
+CONF_ENVIRONMENT_MANUAL_AQI_SENSORS = "manual_aqi_sensors"
+CONF_ENVIRONMENT_MANUAL_VOC_PARTS_SENSORS = "manual_voc_parts_sensors"
+
+ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES = {
+    CONF_ENVIRONMENT_MANUAL_CO2_SENSORS: SensorDeviceClass.CO2,
+    CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: SensorDeviceClass.PM25,
+    CONF_ENVIRONMENT_MANUAL_PM10_SENSORS: SensorDeviceClass.PM10,
+    CONF_ENVIRONMENT_MANUAL_CO_SENSORS: SensorDeviceClass.CO,
+    CONF_ENVIRONMENT_MANUAL_NO2_SENSORS: SensorDeviceClass.NITROGEN_DIOXIDE,
+    CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS: SensorDeviceClass.OZONE,
+    CONF_ENVIRONMENT_MANUAL_VOC_SENSORS: SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+    CONF_ENVIRONMENT_MANUAL_AQI_SENSORS: SensorDeviceClass.AQI,
+    CONF_ENVIRONMENT_MANUAL_VOC_PARTS_SENSORS: (
+        SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS
+    ),
+}
 CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE = ("track_room_usage", False)
 CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY = ("room_category", "living_sedentary")
 CONF_ENVIRONMENT_OUTDOOR_HUMIDITY = "outdoor_humidity_entity"
@@ -1375,6 +1398,10 @@ ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
         vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
+        **{
+            vol.Optional(key, default=[]): cv.entity_ids
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+        },
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1404,6 +1431,10 @@ AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
         vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
+        **{
+            vol.Optional(key, default=[]): cv.entity_ids
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+        },
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1679,6 +1710,10 @@ REGULAR_AREA_SCHEMA = vol.Schema(
         vol.Optional(CONF_ENVIRONMENT_VENTILATION_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_ENVIRONMENT_CIRCULATION_FANS, default=[]): cv.entity_ids,
         vol.Optional(CONF_ENVIRONMENT_DISABLED_FANS, default=[]): cv.entity_ids,
+        **{
+            vol.Optional(key, default=[]): cv.entity_ids
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+        },
         vol.Optional(CONF_KEEP_ONLY_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_PRESENCE_DEVICE_PLATFORMS,
@@ -1975,6 +2010,7 @@ OPTIONS_AREA_EVALUATION = [
     (CONF_ENVIRONMENT_VENTILATION_FANS, [], cv.entity_ids),
     (CONF_ENVIRONMENT_CIRCULATION_FANS, [], cv.entity_ids),
     (CONF_ENVIRONMENT_DISABLED_FANS, [], cv.entity_ids),
+    *[(key, [], cv.entity_ids) for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES],
 ]
 
 OPTIONS_AREA_AWARE_MEDIA_PLAYER = [

@@ -48,6 +48,8 @@ A future mould model should incorporate surface moisture, surface temperature, e
 
 ## Air quality
 
+Pollutant discovery first uses official Home Assistant `SensorDeviceClass` metadata and is independent of the source integration. Sensors without a pollutant device class are never classified from their entity ID, display name, or unit alone. They can be assigned explicitly under **Area Climate** to CO₂, PM2.5, PM10, CO, NO₂, ozone, TVOC, VOC parts, or AQI. One entity may have only one manual assignment, and an official pollutant device class always takes precedence. Manual concentration sources enter health evaluation only when their reported unit exactly matches the supported measurement unit; otherwise they remain unavailable for that assessment. Generic AQI and VOC-parts scales remain exposed but unclassified.
+
 CO₂ uses the German Environment Agency categories: up to 1000 ppm hygienically unremarkable, 1000–2000 ppm elevated with ventilation recommended, and above 2000 ppm hygienically unacceptable with urgent ventilation. The 850 ppm clearing value is an Adaptive Areas operational hysteresis threshold.
 
 PM2.5, PM10, CO, and NO₂ use the [WHO 2021 24-hour guideline values](https://www.who.int/publications/i/item/9789240034228): 15 µg/m³, 45 µg/m³, 4 mg/m³, and 25 µg/m³ respectively. Adaptive Areas calculates a true elapsed-time-weighted rolling 24-hour average. Classification remains `unknown`/`limited` until at least 18 hours are covered. Current values may still create provisional warnings. Only the first threshold is the scientific guideline; higher severities are `adaptive_areas_operational`. Each pollutant assessment publishes guideline, period, exceedance, severity basis, coverage, and quality metadata.

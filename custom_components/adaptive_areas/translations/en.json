@@ -247,7 +247,16 @@
           "humidity_warning_duration": "High humidity warning duration",
           "ventilation_fans": "Ventilation fans",
           "circulation_fans": "Circulation fans",
-          "disabled_fans": "Fans excluded from evaluation requests"
+          "disabled_fans": "Fans excluded from evaluation requests",
+          "manual_co2_sensors": "Manually assigned CO₂ sensors",
+          "manual_pm25_sensors": "Manually assigned PM2.5 sensors",
+          "manual_pm10_sensors": "Manually assigned PM10 sensors",
+          "manual_co_sensors": "Manually assigned carbon monoxide sensors",
+          "manual_no2_sensors": "Manually assigned nitrogen dioxide sensors",
+          "manual_ozone_sensors": "Manually assigned ozone sensors",
+          "manual_voc_sensors": "Manually assigned VOC sensors",
+          "manual_aqi_sensors": "Manually assigned air quality index sensors",
+          "manual_voc_parts_sensors": "Manually assigned VOC parts sensors"
         },
         "data_description": {
           "outdoor_temperature_entity": "Select an explicit outdoor source when automatic exterior-area discovery is ambiguous.",
@@ -256,7 +265,16 @@
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area.",
           "ventilation_fans": "Fans that exchange air, such as extractor or mechanical ventilation fans.",
           "circulation_fans": "Fans that move indoor air, such as ceiling or pedestal fans. Unclassified area fans default to this safer role.",
-          "disabled_fans": "Fans that Area Climate must never request. Passive grouping remains unchanged."
+          "disabled_fans": "Fans that Area Climate must never request. Passive grouping remains unchanged.",
+          "manual_co2_sensors": "Only for sensors without a pollutant device class. Values require ppm for health evaluation.",
+          "manual_pm25_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
+          "manual_pm10_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
+          "manual_co_sensors": "Only for sensors without a pollutant device class. Values require mg/m³ for health evaluation.",
+          "manual_no2_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
+          "manual_ozone_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for health evaluation.",
+          "manual_voc_sensors": "Only for sensors without a pollutant device class. Values require µg/m³ for precautionary evaluation.",
+          "manual_aqi_sensors": "Only for sensors without a pollutant device class. AQI scales remain unclassified and are not used for health thresholds.",
+          "manual_voc_parts_sensors": "Only for sensors without a pollutant device class. VOC parts scales remain unclassified and are not used for health thresholds."
         }
       },
       "feature_conf_climate_control": {

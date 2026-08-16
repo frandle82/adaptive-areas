@@ -159,6 +159,7 @@ from .const import (
     DISTRESS_SENSOR_CLASSES,
     DOMAIN,
     EMPTY_STRING,
+    ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACTIVATION_DISABLED,
@@ -1377,32 +1378,29 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         )
 
     async def async_step_feature_conf_environment(self, user_input=None):
-        """Configure interior-only roles for enabled Area Climate."""
-        if self.area.is_exterior():
-            if user_input is not None:
-                return await self.async_step_show_menu()
-            return self.async_show_form(
-                step_id="feature_conf_environment",
-                data_schema=vol.Schema({}),
-            )
+        """Configure Area Climate roles and explicit pollutant assignments."""
         temperature_entities = []
         humidity_entities = []
         window_entities = []
         fan_entities = []
+        unclassified_sensor_entities = []
+        entity_registry = entityreg_async_get(self.hass)
         for entity_id in self.all_entities:
             state = self.hass.states.get(entity_id)
             if state is None:
                 continue
             domain = entity_id.split(".", 1)[0]
-            if (
-                domain == SENSOR_DOMAIN
-                and state.attributes.get(ATTR_DEVICE_CLASS) == "temperature"
-            ):
+            registry_entry = entity_registry.async_get(entity_id)
+            device_class = state.attributes.get(ATTR_DEVICE_CLASS)
+            if device_class is None and registry_entry is not None:
+                device_class = (
+                    registry_entry.device_class or registry_entry.original_device_class
+                )
+            if domain == SENSOR_DOMAIN and device_class is None:
+                unclassified_sensor_entities.append(entity_id)
+            if domain == SENSOR_DOMAIN and device_class == "temperature":
                 temperature_entities.append(entity_id)
-            elif (
-                domain == SENSOR_DOMAIN
-                and state.attributes.get(ATTR_DEVICE_CLASS) == "humidity"
-            ):
+            elif domain == SENSOR_DOMAIN and device_class == "humidity":
                 humidity_entities.append(entity_id)
             elif domain == BINARY_SENSOR_DOMAIN and state.attributes.get(
                 ATTR_DEVICE_CLASS
@@ -1412,6 +1410,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 fan_entities.append(entity_id)
 
         errors: dict[str, str] = {}
+        configured_manual_entities = {
+            entity_id
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+            for entity_id in self.area_options.get(key, [])
+        }
+        manual_candidates = sorted(
+            set(unclassified_sensor_entities) | configured_manual_entities
+        )
         if user_input is not None:
             raw_input = dict(user_input)
             role_sets = (
@@ -1426,35 +1432,69 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             ):
                 errors[CONF_ENVIRONMENT_CIRCULATION_FANS] = "malformed_input"
             else:
-                try:
-                    validated = AREA_EVALUATION_OPTIONS_SCHEMA(raw_input)
-                except vol.MultipleInvalid as validation:
-                    errors = {
-                        str(error.path[0]): str(error.msg)
-                        for error in validation.errors
-                    }
-                else:
-                    # Legacy explicit outdoor sources remain stored runtime fallbacks,
-                    # but are no longer writable through the regular UI.
-                    validated.pop(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, None)
-                    validated.pop(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, None)
-                    self.area_options.update(validated)
-                    self.all_area_entities = sorted(
-                        set(self.all_area_entities)
-                        | {
-                            entity_id
-                            for key in (CONF_ENVIRONMENT_SURFACE_TEMPERATURE,)
-                            if (entity_id := validated.get(key))
-                        }
+                manual_role_sets = [
+                    set(raw_input.get(key, []))
+                    for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+                ]
+                if any(
+                    left & right
+                    for index, left in enumerate(manual_role_sets)
+                    for right in manual_role_sets[index + 1 :]
+                ):
+                    errors[next(iter(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES))] = (
+                        "malformed_input"
                     )
-                    return await self.async_step_show_menu()
+                else:
+                    try:
+                        validated = AREA_EVALUATION_OPTIONS_SCHEMA(raw_input)
+                    except vol.MultipleInvalid as validation:
+                        errors = {
+                            str(error.path[0]): str(error.msg)
+                            for error in validation.errors
+                        }
+                    else:
+                        # Legacy explicit outdoor sources remain stored runtime
+                        # fallbacks, but are no longer writable through regular UI.
+                        validated.pop(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, None)
+                        validated.pop(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY, None)
+                        self.area_options.update(validated)
+                        self.all_area_entities = sorted(
+                            set(self.all_area_entities)
+                            | {
+                                entity_id
+                                for key in (CONF_ENVIRONMENT_SURFACE_TEMPERATURE,)
+                                if (entity_id := validated.get(key))
+                            }
+                            | {
+                                entity_id
+                                for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+                                for entity_id in validated.get(key, [])
+                            }
+                        )
+                        return await self.async_step_show_menu()
 
-        return self.async_show_form(
-            step_id="feature_conf_environment",
-            data_schema=self._build_options_schema(
-                options=OPTIONS_AREA_EVALUATION,
-                saved_options=self.area_options,
-                dynamic_validators={
+        manual_validators = {
+            key: cv.multi_select(manual_candidates)
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+        }
+        manual_selectors = {
+            key: self._build_selector_entity_simple(manual_candidates, multiple=True)
+            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+        }
+        options = (
+            OPTIONS_AREA_EVALUATION
+            if not self.area.is_exterior()
+            else [
+                option
+                for option in OPTIONS_AREA_EVALUATION
+                if option[0] in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+            ]
+        )
+        dynamic_validators = dict(manual_validators)
+        selectors = dict(manual_selectors)
+        if not self.area.is_exterior():
+            dynamic_validators.update(
+                {
                     CONF_ENVIRONMENT_SURFACE_TEMPERATURE: vol.In(
                         EMPTY_ENTRY + sorted(temperature_entities)
                     ),
@@ -1468,8 +1508,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     CONF_ENVIRONMENT_DISABLED_FANS: cv.multi_select(
                         sorted(fan_entities)
                     ),
-                },
-                selectors={
+                }
+            )
+            selectors.update(
+                {
                     CONF_ENVIRONMENT_SURFACE_TEMPERATURE: self._build_selector_entity_simple(
                         EMPTY_ENTRY + sorted(temperature_entities)
                     ),
@@ -1491,7 +1533,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     CONF_ENVIRONMENT_DISABLED_FANS: self._build_selector_entity_simple(
                         sorted(fan_entities), multiple=True
                     ),
-                },
+                }
+            )
+
+        return self.async_show_form(
+            step_id="feature_conf_environment",
+            data_schema=self._build_options_schema(
+                options=options,
+                saved_options=self.area_options,
+                dynamic_validators=dynamic_validators,
+                selectors=selectors,
             ),
             errors=errors,
         )
