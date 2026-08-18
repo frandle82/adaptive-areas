@@ -34,6 +34,8 @@ from homeassistant.const import (
     STATE_PROBLEM,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    UnitOfDensity,
+    UnitOfRatio,
 )
 from homeassistant.helpers import config_validation as cv
 
@@ -366,7 +368,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 9
+    MINOR = 10
 
 
 class AdaptiveAreasFeatureInfo:
@@ -1044,6 +1046,13 @@ CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS = "manual_ozone_sensors"
 CONF_ENVIRONMENT_MANUAL_VOC_SENSORS = "manual_voc_sensors"
 CONF_ENVIRONMENT_MANUAL_AQI_SENSORS = "manual_aqi_sensors"
 CONF_ENVIRONMENT_MANUAL_VOC_PARTS_SENSORS = "manual_voc_parts_sensors"
+CONF_ENVIRONMENT_MANUAL_CO2_UNIT = "manual_co2_unit"
+CONF_ENVIRONMENT_MANUAL_PM25_UNIT = "manual_pm25_unit"
+CONF_ENVIRONMENT_MANUAL_PM10_UNIT = "manual_pm10_unit"
+CONF_ENVIRONMENT_MANUAL_CO_UNIT = "manual_co_unit"
+CONF_ENVIRONMENT_MANUAL_NO2_UNIT = "manual_no2_unit"
+CONF_ENVIRONMENT_MANUAL_OZONE_UNIT = "manual_ozone_unit"
+CONF_ENVIRONMENT_MANUAL_VOC_UNIT = "manual_voc_unit"
 
 ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES = {
     CONF_ENVIRONMENT_MANUAL_CO2_SENSORS: SensorDeviceClass.CO2,
@@ -1058,6 +1067,53 @@ ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES = {
         SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS
     ),
 }
+
+MASS_CONCENTRATION_UNITS = (
+    UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    UnitOfDensity.MILLIGRAMS_PER_CUBIC_METER,
+    UnitOfDensity.GRAMS_PER_CUBIC_METER,
+)
+ENVIRONMENT_MANUAL_POLLUTANT_UNIT_KEYS = {
+    SensorDeviceClass.CO2: CONF_ENVIRONMENT_MANUAL_CO2_UNIT,
+    SensorDeviceClass.PM25: CONF_ENVIRONMENT_MANUAL_PM25_UNIT,
+    SensorDeviceClass.PM10: CONF_ENVIRONMENT_MANUAL_PM10_UNIT,
+    SensorDeviceClass.CO: CONF_ENVIRONMENT_MANUAL_CO_UNIT,
+    SensorDeviceClass.NITROGEN_DIOXIDE: CONF_ENVIRONMENT_MANUAL_NO2_UNIT,
+    SensorDeviceClass.OZONE: CONF_ENVIRONMENT_MANUAL_OZONE_UNIT,
+    SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS: CONF_ENVIRONMENT_MANUAL_VOC_UNIT,
+}
+ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS = {
+    CONF_ENVIRONMENT_MANUAL_CO2_UNIT: (
+        UnitOfRatio.PARTS_PER_MILLION,
+        UnitOfRatio.PARTS_PER_BILLION,
+    ),
+    **{
+        key: MASS_CONCENTRATION_UNITS
+        for key in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_KEYS.values()
+        if key != CONF_ENVIRONMENT_MANUAL_CO2_UNIT
+    },
+}
+
+POLLUTANT_UNIT_ALIASES = {
+    "ppm": UnitOfRatio.PARTS_PER_MILLION,
+    "ppb": UnitOfRatio.PARTS_PER_BILLION,
+    "μg/m3": UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    "ug/m3": UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    "mg/m3": UnitOfDensity.MILLIGRAMS_PER_CUBIC_METER,
+    "g/m3": UnitOfDensity.GRAMS_PER_CUBIC_METER,
+}
+
+
+def normalize_pollutant_unit(unit: str) -> str:
+    """Normalize unambiguous concentration unit aliases."""
+    if not isinstance(unit, str) or not unit.strip():
+        return ""
+    normalized = (
+        unit.strip().lower().replace("µ", "μ").replace("³", "3").replace(" ", "")
+    )
+    return POLLUTANT_UNIT_ALIASES.get(normalized, unit)
+
+
 CONF_TRACK_ROOM_USAGE, DEFAULT_TRACK_ROOM_USAGE = ("track_room_usage", False)
 CONF_ROOM_CATEGORY, DEFAULT_ROOM_CATEGORY = ("room_category", "living_sedentary")
 CONF_ENVIRONMENT_OUTDOOR_HUMIDITY = "outdoor_humidity_entity"
@@ -1429,6 +1485,12 @@ ENVIRONMENT_FEATURE_SCHEMA = vol.Schema(
             vol.Optional(key, default=[]): cv.entity_ids
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
         },
+        **{
+            vol.Optional(key, default=""): vol.All(
+                str, normalize_pollutant_unit, vol.In(("", *units))
+            )
+            for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
+        },
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -1465,6 +1527,12 @@ AREA_EVALUATION_OPTIONS_SCHEMA = vol.Schema(
         **{
             vol.Optional(key, default=[]): cv.entity_ids
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
+        },
+        **{
+            vol.Optional(key, default=""): vol.All(
+                str, normalize_pollutant_unit, vol.In(("", *units))
+            )
+            for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
         },
     },
     extra=vol.REMOVE_EXTRA,
@@ -2032,6 +2100,14 @@ OPTIONS_AREA_EVALUATION = [
         int,
     ),
     *[(key, [], cv.entity_ids) for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES],
+    *[
+        (
+            key,
+            "",
+            vol.All(str, normalize_pollutant_unit, vol.In(("", *units))),
+        )
+        for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
+    ],
 ]
 
 OPTIONS_AREA_AWARE_MEDIA_PLAYER = [

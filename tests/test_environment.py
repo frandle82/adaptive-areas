@@ -40,6 +40,8 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS,
     CONF_ENVIRONMENT_MANUAL_PM25_SENSORS,
+    CONF_ENVIRONMENT_MANUAL_PM25_UNIT,
+    CONF_ENVIRONMENT_MANUAL_OZONE_UNIT,
     CONF_ENVIRONMENT_MANUAL_VOC_SENSORS,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_VENTILATION_FANS,
@@ -858,6 +860,123 @@ def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
     }
 
 
+def test_non_pollutant_area_sensors_are_not_candidates(hass: HomeAssistant) -> None:
+    """Ordinary Area sensors never add unsupported-device-class diagnostics."""
+    area = _area(hass)
+    for entity_id, device_class in (
+        ("sensor.kona_ev_battery_level", SensorDeviceClass.BATTERY),
+        ("sensor.electricity_maps_power", SensorDeviceClass.POWER),
+        ("sensor.pollenflug_index", SensorDeviceClass.ENUM),
+    ):
+        _sensor(hass, area, entity_id, 42, device_class)
+    hass.states.async_set(
+        "sensor.lidl_weststadt_offers",
+        "13",
+        {ATTR_FRIENDLY_NAME: "Example PM2.5"},
+    )
+    area.entities["sensor"].append({ATTR_ENTITY_ID: "sensor.lidl_weststadt_offers"})
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutants"] == {}
+    assert assessment["ignored_sources"] == {}
+
+
+def test_manual_pollutant_assignment_overrides_wrong_device_class(
+    hass: HomeAssistant,
+) -> None:
+    """An explicit ozone role outranks an incorrect official AQI class."""
+    entity_id = "sensor.example_wrong_class"
+    area = _area(
+        hass,
+        {
+            CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS: [entity_id],
+            CONF_ENVIRONMENT_MANUAL_OZONE_UNIT: "µg/m³",
+        },
+    )
+    hass.states.async_set(
+        entity_id,
+        "31.3",
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.AQI},
+    )
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutants"] == {"ozone": 31.3}
+    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert assessment["source_entities"]["ozone"]["mode"] == "manual"
+
+
+def test_manual_pollutant_without_unit_requires_override(hass: HomeAssistant) -> None:
+    """A manual role alone never invents a concentration unit."""
+    entity_id = "sensor.example_pm25"
+    hass.states.async_set(entity_id, "13")
+    missing_unit_area = _area(hass, {CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [entity_id]})
+
+    missing = AreaEnvironmentEngine(missing_unit_area).assessment
+
+    assert missing["pollutants"] == {}
+    assert missing["ignored_sources"][entity_id] == {"reason": "unsupported_unit"}
+
+    configured_area = _area(
+        hass,
+        {
+            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [entity_id],
+            CONF_ENVIRONMENT_MANUAL_PM25_UNIT: "µg/m³",
+        },
+    )
+
+    configured = AreaEnvironmentEngine(configured_area).assessment
+
+    assert configured["pollutants"] == {"pm25": 13.0}
+    assert configured["pollutant_state"] == PollutantState.GOOD
+    assert configured["ignored_sources"] == {}
+
+
+@pytest.mark.parametrize("unit", ("µg/m³", "μg/m³"))
+def test_microgram_unit_spellings_are_equivalent(
+    hass: HomeAssistant, unit: str
+) -> None:
+    """Micro-sign and Greek-mu spellings normalize to the HA canonical unit."""
+    area = _area(hass)
+    _sensor(hass, area, "sensor.pm25", 13, SensorDeviceClass.PM25, unit)
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutants"] == {"pm25": 13.0}
+    assert assessment["pollutant_state"] == PollutantState.GOOD
+
+
+def test_compatible_mass_concentration_is_converted(hass: HomeAssistant) -> None:
+    """Compatible mass concentration is converted to the evaluation unit."""
+    area = _area(hass)
+    _sensor(hass, area, "sensor.pm25", 0.02, SensorDeviceClass.PM25, "mg/m³")
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutants"] == {"pm25": 20.0}
+    assert assessment["pollutant_state"] == PollutantState.ELEVATED
+
+
+@pytest.mark.parametrize(
+    "entity_id", ("sensor.wendland_germany_pm25", "sensor.provider_xyz_4711")
+)
+def test_manual_assignment_is_integration_name_independent(
+    hass: HomeAssistant, entity_id: str
+) -> None:
+    """Manual classification is identical for arbitrary provider names."""
+    area = _area(
+        hass,
+        {
+            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [entity_id],
+            CONF_ENVIRONMENT_MANUAL_PM25_UNIT: "μg/m³",
+        },
+    )
+    hass.states.async_set(entity_id, "13", {ATTR_FRIENDLY_NAME: "Anything"})
+
+    assert AreaEnvironmentEngine(area).assessment["pollutants"] == {"pm25": 13.0}
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     (
@@ -914,6 +1033,13 @@ def test_pollutant_state_uses_worst_of_multiple_good_pollutants(
     ("entity_id", "value", "device_class", "unit", "measurement"),
     (
         ("sensor.aqi", 200, SensorDeviceClass.AQI, None, {"aqi": 200.0}),
+        (
+            "sensor.pm1",
+            7,
+            SensorDeviceClass.PM1,
+            "µg/m³",
+            {"pm1": 7.0},
+        ),
         (
             "sensor.voc_parts",
             5000,
@@ -2310,7 +2436,7 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 9
+    assert entry.minor_version == 10
     assert entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
@@ -2390,7 +2516,7 @@ async def test_rc6_migration_keeps_evaluation_disabled(hass: HomeAssistant) -> N
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=4)
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 9
+    assert entry.minor_version == 10
     assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
     assert entry.data[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.saved_temperature"
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.saved_outdoor"
@@ -2410,7 +2536,7 @@ async def test_legacy_room_usage_toggle_migrates_to_independent_feature(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 9
+    assert entry.minor_version == 10
     assert CONF_TRACK_ROOM_USAGE not in entry.data
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert CONF_FEATURE_ROOM_USAGE in area.config[CONF_ENABLED_FEATURES]
@@ -2549,6 +2675,7 @@ def test_environment_translation_value_coverage() -> None:
             "co2",
             "pm25",
             "pm10",
+            "pm1",
             "voc",
             "voc_parts",
             "aqi",

@@ -18,14 +18,20 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     UnitOfDensity,
+    UnitOfRatio,
     UnitOfTemperature,
 )
 from homeassistant.core import Event, EventStateChangedData, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.util.unit_conversion import TemperatureConverter
+from homeassistant.util.unit_conversion import (
+    MassVolumeConcentrationConverter,
+    TemperatureConverter,
+    UnitlessRatioConverter,
+)
 
 from custom_components.adaptive_areas.const import (
     AREA_TYPE_EXTERIOR,
@@ -47,6 +53,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_ROOM_CATEGORY,
     DOMAIN,
     ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
+    ENVIRONMENT_MANUAL_POLLUTANT_UNIT_KEYS,
     MODULE_DATA,
     AdaptiveAreasEvents,
     AirExchangeSuitability,
@@ -64,6 +71,7 @@ from custom_components.adaptive_areas.const import (
     VentilationDemand,
     VentilationFanRequest,
     WindowRecommendation,
+    normalize_pollutant_unit,
 )
 
 MICROGRAMS_PER_CUBIC_METER = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
@@ -218,6 +226,7 @@ POLLUTANT_NAMES = {
     SensorDeviceClass.CO: "co",
     SensorDeviceClass.NITROGEN_DIOXIDE: "no2",
     SensorDeviceClass.OZONE: "ozone",
+    SensorDeviceClass.PM1: "pm1",
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS: "voc",
     SensorDeviceClass.AQI: "aqi",
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS: "voc_parts",
@@ -592,6 +601,7 @@ class AreaEnvironmentEngine:
         """Discover official Area pollutants plus explicit manual assignments."""
         supported = set(AIR_QUALITY_MATRIX) | {
             SensorDeviceClass.AQI,
+            SensorDeviceClass.PM1,
             SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
         }
         result = {str(device_class): [] for device_class in supported}
@@ -608,7 +618,12 @@ class AreaEnvironmentEngine:
             for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
             for entity_id in self.config.get(key, [])
         }
-        candidate_ids = self._area_sensor_ids() | manual_ids
+        automatic_ids = {
+            entity_id
+            for entity_id in self._area_sensor_ids()
+            if self._official_pollutant_device_class(entity_id) in supported
+        }
+        candidate_ids = automatic_ids | manual_ids
         for entity_id in candidate_ids:
             entry = entity_registry.async_get(entity_id)
             if not entity_id.startswith("sensor."):
@@ -624,12 +639,13 @@ class AreaEnvironmentEngine:
                 self._ignore_source(entity_id, "excluded")
                 continue
             if entity_id in dedicated_sources:
+                self._ignore_source(entity_id, "dedicated_environment_source")
                 continue
             device_class = self._pollutant_device_class(entity_id)
             if device_class in supported:
                 result[str(device_class)].append(entity_id)
             else:
-                self._ignore_source(entity_id, "unsupported_device_class")
+                self._ignore_source(entity_id, "ambiguous_manual_assignment")
         for entity_ids in result.values():
             entity_ids.sort()
         return result
@@ -851,36 +867,81 @@ class AreaEnvironmentEngine:
         """Record why one discovered candidate did not contribute."""
         self._ignored_sources[entity_id] = {"reason": reason}
 
+    @staticmethod
+    def _normalize_pollutant_unit(unit: Any) -> str | None:
+        """Return a canonical unit for unambiguous concentration aliases."""
+        normalized = normalize_pollutant_unit(unit) if isinstance(unit, str) else ""
+        return normalized or None
+
+    @classmethod
+    def _convert_pollutant_value(
+        cls, value: float, source_unit: Any, target_unit: str
+    ) -> float | None:
+        """Convert a compatible pollutant value to its evaluation unit."""
+        normalized_source = cls._normalize_pollutant_unit(source_unit)
+        normalized_target = cls._normalize_pollutant_unit(target_unit)
+        if normalized_source is None or normalized_target is None:
+            return None
+        if normalized_source == normalized_target:
+            return value
+        try:
+            if normalized_target == UnitOfRatio.PARTS_PER_MILLION:
+                return UnitlessRatioConverter.convert(
+                    value, normalized_source, normalized_target
+                )
+            return MassVolumeConcentrationConverter.convert(
+                value, normalized_source, normalized_target
+            )
+        except HomeAssistantError, ValueError:
+            return None
+
+    def _pollutant_value(
+        self,
+        entity_id: str,
+        device_class: SensorDeviceClass,
+        config: dict[str, Any] | None = None,
+    ) -> tuple[float | None, str | None]:
+        """Read and normalize one classified or unclassified pollutant value."""
+        source_config = self.config if config is None else config
+        state = self.area.hass.states.get(entity_id)
+        if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            return None, "unavailable"
+        if self._pollutant_device_class(entity_id, source_config) != device_class:
+            return None, "ambiguous_manual_assignment"
+        try:
+            value = float(state.state)
+        except TypeError, ValueError:
+            return None, "invalid_value"
+        band = AIR_QUALITY_MATRIX.get(device_class)
+        if band is None or band.unit is None:
+            return value, None
+        converted = self._convert_pollutant_value(
+            value, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT), band.unit
+        )
+        if converted is not None:
+            return converted, None
+        if (
+            self._manual_pollutant_device_class(entity_id, source_config)
+            == device_class
+        ):
+            unit_key = ENVIRONMENT_MANUAL_POLLUTANT_UNIT_KEYS.get(device_class)
+            if unit_key is not None:
+                converted = self._convert_pollutant_value(
+                    value, source_config.get(unit_key), band.unit
+                )
+                if converted is not None:
+                    return converted, None
+        return None, "unsupported_unit"
+
     def _values(self, device_class: SensorDeviceClass) -> list[float]:
         candidate_ids = [*self._sensor_ids.get(str(device_class), [])]
         values: list[float] = []
         used: list[str] = []
-        expected_unit = AIR_QUALITY_MATRIX.get(device_class)
         for entity_id in candidate_ids:
-            state = self.area.hass.states.get(entity_id)
-            if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-                self._ignore_source(entity_id, "unavailable")
-                continue
-            if self._pollutant_device_class(entity_id) != device_class:
-                self._ignore_source(entity_id, "unsupported_device_class")
-                continue
-            try:
-                value = float(state.state)
-            except TypeError, ValueError:
-                self._ignore_source(entity_id, "invalid_value")
-                continue
-            unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
-            if device_class == SensorDeviceClass.TEMPERATURE:
-                if unit and unit != UnitOfTemperature.CELSIUS:
-                    try:
-                        value = TemperatureConverter.convert(
-                            value, unit, UnitOfTemperature.CELSIUS
-                        )
-                    except ValueError:
-                        self._ignore_source(entity_id, "unsupported_unit")
-                        continue
-            elif expected_unit and unit != expected_unit.unit:
-                self._ignore_source(entity_id, "unsupported_unit")
+            value, ignored_reason = self._pollutant_value(entity_id, device_class)
+            if value is None:
+                assert ignored_reason is not None
+                self._ignore_source(entity_id, ignored_reason)
                 continue
             values.append(value)
             used.append(entity_id)
@@ -1024,9 +1085,6 @@ class AreaEnvironmentEngine:
             for entity_id in entity_ids:
                 if entity_id in self._excluded_ids:
                     continue
-                state = self.area.hass.states.get(entity_id)
-                if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-                    continue
                 device_class = self._pollutant_device_class(entity_id, exterior_config)
                 if device_class not in (
                     SensorDeviceClass.PM25,
@@ -1037,12 +1095,12 @@ class AreaEnvironmentEngine:
                     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
                 ):
                     continue
-                band = AIR_QUALITY_MATRIX[device_class]
-                if state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) != band.unit:
-                    continue
-                try:
-                    value = float(state.state)
-                except TypeError, ValueError:
+                value, ignored_reason = self._pollutant_value(
+                    entity_id, device_class, exterior_config
+                )
+                if value is None:
+                    assert ignored_reason is not None
+                    self._ignore_source(entity_id, ignored_reason)
                     continue
                 values[POLLUTANT_NAMES[device_class]].append((value, entity_id))
         measurements: dict[str, float] = {}
@@ -1526,6 +1584,7 @@ class AreaEnvironmentEngine:
                 worst = state
         for device_class, name in (
             (SensorDeviceClass.AQI, "aqi"),
+            (SensorDeviceClass.PM1, "pm1"),
             (SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS, "voc_parts"),
         ):
             values = self._values(device_class)
@@ -2297,6 +2356,7 @@ class AreaEnvironmentEngine:
             "co2": "co2" in pollutants,
             "pm25": "pm25" in pollutants,
             "pm10": "pm10" in pollutants,
+            "pm1": "pm1" in pollutants,
             "voc": "voc" in pollutants,
             "voc_parts": "voc_parts" in pollutants,
             "aqi": "aqi" in pollutants,

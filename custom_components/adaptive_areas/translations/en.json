@@ -256,7 +256,14 @@
           "manual_ozone_sensors": "Manually assigned ozone sensors",
           "manual_voc_sensors": "Manually assigned VOC sensors",
           "manual_aqi_sensors": "Manually assigned air quality index sensors",
-          "manual_voc_parts_sensors": "Manually assigned VOC parts sensors"
+          "manual_voc_parts_sensors": "Manually assigned VOC parts sensors",
+          "manual_co2_unit": "Manual CO₂ source unit",
+          "manual_pm25_unit": "Manual PM2.5 source unit",
+          "manual_pm10_unit": "Manual PM10 source unit",
+          "manual_co_unit": "Manual carbon monoxide source unit",
+          "manual_no2_unit": "Manual nitrogen dioxide source unit",
+          "manual_ozone_unit": "Manual ozone source unit",
+          "manual_voc_unit": "Manual VOC source unit"
         },
         "data_description": {
           "room_category": "Select the indoor Area purpose used for category-specific thermal interpretation. Choose Manual to set the reference temperature with the generated number entity.",
@@ -266,15 +273,22 @@
           "outdoor_humidity_entity": "Used with outdoor temperature to compare moisture content and moist-air enthalpy. Exterior Area sources are discovered automatically when empty.",
           "surface_temperature_entity": "Optional measured cool surface. Every sensor assigned to this Home Assistant Area is selectable.",
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area.",
-          "manual_co2_sensors": "Manual assignment overrides device class. Values require ppm for health evaluation.",
-          "manual_pm25_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
-          "manual_pm10_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
-          "manual_co_sensors": "Manual assignment overrides device class. Values require mg/m³ for health evaluation.",
-          "manual_no2_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
-          "manual_ozone_sensors": "Manual assignment overrides device class. Values require µg/m³ for health evaluation.",
+          "manual_co2_sensors": "Manual assignment overrides device class. Health evaluation requires a compatible concentration unit; select the source unit below when the sensor does not provide one.",
+          "manual_pm25_sensors": "Manual assignment overrides device class. Health evaluation requires a compatible concentration unit; select the source unit below when the sensor does not provide one.",
+          "manual_pm10_sensors": "Manual assignment overrides device class. Health evaluation requires a compatible concentration unit; select the source unit below when the sensor does not provide one.",
+          "manual_co_sensors": "Manual assignment overrides device class. Health evaluation requires a compatible concentration unit; select the source unit below when the sensor does not provide one.",
+          "manual_no2_sensors": "Manual assignment overrides device class. Health evaluation requires a compatible concentration unit; select the source unit below when the sensor does not provide one.",
+          "manual_ozone_sensors": "Manual assignment overrides device class. Health evaluation requires a compatible concentration unit; select the source unit below when the sensor does not provide one.",
           "manual_voc_sensors": "Manual assignment overrides device class. Values require µg/m³ for precautionary evaluation.",
           "manual_aqi_sensors": "Manual assignment overrides device class. AQI scales remain unclassified and are not used for health thresholds.",
-          "manual_voc_parts_sensors": "Manual assignment overrides device class. VOC parts scales remain unclassified and are not used for health thresholds."
+          "manual_voc_parts_sensors": "Manual assignment overrides device class. VOC parts scales remain unclassified and are not used for health thresholds.",
+          "manual_co2_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned CO₂ sensors with a missing or incompatible native unit.",
+          "manual_pm25_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned PM2.5 sensors with a missing or incompatible native unit.",
+          "manual_pm10_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned PM10 sensors with a missing or incompatible native unit.",
+          "manual_co_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned carbon monoxide sensors with a missing or incompatible native unit.",
+          "manual_no2_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned nitrogen dioxide sensors with a missing or incompatible native unit.",
+          "manual_ozone_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned ozone sensors with a missing or incompatible native unit.",
+          "manual_voc_unit": "Optional declaration of the source value's actual unit. Used only for manually assigned VOC sensors with a missing or incompatible native unit."
         }
       },
       "feature_conf_climate_control": {
@@ -731,6 +745,7 @@
               "co2": "CO₂",
               "pm25": "PM2.5",
               "pm10": "PM10",
+              "pm1": "PM1",
               "voc": "VOC",
               "voc_parts": "VOC parts",
               "aqi": "Air quality index",

@@ -158,6 +158,7 @@ from .const import (
     DOMAIN,
     EMPTY_STRING,
     ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
+    ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACTIVATION_DISABLED,
@@ -203,6 +204,7 @@ from .const import (
     SelectorTranslationKeys,
     RoomCategory,
     SWITCH_GROUP_ACTION_OPTIONS,
+    normalize_pollutant_unit,
 )
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.helpers.area import (
@@ -1468,6 +1470,18 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             options = [option for option in options if option[0] not in exterior_hidden]
         dynamic_validators = dict(manual_validators)
         selectors = dict(manual_selectors)
+        dynamic_validators.update(
+            {
+                key: vol.All(str, normalize_pollutant_unit, vol.In(("", *units)))
+                for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
+            }
+        )
+        selectors.update(
+            {
+                key: self._build_selector_select(["", *units])
+                for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
+            }
+        )
         climate_sensor_keys = (
             CONF_AREA_TEMPERATURE_SENSOR,
             CONF_AREA_HUMIDITY_SENSOR,

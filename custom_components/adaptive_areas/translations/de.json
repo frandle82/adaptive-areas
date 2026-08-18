@@ -256,7 +256,14 @@
                     "manual_ozone_sensors": "Manuell zugeordnete Ozon-Sensoren",
                     "manual_voc_sensors": "Manuell zugeordnete VOC-Sensoren",
                     "manual_aqi_sensors": "Manuell zugeordnete Luftqualitätsindex-Sensoren",
-                    "manual_voc_parts_sensors": "Manuell zugeordnete VOC-Anteil-Sensoren"
+                    "manual_voc_parts_sensors": "Manuell zugeordnete VOC-Anteil-Sensoren",
+                    "manual_co2_unit": "Manuelle CO₂-Quelleneinheit",
+                    "manual_pm25_unit": "Manuelle PM2,5-Quelleneinheit",
+                    "manual_pm10_unit": "Manuelle PM10-Quelleneinheit",
+                    "manual_co_unit": "Manuelle Kohlenmonoxid-Quelleneinheit",
+                    "manual_no2_unit": "Manuelle Stickstoffdioxid-Quelleneinheit",
+                    "manual_ozone_unit": "Manuelle Ozon-Quelleneinheit",
+                    "manual_voc_unit": "Manuelle VOC-Quelleneinheit"
                 },
                 "data_description": {
                     "room_category": "Legt bei Innenbereichen den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
@@ -266,15 +273,22 @@
                     "outdoor_humidity_entity": "Wird zusammen mit der Außentemperatur zum Vergleich von Feuchtegehalt und Enthalpie verwendet. Leer lassen für automatische Erkennung aus Außenbereichen.",
                     "surface_temperature_entity": "Optionale Messung einer kühlen Oberfläche. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar.",
                     "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften.",
-                    "manual_co2_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in ppm vorliegen.",
-                    "manual_pm25_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_pm10_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_co_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in mg/m³ vorliegen.",
-                    "manual_no2_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
-                    "manual_ozone_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine gesundheitliche Bewertung müssen Werte in µg/m³ vorliegen.",
+                    "manual_co2_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für die Bewertung muss eine geeignete Konzentrationseinheit vorhanden sein. Fehlt sie am Sensor, muss sie unten manuell angegeben werden.",
+                    "manual_pm25_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für die Bewertung muss eine geeignete Konzentrationseinheit vorhanden sein. Fehlt sie am Sensor, muss sie unten manuell angegeben werden.",
+                    "manual_pm10_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für die Bewertung muss eine geeignete Konzentrationseinheit vorhanden sein. Fehlt sie am Sensor, muss sie unten manuell angegeben werden.",
+                    "manual_co_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für die Bewertung muss eine geeignete Konzentrationseinheit vorhanden sein. Fehlt sie am Sensor, muss sie unten manuell angegeben werden.",
+                    "manual_no2_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für die Bewertung muss eine geeignete Konzentrationseinheit vorhanden sein. Fehlt sie am Sensor, muss sie unten manuell angegeben werden.",
+                    "manual_ozone_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für die Bewertung muss eine geeignete Konzentrationseinheit vorhanden sein. Fehlt sie am Sensor, muss sie unten manuell angegeben werden.",
                     "manual_voc_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. Für eine vorsorgliche Bewertung müssen Werte in µg/m³ vorliegen.",
                     "manual_aqi_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. AQI-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet.",
-                    "manual_voc_parts_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. VOC-Anteil-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet."
+                    "manual_voc_parts_sensors": "Die manuelle Zuordnung überschreibt die Geräteklasse. VOC-Anteil-Skalen bleiben unklassifiziert und werden nicht für gesundheitliche Grenzwerte verwendet.",
+                    "manual_co2_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete CO₂-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet.",
+                    "manual_pm25_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete PM2,5-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet.",
+                    "manual_pm10_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete PM10-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet.",
+                    "manual_co_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete Kohlenmonoxid-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet.",
+                    "manual_no2_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete Stickstoffdioxid-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet.",
+                    "manual_ozone_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete Ozon-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet.",
+                    "manual_voc_unit": "Optionale Angabe der tatsächlichen Einheit des Quellwerts. Wird nur für manuell zugeordnete VOC-Sensoren mit fehlender oder ungeeigneter nativer Einheit verwendet."
                 }
             },
             "feature_conf_climate_control": {
@@ -731,6 +745,7 @@
                             "co2": "CO₂",
                             "pm25": "PM2,5",
                             "pm10": "PM10",
+                            "pm1": "PM1",
                             "voc": "VOC",
                             "voc_parts": "VOC-Anteil",
                             "aqi": "Luftqualitätsindex",
