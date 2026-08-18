@@ -650,6 +650,16 @@
                             "unknown": "Unbekannt"
                         }
                     },
+                    "pollutant_state": {
+                        "name": "Schadstofflage",
+                        "state": {
+                            "good": "Gut",
+                            "elevated": "Erhöht",
+                            "poor": "Schlecht",
+                            "critical": "Kritisch",
+                            "unknown": "Unbekannt"
+                        }
+                    },
                     "ventilation": {
                         "name": "Lüftung",
                         "state": {
@@ -722,6 +732,7 @@
                             "pm25": "PM2,5",
                             "pm10": "PM10",
                             "voc": "VOC",
+                            "voc_parts": "VOC-Anteil",
                             "aqi": "Luftqualitätsindex",
                             "co": "Kohlenmonoxid",
                             "no2": "Stickstoffdioxid",
@@ -776,6 +787,7 @@
                     "pollutant_measurements": {"name": "Schadstoffmesswerte"},
                     "pollutant_assessments": {"name": "Schadstoffbewertungen"},
                     "source_entities": {"name": "Verwendete Entitäten"},
+                    "ignored_sources": {"name": "Verworfene Entitäten"},
                     "humidity_warning_duration_seconds": {"name": "Dauer der hohen Luftfeuchtigkeit"},
                     "context": {"name": "Kontext"},
                     "reason_codes": {

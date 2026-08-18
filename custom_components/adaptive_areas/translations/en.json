@@ -650,6 +650,16 @@
               "unknown": "Unknown"
             }
           },
+          "pollutant_state": {
+            "name": "Pollutant state",
+            "state": {
+              "good": "Good",
+              "elevated": "Elevated",
+              "poor": "Poor",
+              "critical": "Critical",
+              "unknown": "Unknown"
+            }
+          },
           "ventilation": {
             "name": "Ventilation",
             "state": {
@@ -722,6 +732,7 @@
               "pm25": "PM2.5",
               "pm10": "PM10",
               "voc": "VOC",
+              "voc_parts": "VOC parts",
               "aqi": "Air quality index",
               "co": "Carbon monoxide",
               "no2": "Nitrogen dioxide",
@@ -776,6 +787,7 @@
           "pollutant_measurements": {"name": "Pollutant measurements"},
           "pollutant_assessments": {"name": "Pollutant assessments"},
           "source_entities": {"name": "Entities used"},
+          "ignored_sources": {"name": "Ignored entities"},
           "humidity_warning_duration_seconds": {"name": "High-humidity duration"},
           "context": {"name": "Context"},
           "reason_codes": {

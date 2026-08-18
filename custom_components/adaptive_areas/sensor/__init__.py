@@ -221,6 +221,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 "temperature": assessment.get("temperature"),
                 "relative_humidity": assessment.get("relative_humidity"),
                 "humidity": str(assessment.get("humidity", "unknown")),
+                "pollutant_state": str(assessment.get("pollutant_state", "unknown")),
                 "dew_point": assessment.get("dew_point"),
                 "absolute_humidity": assessment.get("absolute_humidity"),
                 "humidity_ratio": assessment.get("humidity_ratio"),
@@ -229,6 +230,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 "pollutant_measurements": dict(assessment.get("pollutants", {})),
                 "pollutant_assessments": assessment.get("pollutant_assessments", {}),
                 "source_entities": self._used_entity_ids(assessment),
+                "ignored_sources": assessment.get("ignored_sources", {}),
                 "available_capabilities": sorted(
                     capability
                     for capability, available in assessment.get(
@@ -252,6 +254,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "thermal_profile": assessment.get("thermal_profile", {}),
             "humidity": str(assessment.get("humidity", "unknown")),
             "mould_risk": str(assessment.get("mould_risk", "unknown")),
+            "pollutant_state": str(assessment.get("pollutant_state", "unknown")),
             "air_quality": str(assessment.get("air_quality", "unknown")),
             "ventilation": str(assessment.get("ventilation", "unknown")),
             "ventilation_demand": str(assessment.get("ventilation_demand", "unknown")),
@@ -283,6 +286,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "pollutant_measurements": dict(assessment.get("pollutants", {})),
             "pollutant_assessments": assessment.get("pollutant_assessments", {}),
             "source_entities": self._used_entity_ids(assessment),
+            "ignored_sources": assessment.get("ignored_sources", {}),
             "window_recommendation": str(
                 assessment.get("window_recommendation", "none")
             ),

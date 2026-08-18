@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -39,6 +40,7 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS,
     CONF_ENVIRONMENT_MANUAL_PM25_SENSORS,
+    CONF_ENVIRONMENT_MANUAL_VOC_SENSORS,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_COMFORT_MAX,
@@ -70,6 +72,7 @@ from custom_components.adaptive_areas.const import (
     EnvironmentState,
     HumidityState,
     MouldRiskState,
+    PollutantState,
     RoomCategory,
     VentilationActivity,
     VentilationDemand,
@@ -456,7 +459,12 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     )
 
     hass.states.async_set(
-        "sensor.co2", "900", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
+        "sensor.co2",
+        "900",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.CO2,
+            ATTR_UNIT_OF_MEASUREMENT: "ppm",
+        },
     )
     engine.evaluate()
     assert engine.assessment["ventilation"] == VentilationState.RECOMMENDED
@@ -477,7 +485,12 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     )
 
     hass.states.async_set(
-        "sensor.co2", "800", {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2}
+        "sensor.co2",
+        "800",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.CO2,
+            ATTR_UNIT_OF_MEASUREMENT: "ppm",
+        },
     )
     engine.evaluate()
     assert engine.assessment["ventilation"] == VentilationState.NOT_REQUIRED
@@ -838,7 +851,170 @@ def test_pollutant_unit_must_match_matrix(hass: HomeAssistant) -> None:
     assessment = AreaEnvironmentEngine(area).assessment
 
     assert assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
     assert assessment["capabilities"]["pm25"] is False
+    assert assessment["ignored_sources"]["sensor.pm25"] == {
+        "reason": "unsupported_unit"
+    }
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        (10, PollutantState.GOOD),
+        (20, PollutantState.ELEVATED),
+        (50, PollutantState.POOR),
+        (80, PollutantState.CRITICAL),
+    ),
+)
+def test_pollutant_state_uses_worst_valid_severity(
+    hass: HomeAssistant, value: float, expected: PollutantState
+) -> None:
+    """Dashboard pollutant state exposes the current worst valid severity."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        value,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+
+    assert AreaEnvironmentEngine(area).assessment["pollutant_state"] == expected
+
+
+def test_pollutant_state_uses_worst_of_multiple_good_pollutants(
+    hass: HomeAssistant,
+) -> None:
+    """Several valid unremarkable concentrations produce a good state."""
+    area = _area(hass)
+    for entity_id, value, device_class in (
+        ("sensor.pm25", 9, SensorDeviceClass.PM25),
+        ("sensor.pm10", 20, SensorDeviceClass.PM10),
+        ("sensor.no2", 10, SensorDeviceClass.NITROGEN_DIOXIDE),
+        ("sensor.ozone", 50, SensorDeviceClass.OZONE),
+    ):
+        _sensor(
+            hass,
+            area,
+            entity_id,
+            value,
+            device_class,
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        )
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert set(assessment["pollutants"]) == {"pm25", "pm10", "no2", "ozone"}
+
+
+@pytest.mark.parametrize(
+    ("entity_id", "value", "device_class", "unit", "measurement"),
+    (
+        ("sensor.aqi", 200, SensorDeviceClass.AQI, None, {"aqi": 200.0}),
+        (
+            "sensor.voc_parts",
+            5000,
+            SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+            "ppb",
+            {"voc_parts": 5000.0},
+        ),
+    ),
+)
+def test_unclassified_scale_alone_has_unknown_pollutant_state(
+    hass: HomeAssistant,
+    entity_id: str,
+    value: float,
+    device_class: SensorDeviceClass,
+    unit: str | None,
+    measurement: dict[str, float],
+) -> None:
+    """AQI and VOC-parts remain measured but never set health severity."""
+    area = _area(hass)
+    _sensor(hass, area, entity_id, value, device_class, unit)
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
+    assert assessment["pollutants"] == measurement
+
+
+def test_aqi_does_not_override_valid_pm25_state(hass: HomeAssistant) -> None:
+    """A valid concentration remains authoritative beside an unclassified AQI."""
+    area = _area(hass)
+    _sensor(hass, area, "sensor.aqi", 500, SensorDeviceClass.AQI)
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        10,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+
+    assert AreaEnvironmentEngine(area).assessment["pollutant_state"] == (
+        PollutantState.GOOD
+    )
+
+
+def test_manual_voc_concentration_requires_supported_unit(
+    hass: HomeAssistant,
+) -> None:
+    """Manual VOC overrides metadata but only mass concentration is assessed."""
+    valid_id = "sensor.manual_voc"
+    invalid_id = "sensor.manual_voc_wrong_unit"
+    area = _area(
+        hass,
+        {CONF_ENVIRONMENT_MANUAL_VOC_SENSORS: [valid_id, invalid_id]},
+    )
+    hass.states.async_set(
+        valid_id,
+        "951",
+        {ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER},
+    )
+    hass.states.async_set(
+        invalid_id,
+        "5000",
+        {ATTR_UNIT_OF_MEASUREMENT: "ppb"},
+    )
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutants"]["voc"] == 951
+    assert assessment["pollutant_state"] == PollutantState.ELEVATED
+    assert assessment["source_entities"]["voc"]["mode"] == "manual"
+    assert assessment["ignored_sources"][invalid_id] == {"reason": "unsupported_unit"}
+
+
+def test_ignored_pollutant_does_not_worsen_valid_state(hass: HomeAssistant) -> None:
+    """An invalid critical-looking value cannot affect the aggregate state."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.valid_pm25",
+        10,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    _sensor(
+        hass,
+        area,
+        "sensor.invalid_pm25",
+        999,
+        SensorDeviceClass.PM25,
+        "ppm",
+    )
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert assessment["pollutants"]["pm25"] == 10
+    assert assessment["ignored_sources"]["sensor.invalid_pm25"] == {
+        "reason": "unsupported_unit"
+    }
 
 
 def test_pollutant_exclusion_is_authoritative(hass: HomeAssistant) -> None:
@@ -864,7 +1040,7 @@ def test_pollutant_exclusion_is_authoritative(hass: HomeAssistant) -> None:
 async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     hass: HomeAssistant,
 ) -> None:
-    """Automatic discovery uses device and entity Area, never general includes."""
+    """Discovery combines device, entity-Area, and loaded include sources."""
     area = _area(
         hass,
         {
@@ -943,6 +1119,10 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
                 ATTR_FRIENDLY_NAME: object_id,
             },
         )
+        if unique_id == "included_voc":
+            area.entities.setdefault("sensor", []).append(
+                {ATTR_ENTITY_ID: registry_entry.entity_id}
+            )
 
     engine = AreaEnvironmentEngine(area)
 
@@ -952,14 +1132,65 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     ]
     assert engine._sensor_ids[str(SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS)] == [
         "sensor.arbeitszimmer_voc",
+        "sensor.included_voc",
     ]
     assert len(engine.assessment["source_entities"]["pm25"]["entities"]) == 2
-    assert len(engine.assessment["source_entities"]["voc"]["entities"]) == 1
+    assert len(engine.assessment["source_entities"]["voc"]["entities"]) == 2
     assert engine.assessment["pollutants"]["pm25"] == 20
     assert engine.assessment["pollutant_assessments"]["pm25"]["current"] == 20
     assert engine.assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
 
     engine.unload()
+
+
+async def test_multiple_loaded_include_pollutants_are_discovered_together(
+    hass: HomeAssistant,
+) -> None:
+    """All valid loaded include_entities remain pollutant candidates."""
+    included = {
+        "sensor.included_pm25": (SensorDeviceClass.PM25, 9),
+        "sensor.included_pm10": (SensorDeviceClass.PM10, 20),
+        "sensor.included_no2": (SensorDeviceClass.NITROGEN_DIOXIDE, 10),
+        "sensor.included_ozone": (SensorDeviceClass.OZONE, 50),
+    }
+    area = _area(hass, {CONF_INCLUDE_ENTITIES: list(included)})
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+
+    for entity_id, (device_class, value) in included.items():
+        entry = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            entity_id,
+            suggested_object_id=entity_id.removeprefix("sensor."),
+            config_entry=source_entry,
+            original_device_class=device_class,
+            unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        )
+        hass.states.async_set(
+            entry.entity_id,
+            str(value),
+            {
+                ATTR_DEVICE_CLASS: device_class,
+                ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+            },
+        )
+        area.entities.setdefault("sensor", []).append({ATTR_ENTITY_ID: entry.entity_id})
+
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutants"] == {
+        "pm25": 9.0,
+        "pm10": 20.0,
+        "no2": 10.0,
+        "ozone": 50.0,
+    }
+    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert all(
+        assessment["capabilities"][capability]
+        for capability in ("pm25", "pm10", "no2", "ozone", "air_quality")
+    )
 
 
 async def test_registry_pollutants_recover_when_states_arrive_late(
@@ -1061,7 +1292,10 @@ def test_unclassified_pollutants_require_safe_manual_assignment(
     assert exterior_engine._sensor_ids[str(SensorDeviceClass.OZONE)] == [ozone_id]
     assert exterior_engine.assessment["pollutants"] == {"pm25": 13.0}
     assert exterior_engine.assessment["source_entities"]["pm25"]["mode"] == "manual"
-    assert exterior_engine.assessment["source_entities"]["ozone"]["entities"] == []
+    assert "ozone" not in exterior_engine.assessment["source_entities"]
+    assert exterior_engine.assessment["ignored_sources"][ozone_id] == {
+        "reason": "unsupported_unit"
+    }
 
     interior = _area(hass)
     hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: exterior}
@@ -1818,6 +2052,7 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     assert state.attributes["humidex"] is not None
     assert state.attributes["comfort"] != ComfortState.UNKNOWN
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
+    assert state.attributes["pollutant_state"] == PollutantState.CRITICAL
     assert state.attributes["source_entities"] == sorted(
         [temperature.entity_id, humidity.entity_id, pm25.entity_id]
     )
@@ -1825,6 +2060,7 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     assert state.attributes["pollutant_assessments"]["pm25"]["current_state"] == (
         AirQualityState.CRITICAL
     )
+    assert state.attributes["ignored_sources"] == {}
     assert "PM2.5" in state.attributes["context"]
     assert all(
         isinstance(entity_id, str) for entity_id in state.attributes["source_entities"]
@@ -2297,6 +2533,7 @@ def test_environment_translation_value_coverage() -> None:
         "mould_risk": {str(state) for state in MouldRiskState},
         "mould_quality": {"surface_based", "room_air_estimate", "unknown"},
         "air_quality": {str(state) for state in AirQualityState},
+        "pollutant_state": {str(state) for state in PollutantState},
         "ventilation": {str(state) for state in VentilationState},
         "ventilation_demand": {str(state) for state in VentilationDemand},
         "ventilation_activity": {str(state) for state in VentilationActivity},
@@ -2313,6 +2550,7 @@ def test_environment_translation_value_coverage() -> None:
             "pm25",
             "pm10",
             "voc",
+            "voc_parts",
             "aqi",
             "co",
             "no2",
@@ -2346,6 +2584,7 @@ def test_environment_translation_value_coverage() -> None:
         "outdoor_pollutant_measurements",
         "outdoor_pollutant_assessments",
         "source_entities",
+        "ignored_sources",
         "humidity_warning_duration_seconds",
         "context",
     }

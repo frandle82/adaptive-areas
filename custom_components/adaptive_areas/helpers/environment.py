@@ -58,6 +58,7 @@ from custom_components.adaptive_areas.const import (
     EnvironmentState,
     HumidityState,
     MouldRiskState,
+    PollutantState,
     RoomCategory,
     VentilationActivity,
     VentilationDemand,
@@ -230,6 +231,14 @@ AIR_QUALITY_RANK = {
     AirQualityState.CRITICAL: 4,
 }
 
+POLLUTANT_STATE_BY_AIR_QUALITY = {
+    AirQualityState.UNKNOWN: PollutantState.UNKNOWN,
+    AirQualityState.GOOD: PollutantState.GOOD,
+    AirQualityState.DEGRADED: PollutantState.ELEVATED,
+    AirQualityState.POOR: PollutantState.POOR,
+    AirQualityState.CRITICAL: PollutantState.CRITICAL,
+}
+
 CONTEXT: dict[str, dict[str, str]] = {
     "en": {
         "air_critical": "Air quality is critical: {reason}.",
@@ -395,7 +404,9 @@ class AreaEnvironmentEngine:
         self.primary_humidity_entity = self.config.get(
             CONF_AREA_HUMIDITY_SENSOR, ""
         ) or self._automatic_primary_source(SensorDeviceClass.HUMIDITY)
+        self._ignored_sources: dict[str, dict[str, str]] = {}
         self._sensor_ids = self._discover_sensor_ids()
+        self._discovery_ignored_sources = dict(self._ignored_sources)
         self._window_ids = [] if self.is_exterior else self._discover_window_ids()
         self.outdoor_temperature_entity = self.config.get(
             CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE, ""
@@ -585,6 +596,8 @@ class AreaEnvironmentEngine:
         }
         result = {str(device_class): [] for device_class in supported}
         dedicated_sources = {
+            self.primary_temperature_entity,
+            self.primary_humidity_entity,
             self.config.get(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE),
             self.config.get(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY),
             self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE),
@@ -599,19 +612,24 @@ class AreaEnvironmentEngine:
         for entity_id in candidate_ids:
             entry = entity_registry.async_get(entity_id)
             if not entity_id.startswith("sensor."):
+                self._ignore_source(entity_id, "unsupported_domain")
                 continue
-            if entry is not None and (
-                entry.disabled
-                or entry.config_entry_id == self.area.hass_config.entry_id
-            ):
+            if entry is not None and (entry.disabled or entry.platform == DOMAIN):
+                self._ignore_source(
+                    entity_id,
+                    "disabled" if entry.disabled else "adaptive_areas_entity",
+                )
                 continue
-            if entity_id in self._excluded_ids and entity_id not in manual_ids:
+            if entity_id in self._excluded_ids:
+                self._ignore_source(entity_id, "excluded")
                 continue
             if entity_id in dedicated_sources:
                 continue
             device_class = self._pollutant_device_class(entity_id)
             if device_class in supported:
                 result[str(device_class)].append(entity_id)
+            else:
+                self._ignore_source(entity_id, "unsupported_device_class")
         for entity_ids in result.values():
             entity_ids.sort()
         return result
@@ -631,15 +649,10 @@ class AreaEnvironmentEngine:
                     device.id
                 )
             )
-        # Test doubles and registry-startup races can expose valid Area members
-        # through the loaded Area snapshot before a registry entry is available.
+        # The loaded snapshot also contains explicitly included entities. They are
+        # candidates only; all pollutant filters are applied during discovery.
         entity_ids.update(
-            entity[ATTR_ENTITY_ID]
-            for entity in self.area.entities.get("sensor", [])
-            if async_get_entity_registry(self.area.hass).async_get(
-                entity[ATTR_ENTITY_ID]
-            )
-            is None
+            entity[ATTR_ENTITY_ID] for entity in self.area.entities.get("sensor", [])
         )
         return {
             entity_id
@@ -834,6 +847,10 @@ class AreaEnvironmentEngine:
             "name": state.name if state is not None else entity_id,
         }
 
+    def _ignore_source(self, entity_id: str, reason: str) -> None:
+        """Record why one discovered candidate did not contribute."""
+        self._ignored_sources[entity_id] = {"reason": reason}
+
     def _values(self, device_class: SensorDeviceClass) -> list[float]:
         candidate_ids = [*self._sensor_ids.get(str(device_class), [])]
         values: list[float] = []
@@ -841,19 +858,16 @@ class AreaEnvironmentEngine:
         expected_unit = AIR_QUALITY_MATRIX.get(device_class)
         for entity_id in candidate_ids:
             state = self.area.hass.states.get(entity_id)
-            if (
-                state is None
-                or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
-                or self._pollutant_device_class(entity_id) != device_class
-            ):
+            if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                self._ignore_source(entity_id, "unavailable")
                 continue
-            is_manual = (
-                self._official_pollutant_device_class(entity_id) is None
-                and self._manual_pollutant_device_class(entity_id) == device_class
-            )
+            if self._pollutant_device_class(entity_id) != device_class:
+                self._ignore_source(entity_id, "unsupported_device_class")
+                continue
             try:
                 value = float(state.state)
             except TypeError, ValueError:
+                self._ignore_source(entity_id, "invalid_value")
                 continue
             unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
             if device_class == SensorDeviceClass.TEMPERATURE:
@@ -863,21 +877,21 @@ class AreaEnvironmentEngine:
                             value, unit, UnitOfTemperature.CELSIUS
                         )
                     except ValueError:
+                        self._ignore_source(entity_id, "unsupported_unit")
                         continue
-            elif expected_unit and (
-                (is_manual and unit != expected_unit.unit)
-                or (not is_manual and unit is not None and expected_unit.unit != unit)
-            ):
+            elif expected_unit and unit != expected_unit.unit:
+                self._ignore_source(entity_id, "unsupported_unit")
                 continue
             values.append(value)
             used.append(entity_id)
-        if candidate_ids:
+            self._ignored_sources.pop(entity_id, None)
+        if used:
             source_key = POLLUTANT_NAMES.get(device_class, str(device_class))
             self._source_entities[source_key] = {
                 "mode": (
                     "manual"
                     if any(
-                        self._official_pollutant_device_class(entity_id) is None
+                        self._manual_pollutant_device_class(entity_id) == device_class
                         for entity_id in used
                     )
                     else "direct"
@@ -1457,7 +1471,7 @@ class AreaEnvironmentEngine:
                 state = (
                     AirQualityState.DEGRADED
                     if current > band.degraded
-                    else AirQualityState.UNKNOWN
+                    else AirQualityState.GOOD
                 )
                 assessments[name] = {
                     "current": round(current, 2),
@@ -1525,6 +1539,20 @@ class AreaEnvironmentEngine:
         if limited_coverage and worst == AirQualityState.GOOD:
             worst = AirQualityState.UNKNOWN
         return worst, measurements, assessments, reasons
+
+    @staticmethod
+    def _pollutant_state(assessments: dict[str, Any]) -> PollutantState:
+        """Return the worst valid classified pollutant severity."""
+        worst = AirQualityState.UNKNOWN
+        for assessment in assessments.values():
+            for key in ("severity", "short_term_state"):
+                try:
+                    severity = AirQualityState(assessment.get(key))
+                except TypeError, ValueError:
+                    continue
+                if AIR_QUALITY_RANK[severity] > AIR_QUALITY_RANK[worst]:
+                    worst = severity
+        return POLLUTANT_STATE_BY_AIR_QUALITY[worst]
 
     def _ventilation(
         self, co2: float | None, humidity: float | None, sustained: bool, rapid: bool
@@ -1917,6 +1945,7 @@ class AreaEnvironmentEngine:
     def evaluate(self, *, trace: bool = True) -> None:
         """Evaluate all available dimensions and notify subscribers."""
         self._source_entities = {}
+        self._ignored_sources = dict(self._discovery_ignored_sources)
         temperature = self._primary_value(
             self.primary_temperature_entity,
             SensorDeviceClass.TEMPERATURE,
@@ -1962,6 +1991,7 @@ class AreaEnvironmentEngine:
         air_quality, pollutants, pollutant_assessments, air_reasons = (
             self._air_quality()
         )
+        pollutant_state = self._pollutant_state(pollutant_assessments)
         if self.is_exterior:
             reasons = [*air_reasons, *self._primary_source_reasons()]
             attention = (
@@ -2001,6 +2031,7 @@ class AreaEnvironmentEngine:
             assessment = {
                 "state": overall,
                 "humidity": humidity_state,
+                "pollutant_state": pollutant_state,
                 "air_quality": air_quality,
                 "temperature": (
                     round(temperature, 2) if temperature is not None else None
@@ -2021,6 +2052,7 @@ class AreaEnvironmentEngine:
                 "pollutants": pollutants,
                 "pollutant_assessments": pollutant_assessments,
                 "source_entities": dict(self._source_entities),
+                "ignored_sources": dict(self._ignored_sources),
                 "capabilities": {
                     "temperature": temperature is not None,
                     "humidity": humidity is not None,
@@ -2266,9 +2298,11 @@ class AreaEnvironmentEngine:
             "pm25": "pm25" in pollutants,
             "pm10": "pm10" in pollutants,
             "voc": "voc" in pollutants,
+            "voc_parts": "voc_parts" in pollutants,
             "aqi": "aqi" in pollutants,
             "co": "co" in pollutants,
             "no2": "no2" in pollutants,
+            "ozone": "ozone" in pollutants,
             "air_quality": bool(pollutants),
             "windows": bool(self._window_ids),
             "outdoor_temperature": outdoor is not None,
@@ -2297,6 +2331,7 @@ class AreaEnvironmentEngine:
             ),
             "humidity": humidity_state,
             "mould_risk": mould_risk,
+            "pollutant_state": pollutant_state,
             "air_quality": air_quality,
             # Keep the established attribute as a demand alias for automations.
             "ventilation": ventilation_demand,
@@ -2339,6 +2374,7 @@ class AreaEnvironmentEngine:
             "pollutants": pollutants,
             "pollutant_assessments": pollutant_assessments,
             "source_entities": dict(self._source_entities),
+            "ignored_sources": dict(self._ignored_sources),
             "window_recommendation": window,
             "ventilation_fan_request": ventilation_request,
             "circulation_fan_request": circulation_request,
@@ -2371,6 +2407,20 @@ class AreaEnvironmentEngine:
         for subscriber in list(self._subscribers):
             subscriber()
 
+    def _ignored_source_counts(self) -> dict[str, int]:
+        """Summarize ignored sources without exposing entity identifiers."""
+        reasons = (
+            source.get("reason", "unknown")
+            for source in self.assessment.get("ignored_sources", {}).values()
+        )
+        return {
+            reason: sum(
+                source.get("reason", "unknown") == reason
+                for source in self.assessment.get("ignored_sources", {}).values()
+            )
+            for reason in sorted(set(reasons))
+        }
+
     def diagnostics(self) -> dict[str, Any]:
         """Return privacy-safe capabilities, outputs, and recommendations."""
         if self.is_exterior:
@@ -2390,7 +2440,12 @@ class AreaEnvironmentEngine:
                 },
                 "assessment": {
                     key: str(self.assessment.get(key, "unknown"))
-                    for key in ("state", "humidity", "air_quality")
+                    for key in (
+                        "state",
+                        "humidity",
+                        "pollutant_state",
+                        "air_quality",
+                    )
                 },
                 "context": self.assessment.get("context", ""),
                 "reason_codes": list(self.assessment.get("reason_codes", [])),
@@ -2401,6 +2456,7 @@ class AreaEnvironmentEngine:
                     key: {"mode": value.get("mode", "unknown")}
                     for key, value in self.assessment.get("source_entities", {}).items()
                 },
+                "ignored_sources": self._ignored_source_counts(),
             }
         derived_keys = (
             "temperature",
@@ -2425,6 +2481,7 @@ class AreaEnvironmentEngine:
             "thermal_input_quality",
             "humidity",
             "mould_risk",
+            "pollutant_state",
             "air_quality",
             "ventilation",
             "ventilation_demand",
@@ -2469,6 +2526,7 @@ class AreaEnvironmentEngine:
                 if key in ("temperature", "humidity")
             },
             "pollutant_assessments": self.assessment.get("pollutant_assessments", {}),
+            "ignored_sources": self._ignored_source_counts(),
             "pollutant_sources": {
                 key: len(value.get("entities", []))
                 for key, value in self.assessment.get("source_entities", {}).items()

@@ -1210,6 +1210,16 @@ class AirQualityState(StrEnum):
     UNKNOWN = "unknown"
 
 
+class PollutantState(StrEnum):
+    """Worst valid qualitative pollutant assessment for dashboards."""
+
+    GOOD = "good"
+    ELEVATED = "elevated"
+    POOR = "poor"
+    CRITICAL = "critical"
+    UNKNOWN = "unknown"
+
+
 class MouldRiskState(StrEnum):
     """Moisture conditions favourable to mould growth, not mould detection."""
 
