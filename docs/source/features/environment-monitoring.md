@@ -4,9 +4,9 @@
 
 Area Climate is optional and disabled by default. It retains the existing `environment` entity and unique IDs for compatibility. Indoor Areas receive the full assessment and recommendations. Exterior Areas receive a reduced measurement and air-quality assessment without comfort, mould, ventilation, window, fan, or cooling outputs. Missing dimensions remain `unknown`; never interpreted as healthy.
 
-Enable **Area Climate** under **Feature selection**. **Area Climate** is the single configuration menu for climate sources in both indoor and exterior Areas. It contains temperature, relative humidity, and manual pollutant assignments for both Area types. Indoor Areas additionally contain the room category, cool-surface temperature, relevant windows, passive-cooling difference, and humidity-warning duration. Exterior Areas intentionally omit those indoor-only controls. Explicit outdoor temperature/humidity and concrete fan fields are not offered. `source_entities` provides traceability.
+Enable **Area Climate** under **Feature selection**. **Area Climate** is the single configuration menu for primary climate sources in both indoor and exterior Areas. It contains temperature and relative humidity for both Area types. Indoor Areas additionally contain the room category, cool-surface temperature, relevant windows, passive-cooling difference, and humidity-warning duration. Exterior Areas intentionally omit those indoor-only controls. Pollutant sensors are discovered automatically from Home Assistant metadata. Explicit outdoor temperature/humidity and concrete fan fields are not offered. `source_entities` provides traceability.
 
-Every climate source selector uses the same candidate basis: all `sensor.*` entities assigned directly or through a device to the current Home Assistant Area. Adaptive Areas-generated sensors are excluded to prevent self-reference. Device class, unit, integration, manufacturer, and names never remove a candidate. Existing saved assignments remain readable for compatibility.
+Every primary climate source selector uses the same candidate basis: all `sensor.*` entities assigned directly or through a device to the current Home Assistant Area. Adaptive Areas-generated sensors are excluded to prevent self-reference. Device class, unit, integration, manufacturer, and names never remove a primary-source candidate.
 
 Exterior Areas are the central outdoor reference. Their primary temperature and humidity values plus supported PM2.5, PM10, NO₂, ozone, CO, and TVOC sensors are interpreted as outdoor measurements. Multiple exterior values use deterministic aggregation: a mean for primary climate values and the conservative maximum for pollutants. Legacy explicit outdoor fields remain runtime fallbacks only when no valid exterior Area source exists.
 
@@ -50,7 +50,15 @@ A future mould model should incorporate surface moisture, surface temperature, e
 
 ## Air quality
 
-Pollutant discovery uses official Home Assistant `SensorDeviceClass` metadata and is independent of the source integration. Sensors are never classified from their entity ID, display name, or unit alone. Every same-Area sensor can instead be assigned explicitly under **Area Climate** to CO₂, PM2.5, PM10, CO, NO₂, ozone, TVOC, VOC parts, or AQI. One entity may have only one manual assignment, and that assignment takes precedence over its device class. Manual concentration sources enter health evaluation only when their reported unit exactly matches the supported measurement unit; otherwise they remain unavailable for that assessment. Generic AQI and VOC-parts scales remain exposed but unclassified.
+### Air-quality and pollutant sensor requirements
+
+Adaptive Areas uses the `device_class` provided by Home Assistant to determine the type of an air-quality or pollutant sensor. For automatic pollutant evaluation, the Home Assistant entity must provide a matching sensor device class and, where required for that class, a supported unit of measurement.
+
+Supported device classes include `aqi`, `carbon_dioxide`, `carbon_monoxide`, `nitrogen_dioxide`, `ozone`, `pm1`, `pm25`, `pm10`, `volatile_organic_compounds`, and `volatile_organic_compounds_parts`. Adaptive Areas does not infer a sensor type from its entity ID, display name, source integration, manufacturer, or attribution.
+
+If a source integration does not provide a suitable device class or a unit supported by that device class, correct the source entity or provide a correctly configured Home Assistant sensor entity. Adaptive Areas does not add missing source metadata or offer parallel pollutant type and unit overrides. See the official [Home Assistant sensor entity documentation](https://developers.home-assistant.io/docs/core/entity/sensor/) for supported device classes and units.
+
+Once a source is identified by its device class, Adaptive Areas may convert a compatible published unit internally to the reference unit required by its evaluation matrix. Gas ratios for CO, NO₂, and ozone use the conventional reference conversion at 25 °C and 101.325 kPa. Generic AQI and VOC-parts scales remain exposed but unclassified, so they do not affect `pollutant_state`.
 
 CO₂ uses the German Environment Agency categories: up to 1000 ppm hygienically unremarkable, 1000–2000 ppm elevated with ventilation recommended, and above 2000 ppm hygienically unacceptable with urgent ventilation. The 850 ppm clearing value is an Adaptive Areas operational hysteresis threshold.
 

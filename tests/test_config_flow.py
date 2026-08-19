@@ -9,7 +9,6 @@ from homeassistant.const import (
     ATTR_FRIENDLY_NAME,
     ATTR_NAME,
     ATTR_UNIT_OF_MEASUREMENT,
-    UnitOfDensity,
     UnitOfTemperature,
 )
 from homeassistant.data_entry_flow import FlowResultType
@@ -35,9 +34,6 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
     CONF_DARK_ENTITY,
-    CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS,
-    CONF_ENVIRONMENT_MANUAL_PM25_SENSORS,
-    CONF_ENVIRONMENT_MANUAL_PM25_UNIT,
     CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
@@ -55,8 +51,6 @@ from custom_components.adaptive_areas.const import (
     CONF_TYPE,
     DATA_AREA_OBJECT,
     DOMAIN,
-    ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
-    ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS,
     LIGHT_GROUP_ACTIVATION_EXTENDED,
     LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
     LIGHT_GROUP_BRIGHTNESS_OPTIONS,
@@ -502,8 +496,14 @@ async def test_room_climate_standard_feature_form(hass) -> None:
     assert CONF_ROOM_CATEGORY in environment_fields
     assert CONF_AREA_TEMPERATURE_SENSOR in environment_fields
     assert CONF_AREA_HUMIDITY_SENSOR in environment_fields
-    assert set(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES) <= environment_fields
-    assert set(ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS) <= environment_fields
+    assert (
+        not {
+            "manual_pm25_sensors",
+            "manual_pm25_unit",
+            "manual_ozone_sensors",
+        }
+        & environment_fields
+    )
     assert (
         not {
             "ventilation_fans",
@@ -520,7 +520,6 @@ async def test_room_climate_standard_feature_form(hass) -> None:
         CONF_AREA_TEMPERATURE_SENSOR,
         CONF_AREA_HUMIDITY_SENSOR,
         CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
-        *ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
     ):
         field = next(
             selector
@@ -531,22 +530,11 @@ async def test_room_climate_standard_feature_form(hass) -> None:
         assert other_sensor.entity_id not in field.config["include_entities"]
         assert area_fan.entity_id not in field.config["include_entities"]
 
-    duplicate_pollutant = await flow.async_step_feature_conf_environment(
-        {
-            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: ["sensor.unclassified_air_quality"],
-            CONF_ENVIRONMENT_MANUAL_OZONE_SENSORS: ["sensor.unclassified_air_quality"],
-        }
-    )
-    assert duplicate_pollutant["type"] == "form"
-    assert duplicate_pollutant["errors"] == {
-        next(iter(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES)): "malformed_input"
-    }
-
     await shutdown_integration(hass, [config_entry])
 
 
 async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
-    """Exterior menu exposes primary climate sources and pollutant mappings."""
+    """Exterior menu exposes only primary climate sources."""
     entity_id = "sensor.unclassified_outdoor_pm25"
     temperature_id = "sensor.outdoor_temperature"
     humidity_id = "sensor.outdoor_humidity"
@@ -595,14 +583,10 @@ async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
     result = await flow.async_step_feature_conf_environment()
     fields = {marker.schema for marker in result["data_schema"].schema}
 
-    assert fields == (
-        set(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES)
-        | set(ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS)
-        | {
-            CONF_AREA_TEMPERATURE_SENSOR,
-            CONF_AREA_HUMIDITY_SENSOR,
-        }
-    )
+    assert fields == {
+        CONF_AREA_TEMPERATURE_SENSOR,
+        CONF_AREA_HUMIDITY_SENSOR,
+    }
     for absent in (
         CONF_ROOM_CATEGORY,
         CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
@@ -623,7 +607,6 @@ async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
     for key in (
         CONF_AREA_TEMPERATURE_SENSOR,
         CONF_AREA_HUMIDITY_SENSOR,
-        *ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
     ):
         field = next(
             selector
@@ -640,15 +623,9 @@ async def test_exterior_area_offers_area_climate_configuration(hass) -> None:
         {
             CONF_AREA_TEMPERATURE_SENSOR: "sensor.wrong_class_outdoor_sensor",
             CONF_AREA_HUMIDITY_SENSOR: humidity_id,
-            CONF_ENVIRONMENT_MANUAL_PM25_SENSORS: [entity_id],
-            CONF_ENVIRONMENT_MANUAL_PM25_UNIT: "µg/m³",
         }
     )
     assert saved["type"] == "menu"
-    assert flow.area_options[CONF_ENVIRONMENT_MANUAL_PM25_SENSORS] == [entity_id]
-    assert flow.area_options[CONF_ENVIRONMENT_MANUAL_PM25_UNIT] == (
-        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
-    )
     assert flow.area_options[CONF_AREA_TEMPERATURE_SENSOR] == (
         "sensor.wrong_class_outdoor_sensor"
     )

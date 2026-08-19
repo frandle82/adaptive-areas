@@ -96,6 +96,25 @@ _MIGRATED_AREA_EVALUATION_KEYS = (
     CONF_ENVIRONMENT_DISABLED_FANS,
 )
 
+_REMOVED_MANUAL_POLLUTANT_KEYS = (
+    "manual_co2_sensors",
+    "manual_pm25_sensors",
+    "manual_pm10_sensors",
+    "manual_co_sensors",
+    "manual_no2_sensors",
+    "manual_ozone_sensors",
+    "manual_voc_sensors",
+    "manual_aqi_sensors",
+    "manual_voc_parts_sensors",
+    "manual_co2_unit",
+    "manual_pm25_unit",
+    "manual_pm10_unit",
+    "manual_co_unit",
+    "manual_no2_unit",
+    "manual_ozone_unit",
+    "manual_voc_unit",
+)
+
 
 def _eligible_primary_sources(
     hass: HomeAssistant, config_entry: ConfigEntry, config: dict[str, Any]
@@ -190,6 +209,19 @@ def _migrate_area_evaluation_config(
     if regular_area and CONF_ROOM_CATEGORY not in migrated:
         migrated[CONF_ROOM_CATEGORY] = DEFAULT_ROOM_CATEGORY
         changed = True
+    return migrated, changed
+
+
+def _remove_manual_pollutant_config(
+    config: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """Remove superseded pollutant type and unit overrides."""
+    migrated = dict(config)
+    changed = False
+    for key in _REMOVED_MANUAL_POLLUTANT_KEYS:
+        if key in migrated:
+            migrated.pop(key)
+            changed = True
     return migrated, changed
 
 
@@ -542,6 +574,14 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     )
     data_changed |= evaluation_data_changed
     options_changed |= evaluation_options_changed
+    migrated_data, pollutant_data_changed = _remove_manual_pollutant_config(
+        migrated_data
+    )
+    migrated_options, pollutant_options_changed = _remove_manual_pollutant_config(
+        migrated_options
+    )
+    data_changed |= pollutant_data_changed
+    options_changed |= pollutant_options_changed
     (
         migrated_data,
         migrated_options,

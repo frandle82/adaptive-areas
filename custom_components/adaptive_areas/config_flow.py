@@ -157,8 +157,6 @@ from .const import (
     DISTRESS_SENSOR_CLASSES,
     DOMAIN,
     EMPTY_STRING,
-    ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES,
-    ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS,
     FAN_GROUPS_ALLOWED_TRACKED_DEVICE_CLASS,
     LIGHT_GROUP_ACT_ON_OPTIONS,
     LIGHT_GROUP_ACTIVATION_DISABLED,
@@ -204,7 +202,6 @@ from .const import (
     SelectorTranslationKeys,
     RoomCategory,
     SWITCH_GROUP_ACTION_OPTIONS,
-    normalize_pollutant_unit,
 )
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.helpers.area import (
@@ -1328,7 +1325,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
         return entity_ids
 
     async def async_step_feature_conf_environment(self, user_input=None):
-        """Configure Area Climate roles and explicit pollutant assignments."""
+        """Configure Area Climate roles."""
         entity_registry = entityreg_async_get(self.hass)
         area_entity_ids = self._current_area_entity_ids()
 
@@ -1409,21 +1406,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 entity_id = raw_input.get(key, "")
                 if entity_id and entity_id not in permitted_candidates(key):
                     errors[key] = "invalid_primary_source"
-            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES:
-                if set(raw_input.get(key, [])) - permitted_candidates(key):
-                    errors[key] = "invalid_primary_source"
-            manual_role_sets = [
-                set(raw_input.get(key, []))
-                for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-            ]
-            if not errors and any(
-                left & right
-                for index, left in enumerate(manual_role_sets)
-                for right in manual_role_sets[index + 1 :]
-            ):
-                errors[next(iter(ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES))] = (
-                    "malformed_input"
-                )
             if not errors:
                 try:
                     validated = AREA_EVALUATION_OPTIONS_SCHEMA(raw_input)
@@ -1450,14 +1432,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                         self.area_options.update(validated)
                         return await self.async_step_show_menu()
 
-        manual_validators = {
-            key: cv.multi_select(sorted(permitted_candidates(key)))
-            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-        }
-        manual_selectors = {
-            key: self._build_selector_entity_simple(sensor_candidates, multiple=True)
-            for key in ENVIRONMENT_MANUAL_POLLUTANT_SENSOR_CLASSES
-        }
         options = list(OPTIONS_AREA_EVALUATION)
         if self.area.is_exterior():
             exterior_hidden = {
@@ -1468,20 +1442,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 CONF_ENVIRONMENT_HUMIDITY_DURATION,
             }
             options = [option for option in options if option[0] not in exterior_hidden]
-        dynamic_validators = dict(manual_validators)
-        selectors = dict(manual_selectors)
-        dynamic_validators.update(
-            {
-                key: vol.All(str, normalize_pollutant_unit, vol.In(("", *units)))
-                for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
-            }
-        )
-        selectors.update(
-            {
-                key: self._build_selector_select(["", *units])
-                for key, units in ENVIRONMENT_MANUAL_POLLUTANT_UNIT_OPTIONS.items()
-            }
-        )
+        dynamic_validators = {}
+        selectors = {}
         climate_sensor_keys = (
             CONF_AREA_TEMPERATURE_SENSOR,
             CONF_AREA_HUMIDITY_SENSOR,
