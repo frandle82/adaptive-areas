@@ -192,10 +192,12 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         self._assessment_changed()
 
     @staticmethod
-    def _used_entity_ids(assessment: dict) -> list[str]:
+    def _used_entity_ids(
+        assessment: dict, source_key: str = "source_entities"
+    ) -> list[str]:
         """Return a flat list of entities that contributed to the assessment."""
         entity_ids: set[str] = set()
-        for source in assessment.get("source_entities", {}).values():
+        for source in assessment.get(source_key, {}).values():
             entity_id = source.get("entity_id")
             if (
                 source.get("available")
@@ -245,48 +247,46 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             return
         attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
-            "temperature_state": str(assessment.get("temperature_state", "unknown")),
-            "humidity_comfort_state": str(
-                assessment.get("humidity_comfort_state", "unknown")
-            ),
-            "combined_comfort": str(assessment.get("combined_comfort", "unknown")),
             "room_category": str(assessment.get("room_category", "unknown")),
-            "thermal_profile": assessment.get("thermal_profile", {}),
             "humidity": str(assessment.get("humidity", "unknown")),
             "mould_risk": str(assessment.get("mould_risk", "unknown")),
             "pollutant_state": str(assessment.get("pollutant_state", "unknown")),
+            "dominant_indoor_pollutant": assessment.get(
+                "dominant_indoor_pollutant", "unknown"
+            ),
             "air_quality": str(assessment.get("air_quality", "unknown")),
-            "ventilation": str(assessment.get("ventilation", "unknown")),
             "ventilation_demand": str(assessment.get("ventilation_demand", "unknown")),
             "ventilation_activity": str(
                 assessment.get("ventilation_activity", "inactive")
             ),
-            "cooling": str(assessment.get("cooling", "unknown")),
-            "dew_point": assessment.get("dew_point"),
-            "absolute_humidity": assessment.get("absolute_humidity"),
-            "humidity_ratio": assessment.get("humidity_ratio"),
-            "enthalpy": assessment.get("enthalpy"),
-            "humidex": assessment.get("humidex"),
-            "apparent_temperature": assessment.get("apparent_temperature"),
-            "mould_quality": assessment.get("mould_quality", "unknown"),
-            "mould_warning_duration_seconds": assessment.get(
-                "mould_warning_duration_seconds", 0
+            "ventilation_strategy": str(
+                assessment.get("ventilation_strategy", "unknown")
             ),
-            "outdoor_humidity_ratio": assessment.get("outdoor_humidity_ratio"),
-            "outdoor_enthalpy": assessment.get("outdoor_enthalpy"),
+            "air_cleaning_recommendation": str(
+                assessment.get("air_cleaning_recommendation", "unknown")
+            ),
+            "cooling": str(assessment.get("cooling", "unknown")),
             "moisture_ventilation": assessment.get("moisture_ventilation", "unknown"),
             "air_exchange_suitability": str(
                 assessment.get("air_exchange_suitability", "unknown")
             ),
-            "pollutant_comparisons": assessment.get("pollutant_comparisons", {}),
             "outdoor_pollutant_measurements": assessment.get("outdoor_pollutants", {}),
-            "outdoor_pollutant_assessments": assessment.get(
-                "outdoor_pollutant_assessments", {}
+            "indoor_pollutant_measurements": dict(
+                assessment.get("indoor_pollutant_measurements", {})
             ),
+            "indoor_pollutant_assessments": assessment.get(
+                "indoor_pollutant_assessments", {}
+            ),
+            # Deprecated compatibility aliases.
             "pollutant_measurements": dict(assessment.get("pollutants", {})),
             "pollutant_assessments": assessment.get("pollutant_assessments", {}),
+            "indoor_source_entities": self._used_entity_ids(
+                assessment, "indoor_source_entities"
+            ),
+            "outdoor_source_entities": self._used_entity_ids(
+                assessment, "outdoor_source_entities"
+            ),
             "source_entities": self._used_entity_ids(assessment),
-            "ignored_sources": assessment.get("ignored_sources", {}),
             "window_recommendation": str(
                 assessment.get("window_recommendation", "none")
             ),
@@ -301,15 +301,13 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 for capability, available in assessment.get("capabilities", {}).items()
                 if available
             ),
-            "humidity_warning_duration_seconds": assessment.get(
-                "humidity_warning_duration_seconds", 0
-            ),
             "context": assessment.get("context", ""),
+            "indoor_reason_codes": list(assessment.get("indoor_reason_codes", [])),
+            "mitigation_reason_codes": list(
+                assessment.get("mitigation_reason_codes", [])
+            ),
             "reason_codes": list(assessment.get("reason_codes", [])),
         }
-        for key in ("surface_temperature", "surface_relative_humidity"):
-            if key in assessment:
-                attributes[key] = assessment[key]
         self._attr_extra_state_attributes = attributes
         self.async_write_ha_state()
 

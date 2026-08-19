@@ -1126,6 +1126,27 @@ class VentilationDemand(StrEnum):
     UNKNOWN = "unknown"
 
 
+class VentilationStrategy(StrEnum):
+    """Recommended way to satisfy an independent ventilation demand."""
+
+    NONE = "none"
+    PASSIVE = "passive"
+    MECHANICAL = "mechanical"
+    FILTERED_MECHANICAL = "filtered_mechanical"
+    AVOID_OUTDOOR_AIR = "avoid_outdoor_air"
+    UNKNOWN = "unknown"
+
+
+class AirCleaningRecommendation(StrEnum):
+    """Usefulness of recirculating air cleaning for the indoor pollutant."""
+
+    NONE = "none"
+    RECOMMENDED = "recommended"
+    STRONGLY_RECOMMENDED = "strongly_recommended"
+    NOT_EFFECTIVE = "not_effective"
+    UNKNOWN = "unknown"
+
+
 class VentilationActivity(StrEnum):
     """Whether ventilation is currently taking place through an open window."""
 

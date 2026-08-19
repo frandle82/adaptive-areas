@@ -54,6 +54,7 @@ from custom_components.adaptive_areas.const import (
     DOMAIN,
     MODULE_DATA,
     AdaptiveAreasEvents,
+    AirCleaningRecommendation,
     AirExchangeSuitability,
     AirQualityState,
     CirculationFanRequest,
@@ -68,6 +69,7 @@ from custom_components.adaptive_areas.const import (
     VentilationActivity,
     VentilationDemand,
     VentilationFanRequest,
+    VentilationStrategy,
     WindowRecommendation,
 )
 
@@ -290,17 +292,27 @@ POLLUTANT_STATE_BY_AIR_QUALITY = {
     AirQualityState.CRITICAL: PollutantState.CRITICAL,
 }
 
+DOMINANT_POLLUTANT_ORDER = (
+    "co2",
+    "pm25",
+    "pm10",
+    "co",
+    "no2",
+    "ozone",
+    "voc",
+)
+
 CONTEXT: dict[str, dict[str, str]] = {
     "en": {
         "air_critical": "Air quality is critical: {reason}.",
-        "air_co2_critical": "Ventilate immediately: the CO₂ concentration is very high.",
-        "air_co2_poor": "Ventilate now: the CO₂ concentration is significantly elevated.",
+        "air_co2_critical": "Indoor CO₂ is very high. Air exchange is urgently required.",
+        "air_co2_poor": "Indoor CO₂ is significantly elevated. Air exchange is required.",
         "health_alert": "An Area health sensor reports a hazard. Address that warning first.",
         "air_poor": "Air quality is poor: {reason}.",
         "air_provisional": "The current measurement indicates elevated pollution: {reason}. The 24-hour assessment remains provisional until enough history is available.",
-        "ventilation_urgent": "Ventilate immediately: {reason}.",
-        "ventilation_required": "Ventilate now: {reason}.",
-        "ventilation_recommended": "Ventilation recommended: {reason}.",
+        "ventilation_urgent": "{reason}. Air exchange is urgently required.",
+        "ventilation_required": "{reason}. Air exchange is required.",
+        "ventilation_recommended": "{reason}. Air exchange is recommended.",
         "ventilation_continue": "Continue ventilating: {reason}.",
         "ventilation_continue_urgent": "Continue ventilating immediately: {reason}.",
         "ventilation_stop": "Stop ventilating and close the window: air exchange with outdoors is currently unfavorable.",
@@ -349,14 +361,14 @@ CONTEXT: dict[str, dict[str, str]] = {
     },
     "de": {
         "air_critical": "Die Luftqualität ist kritisch: {reason}.",
-        "air_co2_critical": "Sofort lüften: Die CO₂-Konzentration ist sehr hoch.",
-        "air_co2_poor": "Jetzt lüften: Die CO₂-Konzentration ist deutlich erhöht.",
+        "air_co2_critical": "Die CO₂-Konzentration im Raum ist sehr hoch. Luftaustausch ist dringend erforderlich.",
+        "air_co2_poor": "Die CO₂-Konzentration im Raum ist deutlich erhöht. Luftaustausch ist erforderlich.",
         "health_alert": "Ein Gesundheitswarnsensor des Bereichs meldet eine Gefahr. Diese Warnung hat Vorrang.",
         "air_poor": "Die Luftqualität ist schlecht: {reason}.",
         "air_provisional": "Der aktuelle Messwert zeigt eine erhöhte Schadstoffbelastung: {reason}. Die 24-Stunden-Bewertung bleibt vorläufig, bis genügend Messhistorie vorliegt.",
-        "ventilation_urgent": "Sofort lüften: {reason}.",
-        "ventilation_required": "Jetzt lüften: {reason}.",
-        "ventilation_recommended": "Lüften empfohlen: {reason}.",
+        "ventilation_urgent": "{reason}. Luftaustausch ist dringend erforderlich.",
+        "ventilation_required": "{reason}. Luftaustausch ist erforderlich.",
+        "ventilation_recommended": "{reason}. Luftaustausch wird empfohlen.",
         "ventilation_continue": "Weiter lüften: {reason}.",
         "ventilation_continue_urgent": "Sofort weiterlüften: {reason}.",
         "ventilation_stop": "Lüften beenden und Fenster schließen: Der Luftaustausch mit draußen ist derzeit ungünstig.",
@@ -1625,6 +1637,131 @@ class AreaEnvironmentEngine:
                     worst = severity
         return POLLUTANT_STATE_BY_AIR_QUALITY[worst]
 
+    @staticmethod
+    def _dominant_indoor_pollutant(assessments: dict[str, Any]) -> str:
+        """Return the first worst valid local pollutant deterministically."""
+        dominant = "unknown"
+        worst = AirQualityState.UNKNOWN
+        for name in DOMINANT_POLLUTANT_ORDER:
+            assessment = assessments.get(name, {})
+            severity = AirQualityState.UNKNOWN
+            for key in ("severity", "short_term_state"):
+                try:
+                    candidate = AirQualityState(assessment.get(key))
+                except TypeError, ValueError:
+                    continue
+                if AIR_QUALITY_RANK[candidate] > AIR_QUALITY_RANK[severity]:
+                    severity = candidate
+            if AIR_QUALITY_RANK[severity] > AIR_QUALITY_RANK[worst]:
+                worst = severity
+                dominant = name
+        return dominant
+
+    @staticmethod
+    def _ventilation_strategy(
+        demand: VentilationDemand,
+        dominant_pollutant: str,
+        air_exchange: AirExchangeSuitability,
+        humidity_ventilation: bool,
+        moisture_ventilation: str,
+        pollutant_mitigation: bool,
+    ) -> VentilationStrategy:
+        """Choose mitigation without changing the independent indoor demand."""
+        ventilation_need = demand in (
+            VentilationDemand.RECOMMENDED,
+            VentilationDemand.REQUIRED,
+            VentilationDemand.URGENT,
+        )
+        if not ventilation_need and not pollutant_mitigation:
+            if demand == VentilationDemand.UNKNOWN:
+                return VentilationStrategy.UNKNOWN
+            return VentilationStrategy.NONE
+        if humidity_ventilation and moisture_ventilation == "unfavorable":
+            return VentilationStrategy.AVOID_OUTDOOR_AIR
+        if air_exchange in (
+            AirExchangeSuitability.FAVORABLE,
+            AirExchangeSuitability.ACCEPTABLE,
+        ):
+            return VentilationStrategy.PASSIVE
+        if air_exchange in (
+            AirExchangeSuitability.UNFAVORABLE,
+            AirExchangeSuitability.HAZARDOUS,
+        ):
+            if dominant_pollutant in {"pm25", "pm10"}:
+                return VentilationStrategy.AVOID_OUTDOOR_AIR
+            return VentilationStrategy.FILTERED_MECHANICAL
+        if dominant_pollutant == "co2":
+            return VentilationStrategy.MECHANICAL
+        return VentilationStrategy.UNKNOWN
+
+    @staticmethod
+    def _air_cleaning_recommendation(
+        pollutant_state: PollutantState,
+        dominant_pollutant: str,
+        air_exchange: AirExchangeSuitability,
+    ) -> AirCleaningRecommendation:
+        """Describe whether recirculating cleaning can address the local problem."""
+        if dominant_pollutant == "unknown" or pollutant_state == PollutantState.GOOD:
+            return AirCleaningRecommendation.NONE
+        if pollutant_state == PollutantState.UNKNOWN:
+            return AirCleaningRecommendation.UNKNOWN
+        if dominant_pollutant in {"pm25", "pm10"}:
+            if air_exchange in (
+                AirExchangeSuitability.UNFAVORABLE,
+                AirExchangeSuitability.HAZARDOUS,
+            ):
+                return AirCleaningRecommendation.STRONGLY_RECOMMENDED
+            return AirCleaningRecommendation.RECOMMENDED
+        if dominant_pollutant in {"co2", "voc", "co", "no2", "ozone"}:
+            return AirCleaningRecommendation.NOT_EFFECTIVE
+        return AirCleaningRecommendation.UNKNOWN
+
+    @staticmethod
+    def _pollutant_mitigation_needed(
+        pollutant_state: PollutantState, dominant_pollutant: str
+    ) -> bool:
+        """Return whether a classified non-CO₂ pollutant needs mitigation."""
+        return dominant_pollutant not in {"unknown", "co2"} and pollutant_state in (
+            PollutantState.ELEVATED,
+            PollutantState.POOR,
+            PollutantState.CRITICAL,
+        )
+
+    def _window_mitigation(
+        self,
+        *,
+        windows_open: bool,
+        mitigation_need: bool,
+        air_exchange_suitable: bool,
+        air_exchange_unsuitable: bool,
+        moisture_exchange_unsuitable: bool,
+        outdoor_temperature_unfavorable: bool,
+        cooling: CoolingState,
+    ) -> tuple[WindowRecommendation, list[str]]:
+        """Choose a window action from mitigation data only."""
+        reasons: list[str] = []
+        if air_exchange_unsuitable or moisture_exchange_unsuitable:
+            if windows_open:
+                return WindowRecommendation.CLOSE, ["ventilation_should_stop"]
+            return WindowRecommendation.KEEP_CLOSED, ["window_should_remain_closed"]
+        if outdoor_temperature_unfavorable:
+            if windows_open:
+                return WindowRecommendation.CLOSE, ["ventilation_should_stop"]
+            return WindowRecommendation.KEEP_CLOSED, ["window_should_remain_closed"]
+        if self._window_ids and (
+            (mitigation_need and air_exchange_suitable)
+            or cooling == CoolingState.PASSIVE_RECOMMENDED
+        ):
+            self._had_window_need = mitigation_need and air_exchange_suitable
+            if windows_open:
+                return WindowRecommendation.NONE, reasons
+            return WindowRecommendation.OPEN, ["window_closed"]
+        if windows_open and self._had_window_need:
+            return WindowRecommendation.CLOSE, ["ventilation_complete"]
+        if not windows_open:
+            self._had_window_need = False
+        return WindowRecommendation.NONE, reasons
+
     def _ventilation(
         self, co2: float | None, humidity: float | None, sustained: bool, rapid: bool
     ) -> tuple[VentilationDemand, list[str]]:
@@ -1768,7 +1905,9 @@ class AreaEnvironmentEngine:
         )
         text = CONTEXT[language]
         air_quality = assessment["air_quality"]
-        reasons = assessment["reason_codes"]
+        indoor_reasons = assessment.get("indoor_reason_codes", [])
+        mitigation_reasons = assessment.get("mitigation_reason_codes", [])
+        reasons = [*indoor_reasons, *mitigation_reasons]
         demand = assessment["ventilation_demand"]
         activity = assessment["ventilation_activity"]
         ventilation_reason = self._ventilation_reason(text, reasons, activity)
@@ -1793,33 +1932,41 @@ class AreaEnvironmentEngine:
         if assessment["health_alert"]:
             return "health_alert", text["health_alert"]
         close_context = self._window_close_context(assessment, reasons, text)
-        if close_context and "ventilation_should_stop" in reasons:
-            return close_context
-        if keep_closed := self._window_keep_closed_context(assessment, reasons, text):
-            return keep_closed
+        keep_closed = self._window_keep_closed_context(assessment, reasons, text)
+
+        def with_mitigation(decision: str, message: str) -> tuple[str, str]:
+            """Append an outdoor action only after stating the indoor problem."""
+            mitigation = close_context or keep_closed
+            return (
+                decision,
+                f"{message} {mitigation[1]}" if mitigation else message,
+            )
+
         if air_quality == AirQualityState.CRITICAL:
             if dominant_reason == "co2":
                 if activity == VentilationActivity.VENTILATING:
-                    return (
+                    return with_mitigation(
                         "ventilation_continue_urgent",
                         text["ventilation_continue_urgent"].format(
                             reason=ventilation_reason
                         ),
                     )
-                return "air_quality_critical", text["air_co2_critical"]
-            return "air_quality_critical", text["air_critical"].format(
-                reason=text[dominant_reason]
+                return with_mitigation("air_quality_critical", text["air_co2_critical"])
+            return with_mitigation(
+                "air_quality_critical",
+                text["air_critical"].format(reason=text[dominant_reason]),
             )
         if air_quality == AirQualityState.POOR:
             if dominant_reason == "co2":
                 if activity == VentilationActivity.VENTILATING:
-                    return (
+                    return with_mitigation(
                         "ventilation_continue",
                         text["ventilation_continue"].format(reason=ventilation_reason),
                     )
-                return "air_quality_poor", text["air_co2_poor"]
-            return "air_quality_poor", text["air_poor"].format(
-                reason=text[dominant_reason]
+                return with_mitigation("air_quality_poor", text["air_co2_poor"])
+            return with_mitigation(
+                "air_quality_poor",
+                text["air_poor"].format(reason=text[dominant_reason]),
             )
         if demand == VentilationDemand.URGENT:
             context_key = (
@@ -1827,14 +1974,18 @@ class AreaEnvironmentEngine:
                 if activity == VentilationActivity.VENTILATING
                 else "ventilation_urgent"
             )
-            return context_key, text[context_key].format(reason=ventilation_reason)
+            return with_mitigation(
+                context_key, text[context_key].format(reason=ventilation_reason)
+            )
         if demand == VentilationDemand.REQUIRED:
             context_key = (
                 "ventilation_continue"
                 if activity == VentilationActivity.VENTILATING
                 else "ventilation_required"
             )
-            return context_key, text[context_key].format(reason=ventilation_reason)
+            return with_mitigation(
+                context_key, text[context_key].format(reason=ventilation_reason)
+            )
         if assessment["mould_risk"] == MouldRiskState.HIGH:
             return "mould_risk_high", text["mould_high"]
         if demand == VentilationDemand.RECOMMENDED:
@@ -1843,13 +1994,18 @@ class AreaEnvironmentEngine:
                 if activity == VentilationActivity.VENTILATING
                 else "ventilation_recommended"
             )
-            return context_key, text[context_key].format(reason=ventilation_reason)
+            return with_mitigation(
+                context_key, text[context_key].format(reason=ventilation_reason)
+            )
+        if any(reason.endswith("_current") for reason in indoor_reasons):
+            return with_mitigation(
+                "air_quality_provisional",
+                text["air_provisional"].format(reason=text[dominant_reason]),
+            )
         if close_context:
             return close_context
-        if any(reason.endswith("_current") for reason in reasons):
-            return "air_quality_provisional", text["air_provisional"].format(
-                reason=text[dominant_reason]
-            )
+        if keep_closed:
+            return keep_closed
         if any(
             reason.startswith("primary_temperature_sensor_") for reason in reasons
         ) and any(reason.startswith("primary_humidity_sensor_") for reason in reasons):
@@ -2063,6 +2219,9 @@ class AreaEnvironmentEngine:
             self._air_quality()
         )
         pollutant_state = self._pollutant_state(pollutant_assessments)
+        dominant_indoor_pollutant = self._dominant_indoor_pollutant(
+            pollutant_assessments
+        )
         if self.is_exterior:
             reasons = [*air_reasons, *self._primary_source_reasons()]
             attention = (
@@ -2165,6 +2324,16 @@ class AreaEnvironmentEngine:
         ventilation_demand, ventilation_reasons = self._ventilation(
             co2, humidity, sustained, rapid
         )
+        indoor_source_entities = dict(self._source_entities)
+        indoor_reasons = [
+            *air_reasons,
+            *ventilation_reasons,
+            *self._primary_source_reasons(),
+        ]
+        if mould_risk == MouldRiskState.ELEVATED:
+            indoor_reasons.append("mould_risk_elevated")
+        elif mould_risk == MouldRiskState.HIGH:
+            indoor_reasons.append("mould_risk_high")
         windows_open = self.windows_open
         ventilation_activity = (
             VentilationActivity.VENTILATING
@@ -2177,6 +2346,11 @@ class AreaEnvironmentEngine:
         air_exchange, pollutant_comparisons, exchange_reasons = (
             self._air_exchange_suitability(pollutants, outdoor_pollutants)
         )
+        outdoor_source_entities = {
+            key: value
+            for key, value in self._source_entities.items()
+            if key not in indoor_source_entities
+        }
         outdoor_humidity_ratio = (
             self._humidity_ratio(outdoor, outdoor_humidity)
             if outdoor is not None and outdoor_humidity is not None
@@ -2187,12 +2361,7 @@ class AreaEnvironmentEngine:
             if outdoor is not None and outdoor_humidity is not None
             else None
         )
-        reasons = [*air_reasons, *ventilation_reasons, *exchange_reasons]
-        reasons.extend(self._primary_source_reasons())
-        if mould_risk == MouldRiskState.ELEVATED:
-            reasons.append("mould_risk_elevated")
-        elif mould_risk == MouldRiskState.HIGH:
-            reasons.append("mould_risk_high")
+        mitigation_reasons = list(exchange_reasons)
 
         cooling, cooling_reasons = self._cooling_recommendation(
             temperature,
@@ -2202,18 +2371,22 @@ class AreaEnvironmentEngine:
             outdoor_enthalpy,
             air_exchange,
         )
-        reasons.extend(cooling_reasons)
+        mitigation_reasons.extend(cooling_reasons)
 
         ventilation_need = ventilation_demand in (
             VentilationDemand.RECOMMENDED,
             VentilationDemand.REQUIRED,
             VentilationDemand.URGENT,
         )
+        pollutant_mitigation = self._pollutant_mitigation_needed(
+            pollutant_state, dominant_indoor_pollutant
+        )
+        mitigation_need = ventilation_need or pollutant_mitigation
         if air_exchange == AirExchangeSuitability.UNKNOWN and (
-            ventilation_need
+            mitigation_need
             or comfort in (ComfortState.WARM, ComfortState.HOT, ComfortState.VERY_HOT)
         ):
-            reasons.append("outdoor_air_quality_unknown")
+            mitigation_reasons.append("outdoor_air_quality_unknown")
         humidity_ventilation = any(
             reason
             in {"high_humidity", "prolonged_high_humidity", "rapid_humidity_rise"}
@@ -2230,18 +2403,27 @@ class AreaEnvironmentEngine:
                 if outdoor_humidity_ratio < humidity_ratio
                 else "unfavorable"
             )
-            reasons.append(
+            mitigation_reasons.append(
                 "outdoor_air_drier"
                 if moisture_ventilation == "favorable"
                 else "outdoor_air_more_humid"
             )
-        air_exchange_suitable = air_exchange not in (
-            AirExchangeSuitability.UNFAVORABLE,
-            AirExchangeSuitability.HAZARDOUS,
-        ) and (
-            co2_ventilation
-            or not humidity_ventilation
-            or moisture_ventilation != "unfavorable"
+        air_exchange_suitable = (
+            air_exchange
+            not in (
+                AirExchangeSuitability.UNFAVORABLE,
+                AirExchangeSuitability.HAZARDOUS,
+            )
+            and (
+                co2_ventilation
+                or not humidity_ventilation
+                or moisture_ventilation != "unfavorable"
+            )
+            and (
+                not pollutant_mitigation
+                or air_exchange
+                in (AirExchangeSuitability.FAVORABLE, AirExchangeSuitability.ACCEPTABLE)
+            )
         )
         air_exchange_unsuitable = air_exchange in (
             AirExchangeSuitability.UNFAVORABLE,
@@ -2254,36 +2436,21 @@ class AreaEnvironmentEngine:
             and temperature > self.comfort_max
             and outdoor > temperature
         )
-        window = WindowRecommendation.NONE
-        if air_exchange_unsuitable or (ventilation_need and not air_exchange_suitable):
-            if windows_open:
-                window = WindowRecommendation.CLOSE
-                reasons.append("ventilation_should_stop")
-            else:
-                window = WindowRecommendation.KEEP_CLOSED
-                reasons.append("window_should_remain_closed")
-        elif outdoor_temperature_unfavorable:
-            if windows_open:
-                window = WindowRecommendation.CLOSE
-                reasons.append("ventilation_should_stop")
-            else:
-                window = WindowRecommendation.KEEP_CLOSED
-                reasons.append("window_should_remain_closed")
-        elif self._window_ids and (
-            (ventilation_need and air_exchange_suitable)
-            or cooling == CoolingState.PASSIVE_RECOMMENDED
-        ):
-            self._had_window_need = ventilation_need and air_exchange_suitable
-            window = (
-                WindowRecommendation.NONE if windows_open else WindowRecommendation.OPEN
-            )
-            if not windows_open:
-                reasons.append("window_closed")
-        elif windows_open and self._had_window_need:
-            window = WindowRecommendation.CLOSE
-            reasons.append("ventilation_complete")
-        elif not windows_open:
-            self._had_window_need = False
+        moisture_exchange_unsuitable = (
+            ventilation_need
+            and humidity_ventilation
+            and moisture_ventilation == "unfavorable"
+        )
+        window, window_reasons = self._window_mitigation(
+            windows_open=windows_open,
+            mitigation_need=mitigation_need,
+            air_exchange_suitable=air_exchange_suitable,
+            air_exchange_unsuitable=air_exchange_unsuitable,
+            moisture_exchange_unsuitable=moisture_exchange_unsuitable,
+            outdoor_temperature_unfavorable=outdoor_temperature_unfavorable,
+            cooling=cooling,
+        )
+        mitigation_reasons.extend(window_reasons)
 
         ventilation_request = VentilationFanRequest.NONE
         if (
@@ -2291,7 +2458,7 @@ class AreaEnvironmentEngine:
             or rapid
             or any(
                 reason in {"very_high_co2", "high_humidity", "rapid_humidity_rise"}
-                for reason in reasons
+                for reason in indoor_reasons
             )
         ):
             ventilation_request = VentilationFanRequest.HIGH
@@ -2299,6 +2466,27 @@ class AreaEnvironmentEngine:
             ventilation_request = VentilationFanRequest.LOW
         if humidity_ventilation and not co2_ventilation and not air_exchange_suitable:
             ventilation_request = VentilationFanRequest.NONE
+
+        ventilation_strategy = self._ventilation_strategy(
+            ventilation_demand,
+            dominant_indoor_pollutant,
+            air_exchange,
+            humidity_ventilation,
+            moisture_ventilation,
+            pollutant_mitigation,
+        )
+        air_cleaning = self._air_cleaning_recommendation(
+            pollutant_state,
+            dominant_indoor_pollutant,
+            air_exchange,
+        )
+        if ventilation_strategy == VentilationStrategy.FILTERED_MECHANICAL:
+            mitigation_reasons.append("filtered_mechanical_preferred")
+        if air_cleaning in (
+            AirCleaningRecommendation.RECOMMENDED,
+            AirCleaningRecommendation.STRONGLY_RECOMMENDED,
+        ):
+            mitigation_reasons.append("air_cleaning_preferred")
 
         circulation_request = CirculationFanRequest.NONE
         if self.area.is_occupied():
@@ -2315,7 +2503,10 @@ class AreaEnvironmentEngine:
         )
         health_alert = bool(health_state and health_state.state == STATE_ON)
         if health_alert:
-            reasons.append("health_alert")
+            indoor_reasons.append("health_alert")
+        indoor_reasons = list(dict.fromkeys(indoor_reasons))
+        mitigation_reasons = list(dict.fromkeys(mitigation_reasons))
+        reasons = [*indoor_reasons, *mitigation_reasons]
         critical = (
             health_alert
             or air_quality == AirQualityState.CRITICAL
@@ -2409,6 +2600,8 @@ class AreaEnvironmentEngine:
             "ventilation": ventilation_demand,
             "ventilation_demand": ventilation_demand,
             "ventilation_activity": ventilation_activity,
+            "ventilation_strategy": ventilation_strategy,
+            "air_cleaning_recommendation": air_cleaning,
             "cooling": cooling,
             "temperature": round(temperature, 2) if temperature is not None else None,
             "relative_humidity": round(humidity, 2) if humidity is not None else None,
@@ -2445,6 +2638,11 @@ class AreaEnvironmentEngine:
             "outdoor_pollutant_assessments": outdoor_pollutant_assessments,
             "pollutants": pollutants,
             "pollutant_assessments": pollutant_assessments,
+            "indoor_pollutant_measurements": pollutants,
+            "indoor_pollutant_assessments": pollutant_assessments,
+            "dominant_indoor_pollutant": dominant_indoor_pollutant,
+            "indoor_source_entities": indoor_source_entities,
+            "outdoor_source_entities": outdoor_source_entities,
             "source_entities": dict(self._source_entities),
             "ignored_sources": dict(self._ignored_sources),
             "window_recommendation": window,
@@ -2455,7 +2653,9 @@ class AreaEnvironmentEngine:
                 key for key, evaluated in evaluated_dimensions.items() if evaluated
             ),
             "health_alert": health_alert,
-            "reason_codes": list(dict.fromkeys(reasons)),
+            "indoor_reason_codes": indoor_reasons,
+            "mitigation_reason_codes": mitigation_reasons,
+            "reason_codes": reasons,
             "humidity_warning_duration_seconds": int(humidity_duration),
         }
         if surface_temperature is not None:
@@ -2558,6 +2758,8 @@ class AreaEnvironmentEngine:
             "ventilation",
             "ventilation_demand",
             "ventilation_activity",
+            "ventilation_strategy",
+            "air_cleaning_recommendation",
             "cooling",
             "health_alert",
         )
@@ -2573,6 +2775,12 @@ class AreaEnvironmentEngine:
             },
             "recommendations": {
                 "window": str(self.assessment.get("window_recommendation", "none")),
+                "ventilation_strategy": str(
+                    self.assessment.get("ventilation_strategy", "unknown")
+                ),
+                "air_cleaning": str(
+                    self.assessment.get("air_cleaning_recommendation", "unknown")
+                ),
                 "ventilation_fan": str(
                     self.assessment.get("ventilation_fan_request", "none")
                 ),
@@ -2581,6 +2789,10 @@ class AreaEnvironmentEngine:
                 ),
             },
             "context": self.assessment.get("context", ""),
+            "indoor_reason_codes": list(self.assessment.get("indoor_reason_codes", [])),
+            "mitigation_reason_codes": list(
+                self.assessment.get("mitigation_reason_codes", [])
+            ),
             "reason_codes": list(self.assessment.get("reason_codes", [])),
             "source_summary": {
                 key: {
@@ -2588,6 +2800,24 @@ class AreaEnvironmentEngine:
                     "count": len(value.get("entities", [])),
                 }
                 for key, value in self.assessment.get("source_entities", {}).items()
+            },
+            "indoor_source_summary": {
+                key: {
+                    "mode": value.get("mode", "unknown"),
+                    "count": len(value.get("entities", [])),
+                }
+                for key, value in self.assessment.get(
+                    "indoor_source_entities", {}
+                ).items()
+            },
+            "outdoor_source_summary": {
+                key: {
+                    "mode": value.get("mode", "unknown"),
+                    "count": len(value.get("entities", [])),
+                }
+                for key, value in self.assessment.get(
+                    "outdoor_source_entities", {}
+                ).items()
             },
             "primary_sources": {
                 key: {
@@ -2598,6 +2828,13 @@ class AreaEnvironmentEngine:
                 if key in ("temperature", "humidity")
             },
             "pollutant_assessments": self.assessment.get("pollutant_assessments", {}),
+            "indoor_pollutant_assessments": self.assessment.get(
+                "indoor_pollutant_assessments", {}
+            ),
+            "outdoor_pollutant_assessments": self.assessment.get(
+                "outdoor_pollutant_assessments", {}
+            ),
+            "pollutant_comparisons": self.assessment.get("pollutant_comparisons", {}),
             "ignored_sources": self._ignored_source_counts(),
             "pollutant_sources": {
                 key: len(value.get("entities", []))

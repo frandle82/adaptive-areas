@@ -663,6 +663,27 @@
               "unknown": "Unknown"
             }
           },
+          "ventilation_strategy": {
+            "name": "Ventilation strategy",
+            "state": {
+              "none": "None",
+              "passive": "Passive",
+              "mechanical": "Mechanical",
+              "filtered_mechanical": "Filtered mechanical",
+              "avoid_outdoor_air": "Avoid outdoor air",
+              "unknown": "Unknown"
+            }
+          },
+          "air_cleaning_recommendation": {
+            "name": "Air cleaning recommendation",
+            "state": {
+              "none": "None",
+              "recommended": "Recommended",
+              "strongly_recommended": "Strongly recommended",
+              "not_effective": "Not effective for this pollutant",
+              "unknown": "Unknown"
+            }
+          },
           "ventilation_activity": {
             "name": "Ventilation activity",
             "state": {
@@ -767,12 +788,26 @@
           "pollutant_comparisons": {"name": "Indoor/outdoor pollutant comparison"},
           "outdoor_pollutant_measurements": {"name": "Outdoor pollutant measurements"},
           "outdoor_pollutant_assessments": {"name": "Outdoor pollutant sources"},
+          "indoor_pollutant_measurements": {"name": "Indoor pollutant measurements"},
+          "indoor_pollutant_assessments": {"name": "Indoor pollutant assessments"},
+          "dominant_indoor_pollutant": {
+            "name": "Dominant indoor pollutant",
+            "state": {
+              "co2": "CO₂", "pm25": "PM2.5", "pm10": "PM10",
+              "co": "Carbon monoxide", "no2": "Nitrogen dioxide",
+              "ozone": "Ozone", "voc": "VOC", "unknown": "Unknown"
+            }
+          },
           "pollutant_measurements": {"name": "Pollutant measurements"},
           "pollutant_assessments": {"name": "Pollutant assessments"},
+          "indoor_source_entities": {"name": "Indoor source entities"},
+          "outdoor_source_entities": {"name": "Outdoor source entities"},
           "source_entities": {"name": "Entities used"},
           "ignored_sources": {"name": "Ignored entities"},
           "humidity_warning_duration_seconds": {"name": "High-humidity duration"},
           "context": {"name": "Context"},
+          "indoor_reason_codes": {"name": "Indoor reason codes"},
+          "mitigation_reason_codes": {"name": "Mitigation reason codes"},
           "reason_codes": {
             "name": "Reason codes",
             "state": {
@@ -812,7 +847,9 @@
               "outdoor_air_drier": "Outdoor air has less moisture",
               "outdoor_air_more_humid": "Outdoor air has equal or greater moisture",
               "window_closed": "A relevant window is closed",
-              "ventilation_complete": "Ventilation demand has cleared"
+              "ventilation_complete": "Ventilation demand has cleared",
+              "filtered_mechanical_preferred": "Filtered mechanical ventilation is preferred",
+              "air_cleaning_preferred": "Air cleaning is preferred"
             }
           }
         }

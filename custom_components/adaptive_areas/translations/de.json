@@ -663,6 +663,27 @@
                             "unknown": "Unbekannt"
                         }
                     },
+                    "ventilation_strategy": {
+                        "name": "Lüftungsstrategie",
+                        "state": {
+                            "none": "Keine",
+                            "passive": "Passiv",
+                            "mechanical": "Mechanisch",
+                            "filtered_mechanical": "Gefiltert mechanisch",
+                            "avoid_outdoor_air": "Außenluft vermeiden",
+                            "unknown": "Unbekannt"
+                        }
+                    },
+                    "air_cleaning_recommendation": {
+                        "name": "Luftreinigungsempfehlung",
+                        "state": {
+                            "none": "Keine",
+                            "recommended": "Empfohlen",
+                            "strongly_recommended": "Dringend empfohlen",
+                            "not_effective": "Für diesen Schadstoff nicht wirksam",
+                            "unknown": "Unbekannt"
+                        }
+                    },
                     "ventilation_activity": {
                         "name": "Lüftungsaktivität",
                         "state": {
@@ -767,12 +788,26 @@
                     "pollutant_comparisons": {"name": "Schadstoffvergleich innen/außen"},
                     "outdoor_pollutant_measurements": {"name": "Schadstoffmesswerte außen"},
                     "outdoor_pollutant_assessments": {"name": "Schadstoffquellen außen"},
+                    "indoor_pollutant_measurements": {"name": "Schadstoffmesswerte innen"},
+                    "indoor_pollutant_assessments": {"name": "Schadstoffbewertungen innen"},
+                    "dominant_indoor_pollutant": {
+                        "name": "Dominanter Innenraumschadstoff",
+                        "state": {
+                            "co2": "CO₂", "pm25": "PM2,5", "pm10": "PM10",
+                            "co": "Kohlenmonoxid", "no2": "Stickstoffdioxid",
+                            "ozone": "Ozon", "voc": "VOC", "unknown": "Unbekannt"
+                        }
+                    },
                     "pollutant_measurements": {"name": "Schadstoffmesswerte"},
                     "pollutant_assessments": {"name": "Schadstoffbewertungen"},
+                    "indoor_source_entities": {"name": "Innenraum-Quellentitäten"},
+                    "outdoor_source_entities": {"name": "Außenluft-Quellentitäten"},
                     "source_entities": {"name": "Verwendete Entitäten"},
                     "ignored_sources": {"name": "Verworfene Entitäten"},
                     "humidity_warning_duration_seconds": {"name": "Dauer der hohen Luftfeuchtigkeit"},
                     "context": {"name": "Kontext"},
+                    "indoor_reason_codes": {"name": "Innenraum-Grundcodes"},
+                    "mitigation_reason_codes": {"name": "Maßnahmen-Grundcodes"},
                     "reason_codes": {
                         "name": "Grundcodes",
                         "state": {
@@ -812,7 +847,9 @@
                             "outdoor_air_drier": "Die Außenluft enthält weniger Feuchtigkeit",
                             "outdoor_air_more_humid": "Die Außenluft enthält gleich viel oder mehr Feuchtigkeit",
                             "window_closed": "Ein relevantes Fenster ist geschlossen",
-                            "ventilation_complete": "Der Lüftungsbedarf ist beendet"
+                            "ventilation_complete": "Der Lüftungsbedarf ist beendet",
+                            "filtered_mechanical_preferred": "Gefilterte mechanische Lüftung wird bevorzugt",
+                            "air_cleaning_preferred": "Luftreinigung wird bevorzugt"
                         }
                     }
                 }

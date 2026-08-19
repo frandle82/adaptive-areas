@@ -60,6 +60,7 @@ from custom_components.adaptive_areas.const import (
     CONF_TYPE,
     AREA_TYPE_INTERIOR,
     AREA_TYPE_EXTERIOR,
+    AirCleaningRecommendation,
     AirExchangeSuitability,
     AirQualityState,
     CirculationFanRequest,
@@ -74,6 +75,7 @@ from custom_components.adaptive_areas.const import (
     VentilationActivity,
     VentilationDemand,
     VentilationFanRequest,
+    VentilationStrategy,
     VentilationState,
     WindowRecommendation,
     DATA_AREA_OBJECT,
@@ -452,7 +454,7 @@ def test_co2_thresholds_hysteresis_and_window(hass: HomeAssistant) -> None:
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
     assert engine.assessment["ventilation_fan_request"] == VentilationFanRequest.LOW
     assert engine.assessment["context"] == (
-        "Lüften empfohlen: Die CO₂-Konzentration ist erhöht."
+        "Die CO₂-Konzentration ist erhöht. Luftaustausch wird empfohlen."
     )
 
     hass.states.async_set(
@@ -518,7 +520,8 @@ def test_urgent_co2_context_reflects_current_ventilation_activity(
     assert engine.assessment["ventilation_activity"] == VentilationActivity.INACTIVE
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
     assert engine.assessment["context"] == (
-        "Sofort lüften: Die CO₂-Konzentration ist sehr hoch."
+        "Die CO₂-Konzentration im Raum ist sehr hoch. Luftaustausch ist dringend "
+        "erforderlich."
     )
 
     hass.states.async_set(
@@ -567,6 +570,16 @@ def test_hazardous_outdoor_air_stops_urgent_ventilation(
     )
     hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: exterior}
     engine = AreaEnvironmentEngine(interior)
+    indoor_state = engine.assessment["pollutant_state"]
+    assert indoor_state == PollutantState.CRITICAL
+    assert engine.assessment["dominant_indoor_pollutant"] == "co2"
+    assert engine.assessment["air_exchange_suitability"] == (
+        AirExchangeSuitability.FAVORABLE
+    )
+    assert engine.assessment["ventilation_strategy"] == VentilationStrategy.PASSIVE
+    assert engine.assessment["air_cleaning_recommendation"] == (
+        AirCleaningRecommendation.NOT_EFFECTIVE
+    )
     assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
 
     hass.states.async_set(
@@ -588,14 +601,28 @@ def test_hazardous_outdoor_air_stops_urgent_ventilation(
     engine.evaluate()
 
     assert engine.assessment["ventilation_demand"] == VentilationDemand.URGENT
+    assert engine.assessment["pollutant_state"] == indoor_state
+    assert engine.assessment["ventilation_strategy"] == (
+        VentilationStrategy.FILTERED_MECHANICAL
+    )
+    assert engine.assessment["air_cleaning_recommendation"] == (
+        AirCleaningRecommendation.NOT_EFFECTIVE
+    )
     assert engine.assessment["ventilation_activity"] == VentilationActivity.VENTILATING
     assert engine.assessment["window_recommendation"] == WindowRecommendation.CLOSE
     assert "ventilation_should_stop" in engine.assessment["reason_codes"]
     assert "air_exchange_hazardous" in engine.assessment["reason_codes"]
     assert "outdoor_air_polluted" in engine.assessment["reason_codes"]
+    assert "outdoor_air_polluted" not in engine.assessment["indoor_reason_codes"]
+    assert "high_co2" not in engine.assessment["mitigation_reason_codes"]
+    indoor_sources = engine.assessment["indoor_source_entities"]
+    outdoor_sources = engine.assessment["outdoor_source_entities"]
+    assert "outdoor_pm25" not in indoor_sources
+    assert set(indoor_sources).isdisjoint(outdoor_sources)
+    assert "outdoor_pm25" in outdoor_sources
     assert engine.assessment["context"] == (
-        "Lüften sofort beenden und Fenster schließen: Die Außenluft ist derzeit stark "
-        "belastet."
+        "Sofort weiterlüften: Die CO₂-Konzentration ist weiterhin sehr hoch. Lüften "
+        "sofort beenden und Fenster schließen: Die Außenluft ist derzeit stark belastet."
     )
 
 
@@ -637,8 +664,10 @@ def test_hazardous_outdoor_air_closes_manually_opened_window(
     assert "ventilation_should_stop" in assessment["reason_codes"]
     assert "air_exchange_hazardous" in assessment["reason_codes"]
     assert assessment["context"] == (
-        "Lüften sofort beenden und Fenster schließen: Die Außenluft ist derzeit stark "
-        "belastet."
+        "Der aktuelle Messwert zeigt eine erhöhte Schadstoffbelastung: die "
+        "Feinstaubbelastung PM2,5 ist erhöht. Die 24-Stunden-Bewertung bleibt "
+        "vorläufig, bis genügend Messhistorie vorliegt. Lüften sofort beenden und "
+        "Fenster schließen: Die Außenluft ist derzeit stark belastet."
     )
 
 
@@ -1068,6 +1097,7 @@ def test_pollutant_state_uses_worst_of_multiple_good_pollutants(
     assessment = AreaEnvironmentEngine(area).assessment
 
     assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert assessment["dominant_indoor_pollutant"] == "pm25"
     assert set(assessment["pollutants"]) == {"pm25", "pm10", "no2", "ozone"}
 
 
@@ -1626,8 +1656,9 @@ def test_outdoor_moisture_can_keep_window_closed(hass: HomeAssistant) -> None:
     assert "window_should_remain_closed" in assessment["reason_codes"]
     assert assessment["ventilation_fan_request"] == VentilationFanRequest.NONE
     assert assessment["context"] == (
-        "Nicht lüften: Die Außenluft ist derzeit feuchter und würde den Feuchteabbau "
-        "nicht unterstützen."
+        "Die Luftfeuchtigkeit ist sehr hoch. Luftaustausch ist erforderlich. Nicht "
+        "lüften: Die Außenluft ist derzeit feuchter und würde den Feuchteabbau nicht "
+        "unterstützen."
     )
 
 
@@ -1679,8 +1710,8 @@ def test_outdoor_moisture_stops_manually_opened_window(
     assert "ventilation_should_stop" in assessment["reason_codes"]
     assert "outdoor_air_more_humid" in assessment["reason_codes"]
     assert assessment["context"] == (
-        "Lüften beenden und Fenster schließen: Die Außenluft ist für den Feuchteabbau "
-        "derzeit ungünstig."
+        "Weiter lüften: Die Luftfeuchtigkeit ist sehr hoch. Lüften beenden und Fenster "
+        "schließen: Die Außenluft ist für den Feuchteabbau derzeit ungünstig."
     )
 
 
@@ -1849,7 +1880,8 @@ def test_health_warning_has_highest_context_priority(hass: HomeAssistant) -> Non
 
     assert assessment["health_alert"] is True
     assert assessment["dominant_decision"] == "health_alert"
-    assert assessment["reason_codes"][-1] == "health_alert"
+    assert "health_alert" in assessment["indoor_reason_codes"]
+    assert "health_alert" not in assessment["mitigation_reason_codes"]
 
 
 def test_german_context_is_human_readable(hass: HomeAssistant) -> None:
@@ -1859,7 +1891,7 @@ def test_german_context_is_human_readable(hass: HomeAssistant) -> None:
     _sensor(hass, area, "sensor.co2", 1500, SensorDeviceClass.CO2, "ppm")
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["context"].startswith("Lüften empfohlen")
+    assert assessment["context"].startswith("Die CO₂-Konzentration")
     assert "high_co2" in assessment["reason_codes"]
 
 
@@ -1942,7 +1974,8 @@ def test_polluted_exterior_air_blocks_window_exchange(hass: HomeAssistant) -> No
         "exterior_air_quality"
     )
     assert assessment["context"] == (
-        "Fenster geschlossen halten: Die Außenluft ist derzeit stark belastet."
+        "Die CO₂-Konzentration ist erhöht. Luftaustausch wird empfohlen. Fenster "
+        "geschlossen halten: Die Außenluft ist derzeit stark belastet."
     )
 
 
@@ -1982,8 +2015,9 @@ def test_more_polluted_outdoor_air_keeps_window_closed(hass: HomeAssistant) -> N
     assert assessment["window_recommendation"] == WindowRecommendation.KEEP_CLOSED
     assert "window_should_remain_closed" in assessment["reason_codes"]
     assert assessment["context"] == (
-        "Fenster geschlossen halten: Die Außenluft ist derzeit stärker belastet "
-        "als die Innenluft."
+        "Die CO₂-Konzentration ist erhöht. Luftaustausch wird empfohlen. Fenster "
+        "geschlossen halten: Die Außenluft ist derzeit stärker belastet als die "
+        "Innenluft."
     )
 
     hass.states.async_set(
@@ -1996,8 +2030,79 @@ def test_more_polluted_outdoor_air_keeps_window_closed(hass: HomeAssistant) -> N
     assert engine.assessment["window_recommendation"] == WindowRecommendation.CLOSE
     assert "ventilation_should_stop" in engine.assessment["reason_codes"]
     assert engine.assessment["context"] == (
-        "Lüften beenden und Fenster schließen: Die Außenluft ist inzwischen stärker "
-        "belastet als die Innenluft."
+        "Weiter lüften: Die CO₂-Konzentration ist erhöht. Lüften beenden und Fenster "
+        "schließen: Die Außenluft ist inzwischen stärker belastet als die Innenluft."
+    )
+
+
+def test_particle_mitigation_changes_without_changing_indoor_state(
+    hass: HomeAssistant,
+) -> None:
+    """Outdoor particles select airing or cleaning without changing indoor severity."""
+    interior = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
+    _sensor(
+        hass,
+        interior,
+        "sensor.indoor_pm25",
+        80,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    hass.states.async_set(
+        "binary_sensor.window",
+        STATE_OFF,
+        {ATTR_DEVICE_CLASS: BinarySensorDeviceClass.WINDOW},
+    )
+    exterior = _area(hass, {CONF_TYPE: AREA_TYPE_EXTERIOR})
+    _sensor(
+        hass,
+        exterior,
+        "sensor.outdoor_pm25",
+        5,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    hass.data.setdefault(MODULE_DATA, {})["exterior"] = {DATA_AREA_OBJECT: exterior}
+    engine = AreaEnvironmentEngine(interior)
+
+    indoor_state = engine.assessment["pollutant_state"]
+    assert indoor_state == PollutantState.CRITICAL
+    assert engine.assessment["dominant_indoor_pollutant"] == "pm25"
+    assert engine.assessment["ventilation_demand"] == VentilationDemand.UNKNOWN
+    assert engine.assessment["ventilation_strategy"] == VentilationStrategy.PASSIVE
+    assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
+    assert engine.assessment["air_cleaning_recommendation"] == (
+        AirCleaningRecommendation.RECOMMENDED
+    )
+
+    hass.states.async_set(
+        "sensor.outdoor_pm25",
+        "200",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.PM25,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        },
+    )
+    engine.evaluate()
+
+    assert engine.assessment["pollutant_state"] == indoor_state
+    assert engine.assessment["indoor_pollutant_measurements"] == {"pm25": 80.0}
+    assert engine.assessment["air_exchange_suitability"] == (
+        AirExchangeSuitability.HAZARDOUS
+    )
+    assert engine.assessment["ventilation_strategy"] == (
+        VentilationStrategy.AVOID_OUTDOOR_AIR
+    )
+    assert engine.assessment["window_recommendation"] == (
+        WindowRecommendation.KEEP_CLOSED
+    )
+    assert engine.assessment["air_cleaning_recommendation"] == (
+        AirCleaningRecommendation.STRONGLY_RECOMMENDED
+    )
+    assert "outdoor_air_polluted" not in engine.assessment["indoor_reason_codes"]
+    assert not any(
+        reason.startswith("high_pm25")
+        for reason in engine.assessment["mitigation_reason_codes"]
     )
 
 
@@ -2192,18 +2297,28 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert state is not None
     assert state.state == EnvironmentState.ATTENTION
-    assert state.attributes["humidex"] is not None
+    assert "humidex" not in state.attributes
     assert state.attributes["comfort"] != ComfortState.UNKNOWN
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
     assert state.attributes["pollutant_state"] == PollutantState.CRITICAL
+    assert state.attributes["dominant_indoor_pollutant"] == "pm25"
+    assert state.attributes["indoor_source_entities"] == sorted(
+        [temperature.entity_id, humidity.entity_id, pm25.entity_id]
+    )
+    assert state.attributes["outdoor_source_entities"] == []
     assert state.attributes["source_entities"] == sorted(
         [temperature.entity_id, humidity.entity_id, pm25.entity_id]
     )
+    assert state.attributes["indoor_pollutant_measurements"]["pm25"] == 80
     assert state.attributes["pollutant_measurements"]["pm25"] == 80
+    assert (
+        state.attributes["indoor_pollutant_assessments"]["pm25"]["current_state"]
+        == AirQualityState.CRITICAL
+    )
     assert state.attributes["pollutant_assessments"]["pm25"]["current_state"] == (
         AirQualityState.CRITICAL
     )
-    assert state.attributes["ignored_sources"] == {}
+    assert "ignored_sources" not in state.attributes
     assert "PM2.5" in state.attributes["context"]
     assert all(
         isinstance(entity_id, str) for entity_id in state.attributes["source_entities"]
@@ -2220,6 +2335,26 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     assert "cleaning_recommendation" not in state.attributes
     assert "surface_temperature" not in state.attributes
     assert "surface_relative_humidity" not in state.attributes
+    for removed in (
+        "temperature_state",
+        "humidity_comfort_state",
+        "combined_comfort",
+        "ventilation",
+        "apparent_temperature",
+        "thermal_profile",
+        "dew_point",
+        "absolute_humidity",
+        "humidity_ratio",
+        "enthalpy",
+        "mould_quality",
+        "mould_warning_duration_seconds",
+        "humidity_warning_duration_seconds",
+        "outdoor_humidity_ratio",
+        "outdoor_enthalpy",
+        "outdoor_pollutant_assessments",
+        "pollutant_comparisons",
+    ):
+        assert removed not in state.attributes
 
     await shutdown_integration(hass, [entry])
 
@@ -2657,12 +2792,20 @@ def test_environment_translation_value_coverage() -> None:
             "ventilation_fan_request": "Fan need",
             "circulation_fan_request": "Air circulation need",
             "moisture_ventilation": "Dehumidification by ventilation",
+            "ventilation_strategy": "Ventilation strategy",
+            "air_cleaning_recommendation": "Air cleaning recommendation",
+            "indoor_source_entities": "Indoor source entities",
+            "outdoor_source_entities": "Outdoor source entities",
             "source_entities": "Entities used",
         },
         "de": {
             "ventilation_fan_request": "Lüfterbedarf",
             "circulation_fan_request": "Umluftbedarf",
             "moisture_ventilation": "Entfeuchtung durch Lüften",
+            "ventilation_strategy": "Lüftungsstrategie",
+            "air_cleaning_recommendation": "Luftreinigungsempfehlung",
+            "indoor_source_entities": "Innenraum-Quellentitäten",
+            "outdoor_source_entities": "Außenluft-Quellentitäten",
             "source_entities": "Verwendete Entitäten",
         },
     }
@@ -2679,6 +2822,10 @@ def test_environment_translation_value_coverage() -> None:
         "pollutant_state": {str(state) for state in PollutantState},
         "ventilation": {str(state) for state in VentilationState},
         "ventilation_demand": {str(state) for state in VentilationDemand},
+        "ventilation_strategy": {str(state) for state in VentilationStrategy},
+        "air_cleaning_recommendation": {
+            str(state) for state in AirCleaningRecommendation
+        },
         "ventilation_activity": {str(state) for state in VentilationActivity},
         "cooling": {str(state) for state in CoolingState},
         "window_recommendation": {str(state) for state in WindowRecommendation},
@@ -2686,6 +2833,16 @@ def test_environment_translation_value_coverage() -> None:
         "circulation_fan_request": {str(state) for state in CirculationFanRequest},
         "moisture_ventilation": {"favorable", "unfavorable", "unknown"},
         "air_exchange_suitability": {str(state) for state in AirExchangeSuitability},
+        "dominant_indoor_pollutant": {
+            "co2",
+            "pm25",
+            "pm10",
+            "co",
+            "no2",
+            "ozone",
+            "voc",
+            "unknown",
+        },
         "available_capabilities": {
             "temperature",
             "humidity",
@@ -2724,13 +2881,19 @@ def test_environment_translation_value_coverage() -> None:
         "outdoor_enthalpy",
         "pollutant_measurements",
         "pollutant_assessments",
+        "indoor_pollutant_measurements",
+        "indoor_pollutant_assessments",
         "pollutant_comparisons",
         "outdoor_pollutant_measurements",
         "outdoor_pollutant_assessments",
         "source_entities",
+        "indoor_source_entities",
+        "outdoor_source_entities",
         "ignored_sources",
         "humidity_warning_duration_seconds",
         "context",
+        "indoor_reason_codes",
+        "mitigation_reason_codes",
     }
 
     for language in ("en", "de"):

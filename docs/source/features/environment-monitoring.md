@@ -68,11 +68,21 @@ NO₂ additionally has a rolling one-hour assessment. [German Environment Agency
 
 TVOC mass concentration is only a [German AIR precaution indicator](https://www.umweltbundesamt.de/en/topics/health/commissions-working-groups/german-committee-on-indoor-air-guide-values): values above 950 µg/m³ are marked elevated, not toxicological. Generic VOC ppb and AQI values are exposed as `unsupported_scale` and are not mapped to invented universal health bands.
 
-`air_exchange_suitability` compares indoor and exterior PM2.5, PM10, NO₂, and ozone as `favorable`, `acceptable`, `unfavorable`, `hazardous`, or `unknown`. Cleaner outdoor air supports exchange. Worse or hazardous outdoor air keeps windows closed and blocks passive cooling; configured mechanical ventilation remains available. Unknown outdoor pollution never becomes “good”.
+### Indoor assessment and mitigation
+
+Indoor Area Climate evaluates the Area before loading any exterior reference. `pollutant_state`, `indoor_pollutant_measurements`, `indoor_pollutant_assessments`, `dominant_indoor_pollutant`, `ventilation_demand`, `indoor_source_entities`, and `indoor_reason_codes` therefore describe only the indoor Area. Exterior measurements never improve or worsen these values.
+
+Only after that local assessment does Adaptive Areas compare the available exterior reference. `air_exchange_suitability` compares indoor and exterior PM2.5, PM10, NO₂, and ozone as `favorable`, `acceptable`, `unfavorable`, `hazardous`, or `unknown`. The comparison affects `ventilation_strategy`, `air_cleaning_recommendation`, `window_recommendation`, moisture ventilation, and cooling—not indoor severity.
+
+`ventilation_demand` answers whether indoor air exchange is needed. `ventilation_strategy` separately recommends `none`, `passive`, `mechanical`, `filtered_mechanical`, `avoid_outdoor_air`, or `unknown`. Particle pollution can make recirculating air cleaning recommended, especially when outdoor air is worse. Air cleaning is explicitly `not_effective` for CO₂ and is not presented as a substitute for required air exchange; VOC mitigation still requires source control and suitable exchange rather than an ordinary particle filter.
+
+`indoor_source_entities` and `outdoor_source_entities` keep attribution separate. `indoor_reason_codes` describe the local assessment; `mitigation_reason_codes` describe exterior suitability and the selected action. The older `source_entities`, `pollutant_measurements`, `pollutant_assessments`, `reason_codes`, and `air_quality` attributes remain compatibility aliases for one transition period. New automations should use the explicit indoor names and `pollutant_state`.
+
+Detailed scientific and diagnostic fields—including psychrometric values, assessment coverage, pollutant comparisons, ignored sources, and indoor/outdoor pollutant assessments—remain available in integration diagnostics without crowding the normal indoor entity attributes. Exterior Area Climate output remains unchanged.
 
 ## Recommendations, context, and fan roles
 
-Indoor Area Climate sensor exposes independent temperature, humidity, combined comfort, mould, air-quality, ventilation, cooling, window, ventilation-fan, and circulation-fan results. `context` explains the dominant current decision in English or German; `reason_codes` supplies stable machine values. Dominance order is hazard, critical air quality, urgent ventilation, high mould risk, recommended ventilation, cooling, comfort, then unremarkable state.
+The Indoor Area Climate sensor exposes independent comfort, humidity, mould, pollutant, ventilation-demand, mitigation, cooling, window, ventilation-fan, and circulation-fan results. `context` states the indoor problem first and then the suitable mitigation. Stable machine reasons are split between `indoor_reason_codes` and `mitigation_reason_codes`.
 
 Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Area Climate publishes abstract ventilation and circulation requests but never stores or controls concrete `fan.*` entities. The Fan Groups feature owns actual fan membership and consumes Area Climate requests when both features are enabled.
 

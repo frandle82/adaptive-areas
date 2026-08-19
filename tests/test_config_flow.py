@@ -960,7 +960,8 @@ async def test_arbeitszimmer_primary_sources_survive_real_options_workflow(
         "humidity_ratio",
         "enthalpy",
     ):
-        assert room_climate.attributes[key] is not None
+        assert key not in room_climate.attributes
+        assert area.environment.diagnostics()["derived"][key] is not None
     for key in (
         "temperature",
         "relative_humidity",
