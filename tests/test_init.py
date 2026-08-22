@@ -1,12 +1,14 @@
 """Test initializing the system."""
 
 import logging
+from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.const import STATE_OFF
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 
 from custom_components.adaptive_areas.const import (
     CONF_ENABLED_FEATURES,
@@ -14,6 +16,9 @@ from custom_components.adaptive_areas.const import (
     CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SECONDS_TO_DUE,
     DOMAIN,
+    DATA_AREA_OBJECT,
+    MODULE_DATA,
+    SERVICE_MARK_CLEANED,
 )
 
 from tests.const import DEFAULT_MOCK_AREA
@@ -38,6 +43,35 @@ async def test_init_default_config(
     )
 
     assert_state(area_binary_sensor, STATE_OFF)
+
+
+async def test_unload_removes_owned_resources_and_registry_listeners(
+    hass: HomeAssistant, basic_config_entry: MockConfigEntry
+) -> None:
+    """Unload leaves no Area callbacks, shared services, or registry subscriber."""
+    await init_integration(hass, [basic_config_entry])
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+
+    with patch.object(
+        hass.config_entries,
+        "async_update_entry",
+        wraps=hass.config_entries.async_update_entry,
+    ) as update_entry:
+        await shutdown_integration(hass, [basic_config_entry])
+        update_entry.reset_mock()
+        hass.bus.async_fire(
+            EVENT_ENTITY_REGISTRY_UPDATED,
+            {"action": "remove", "entity_id": "sensor.removed_after_unload"},
+        )
+        await hass.async_block_till_done()
+        update_entry.assert_not_called()
+
+    assert area._remove_load_listener is None
+    assert area._remove_dispatcher_listener is None
+    assert area._remove_reload_timer is None
+    assert area.environment is None
+    assert area.room_usage is None
+    assert not hass.services.has_service(DOMAIN, SERVICE_MARK_CLEANED)
 
 
 async def test_cleaning_threshold_migrates_from_seconds_to_minutes(

@@ -2513,6 +2513,23 @@ async def test_enabled_room_climate_publishes_pollutant_context(
         AirQualityState.UNKNOWN
     )
     assert state.attributes["pollutant_assessments"]["pm25"]["provisional_alert"]
+    assert {
+        "comfort",
+        "humidity",
+        "mould_risk",
+        "pollutant_state",
+        "indoor_pollutant_measurements",
+        "ventilation_demand",
+        "air_exchange_suitability",
+        "ventilation_strategy",
+        "window_recommendation",
+        "air_cleaning_recommendation",
+        "available_capabilities",
+        "context",
+        # Deprecated aliases remain part of the compatibility contract.
+        "pollutant_measurements",
+        "pollutant_assessments",
+    } <= set(state.attributes)
     assert "ignored_sources" not in state.attributes
     assert "PM2.5" in state.attributes["context"]
     assert all(

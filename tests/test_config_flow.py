@@ -1,5 +1,7 @@
 """Tests for config flow behavior."""
 
+import pytest
+
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant import config_entries
@@ -11,7 +13,7 @@ from homeassistant.const import (
     ATTR_UNIT_OF_MEASUREMENT,
     UnitOfTemperature,
 )
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
@@ -151,6 +153,49 @@ async def test_optional_feature_menu_follows_enabled_features(hass) -> None:
     assert CONF_FEATURE_ROOM_USAGE in flow.area_options[CONF_ENABLED_FEATURES]
 
     await shutdown_integration(hass, [entry])
+
+
+async def test_initial_area_setup_defaults_and_duplicate_prevention(hass) -> None:
+    """The user flow stores a physical Area once with current schema defaults."""
+    area_registry = async_get_area_registry(hass)
+    area = area_registry.async_create("Test room")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert "Test room" in next(iter(result["data_schema"].schema.values())).container
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {ATTR_NAME: "Test room"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Test room"
+    assert result["data"][CONF_ID] == area.id
+    assert result["data"][CONF_TYPE] != AREA_TYPE_EXTERIOR
+    assert result["result"].version == AdaptiveConfigEntryVersion.MAJOR
+    assert result["result"].minor_version == AdaptiveConfigEntryVersion.MINOR
+
+    duplicate = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert duplicate["type"] is FlowResultType.FORM
+    assert (
+        "Test room"
+        not in next(iter(duplicate["data_schema"].schema.values())).container
+    )
+
+
+async def test_initial_area_setup_rejects_unknown_area(hass) -> None:
+    """A submitted value must resolve to an Area advertised by the form."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    with pytest.raises(InvalidData):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], {ATTR_NAME: "Area that does not exist"}
+        )
 
 
 async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:

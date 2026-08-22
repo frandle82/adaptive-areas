@@ -1,6 +1,5 @@
 """Test for light groups."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 import logging
 from typing import Any
@@ -351,7 +350,7 @@ async def test_light_group_basic(
     area_state = hass.states.get(area_sensor_entity_id)
     assert_state(area_state, STATE_ON)
 
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     # Check light group is on
     light_group_state = hass.states.get(light_group_entity_id)
@@ -407,14 +406,14 @@ async def test_light_group_blocking_state_turns_off(
 
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
 
     hass.states.async_set(sleep_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
@@ -422,7 +421,7 @@ async def test_light_group_blocking_state_turns_off(
     # Losing a blocking state must also re-evaluate the group.
     hass.states.async_set(sleep_sensor_entity_id, STATE_OFF)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
@@ -453,7 +452,7 @@ async def test_sleep_activation_does_not_turn_on_in_clear_area(
     )
     hass.states.async_set(sleep_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     assert_state(hass.states.get(light_group_entity_id), STATE_OFF)
     await shutdown_integration(hass, [light_groups_advanced_config_entry])
@@ -487,7 +486,7 @@ async def test_light_group_turns_off_when_bright(
     hass.states.async_set(sleep_sensor_entity_id, STATE_OFF)
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
@@ -495,7 +494,7 @@ async def test_light_group_turns_off_when_bright(
     # Bright transition should actively turn off the group.
     hass.states.async_set(light_level_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
@@ -527,7 +526,7 @@ async def test_light_group_turns_back_on_when_dark_again(
     hass.states.async_set(light_level_entity_id, STATE_OFF)
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
@@ -535,7 +534,7 @@ async def test_light_group_turns_back_on_when_dark_again(
     # Bright -> lights off (configured behavior).
     hass.states.async_set(light_level_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
@@ -543,7 +542,7 @@ async def test_light_group_turns_back_on_when_dark_again(
     # Dark again while still occupied -> lights should turn back on and stay on.
     hass.states.async_set(light_level_entity_id, STATE_OFF)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
@@ -578,19 +577,19 @@ async def test_light_group_combined_brightness_behavior(
     hass.states.async_set(light_level_entity_id, STATE_ON)
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     assert_state(hass.states.get(light_group_entity_id), STATE_OFF)
 
     # Becoming dark switches the group on while the area remains occupied.
     hass.states.async_set(light_level_entity_id, STATE_OFF)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     assert_state(hass.states.get(light_group_entity_id), STATE_ON)
 
     # Becoming bright again actively switches the group off.
     hass.states.async_set(light_level_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     assert_state(hass.states.get(light_group_entity_id), STATE_OFF)
 
     await shutdown_integration(hass, [light_groups_bright_config_entry])
@@ -622,7 +621,7 @@ async def test_light_group_stays_on_when_bright_if_not_configured(
     hass.states.async_set(light_level_entity_id, STATE_OFF)
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
@@ -630,7 +629,7 @@ async def test_light_group_stays_on_when_bright_if_not_configured(
     # Bright transition should not turn off without turn_off_when_bright enabled.
     hass.states.async_set(light_level_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
@@ -663,7 +662,7 @@ async def test_light_group_does_not_turn_on_when_occupied_and_bright(
     await hass.async_block_till_done()
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
@@ -697,7 +696,7 @@ async def test_light_group_can_turn_on_when_bright_if_darkness_not_required(
     await hass.async_block_till_done()
     hass.states.async_set(motion_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)

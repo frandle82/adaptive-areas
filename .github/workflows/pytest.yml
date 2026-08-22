@@ -1,6 +1,7 @@
 name: Run tests with latest stable Home Assistant
 
 on:
+  workflow_call:
   push:
     branches:
       - "main"
@@ -36,7 +37,7 @@ jobs:
           echo "HA_STABLE_VERSION=$STABLE" >> $GITHUB_ENV
 
       - name: Run tox for stable
-        run: tox -e ha-stable
+        run: tox -e ha-stable -- tests
         env:
           HA_STABLE_VERSION: ${{ env.HA_STABLE_VERSION }}
 
@@ -65,6 +66,6 @@ jobs:
           echo "HA_BETA_VERSION=$BETA" >> $GITHUB_ENV
 
       - name: Run tox for beta
-        run: tox -e ha-beta
+        run: tox -e ha-beta -- tests
         env:
           HA_BETA_VERSION: ${{ env.HA_BETA_VERSION }}

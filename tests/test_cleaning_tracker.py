@@ -6,6 +6,7 @@ import voluptuous as vol
 
 from homeassistant.const import ATTR_AREA_ID, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
@@ -177,5 +178,20 @@ async def test_set_score_validation(hass: HomeAssistant) -> None:
             {ATTR_AREA_ID: [MockAreaIds.KITCHEN], ATTR_SCORE: 101},
             blocking=True,
         )
+
+    area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
+    assert area.room_usage is not None
+    original_score = area.room_usage.assessment["score"]
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SET_SCORE,
+            {
+                ATTR_AREA_ID: [MockAreaIds.KITCHEN, "missing_area"],
+                ATTR_SCORE: 50,
+            },
+            blocking=True,
+        )
+    assert area.room_usage.assessment["score"] == original_score
 
     await shutdown_integration(hass, [entry])

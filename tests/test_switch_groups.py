@@ -1,6 +1,5 @@
 """Tests for switch groups."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -109,14 +108,14 @@ async def test_switch_group_action_is_applied(
     await hass.async_block_till_done()
     hass.states.async_set(sleep_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     switch_group_state = hass.states.get(switch_group_entity_id)
     assert_state(switch_group_state, STATE_OFF)
 
     hass.states.async_set(sleep_sensor_entity_id, STATE_OFF)
     await hass.async_block_till_done()
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
 
     switch_group_state = hass.states.get(switch_group_entity_id)
     assert_state(switch_group_state, STATE_ON)

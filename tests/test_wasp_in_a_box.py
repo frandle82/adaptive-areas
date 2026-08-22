@@ -1,6 +1,5 @@
 """Test for Wasp in a box sensor behavior."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 import logging
 from typing import Any
@@ -144,7 +143,7 @@ async def test_wasp_in_a_box_logic(
 
     # Test motion door open behavior
     hass.states.async_set(door_sensor_entity_id, STATE_ON)
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
     wasp_in_a_box_state = hass.states.get(wasp_in_a_box_entity_id)
@@ -170,7 +169,7 @@ async def test_wasp_in_a_box_logic(
 
     # Test motion on door closed behavior
     hass.states.async_set(door_sensor_entity_id, STATE_OFF)
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
     wasp_in_a_box_state = hass.states.get(wasp_in_a_box_entity_id)
@@ -199,7 +198,7 @@ async def test_wasp_in_a_box_logic(
     await hass.async_block_till_done()
 
     # Wait a bit for wasp sensor to trigger
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
     wasp_in_a_box_state = hass.states.get(wasp_in_a_box_entity_id)
@@ -353,7 +352,6 @@ async def test_open_box_cancels_timer(
 
     # Let HA propagate the aggregate updates
     for _ in range(2):
-        await asyncio.sleep(0)
         await hass.async_block_till_done()
 
     final = hass.states.get(wasp_in_a_box_entity_id)
@@ -365,7 +363,6 @@ async def test_open_box_cancels_timer(
     if "callback" in fired:
         await fired["callback"](None)
         for _ in range(2):
-            await asyncio.sleep(0)
             await hass.async_block_till_done()
         final_after = hass.states.get(wasp_in_a_box_entity_id)
         assert_state(final_after, STATE_OFF)

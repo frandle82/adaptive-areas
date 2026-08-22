@@ -1,6 +1,5 @@
 """Test for aggregate (group) sensor behavior."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 import logging
 from typing import Any
@@ -149,7 +148,7 @@ async def test_threshold_sensor_light(
     await hass.async_block_till_done()
 
     # Wait a bit for threshold sensor to trigger
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
     # Ensure threhsold sensor is triggered
@@ -166,7 +165,7 @@ async def test_threshold_sensor_light(
     await hass.async_block_till_done()
 
     # Wait a bit for threshold sensor to trigger
-    await asyncio.sleep(1)
+    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
     # Ensure threhsold sensor is cleared

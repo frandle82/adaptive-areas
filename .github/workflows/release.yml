@@ -26,9 +26,60 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  stable-tests:
+    name: "Stable Home Assistant test gate"
+    uses: ./.github/workflows/pytest.yml
+
+  lint:
+    name: "Ruff and repository lint gate"
+    uses: ./.github/workflows/lint.yml
+
+  validation:
+    name: "Hassfest and HACS gate"
+    uses: ./.github/workflows/validation.yaml
+    secrets: inherit
+
+  codeql:
+    name: "CodeQL gate"
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/codeql.yml
+
+  release-integrity:
+    name: "Release integrity gate"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout main"
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: "Validate requested release metadata"
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          python3 scripts/set_version.py "$VERSION" --release-type "$RELEASE_TYPE"
+          python3 scripts/validate_json.py
+          test "$(jq -r '.version' custom_components/adaptive_areas/manifest.json)" = "$VERSION"
+          CHANGED_FILES=$(git diff --name-only)
+          test -z "$CHANGED_FILES" || test "$CHANGED_FILES" = "custom_components/adaptive_areas/manifest.json"
+
   release:
     name: "Create ${{ inputs.release_type }} ${{ inputs.version }}"
     if: github.ref == 'refs/heads/main'
+    needs:
+      - stable-tests
+      - lint
+      - validation
+      - codeql
+      - release-integrity
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout main"
