@@ -142,6 +142,7 @@ class AdaptiveArea:
         self.decision_trace = DecisionTrace()
         self.environment: AreaEnvironmentEngine | None = None
         self.room_usage: RoomUsageEngine | None = None
+        self.cover_control = None
 
         self.logger.debug("%s: Primed for initialization.", self.name)
 
@@ -196,6 +197,9 @@ class AdaptiveArea:
         if self.room_usage is not None:
             self.room_usage.unload()
             self.room_usage = None
+        if self.cover_control is not None:
+            self.cover_control.async_stop()
+            self.cover_control = None
         self.decision_trace.clear()
 
     def trace_decision(self, **kwargs) -> None:

@@ -41,6 +41,15 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_COVER_GROUPS,
+    CONF_COVER_OPEN_ENABLED,
+    CONF_COVER_CLOSE_ENABLED,
+    CONF_COVER_SHADING_ENABLED,
+    CONF_COVER_SHADING_SCOPE,
+    CONF_COVER_SHADING_SOURCE,
+    CONF_COVER_MANUAL_OVERRIDE_MINUTES,
+    COVER_SHADING_SOURCE_ENTITY,
+    COVER_SHADING_SCOPE_SELECTED,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_ROOM_USAGE,
     CONF_INCLUDE_ENTITIES,
@@ -151,6 +160,45 @@ async def test_optional_feature_menu_follows_enabled_features(hass) -> None:
     assert "feature_conf_environment" not in disabled["menu_options"]
     assert "feature_conf_light_groups" in disabled["menu_options"]
     assert CONF_FEATURE_ROOM_USAGE in flow.area_options[CONF_ENABLED_FEATURES]
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_cover_options_are_safe_and_use_entity_without_area_climate(
+    hass,
+) -> None:
+    """Cover UI has independent opt-ins and no implicit climate fallback."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {CONF_FEATURE_COVER_GROUPS: {}}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=data)
+    await init_integration(hass, [entry])
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    menu = await flow.async_step_init()
+    assert "feature_conf_cover_groups" in menu["menu_options"]
+
+    form = await flow.async_step_feature_conf_cover_groups()
+    assert form["type"] is FlowResultType.FORM
+    invalid = await flow.async_step_feature_conf_cover_groups(
+        {
+            CONF_COVER_SHADING_ENABLED: True,
+            CONF_COVER_SHADING_SCOPE: COVER_SHADING_SCOPE_SELECTED,
+        }
+    )
+    assert invalid["type"] is FlowResultType.FORM
+    assert invalid["errors"] == {"base": "invalid_cover_config"}
+    saved = await flow.async_step_feature_conf_cover_groups(
+        {CONF_COVER_MANUAL_OVERRIDE_MINUTES: 60}
+    )
+    assert saved["type"] is FlowResultType.MENU
+    config = flow.area_options[CONF_ENABLED_FEATURES][CONF_FEATURE_COVER_GROUPS]
+    assert config[CONF_COVER_OPEN_ENABLED] is False
+    assert config[CONF_COVER_CLOSE_ENABLED] is False
+    assert config[CONF_COVER_SHADING_ENABLED] is False
+    assert config[CONF_COVER_SHADING_SOURCE] == COVER_SHADING_SOURCE_ENTITY
+    assert config[CONF_COVER_MANUAL_OVERRIDE_MINUTES] == 60
 
     await shutdown_integration(hass, [entry])
 

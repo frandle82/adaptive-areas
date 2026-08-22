@@ -40,6 +40,7 @@ from custom_components.adaptive_areas.const import (
     CONF_ENVIRONMENT_VENTILATION_FANS,
     CONF_ENVIRONMENT_WINDOWS,
     CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_COVER_GROUPS,
     CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_ID,
@@ -66,6 +67,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_PRESENCE_MINUTES_TO_DUE,
     MODULE_DATA,
     AdaptiveConfigEntryVersion,
+    COVER_CONTROL_FEATURE_SCHEMA,
 )
 from custom_components.adaptive_areas.helpers.area import (
     get_adaptive_area_for_config_entry,
@@ -114,6 +116,26 @@ _REMOVED_MANUAL_POLLUTANT_KEYS = (
     "manual_ozone_unit",
     "manual_voc_unit",
 )
+
+
+def _migrate_cover_control_config(
+    config: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """Keep legacy cover groups enabled while adding only safe automation defaults."""
+    enabled = config.get(CONF_ENABLED_FEATURES)
+    if not isinstance(enabled, dict) or CONF_FEATURE_COVER_GROUPS not in enabled:
+        return config, False
+    legacy = enabled.get(CONF_FEATURE_COVER_GROUPS)
+    if not isinstance(legacy, dict):
+        legacy = {}
+    migrated_feature = COVER_CONTROL_FEATURE_SCHEMA(legacy)
+    if migrated_feature == legacy:
+        return config, False
+    migrated = dict(config)
+    migrated_enabled = dict(enabled)
+    migrated_enabled[CONF_FEATURE_COVER_GROUPS] = migrated_feature
+    migrated[CONF_ENABLED_FEATURES] = migrated_enabled
+    return migrated, True
 
 
 def _eligible_primary_sources(
@@ -565,6 +587,13 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     migrated_options, options_changed = migrate_light_groups_in_config(
         dict(config_entry.options)
     )
+    if config_entry.minor_version < 12:
+        migrated_data, cover_data_changed = _migrate_cover_control_config(migrated_data)
+        migrated_options, cover_options_changed = _migrate_cover_control_config(
+            migrated_options
+        )
+        data_changed |= cover_data_changed
+        options_changed |= cover_options_changed
     regular_area = config_entry.data.get(CONF_TYPE) != AREA_TYPE_META
     migrated_data, evaluation_data_changed = _migrate_area_evaluation_config(
         migrated_data, regular_area=regular_area

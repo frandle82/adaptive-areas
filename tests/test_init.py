@@ -13,6 +13,11 @@ from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 from custom_components.adaptive_areas.const import (
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_ROOM_USAGE,
+    CONF_FEATURE_COVER_GROUPS,
+    CONF_COVER_OPEN_ENABLED,
+    CONF_COVER_CLOSE_ENABLED,
+    CONF_COVER_SHADING_ENABLED,
+    CONF_COVER_MANUAL_OVERRIDE_ENABLED,
     CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SECONDS_TO_DUE,
     DOMAIN,
@@ -93,7 +98,7 @@ async def test_cleaning_threshold_migrates_from_seconds_to_minutes(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 11
+    assert entry.minor_version == 12
     feature_config = entry.options[CONF_ENABLED_FEATURES][CONF_FEATURE_ROOM_USAGE]
     assert feature_config[CONF_PRESENCE_MINUTES_TO_DUE] == 120
     assert CONF_PRESENCE_SECONDS_TO_DUE not in feature_config
@@ -120,8 +125,27 @@ async def test_pollutant_schema_upgrade_removes_manual_overrides(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 11
+    assert entry.minor_version == 12
     assert "manual_pm25_sensors" not in entry.options
     assert "manual_pm25_unit" not in entry.options
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_legacy_cover_groups_migrate_without_enabling_automation(
+    hass: HomeAssistant,
+) -> None:
+    """Existing groups remain enabled but never begin moving covers implicitly."""
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {CONF_FEATURE_COVER_GROUPS: {}}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=11)
+
+    await init_integration(hass, [entry])
+
+    cover_config = entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_COVER_GROUPS]
+    assert cover_config[CONF_COVER_OPEN_ENABLED] is False
+    assert cover_config[CONF_COVER_CLOSE_ENABLED] is False
+    assert cover_config[CONF_COVER_SHADING_ENABLED] is False
+    assert cover_config[CONF_COVER_MANUAL_OVERRIDE_ENABLED] is True
 
     await shutdown_integration(hass, [entry])

@@ -157,6 +157,7 @@ def test_temperature_only_is_partial(hass: HomeAssistant) -> None:
     engine = AreaEnvironmentEngine(area)
 
     assert engine.assessment["comfort"] == ComfortState.WARM
+    assert engine.assessment["heat_protection_demand"] == "recommended"
     assert engine.assessment["ventilation"] == VentilationState.UNKNOWN
     assert engine.assessment["cooling"] == CoolingState.UNKNOWN
     assert engine.assessment["state"] == EnvironmentState.ATTENTION
@@ -284,6 +285,7 @@ def test_unavailable_primary_never_falls_back(hass: HomeAssistant) -> None:
 
     assert engine.assessment["temperature"] is None
     assert engine.assessment["comfort"] == ComfortState.UNKNOWN
+    assert engine.assessment["heat_protection_demand"] == "unknown"
     assert engine.assessment["thermal_input_quality"] == "unavailable"
     assert engine.assessment["source_entities"]["temperature"]["entity_id"] == (
         "sensor.primary_temperature"
@@ -2800,7 +2802,7 @@ async def test_rc4_environment_config_migrates_to_intrinsic_evaluation(
     )
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 11
+    assert entry.minor_version == 12
     assert entry.data[CONF_ENABLED_FEATURES][CONF_FEATURE_ENVIRONMENT] == {}
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.outdoor"
     assert entry.data[CONF_ENVIRONMENT_CIRCULATION_FANS] == ["fan.room"]
@@ -2880,7 +2882,7 @@ async def test_rc6_migration_keeps_evaluation_disabled(hass: HomeAssistant) -> N
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=4)
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 11
+    assert entry.minor_version == 12
     assert CONF_FEATURE_ENVIRONMENT not in entry.data[CONF_ENABLED_FEATURES]
     assert entry.data[CONF_AREA_TEMPERATURE_SENSOR] == "sensor.saved_temperature"
     assert entry.data[CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE] == "sensor.saved_outdoor"
@@ -2900,7 +2902,7 @@ async def test_legacy_room_usage_toggle_migrates_to_independent_feature(
 
     await init_integration(hass, [entry])
 
-    assert entry.minor_version == 11
+    assert entry.minor_version == 12
     assert CONF_TRACK_ROOM_USAGE not in entry.data
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert CONF_FEATURE_ROOM_USAGE in area.config[CONF_ENABLED_FEATURES]

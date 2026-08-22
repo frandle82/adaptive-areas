@@ -58,6 +58,7 @@
           "feature_conf_ble_trackers": "Configure BLE Tracker monitoring",
           "feature_conf_wasp_in_a_box": "Configure Wasp in a Box",
           "feature_conf_environment": "Configure Area Climate",
+          "feature_conf_cover_groups": "Configure cover control",
           "feature_conf_room_usage": "Configure Cleaning Tracker"
         }
       },
@@ -259,6 +260,56 @@
           "relevant_windows": "Only window sensors are discovered automatically. Select doors or openings explicitly when they genuinely ventilate the area."
         }
       },
+      "feature_conf_cover_groups": {
+        "title": "Cover control",
+        "description": "Area Climate status: {area_climate_status}. Opening, closing and shading are independent and remain disabled until explicitly enabled.",
+        "data": {
+          "position_open": "Open position",
+          "position_close": "Close position",
+          "position_shading": "Shading position",
+          "brightness_entity": "Brightness sensor",
+          "open_enabled": "Automatic opening",
+          "open_time_enabled": "Open by time",
+          "open_time": "Opening time (HH:MM)",
+          "open_sun_enabled": "Open by sun elevation",
+          "open_sun_elevation": "Opening sun elevation",
+          "open_brightness_enabled": "Open by brightness",
+          "open_brightness": "Opening brightness threshold",
+          "open_window": "Evaluate opening when a window opens",
+          "open_sleep_ended": "Evaluate opening when sleep ends",
+          "open_condition": "Additional opening permission",
+          "close_enabled": "Automatic closing",
+          "close_time_enabled": "Close by time",
+          "close_time": "Closing time (HH:MM)",
+          "close_sun_enabled": "Close by sun elevation",
+          "close_sun_elevation": "Closing sun elevation",
+          "close_brightness_enabled": "Close by brightness",
+          "close_brightness": "Closing brightness threshold",
+          "close_window": "Re-evaluate closing when windows close",
+          "close_sleep_started": "Evaluate closing when sleep starts",
+          "close_condition": "Additional closing permission",
+          "shading_enabled": "Automatic shading",
+          "shading_scope": "Apply shading to",
+          "shading_covers": "Selected covers",
+          "shading_temperature_source": "Temperature source",
+          "shading_temperature_entity": "Own temperature sensor",
+          "shading_temperature_threshold": "Shade from temperature",
+          "forecast_enabled": "Preventive forecast shading",
+          "forecast_entity": "Weather entity",
+          "forecast_temperature_threshold": "Forecast temperature threshold",
+          "shading_brightness_enabled": "Require brightness for shading",
+          "shading_brightness_threshold": "Shading brightness threshold",
+          "shading_condition": "Additional shading permission",
+          "manual_override_enabled": "Respect manual operation",
+          "manual_override_minutes": "Pause automation for"
+        },
+        "data_description": {
+          "shading_temperature_source": "Area Climate uses its stable heat-protection assessment. When Area Climate is not enabled, select an own temperature sensor. Unknown Area Climate data never falls back automatically.",
+          "open_condition": "Optional binary_sensor, input_boolean or switch. Only on permits the strategy and changes never trigger it.",
+          "close_condition": "Optional binary_sensor, input_boolean or switch. Only on permits the strategy and changes never trigger it.",
+          "shading_condition": "Optional binary_sensor, input_boolean or switch. Only on permits the strategy and changes never trigger it."
+        }
+      },
       "feature_conf_climate_control": {
         "title": "Feature: Climate Control > Entity Selection",
         "description": "Select the climate entity that you would like to be controlled through area states.",
@@ -377,7 +428,8 @@
       "invalid_entity": "Invalid entity selected",
       "climate_no_preset_support": "Climate entity does not support preset modes",
       "excluded_primary_source": "A primary Area climate sensor cannot also be excluded",
-      "invalid_primary_source": "Select a sensor assigned to this Home Assistant Area"
+      "invalid_primary_source": "Select a sensor assigned to this Home Assistant Area",
+      "invalid_cover_config": "Check the cover positions, thresholds, times, entity selections, and override duration"
     }
   },
   "entity": {

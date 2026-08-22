@@ -20,6 +20,9 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatureInfoCoverGroups,
 )
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.cover.controller import (
+    AreaCoverController,
+)
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,14 +41,22 @@ async def async_setup_entry(
 
     # Check feature availability
     if not area.has_feature(CONF_FEATURE_COVER_GROUPS):
+        if COVER_DOMAIN in area.adaptive_entities:
+            cleanup_removed_entries(area.hass, [], area.adaptive_entities[COVER_DOMAIN])
         return
 
     # Check if there are any covers
     if not area.has_entities(COVER_DOMAIN):
         _LOGGER.debug("No %s entities for area %s", COVER_DOMAIN, area.name)
+        if COVER_DOMAIN in area.adaptive_entities:
+            cleanup_removed_entries(area.hass, [], area.adaptive_entities[COVER_DOMAIN])
         return
 
     entities_to_add = []
+
+    if area.cover_control is None:
+        area.cover_control = AreaCoverController(area)
+        await area.cover_control.async_start()
 
     # Append None to the list of device classes to catch those covers that
     # don't have a device class assigned (and put them in their own group)
@@ -100,3 +111,19 @@ class AreaCoverGroup(AdaptiveEntity, CoverGroup):
             unique_id=self._attr_unique_id,
         )
         delattr(self, "_attr_name")
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to cover-control diagnostic transitions."""
+        await super().async_added_to_hass()
+        if self.area.cover_control is not None:
+            self.async_on_remove(
+                self.area.cover_control.register_listener(self._decision_changed)
+            )
+            self._decision_changed()
+
+    def _decision_changed(self) -> None:
+        """Publish dashboard-neutral decision diagnostics."""
+        if self.area.cover_control is None:
+            return
+        self._attr_extra_state_attributes.update(self.area.cover_control.diagnostics)
+        self.async_write_ha_state()

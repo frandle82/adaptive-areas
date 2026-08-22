@@ -14,11 +14,10 @@ Entities grouped with presence-aware automation logic.
 * 🌡️ [Climate Control](climate-control.md)
   Maps area states to presets on one selected climate entity.
 
-## 🧱 Simple Groups
-Passive entity grouping for easier control.
+## 🧱 Area Groups and Control
 
 * 🪟 [Cover Groups](cover-groups.md)
-  Groups all `cover` entities (e.g. blinds, shades, garage doors) using [`cover.group`](https://www.home-assistant.io/integrations/cover.group/).
+  Groups Area covers and optionally controls independent opening, closing, and thermal/forecast shading strategies.
 
 * 📺 [Media Player Groups](media-player-groups.md)
   Groups all `media_player` entities using [`media_player.group`](https://www.home-assistant.io/integrations/media_player.group/).

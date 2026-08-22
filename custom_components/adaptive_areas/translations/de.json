@@ -58,6 +58,7 @@
                     "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
                     "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
                     "feature_conf_environment": "Bereichsklima konfigurieren",
+                    "feature_conf_cover_groups": "Cover-Steuerung konfigurieren",
                     "feature_conf_room_usage": "Reinigungs-Tracker konfigurieren"
                 }
             },
@@ -259,6 +260,56 @@
                     "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften."
                 }
             },
+            "feature_conf_cover_groups": {
+                "title": "Cover-Steuerung",
+                "description": "Status Bereichsklima: {area_climate_status}. Öffnen, Schließen und Beschattung sind unabhängig und bleiben bis zur ausdrücklichen Aktivierung ausgeschaltet.",
+                "data": {
+                    "position_open": "Öffnungsposition",
+                    "position_close": "Schließposition",
+                    "position_shading": "Beschattungsposition",
+                    "brightness_entity": "Helligkeitssensor",
+                    "open_enabled": "Automatisches Öffnen",
+                    "open_time_enabled": "Zeitgesteuert öffnen",
+                    "open_time": "Öffnungszeit (HH:MM)",
+                    "open_sun_enabled": "Nach Sonnenhöhe öffnen",
+                    "open_sun_elevation": "Sonnenhöhe zum Öffnen",
+                    "open_brightness_enabled": "Nach Helligkeit öffnen",
+                    "open_brightness": "Helligkeitsschwelle zum Öffnen",
+                    "open_window": "Öffnen bei Fensteröffnung bewerten",
+                    "open_sleep_ended": "Öffnen nach Schlafende bewerten",
+                    "open_condition": "Zusätzliche Freigabe zum Öffnen",
+                    "close_enabled": "Automatisches Schließen",
+                    "close_time_enabled": "Zeitgesteuert schließen",
+                    "close_time": "Schließzeit (HH:MM)",
+                    "close_sun_enabled": "Nach Sonnenhöhe schließen",
+                    "close_sun_elevation": "Sonnenhöhe zum Schließen",
+                    "close_brightness_enabled": "Nach Helligkeit schließen",
+                    "close_brightness": "Helligkeitsschwelle zum Schließen",
+                    "close_window": "Schließen nach Fensterschließung neu bewerten",
+                    "close_sleep_started": "Schließen bei Schlafbeginn bewerten",
+                    "close_condition": "Zusätzliche Freigabe zum Schließen",
+                    "shading_enabled": "Automatische Beschattung",
+                    "shading_scope": "Beschattung anwenden auf",
+                    "shading_covers": "Ausgewählte Cover",
+                    "shading_temperature_source": "Temperaturquelle",
+                    "shading_temperature_entity": "Eigener Temperatursensor",
+                    "shading_temperature_threshold": "Beschattung ab Temperatur",
+                    "forecast_enabled": "Präventive Forecast-Beschattung",
+                    "forecast_entity": "Wetterentität",
+                    "forecast_temperature_threshold": "Forecast-Temperaturschwelle",
+                    "shading_brightness_enabled": "Helligkeit für Beschattung voraussetzen",
+                    "shading_brightness_threshold": "Helligkeitsschwelle zur Beschattung",
+                    "shading_condition": "Zusätzliche Freigabe zur Beschattung",
+                    "manual_override_enabled": "Manuelle Bedienung respektieren",
+                    "manual_override_minutes": "Automatik pausieren für"
+                },
+                "data_description": {
+                    "shading_temperature_source": "Bereichsklima verwendet seine stabile Hitzeschutzbewertung. Ist Bereichsklima nicht aktiviert, wird ein eigener Temperatursensor benötigt. Bei unbekannten Bereichsklimadaten erfolgt kein automatischer Fallback.",
+                    "open_condition": "Optionaler binary_sensor, input_boolean oder switch. Nur on gibt die Strategie frei; Änderungen lösen sie nicht selbst aus.",
+                    "close_condition": "Optionaler binary_sensor, input_boolean oder switch. Nur on gibt die Strategie frei; Änderungen lösen sie nicht selbst aus.",
+                    "shading_condition": "Optionaler binary_sensor, input_boolean oder switch. Nur on gibt die Strategie frei; Änderungen lösen sie nicht selbst aus."
+                }
+            },
             "feature_conf_climate_control": {
                 "title": "Funktion: Klimasteuerung > Auswahl der Entität",
                 "description": "Wähle die Klimaentität die anhand des Bereichszustands gesteuert werden soll.",
@@ -377,7 +428,8 @@
             "invalid_entity": "Ungültige Entität ausgewählt",
             "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi",
             "excluded_primary_source": "Ein primärer Bereichsklimasensor kann nicht zugleich ausgeschlossen werden",
-            "invalid_primary_source": "Einen Sensor auswählen, der diesem Home-Assistant-Bereich zugeordnet ist"
+            "invalid_primary_source": "Einen Sensor auswählen, der diesem Home-Assistant-Bereich zugeordnet ist",
+            "invalid_cover_config": "Cover-Positionen, Grenzwerte, Zeiten, Entitäten und Override-Dauer prüfen"
         }
     },
     "entity": {

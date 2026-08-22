@@ -25,7 +25,7 @@ with its tests in the same change.
 | Ventilation demand/strategy, windows, air cleaning and cooling | `helpers/environment.py`, `switch/fan_control.py` | `test_environment.py`, `test_fan.py` |
 | Light groups and adaptive profiles | `light.py`, `helpers/light_groups.py` | `test_light.py`, `test_light_group_migration.py` |
 | Fan groups | `fan.py`, `switch/fan_control.py` | `test_fan.py` |
-| Cover groups | `cover.py` | `test_cover.py` |
+| Cover groups, strategy, actuation, window safety, forecast and manual override | `cover.py`, `helpers/cover/` | `test_cover.py`, `test_cover_strategy.py`, `test_cover_actuator.py`, `test_cover_controller.py` |
 | Switch groups and controls | `switch/` | `test_switch_groups.py`, `test_climate_control.py`, `test_fan.py`, `test_media_player.py` |
 | Reference-temperature number | `number.py` | `test_environment.py` |
 | Threshold entities | `threshold.py` | `test_threshold.py` |

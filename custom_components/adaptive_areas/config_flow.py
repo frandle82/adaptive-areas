@@ -17,6 +17,8 @@ from homeassistant.components.climate.const import (
     DOMAIN as CLIMATE_DOMAIN,
 )
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
+from homeassistant.components.cover.const import DOMAIN as COVER_DOMAIN
+from homeassistant.components.weather.const import DOMAIN as WEATHER_DOMAIN
 from homeassistant.components.media_player.const import DOMAIN as MEDIA_PLAYER_DOMAIN
 from homeassistant.components.sensor.const import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
@@ -58,6 +60,29 @@ from .const import (
     BUILTIN_AREA_STATES,
     CLIMATE_CONTROL_FEATURE_SCHEMA_ENTITY_SELECT,
     CLIMATE_CONTROL_FEATURE_SCHEMA_PRESET_SELECT,
+    COVER_CONTROL_FEATURE_SCHEMA,
+    COVER_SHADING_SCOPE_ALL,
+    COVER_SHADING_SCOPE_SELECTED,
+    COVER_SHADING_SOURCE_AREA_CLIMATE,
+    COVER_SHADING_SOURCE_ENTITY,
+    CONF_COVER_BRIGHTNESS_ENTITY,
+    CONF_COVER_CLOSE_BRIGHTNESS_ENABLED,
+    CONF_COVER_CLOSE_CONDITION,
+    CONF_COVER_FORECAST_ENTITY,
+    CONF_COVER_FORECAST_ENABLED,
+    CONF_COVER_MANUAL_OVERRIDE_MINUTES,
+    CONF_COVER_OPEN_CONDITION,
+    CONF_COVER_OPEN_BRIGHTNESS_ENABLED,
+    CONF_COVER_POSITION_CLOSE,
+    CONF_COVER_POSITION_OPEN,
+    CONF_COVER_POSITION_SHADING,
+    CONF_COVER_SHADING_CONDITION,
+    CONF_COVER_SHADING_BRIGHTNESS_ENABLED,
+    CONF_COVER_SHADING_COVERS,
+    CONF_COVER_SHADING_ENABLED,
+    CONF_COVER_SHADING_SCOPE,
+    CONF_COVER_SHADING_SOURCE,
+    CONF_COVER_TEMPERATURE_ENTITY,
     CONF_ACCENT_ENTITY,
     CONF_ACCENT_LIGHTS,
     CONF_ACCENT_LIGHTS_ACTIVATION,
@@ -90,6 +115,7 @@ from .const import (
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
     CONF_FEATURE_BLE_TRACKERS,
     CONF_FEATURE_CLIMATE_CONTROL,
+    CONF_FEATURE_COVER_GROUPS,
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_FAN_GROUPS,
     CONF_FEATURE_HEALTH,
@@ -177,6 +203,7 @@ from .const import (
     OPTIONS_BLE_TRACKERS,
     OPTIONS_CLIMATE_CONTROL,
     OPTIONS_CLIMATE_CONTROL_ENTITY_SELECT,
+    OPTIONS_COVER_CONTROL,
     OPTIONS_FAN_GROUP,
     OPTIONS_AREA_EVALUATION,
     OPTIONS_HEALTH_SENSOR,
@@ -1323,6 +1350,126 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 )
             )
         return entity_ids
+
+    async def async_step_feature_conf_cover_groups(self, user_input=None):
+        """Configure compact, Area-centric cover control."""
+        feature_config = self.area_options[CONF_ENABLED_FEATURES].get(
+            CONF_FEATURE_COVER_GROUPS, {}
+        )
+        climate_enabled = CONF_FEATURE_ENVIRONMENT in self.area_options.get(
+            CONF_ENABLED_FEATURES, {}
+        )
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            candidate = dict(user_input)
+            if not climate_enabled:
+                candidate[CONF_COVER_SHADING_SOURCE] = COVER_SHADING_SOURCE_ENTITY
+            try:
+                validated = COVER_CONTROL_FEATURE_SCHEMA(candidate)
+            except vol.Invalid:
+                errors["base"] = "invalid_cover_config"
+            else:
+                invalid = bool(
+                    validated[CONF_COVER_SHADING_ENABLED]
+                    and (
+                        validated[CONF_COVER_SHADING_SCOPE]
+                        == COVER_SHADING_SCOPE_SELECTED
+                        and not validated[CONF_COVER_SHADING_COVERS]
+                        or validated[CONF_COVER_SHADING_SOURCE]
+                        == COVER_SHADING_SOURCE_ENTITY
+                        and not validated[CONF_COVER_TEMPERATURE_ENTITY]
+                        and not validated[CONF_COVER_FORECAST_ENABLED]
+                        or validated[CONF_COVER_FORECAST_ENABLED]
+                        and not validated[CONF_COVER_FORECAST_ENTITY]
+                        or validated[CONF_COVER_SHADING_BRIGHTNESS_ENABLED]
+                        and not validated[CONF_COVER_BRIGHTNESS_ENTITY]
+                    )
+                    or (
+                        validated[CONF_COVER_OPEN_BRIGHTNESS_ENABLED]
+                        or validated[CONF_COVER_CLOSE_BRIGHTNESS_ENABLED]
+                    )
+                    and not validated[CONF_COVER_BRIGHTNESS_ENTITY]
+                )
+                if invalid:
+                    errors["base"] = "invalid_cover_config"
+                else:
+                    self.area_options[CONF_ENABLED_FEATURES][
+                        CONF_FEATURE_COVER_GROUPS
+                    ] = validated
+                    return await self.async_step_show_menu()
+
+        display = dict(feature_config)
+        if not climate_enabled:
+            display[CONF_COVER_SHADING_SOURCE] = COVER_SHADING_SOURCE_ENTITY
+        covers = sorted(
+            entity[ATTR_ENTITY_ID]
+            for entity in self.area.entities.get(COVER_DOMAIN, [])
+            if entity[ATTR_ENTITY_ID] in self.all_entities
+        )
+        sensors = sorted(
+            entity_id
+            for entity_id in self.all_entities
+            if entity_id.startswith(f"{SENSOR_DOMAIN}.")
+        )
+        weather = sorted(
+            entity_id for entity_id in self.hass.states.async_entity_ids(WEATHER_DOMAIN)
+        )
+        source_options = [COVER_SHADING_SOURCE_ENTITY]
+        if climate_enabled:
+            source_options.insert(0, COVER_SHADING_SOURCE_AREA_CLIMATE)
+        gate_entities = sorted(
+            entity_id
+            for entity_id in self.all_binary_entities
+            if entity_id.split(".", 1)[0]
+            in (BINARY_SENSOR_DOMAIN, "input_boolean", SWITCH_DOMAIN)
+        )
+        selectors = {
+            CONF_COVER_BRIGHTNESS_ENTITY: self._build_selector_entity_simple(sensors),
+            CONF_COVER_TEMPERATURE_ENTITY: self._build_selector_entity_simple(sensors),
+            CONF_COVER_FORECAST_ENTITY: self._build_selector_entity_simple(weather),
+            CONF_COVER_SHADING_COVERS: self._build_selector_entity_simple(
+                covers, multiple=True
+            ),
+            CONF_COVER_OPEN_CONDITION: self._build_selector_entity_simple(
+                gate_entities
+            ),
+            CONF_COVER_CLOSE_CONDITION: self._build_selector_entity_simple(
+                gate_entities
+            ),
+            CONF_COVER_SHADING_CONDITION: self._build_selector_entity_simple(
+                gate_entities
+            ),
+            CONF_COVER_SHADING_SCOPE: self._build_selector_select(
+                [COVER_SHADING_SCOPE_ALL, COVER_SHADING_SCOPE_SELECTED]
+            ),
+            CONF_COVER_SHADING_SOURCE: self._build_selector_select(source_options),
+            CONF_COVER_POSITION_OPEN: self._build_selector_number(
+                min_value=0, max_value=100, unit_of_measurement="%"
+            ),
+            CONF_COVER_POSITION_CLOSE: self._build_selector_number(
+                min_value=0, max_value=100, unit_of_measurement="%"
+            ),
+            CONF_COVER_POSITION_SHADING: self._build_selector_number(
+                min_value=0, max_value=100, unit_of_measurement="%"
+            ),
+            CONF_COVER_MANUAL_OVERRIDE_MINUTES: self._build_selector_number(
+                min_value=1, max_value=1440, unit_of_measurement="minutes"
+            ),
+        }
+        return self.async_show_form(
+            step_id="feature_conf_cover_groups",
+            data_schema=self._build_options_schema(
+                OPTIONS_COVER_CONTROL,
+                saved_options=display,
+                selectors=selectors,
+            ),
+            errors=errors,
+            description_placeholders={
+                "area_climate_status": (
+                    "enabled" if climate_enabled else "not_enabled_use_entity"
+                )
+            },
+        )
 
     async def async_step_feature_conf_environment(self, user_input=None):
         """Configure Area Climate roles."""

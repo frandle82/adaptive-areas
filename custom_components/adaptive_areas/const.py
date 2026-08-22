@@ -366,7 +366,7 @@ class AdaptiveConfigEntryVersion(IntEnum):
     """Adaptive Area config entry version."""
 
     MAJOR = 2
-    MINOR = 11
+    MINOR = 12
 
 
 class AdaptiveAreasFeatureInfo:
@@ -909,6 +909,65 @@ CONF_FEATURE_MEDIA_PLAYER_GROUPS = "media_player_groups"
 CONF_FEATURE_LIGHT_GROUPS = "light_groups"
 CONF_FEATURE_SWITCH_GROUPS = "switch_groups"
 CONF_FEATURE_COVER_GROUPS = "cover_groups"
+
+# Area cover control.  The legacy feature key remains the stable feature ID;
+# these keys form its versioned, deliberately compact configuration payload.
+CONF_COVER_OPEN_ENABLED = "open_enabled"
+CONF_COVER_OPEN_TIME_ENABLED = "open_time_enabled"
+CONF_COVER_OPEN_TIME = "open_time"
+CONF_COVER_OPEN_SUN_ENABLED = "open_sun_enabled"
+CONF_COVER_OPEN_SUN_ELEVATION = "open_sun_elevation"
+CONF_COVER_OPEN_BRIGHTNESS_ENABLED = "open_brightness_enabled"
+CONF_COVER_OPEN_BRIGHTNESS = "open_brightness"
+CONF_COVER_OPEN_WINDOW = "open_window"
+CONF_COVER_OPEN_SLEEP_ENDED = "open_sleep_ended"
+CONF_COVER_OPEN_CONDITION = "open_condition"
+CONF_COVER_CLOSE_ENABLED = "close_enabled"
+CONF_COVER_CLOSE_TIME_ENABLED = "close_time_enabled"
+CONF_COVER_CLOSE_TIME = "close_time"
+CONF_COVER_CLOSE_SUN_ENABLED = "close_sun_enabled"
+CONF_COVER_CLOSE_SUN_ELEVATION = "close_sun_elevation"
+CONF_COVER_CLOSE_BRIGHTNESS_ENABLED = "close_brightness_enabled"
+CONF_COVER_CLOSE_BRIGHTNESS = "close_brightness"
+CONF_COVER_CLOSE_WINDOW = "close_window"
+CONF_COVER_CLOSE_SLEEP_STARTED = "close_sleep_started"
+CONF_COVER_CLOSE_CONDITION = "close_condition"
+CONF_COVER_BRIGHTNESS_ENTITY = "brightness_entity"
+CONF_COVER_SHADING_ENABLED = "shading_enabled"
+CONF_COVER_SHADING_SCOPE = "shading_scope"
+CONF_COVER_SHADING_COVERS = "shading_covers"
+CONF_COVER_SHADING_SOURCE = "shading_temperature_source"
+CONF_COVER_TEMPERATURE_ENTITY = "shading_temperature_entity"
+CONF_COVER_TEMPERATURE_THRESHOLD = "shading_temperature_threshold"
+CONF_COVER_FORECAST_ENABLED = "forecast_enabled"
+CONF_COVER_FORECAST_ENTITY = "forecast_entity"
+CONF_COVER_FORECAST_THRESHOLD = "forecast_temperature_threshold"
+CONF_COVER_SHADING_BRIGHTNESS_ENABLED = "shading_brightness_enabled"
+CONF_COVER_SHADING_BRIGHTNESS_THRESHOLD = "shading_brightness_threshold"
+CONF_COVER_SHADING_CONDITION = "shading_condition"
+CONF_COVER_POSITION_OPEN = "position_open"
+CONF_COVER_POSITION_CLOSE = "position_close"
+CONF_COVER_POSITION_SHADING = "position_shading"
+CONF_COVER_MANUAL_OVERRIDE_ENABLED = "manual_override_enabled"
+CONF_COVER_MANUAL_OVERRIDE_MINUTES = "manual_override_minutes"
+
+DEFAULT_COVER_OPEN_TIME = "07:00"
+DEFAULT_COVER_CLOSE_TIME = "21:30"
+DEFAULT_COVER_OPEN_SUN_ELEVATION = -3.0
+DEFAULT_COVER_CLOSE_SUN_ELEVATION = -5.0
+DEFAULT_COVER_OPEN_BRIGHTNESS = 300.0
+DEFAULT_COVER_CLOSE_BRIGHTNESS = 100.0
+DEFAULT_COVER_TEMPERATURE_THRESHOLD = 24.0
+DEFAULT_COVER_FORECAST_THRESHOLD = 25.0
+DEFAULT_COVER_SHADING_BRIGHTNESS_THRESHOLD = 10000.0
+DEFAULT_COVER_POSITION_OPEN = 100
+DEFAULT_COVER_POSITION_CLOSE = 0
+DEFAULT_COVER_POSITION_SHADING = 35
+DEFAULT_COVER_MANUAL_OVERRIDE_MINUTES = 30
+COVER_SHADING_SCOPE_ALL = "all"
+COVER_SHADING_SCOPE_SELECTED = "selected"
+COVER_SHADING_SOURCE_AREA_CLIMATE = "area_climate"
+COVER_SHADING_SOURCE_ENTITY = "entity"
 CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER = "area_aware_media_player"
 CONF_FEATURE_AGGREGATION = "aggregates"
 CONF_FEATURE_HEALTH = "health"
@@ -1544,9 +1603,95 @@ AREA_AWARE_MEDIA_PLAYER_FEATURE_SCHEMA = vol.Schema(
     extra=vol.REMOVE_EXTRA,
 )
 
+COVER_CONTROL_FEATURE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_COVER_OPEN_ENABLED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_OPEN_TIME_ENABLED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_OPEN_TIME, default=DEFAULT_COVER_OPEN_TIME): vol.Match(
+            r"^(?:[01]\d|2[0-3]):[0-5]\d$"
+        ),
+        vol.Optional(CONF_COVER_OPEN_SUN_ENABLED, default=False): cv.boolean,
+        vol.Optional(
+            CONF_COVER_OPEN_SUN_ELEVATION,
+            default=DEFAULT_COVER_OPEN_SUN_ELEVATION,
+        ): vol.All(vol.Coerce(float), vol.Range(min=-90, max=90)),
+        vol.Optional(CONF_COVER_OPEN_BRIGHTNESS_ENABLED, default=False): cv.boolean,
+        vol.Optional(
+            CONF_COVER_OPEN_BRIGHTNESS, default=DEFAULT_COVER_OPEN_BRIGHTNESS
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(CONF_COVER_OPEN_WINDOW, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_OPEN_SLEEP_ENDED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_OPEN_CONDITION, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(CONF_COVER_CLOSE_ENABLED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_CLOSE_TIME_ENABLED, default=False): cv.boolean,
+        vol.Optional(
+            CONF_COVER_CLOSE_TIME, default=DEFAULT_COVER_CLOSE_TIME
+        ): vol.Match(r"^(?:[01]\d|2[0-3]):[0-5]\d$"),
+        vol.Optional(CONF_COVER_CLOSE_SUN_ENABLED, default=False): cv.boolean,
+        vol.Optional(
+            CONF_COVER_CLOSE_SUN_ELEVATION,
+            default=DEFAULT_COVER_CLOSE_SUN_ELEVATION,
+        ): vol.All(vol.Coerce(float), vol.Range(min=-90, max=90)),
+        vol.Optional(CONF_COVER_CLOSE_BRIGHTNESS_ENABLED, default=False): cv.boolean,
+        vol.Optional(
+            CONF_COVER_CLOSE_BRIGHTNESS, default=DEFAULT_COVER_CLOSE_BRIGHTNESS
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(CONF_COVER_CLOSE_WINDOW, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_CLOSE_SLEEP_STARTED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_CLOSE_CONDITION, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(CONF_COVER_BRIGHTNESS_ENTITY, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(CONF_COVER_SHADING_ENABLED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_SHADING_SCOPE, default=COVER_SHADING_SCOPE_ALL): vol.In(
+            (COVER_SHADING_SCOPE_ALL, COVER_SHADING_SCOPE_SELECTED)
+        ),
+        vol.Optional(CONF_COVER_SHADING_COVERS, default=[]): cv.entity_ids,
+        vol.Optional(
+            CONF_COVER_SHADING_SOURCE, default=COVER_SHADING_SOURCE_AREA_CLIMATE
+        ): vol.In((COVER_SHADING_SOURCE_AREA_CLIMATE, COVER_SHADING_SOURCE_ENTITY)),
+        vol.Optional(CONF_COVER_TEMPERATURE_ENTITY, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(
+            CONF_COVER_TEMPERATURE_THRESHOLD,
+            default=DEFAULT_COVER_TEMPERATURE_THRESHOLD,
+        ): vol.Coerce(float),
+        vol.Optional(CONF_COVER_FORECAST_ENABLED, default=False): cv.boolean,
+        vol.Optional(CONF_COVER_FORECAST_ENTITY, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(
+            CONF_COVER_FORECAST_THRESHOLD, default=DEFAULT_COVER_FORECAST_THRESHOLD
+        ): vol.Coerce(float),
+        vol.Optional(CONF_COVER_SHADING_BRIGHTNESS_ENABLED, default=False): cv.boolean,
+        vol.Optional(
+            CONF_COVER_SHADING_BRIGHTNESS_THRESHOLD,
+            default=DEFAULT_COVER_SHADING_BRIGHTNESS_THRESHOLD,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(CONF_COVER_SHADING_CONDITION, default=""): vol.Any(
+            "", cv.entity_id
+        ),
+        vol.Optional(
+            CONF_COVER_POSITION_OPEN, default=DEFAULT_COVER_POSITION_OPEN
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional(
+            CONF_COVER_POSITION_CLOSE, default=DEFAULT_COVER_POSITION_CLOSE
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional(
+            CONF_COVER_POSITION_SHADING, default=DEFAULT_COVER_POSITION_SHADING
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional(CONF_COVER_MANUAL_OVERRIDE_ENABLED, default=True): cv.boolean,
+        vol.Optional(
+            CONF_COVER_MANUAL_OVERRIDE_MINUTES,
+            default=DEFAULT_COVER_MANUAL_OVERRIDE_MINUTES,
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
 ALL_FEATURES = set(CONF_FEATURE_LIST) | set(CONF_FEATURE_LIST_GLOBAL)
 
 CONFIGURABLE_FEATURES = {
+    CONF_FEATURE_COVER_GROUPS: COVER_CONTROL_FEATURE_SCHEMA,
     CONF_FEATURE_ENVIRONMENT: AREA_EVALUATION_OPTIONS_SCHEMA,
     CONF_FEATURE_ROOM_USAGE: CLEANING_TRACKER_FEATURE_SCHEMA,
     CONF_FEATURE_LIGHT_GROUPS: LIGHT_GROUP_FEATURE_SCHEMA,
@@ -1999,6 +2144,55 @@ OPTIONS_FAN_GROUP = [
         str,
     ),
     (CONF_FAN_GROUPS_SETPOINT, DEFAULT_FAN_GROUPS_SETPOINT, float),
+]
+
+OPTIONS_COVER_CONTROL = [
+    (CONF_COVER_POSITION_OPEN, DEFAULT_COVER_POSITION_OPEN, int),
+    (CONF_COVER_POSITION_CLOSE, DEFAULT_COVER_POSITION_CLOSE, int),
+    (CONF_COVER_POSITION_SHADING, DEFAULT_COVER_POSITION_SHADING, int),
+    (CONF_COVER_BRIGHTNESS_ENTITY, "", cv.entity_id),
+    (CONF_COVER_OPEN_ENABLED, False, cv.boolean),
+    (CONF_COVER_OPEN_TIME_ENABLED, False, cv.boolean),
+    (CONF_COVER_OPEN_TIME, DEFAULT_COVER_OPEN_TIME, str),
+    (CONF_COVER_OPEN_SUN_ENABLED, False, cv.boolean),
+    (CONF_COVER_OPEN_SUN_ELEVATION, DEFAULT_COVER_OPEN_SUN_ELEVATION, float),
+    (CONF_COVER_OPEN_BRIGHTNESS_ENABLED, False, cv.boolean),
+    (CONF_COVER_OPEN_BRIGHTNESS, DEFAULT_COVER_OPEN_BRIGHTNESS, float),
+    (CONF_COVER_OPEN_WINDOW, False, cv.boolean),
+    (CONF_COVER_OPEN_SLEEP_ENDED, False, cv.boolean),
+    (CONF_COVER_OPEN_CONDITION, "", cv.entity_id),
+    (CONF_COVER_CLOSE_ENABLED, False, cv.boolean),
+    (CONF_COVER_CLOSE_TIME_ENABLED, False, cv.boolean),
+    (CONF_COVER_CLOSE_TIME, DEFAULT_COVER_CLOSE_TIME, str),
+    (CONF_COVER_CLOSE_SUN_ENABLED, False, cv.boolean),
+    (CONF_COVER_CLOSE_SUN_ELEVATION, DEFAULT_COVER_CLOSE_SUN_ELEVATION, float),
+    (CONF_COVER_CLOSE_BRIGHTNESS_ENABLED, False, cv.boolean),
+    (CONF_COVER_CLOSE_BRIGHTNESS, DEFAULT_COVER_CLOSE_BRIGHTNESS, float),
+    (CONF_COVER_CLOSE_WINDOW, False, cv.boolean),
+    (CONF_COVER_CLOSE_SLEEP_STARTED, False, cv.boolean),
+    (CONF_COVER_CLOSE_CONDITION, "", cv.entity_id),
+    (CONF_COVER_SHADING_ENABLED, False, cv.boolean),
+    (CONF_COVER_SHADING_SCOPE, COVER_SHADING_SCOPE_ALL, str),
+    (CONF_COVER_SHADING_COVERS, [], cv.entity_ids),
+    (CONF_COVER_SHADING_SOURCE, COVER_SHADING_SOURCE_AREA_CLIMATE, str),
+    (CONF_COVER_TEMPERATURE_ENTITY, "", cv.entity_id),
+    (CONF_COVER_TEMPERATURE_THRESHOLD, DEFAULT_COVER_TEMPERATURE_THRESHOLD, float),
+    (CONF_COVER_FORECAST_ENABLED, False, cv.boolean),
+    (CONF_COVER_FORECAST_ENTITY, "", cv.entity_id),
+    (CONF_COVER_FORECAST_THRESHOLD, DEFAULT_COVER_FORECAST_THRESHOLD, float),
+    (CONF_COVER_SHADING_BRIGHTNESS_ENABLED, False, cv.boolean),
+    (
+        CONF_COVER_SHADING_BRIGHTNESS_THRESHOLD,
+        DEFAULT_COVER_SHADING_BRIGHTNESS_THRESHOLD,
+        float,
+    ),
+    (CONF_COVER_SHADING_CONDITION, "", cv.entity_id),
+    (CONF_COVER_MANUAL_OVERRIDE_ENABLED, True, cv.boolean),
+    (
+        CONF_COVER_MANUAL_OVERRIDE_MINUTES,
+        DEFAULT_COVER_MANUAL_OVERRIDE_MINUTES,
+        int,
+    ),
 ]
 
 OPTIONS_AREA_EVALUATION = [

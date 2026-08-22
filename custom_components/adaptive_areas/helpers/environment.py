@@ -2617,6 +2617,22 @@ class AreaEnvironmentEngine:
                 "basis_type": "scientific_reference_with_operational_offsets",
             },
             "comfort": comfort,
+            # Stable actuator-facing assessment. Consumers must not duplicate
+            # the Area Climate thresholds or hysteresis behind this value.
+            "heat_protection_demand": (
+                "required"
+                if comfort in (ComfortState.HOT, ComfortState.VERY_HOT)
+                else (
+                    "recommended"
+                    if comfort == ComfortState.WARM
+                    else (
+                        "none"
+                        if comfort
+                        not in (ComfortState.UNKNOWN, ComfortState.NOT_APPLICABLE)
+                        else "unknown"
+                    )
+                )
+            ),
             "temperature_state": comfort,
             "humidity_comfort_state": humidity_state,
             "combined_comfort": combined_comfort,

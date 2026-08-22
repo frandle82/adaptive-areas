@@ -118,3 +118,44 @@ async def test_cover_group_basic(
             assert (
                 child_cover.entity_id in group_entity_state.attributes[ATTR_ENTITY_ID]
             )
+
+
+async def test_cover_feature_disabled_creates_no_group(hass: HomeAssistant) -> None:
+    """Area covers alone never opt an Area into grouping or automation."""
+    await setup_mock_entities(
+        hass,
+        COVER_DOMAIN,
+        {DEFAULT_MOCK_AREA: [MockCover(name="shade", unique_id="shade")]},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    )
+
+    await init_integration(hass, [entry])
+
+    assert not any(
+        entity_id.startswith("cover.adaptive_areas_cover_groups_")
+        for entity_id in hass.states.async_entity_ids(COVER_DOMAIN)
+    )
+    await shutdown_integration(hass, [entry])
+
+
+async def test_enabled_cover_feature_without_covers_is_safe(
+    hass: HomeAssistant,
+) -> None:
+    """An enabled but empty Area does not create a broken group."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            **get_basic_config_entry_data(DEFAULT_MOCK_AREA),
+            CONF_ENABLED_FEATURES: {CONF_FEATURE_COVER_GROUPS: {}},
+        },
+    )
+
+    await init_integration(hass, [entry])
+
+    assert not any(
+        entity_id.startswith("cover.adaptive_areas_cover_groups_")
+        for entity_id in hass.states.async_entity_ids(COVER_DOMAIN)
+    )
+    await shutdown_integration(hass, [entry])

@@ -247,6 +247,9 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             return
         attributes = {
             "comfort": str(assessment.get("comfort", "unknown")),
+            "heat_protection_demand": str(
+                assessment.get("heat_protection_demand", "unknown")
+            ),
             "room_category": str(assessment.get("room_category", "unknown")),
             "humidity": str(assessment.get("humidity", "unknown")),
             "mould_risk": str(assessment.get("mould_risk", "unknown")),
