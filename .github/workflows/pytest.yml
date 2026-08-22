@@ -62,10 +62,16 @@ jobs:
       - name: Get latest HA beta version from PyPI
         run: |
           VERSIONS=$(curl -s https://pypi.org/pypi/homeassistant/json | jq -r '.releases | keys | .[]')
+          STABLE=$(echo "$VERSIONS" | grep -Ev '[a-zA-Z]' | sort -Vr | head -n1)
           BETA=$(echo "$VERSIONS" | grep 'b' | sort -Vr | head -n1)
-          echo "HA_BETA_VERSION=$BETA" >> $GITHUB_ENV
+          if python -c 'from scripts.ha_version import is_newer_beta; import sys; sys.exit(not is_newer_beta(sys.argv[1], sys.argv[2]))' "$STABLE" "$BETA"; then
+            echo "HA_BETA_VERSION=$BETA" >> $GITHUB_ENV
+          else
+            echo "No beta newer than stable $STABLE; skipping beta tests."
+          fi
 
       - name: Run tox for beta
+        if: env.HA_BETA_VERSION != ''
         run: tox -e ha-beta -- tests
         env:
           HA_BETA_VERSION: ${{ env.HA_BETA_VERSION }}

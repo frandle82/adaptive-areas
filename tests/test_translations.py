@@ -6,7 +6,6 @@ from pathlib import Path
 from string import Formatter
 from typing import Any
 
-
 TRANSLATIONS = Path("custom_components/adaptive_areas/translations")
 
 
@@ -25,9 +24,7 @@ def _placeholders(value: str) -> set[str]:
     """Return format placeholders used by a translation string."""
     return {
         field_name
-        for _literal, field_name, _format_spec, _conversion in Formatter().parse(
-            value
-        )
+        for _literal, field_name, _format_spec, _conversion in Formatter().parse(value)
         if field_name is not None
     }
 
@@ -48,6 +45,6 @@ def test_all_translation_catalogs_are_json_and_placeholder_compatible() -> None:
         translated = dict(_translated_strings(content))
         for path in set(translated) & set(english_strings):
             value = translated[path]
-            assert _placeholders(value) == _placeholders(english_strings[path]), (
-                f"{catalog.name}: incompatible placeholders at {'.'.join(path)}"
-            )
+            assert _placeholders(value) == _placeholders(
+                english_strings[path]
+            ), f"{catalog.name}: incompatible placeholders at {'.'.join(path)}"
