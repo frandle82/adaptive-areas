@@ -2,6 +2,7 @@
 
 from collections import deque
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import math
@@ -227,8 +228,10 @@ THERMAL_PROFILES: dict[RoomCategory, ThermalProfile] = {
 }
 
 
-# WHO values require 24-hour time-weighted exposure. Higher severity multiples are
-# explicitly Adaptive Areas operational policy, not additional WHO thresholds.
+# The first PM, CO, NO2, and ozone boundary uses the scientific averaging period
+# named in ``basis``. The higher boundaries are Adaptive Areas operational policy;
+# in particular, CO's 10 mg/m3 boundary is not presented as the separate WHO 8-hour
+# guideline even though it has the same numerical value.
 AIR_QUALITY_MATRIX: dict[SensorDeviceClass, EvaluationBand] = {
     SensorDeviceClass.CO2: EvaluationBand(1000, 2000, 2000, PARTS_PER_MILLION, "UBA"),
     SensorDeviceClass.PM25: EvaluationBand(
@@ -309,7 +312,7 @@ CONTEXT: dict[str, dict[str, str]] = {
         "air_co2_poor": "Indoor CO₂ is significantly elevated. Air exchange is required.",
         "health_alert": "An Area health sensor reports a hazard. Address that warning first.",
         "air_poor": "Air quality is poor: {reason}.",
-        "air_provisional": "The current measurement indicates elevated pollution: {reason}. The 24-hour assessment remains provisional until enough history is available.",
+        "air_provisional": "The current measurement indicates elevated pollution: {reason}. The time-based assessment remains provisional until enough history is available.",
         "ventilation_urgent": "{reason}. Air exchange is urgently required.",
         "ventilation_required": "{reason}. Air exchange is required.",
         "ventilation_recommended": "{reason}. Air exchange is recommended.",
@@ -365,7 +368,7 @@ CONTEXT: dict[str, dict[str, str]] = {
         "air_co2_poor": "Die CO₂-Konzentration im Raum ist deutlich erhöht. Luftaustausch ist erforderlich.",
         "health_alert": "Ein Gesundheitswarnsensor des Bereichs meldet eine Gefahr. Diese Warnung hat Vorrang.",
         "air_poor": "Die Luftqualität ist schlecht: {reason}.",
-        "air_provisional": "Der aktuelle Messwert zeigt eine erhöhte Schadstoffbelastung: {reason}. Die 24-Stunden-Bewertung bleibt vorläufig, bis genügend Messhistorie vorliegt.",
+        "air_provisional": "Der aktuelle Messwert zeigt eine erhöhte Schadstoffbelastung: {reason}. Die zeitbezogene Bewertung bleibt vorläufig, bis genügend Messhistorie vorliegt.",
         "ventilation_urgent": "{reason}. Luftaustausch ist dringend erforderlich.",
         "ventilation_required": "{reason}. Luftaustausch ist erforderlich.",
         "ventilation_recommended": "{reason}. Luftaustausch wird empfohlen.",
@@ -1434,11 +1437,9 @@ class AreaEnvironmentEngine:
     def _air_quality(
         self,
     ) -> tuple[AirQualityState, dict[str, float], dict[str, Any], list[str]]:
-        worst = AirQualityState.UNKNOWN
         measurements: dict[str, float] = {}
         assessments: dict[str, Any] = {}
         reasons: list[str] = []
-        limited_coverage = False
         for device_class, band in AIR_QUALITY_MATRIX.items():
             rolling_window = (
                 OZONE_ROLLING_WINDOW
@@ -1467,10 +1468,23 @@ class AreaEnvironmentEngine:
                     device_class, current, rolling_window
                 )
                 current_state = self._classify_air_value(current, band)
-                quality = (
-                    "sufficient"
-                    if coverage >= minimum_coverage.total_seconds() / 3600
-                    else "limited"
+                sufficient = (
+                    value is not None
+                    and coverage >= minimum_coverage.total_seconds() / 3600
+                )
+                quality = "sufficient" if sufficient else "limited"
+                severity = (
+                    self._classify_air_value(value, band)
+                    if sufficient and value is not None
+                    else AirQualityState.UNKNOWN
+                )
+                provisional_alert = not sufficient and current_state in (
+                    AirQualityState.DEGRADED,
+                    AirQualityState.POOR,
+                    AirQualityState.CRITICAL,
+                )
+                guideline_period = (
+                    "8h" if device_class == SensorDeviceClass.OZONE else "24h"
                 )
                 assessments[name] = {
                     "current": round(current, 2) if current is not None else None,
@@ -1483,25 +1497,34 @@ class AreaEnvironmentEngine:
                     "coverage_hours": round(coverage, 2),
                     "quality": quality,
                     "assessment_quality": quality,
+                    "provisional_alert": provisional_alert,
                     "basis": band.basis,
                     "basis_type": "scientific_guideline",
                     "guideline": band.basis,
                     "guideline_value": band.degraded,
-                    "guideline_period": (
-                        "8h" if device_class == SensorDeviceClass.OZONE else "24h"
+                    "guideline_period": guideline_period,
+                    "guideline_exceeded": bool(
+                        sufficient and value is not None and value > band.degraded
                     ),
-                    "guideline_exceeded": bool(value and value > band.degraded),
+                    "operational_thresholds": {
+                        "poor": band.poor,
+                        "critical": band.critical,
+                        "period": guideline_period,
+                        "basis": "adaptive_areas_operational",
+                    },
                     "scale": "concentration",
+                    "severity": str(severity),
+                    "severity_basis": (
+                        "scientific_guideline"
+                        if severity in (AirQualityState.GOOD, AirQualityState.DEGRADED)
+                        else (
+                            "adaptive_areas_operational"
+                            if severity
+                            in (AirQualityState.POOR, AirQualityState.CRITICAL)
+                            else "insufficient_history"
+                        )
+                    ),
                 }
-                severity = (
-                    self._classify_air_value(value, band) if value else current_state
-                )
-                assessments[name]["severity"] = str(severity)
-                assessments[name]["severity_basis"] = (
-                    "scientific_guideline"
-                    if severity in (AirQualityState.GOOD, AirQualityState.DEGRADED)
-                    else "adaptive_areas_operational"
-                )
                 if device_class == SensorDeviceClass.NITROGEN_DIOXIDE:
                     short_value, short_coverage = self._rolling_average(
                         device_class, timedelta(hours=1)
@@ -1538,17 +1561,16 @@ class AreaEnvironmentEngine:
                         "richtwert_ii": 250,
                         "basis": "German indoor precaution values",
                     }
-                    if AIR_QUALITY_RANK[short_state] > AIR_QUALITY_RANK[worst]:
-                        worst = short_state
-                if quality == "limited" or value is None:
-                    limited_coverage = True
-                    if current_state in (
-                        AirQualityState.DEGRADED,
-                        AirQualityState.POOR,
-                        AirQualityState.CRITICAL,
-                    ):
-                        reasons.append(f"high_{name}_current")
+                if provisional_alert:
+                    reasons.append(f"high_{name}_current")
+                if not sufficient:
                     continue
+                if severity in (
+                    AirQualityState.DEGRADED,
+                    AirQualityState.POOR,
+                    AirQualityState.CRITICAL,
+                ):
+                    reasons.append(f"high_{name}")
             elif device_class == SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS:
                 state = (
                     AirQualityState.DEGRADED
@@ -1571,8 +1593,6 @@ class AreaEnvironmentEngine:
                 }
                 if state == AirQualityState.DEGRADED:
                     reasons.append("high_voc")
-                if AIR_QUALITY_RANK[state] > AIR_QUALITY_RANK[worst]:
-                    worst = state
                 continue
             else:
                 value = current
@@ -1604,8 +1624,6 @@ class AreaEnvironmentEngine:
                 AirQualityState.CRITICAL,
             ):
                 reasons.append(f"high_{name}")
-            if AIR_QUALITY_RANK[state] > AIR_QUALITY_RANK[worst]:
-                worst = state
         for device_class, name in (
             (SensorDeviceClass.AQI, "aqi"),
             (SensorDeviceClass.PM1, "pm1"),
@@ -1619,37 +1637,53 @@ class AreaEnvironmentEngine:
                     "quality": "unsupported_scale",
                     "basis_type": "unclassified",
                 }
-        if limited_coverage and worst == AirQualityState.GOOD:
-            worst = AirQualityState.UNKNOWN
-        return worst, measurements, assessments, reasons
+        return (
+            self._worst_valid_air_quality(assessments),
+            measurements,
+            assessments,
+            reasons,
+        )
 
     @staticmethod
-    def _pollutant_state(assessments: dict[str, Any]) -> PollutantState:
-        """Return the worst valid classified pollutant severity."""
+    def _valid_assessment_states(assessment: dict[str, Any]) -> list[AirQualityState]:
+        """Return only states backed by the required assessment quality."""
+        states: list[AirQualityState] = []
+        if assessment.get("assessment_quality") in {
+            "sufficient",
+            "immediate",
+            "precaution_indicator",
+        }:
+            with suppress(TypeError, ValueError):
+                states.append(AirQualityState(assessment.get("severity")))
+        if assessment.get("short_term_quality") == "sufficient":
+            with suppress(TypeError, ValueError):
+                states.append(AirQualityState(assessment.get("short_term_state")))
+        return states
+
+    @classmethod
+    def _worst_valid_air_quality(cls, assessments: dict[str, Any]) -> AirQualityState:
+        """Return the worst state supported by complete or valid immediate data."""
         worst = AirQualityState.UNKNOWN
         for assessment in assessments.values():
-            for key in ("severity", "short_term_state"):
-                try:
-                    severity = AirQualityState(assessment.get(key))
-                except TypeError, ValueError:
-                    continue
+            for severity in cls._valid_assessment_states(assessment):
                 if AIR_QUALITY_RANK[severity] > AIR_QUALITY_RANK[worst]:
                     worst = severity
-        return POLLUTANT_STATE_BY_AIR_QUALITY[worst]
+        return worst
 
-    @staticmethod
-    def _dominant_indoor_pollutant(assessments: dict[str, Any]) -> str:
+    @classmethod
+    def _pollutant_state(cls, assessments: dict[str, Any]) -> PollutantState:
+        """Return the worst valid classified pollutant severity."""
+        return POLLUTANT_STATE_BY_AIR_QUALITY[cls._worst_valid_air_quality(assessments)]
+
+    @classmethod
+    def _dominant_indoor_pollutant(cls, assessments: dict[str, Any]) -> str:
         """Return the first worst valid local pollutant deterministically."""
         dominant = "unknown"
         worst = AirQualityState.UNKNOWN
         for name in DOMINANT_POLLUTANT_ORDER:
             assessment = assessments.get(name, {})
             severity = AirQualityState.UNKNOWN
-            for key in ("severity", "short_term_state"):
-                try:
-                    candidate = AirQualityState(assessment.get(key))
-                except TypeError, ValueError:
-                    continue
+            for candidate in cls._valid_assessment_states(assessment):
                 if AIR_QUALITY_RANK[candidate] > AIR_QUALITY_RANK[severity]:
                     severity = candidate
             if AIR_QUALITY_RANK[severity] > AIR_QUALITY_RANK[worst]:

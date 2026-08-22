@@ -665,7 +665,7 @@ def test_hazardous_outdoor_air_closes_manually_opened_window(
     assert "air_exchange_hazardous" in assessment["reason_codes"]
     assert assessment["context"] == (
         "Der aktuelle Messwert zeigt eine erhöhte Schadstoffbelastung: die "
-        "Feinstaubbelastung PM2,5 ist erhöht. Die 24-Stunden-Bewertung bleibt "
+        "Feinstaubbelastung PM2,5 ist erhöht. Die zeitbezogene Bewertung bleibt "
         "vorläufig, bis genügend Messhistorie vorliegt. Lüften sofort beenden und "
         "Fenster schließen: Die Außenluft ist derzeit stark belastet."
     )
@@ -819,7 +819,8 @@ def test_worst_pollutant_does_not_request_ventilation_fan(
     engine = AreaEnvironmentEngine(area)
     assessment = engine.assessment
 
-    assert assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert assessment["air_quality"] == AirQualityState.GOOD
+    assert assessment["pollutant_state"] == PollutantState.GOOD
     assert assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
     assert assessment["pollutant_assessments"]["pm25"]["current_state"] == (
         AirQualityState.CRITICAL
@@ -968,7 +969,7 @@ def test_microgram_unit_spellings_are_equivalent(
     assessment = AreaEnvironmentEngine(area).assessment
 
     assert assessment["pollutants"] == {"pm25": 13.0}
-    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
 
 
 def test_device_class_rejects_unsupported_ha_unit(hass: HomeAssistant) -> None:
@@ -1049,18 +1050,18 @@ def test_official_metadata_is_integration_name_independent(
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"),
+    ("value", "expected_current"),
     (
-        (10, PollutantState.GOOD),
-        (20, PollutantState.ELEVATED),
-        (50, PollutantState.POOR),
-        (80, PollutantState.CRITICAL),
+        (10, AirQualityState.GOOD),
+        (20, AirQualityState.DEGRADED),
+        (50, AirQualityState.POOR),
+        (80, AirQualityState.CRITICAL),
     ),
 )
-def test_pollutant_state_uses_worst_valid_severity(
-    hass: HomeAssistant, value: float, expected: PollutantState
+def test_time_based_pollutant_needs_history_for_final_state(
+    hass: HomeAssistant, value: float, expected_current: AirQualityState
 ) -> None:
-    """Dashboard pollutant state exposes the current worst valid severity."""
+    """A current reading remains visible but is not a final rolling assessment."""
     area = _area(hass)
     _sensor(
         hass,
@@ -1071,7 +1072,13 @@ def test_pollutant_state_uses_worst_valid_severity(
         UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     )
 
-    assert AreaEnvironmentEngine(area).assessment["pollutant_state"] == expected
+    assessment = AreaEnvironmentEngine(area).assessment
+
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
+    assert assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert assessment["pollutant_assessments"]["pm25"]["current_state"] == (
+        expected_current
+    )
 
 
 def test_pollutant_state_uses_worst_of_multiple_good_pollutants(
@@ -1096,8 +1103,8 @@ def test_pollutant_state_uses_worst_of_multiple_good_pollutants(
 
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["pollutant_state"] == PollutantState.GOOD
-    assert assessment["dominant_indoor_pollutant"] == "pm25"
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
+    assert assessment["dominant_indoor_pollutant"] == "unknown"
     assert set(assessment["pollutants"]) == {"pm25", "pm10", "no2", "ozone"}
 
 
@@ -1153,7 +1160,7 @@ def test_aqi_does_not_override_valid_pm25_state(hass: HomeAssistant) -> None:
     )
 
     assert AreaEnvironmentEngine(area).assessment["pollutant_state"] == (
-        PollutantState.GOOD
+        PollutantState.UNKNOWN
     )
 
 
@@ -1211,7 +1218,7 @@ def test_ignored_pollutant_does_not_worsen_valid_state(hass: HomeAssistant) -> N
 
     assessment = AreaEnvironmentEngine(area).assessment
 
-    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
     assert assessment["pollutants"]["pm25"] == 10
     assert assessment["ignored_sources"]["sensor.invalid_pm25"] == {
         "reason": "unsupported_unit"
@@ -1387,7 +1394,7 @@ async def test_multiple_loaded_include_pollutants_are_discovered_together(
         "no2": 10.0,
         "ozone": 50.0,
     }
-    assert assessment["pollutant_state"] == PollutantState.GOOD
+    assert assessment["pollutant_state"] == PollutantState.UNKNOWN
     assert all(
         assessment["capabilities"][capability]
         for capability in ("pm25", "pm10", "no2", "ozone", "air_quality")
@@ -1531,7 +1538,9 @@ def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
     assert pm25["guideline_value"] == 15
     assert pm25["guideline_period"] == "24h"
     assert pm25["guideline_exceeded"] is False
-    assert pm25["severity_basis"] == "scientific_guideline"
+    assert pm25["severity"] == AirQualityState.UNKNOWN
+    assert pm25["provisional_alert"] is False
+    assert pm25["severity_basis"] == "insufficient_history"
 
     freezer.tick(6 * 60 * 60)
 
@@ -1557,6 +1566,187 @@ def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
     engine.evaluate()
     assert engine.assessment["pollutant_assessments"]["pm25"]["rolling_24h"] == 80
     assert engine.assessment["air_quality"] == AirQualityState.CRITICAL
+
+
+def test_limited_rolling_exceedance_does_not_set_severity(
+    hass: HomeAssistant, freezer
+) -> None:
+    """An elevated partial mean cannot become a final 24-hour assessment."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        17,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    engine = AreaEnvironmentEngine(area)
+    freezer.tick(3 * 60 * 60)
+    hass.states.async_set(
+        "sensor.pm25",
+        "8",
+        {
+            ATTR_DEVICE_CLASS: SensorDeviceClass.PM25,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        },
+    )
+    engine.evaluate()
+
+    pm25 = engine.assessment["pollutant_assessments"]["pm25"]
+    assert pm25["current_state"] == AirQualityState.GOOD
+    assert pm25["rolling_24h"] == 17
+    assert pm25["coverage_hours"] == 3
+    assert pm25["assessment_quality"] == "limited"
+    assert pm25["severity"] == AirQualityState.UNKNOWN
+    assert pm25["provisional_alert"] is False
+    assert engine.assessment["pollutant_state"] == PollutantState.UNKNOWN
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+
+
+def test_elevated_current_value_is_only_a_provisional_alert(
+    hass: HomeAssistant, freezer
+) -> None:
+    """An elevated current value warns without replacing the 24-hour result."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        24,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    engine = AreaEnvironmentEngine(area)
+    freezer.tick(3 * 60 * 60)
+    engine.evaluate()
+
+    pm25 = engine.assessment["pollutant_assessments"]["pm25"]
+    assert pm25["current_state"] == AirQualityState.DEGRADED
+    assert pm25["assessment_quality"] == "limited"
+    assert pm25["severity"] == AirQualityState.UNKNOWN
+    assert pm25["provisional_alert"] is True
+    assert "high_pm25_current" in engine.assessment["reason_codes"]
+    assert engine.assessment["pollutant_state"] == PollutantState.UNKNOWN
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_severity", "expected_state"),
+    (
+        (12, AirQualityState.GOOD, PollutantState.GOOD),
+        (22, AirQualityState.DEGRADED, PollutantState.ELEVATED),
+    ),
+)
+def test_sufficient_rolling_history_sets_final_state(
+    hass: HomeAssistant,
+    freezer,
+    value: float,
+    expected_severity: AirQualityState,
+    expected_state: PollutantState,
+) -> None:
+    """A covered 24-hour assessment contributes its rolling severity."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        value,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    engine = AreaEnvironmentEngine(area)
+    freezer.tick(20 * 60 * 60)
+    engine.evaluate()
+
+    pm25 = engine.assessment["pollutant_assessments"]["pm25"]
+    assert pm25["rolling_24h"] == value
+    assert pm25["coverage_hours"] == 20
+    assert pm25["assessment_quality"] == "sufficient"
+    assert pm25["severity"] == expected_severity
+    assert pm25["provisional_alert"] is False
+    assert engine.assessment["pollutant_state"] == expected_state
+
+
+def test_worst_covered_pollutant_is_dominant(hass: HomeAssistant, freezer) -> None:
+    """The worst of several covered rolling assessments is deterministic."""
+    area = _area(hass)
+    for entity_id, value, device_class in (
+        ("sensor.pm25", 9, SensorDeviceClass.PM25),
+        ("sensor.pm10", 20, SensorDeviceClass.PM10),
+        ("sensor.no2", 30, SensorDeviceClass.NITROGEN_DIOXIDE),
+        ("sensor.ozone", 50, SensorDeviceClass.OZONE),
+    ):
+        _sensor(
+            hass,
+            area,
+            entity_id,
+            value,
+            device_class,
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        )
+    engine = AreaEnvironmentEngine(area)
+    freezer.tick(20 * 60 * 60)
+    engine.evaluate()
+
+    assert engine.assessment["pollutant_state"] == PollutantState.ELEVATED
+    assert engine.assessment["dominant_indoor_pollutant"] == "no2"
+
+
+def test_higher_pollutant_bands_are_operational_metadata(
+    hass: HomeAssistant,
+) -> None:
+    """Higher bands are not represented as additional scientific guidelines."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.co",
+        5,
+        SensorDeviceClass.CO,
+        UnitOfDensity.MILLIGRAMS_PER_CUBIC_METER,
+    )
+    assessment = AreaEnvironmentEngine(area).assessment["pollutant_assessments"]["co"]
+
+    assert assessment["guideline_value"] == 4
+    assert assessment["guideline_period"] == "24h"
+    assert assessment["operational_thresholds"] == {
+        "poor": 7,
+        "critical": 10,
+        "period": "24h",
+        "basis": "adaptive_areas_operational",
+    }
+
+
+def test_no2_short_term_state_requires_coverage(hass: HomeAssistant, freezer) -> None:
+    """The one-hour NO2 result contributes only after 45 minutes of coverage."""
+    area = _area(hass)
+    _sensor(
+        hass,
+        area,
+        "sensor.no2",
+        120,
+        SensorDeviceClass.NITROGEN_DIOXIDE,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    engine = AreaEnvironmentEngine(area)
+    freezer.tick(18 * 60)
+    engine.evaluate()
+
+    no2 = engine.assessment["pollutant_assessments"]["no2"]
+    assert no2["short_term_coverage_hours"] == 0.3
+    assert no2["short_term_quality"] == "limited"
+    assert no2["short_term_state"] == AirQualityState.UNKNOWN
+    assert engine.assessment["pollutant_state"] == PollutantState.UNKNOWN
+
+    freezer.tick(36 * 60)
+    engine.evaluate()
+
+    no2 = engine.assessment["pollutant_assessments"]["no2"]
+    assert no2["short_term_coverage_hours"] == 0.9
+    assert no2["short_term_quality"] == "sufficient"
+    assert no2["short_term_state"] == AirQualityState.DEGRADED
+    assert engine.assessment["pollutant_state"] == PollutantState.ELEVATED
 
 
 def test_surface_temperature_improves_mould_quality(
@@ -1835,6 +2025,9 @@ def test_tvoc_mass_is_precaution_only_and_generic_scale_is_unclassified(
     assert assessment["pollutant_assessments"]["voc"]["quality"] == (
         "precaution_indicator"
     )
+    assert assessment["pollutant_assessments"]["voc"]["basis_type"] == (
+        "precaution_indicator"
+    )
     assert assessment["pollutant_assessments"]["voc_parts"]["quality"] == (
         "unsupported_scale"
     )
@@ -2038,7 +2231,7 @@ def test_more_polluted_outdoor_air_keeps_window_closed(hass: HomeAssistant) -> N
 def test_particle_mitigation_changes_without_changing_indoor_state(
     hass: HomeAssistant,
 ) -> None:
-    """Outdoor particles select airing or cleaning without changing indoor severity."""
+    """Outdoor comparison stays separate from limited indoor severity."""
     interior = _area(hass, {CONF_ENVIRONMENT_WINDOWS: ["binary_sensor.window"]})
     _sensor(
         hass,
@@ -2066,13 +2259,13 @@ def test_particle_mitigation_changes_without_changing_indoor_state(
     engine = AreaEnvironmentEngine(interior)
 
     indoor_state = engine.assessment["pollutant_state"]
-    assert indoor_state == PollutantState.CRITICAL
-    assert engine.assessment["dominant_indoor_pollutant"] == "pm25"
+    assert indoor_state == PollutantState.UNKNOWN
+    assert engine.assessment["dominant_indoor_pollutant"] == "unknown"
     assert engine.assessment["ventilation_demand"] == VentilationDemand.UNKNOWN
-    assert engine.assessment["ventilation_strategy"] == VentilationStrategy.PASSIVE
-    assert engine.assessment["window_recommendation"] == WindowRecommendation.OPEN
+    assert engine.assessment["ventilation_strategy"] == VentilationStrategy.UNKNOWN
+    assert engine.assessment["window_recommendation"] == WindowRecommendation.NONE
     assert engine.assessment["air_cleaning_recommendation"] == (
-        AirCleaningRecommendation.RECOMMENDED
+        AirCleaningRecommendation.NONE
     )
 
     hass.states.async_set(
@@ -2090,14 +2283,12 @@ def test_particle_mitigation_changes_without_changing_indoor_state(
     assert engine.assessment["air_exchange_suitability"] == (
         AirExchangeSuitability.HAZARDOUS
     )
-    assert engine.assessment["ventilation_strategy"] == (
-        VentilationStrategy.AVOID_OUTDOOR_AIR
-    )
+    assert engine.assessment["ventilation_strategy"] == VentilationStrategy.UNKNOWN
     assert engine.assessment["window_recommendation"] == (
         WindowRecommendation.KEEP_CLOSED
     )
     assert engine.assessment["air_cleaning_recommendation"] == (
-        AirCleaningRecommendation.STRONGLY_RECOMMENDED
+        AirCleaningRecommendation.NONE
     )
     assert "outdoor_air_polluted" not in engine.assessment["indoor_reason_codes"]
     assert not any(
@@ -2300,8 +2491,8 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     assert "humidex" not in state.attributes
     assert state.attributes["comfort"] != ComfortState.UNKNOWN
     assert state.attributes["humidity"] != HumidityState.UNKNOWN
-    assert state.attributes["pollutant_state"] == PollutantState.CRITICAL
-    assert state.attributes["dominant_indoor_pollutant"] == "pm25"
+    assert state.attributes["pollutant_state"] == PollutantState.UNKNOWN
+    assert state.attributes["dominant_indoor_pollutant"] == "unknown"
     assert state.attributes["indoor_source_entities"] == sorted(
         [temperature.entity_id, humidity.entity_id, pm25.entity_id]
     )
@@ -2318,6 +2509,10 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     assert state.attributes["pollutant_assessments"]["pm25"]["current_state"] == (
         AirQualityState.CRITICAL
     )
+    assert state.attributes["pollutant_assessments"]["pm25"]["severity"] == (
+        AirQualityState.UNKNOWN
+    )
+    assert state.attributes["pollutant_assessments"]["pm25"]["provisional_alert"]
     assert "ignored_sources" not in state.attributes
     assert "PM2.5" in state.attributes["context"]
     assert all(
