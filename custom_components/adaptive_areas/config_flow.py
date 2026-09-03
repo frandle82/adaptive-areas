@@ -24,7 +24,10 @@ from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_ENTITY_ID, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers.area_registry import async_get as areareg_async_get
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.device_registry import async_get as devicereg_async_get
+from homeassistant.helpers.device_registry import (
+    async_entries_for_area,
+    async_get as devicereg_async_get,
+)
 from homeassistant.helpers.entity_registry import async_get as entityreg_async_get
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -1315,7 +1318,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             entry.entity_id
             for entry in entity_registry.entities.get_entries_for_area_id(self.area.id)
         }
-        for device in device_registry.devices.get_devices_for_area_id(self.area.id):
+        for device in async_entries_for_area(device_registry, self.area.id):
             entity_ids.update(
                 entry.entity_id
                 for entry in entity_registry.entities.get_entries_for_device_id(

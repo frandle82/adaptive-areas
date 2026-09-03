@@ -12,6 +12,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import (
     EVENT_DEVICE_REGISTRY_UPDATED,
     EventDeviceRegistryUpdatedData,
+    async_entries_for_area,
     async_get as async_get_device_registry,
 )
 from homeassistant.helpers.area_registry import EVENT_AREA_REGISTRY_UPDATED
@@ -127,7 +128,7 @@ def _eligible_primary_sources(
         entry.entity_id
         for entry in entity_registry.entities.get_entries_for_area_id(area_id)
     }
-    for device in device_registry.devices.get_devices_for_area_id(area_id):
+    for device in async_entries_for_area(device_registry, area_id):
         entity_ids.update(
             entry.entity_id
             for entry in entity_registry.entities.get_entries_for_device_id(device.id)

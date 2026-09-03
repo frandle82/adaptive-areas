@@ -33,6 +33,7 @@ from custom_components.adaptive_areas import (
     _migrate_room_usage_feature,
 )
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.config_flow import OptionsFlowHandler
 from custom_components.adaptive_areas.const import (
     CONF_AREA_HUMIDITY_SENSOR,
     CONF_AREA_TEMPERATURE_SENSOR,
@@ -1347,6 +1348,107 @@ async def test_pollutants_are_discovered_from_device_entity_and_include_areas(
     assert engine.assessment["pollutants"]["pm25"] == 20
     assert engine.assessment["pollutant_assessments"]["pm25"]["current"] == 20
     assert engine.assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
+
+    engine.unload()
+
+
+async def test_child_device_entities_follow_their_effective_area(
+    hass: HomeAssistant,
+) -> None:
+    """Child-device entities participate in every Area discovery path."""
+    device_registry = async_get_device_registry(hass)
+    if not hasattr(device_registry, "async_get_or_create_child"):
+        pytest.skip("Child devices require Home Assistant 2026.9 or newer")
+    area_entry = async_get_area_registry(hass).async_create("Kitchen")
+    assert area_entry.id == "kitchen"
+    area = _area(hass)
+    source_entry = MockConfigEntry(domain="test", data={})
+    source_entry.add_to_hass(hass)
+    entity_registry = async_get_entity_registry(hass)
+    parent = device_registry.async_get_or_create(
+        config_entry_id=source_entry.entry_id,
+        identifiers={("test", "room_environment")},
+        name="Room Environment",
+    )
+    device_registry.async_update_device(parent.id, area_id=area.id)
+    inherited_child = device_registry.async_get_or_create_child(
+        config_entry_id=source_entry.entry_id,
+        identifiers={("test", "room_temperature")},
+        name="Room Temperature",
+        parent_device_id=parent.id,
+    )
+    explicit_child = device_registry.async_get_or_create_child(
+        config_entry_id=source_entry.entry_id,
+        identifiers={("test", "room_pm25")},
+        name="Room PM2.5",
+        parent_device_id=parent.id,
+    )
+    device_registry.async_update_child_device(explicit_child.id, area_id=area.id)
+
+    child_sensors = (
+        (
+            inherited_child.id,
+            "child_temperature",
+            SensorDeviceClass.TEMPERATURE,
+            "21.5",
+            UnitOfTemperature.CELSIUS,
+        ),
+        (
+            explicit_child.id,
+            "child_pm25",
+            SensorDeviceClass.PM25,
+            "12",
+            UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+        ),
+    )
+    for device_id, object_id, device_class, value, unit in child_sensors:
+        entry = entity_registry.async_get_or_create(
+            "sensor",
+            "test",
+            object_id,
+            suggested_object_id=object_id,
+            config_entry=source_entry,
+            device_id=device_id,
+            original_device_class=device_class,
+            unit_of_measurement=unit,
+        )
+        hass.states.async_set(
+            entry.entity_id,
+            value,
+            {
+                ATTR_DEVICE_CLASS: device_class,
+                ATTR_UNIT_OF_MEASUREMENT: unit,
+            },
+        )
+
+    await area.load_entities()
+
+    expected = {"sensor.child_temperature", "sensor.child_pm25"}
+    assert {entity[ATTR_ENTITY_ID] for entity in area.entities["sensor"]} == expected
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.area = area
+    assert flow._current_area_entity_ids() == expected
+
+    migrated_data, _, data_changed, _ = _migrate_primary_area_sources(
+        hass,
+        area.hass_config,
+        dict(area.hass_config.data),
+        {},
+    )
+    assert data_changed is True
+    assert migrated_data[CONF_AREA_TEMPERATURE_SENSOR] == ("sensor.child_temperature")
+
+    engine = AreaEnvironmentEngine(area)
+    assert engine._sensor_ids[str(SensorDeviceClass.PM25)] == ["sensor.child_pm25"]
+    assert engine.assessment["pollutants"]["pm25"] == 12
+
+    assert area.make_device_registry_filter()(
+        {"action": "create", "device_id": inherited_child.id}
+    )
+    assert area.make_entity_registry_filter()(
+        {"action": "create", "entity_id": "sensor.child_temperature"}
+    )
 
     engine.unload()
 

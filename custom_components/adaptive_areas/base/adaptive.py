@@ -17,6 +17,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import (
     EventDeviceRegistryUpdatedData,
+    async_entries_for_area,
     async_get as devicereg_async_get,
 )
 from homeassistant.helpers.dispatcher import (
@@ -334,7 +335,7 @@ class AdaptiveArea:
         device_registry = devicereg_async_get(self.hass)
 
         # Add entities from devices in this area
-        devices_in_area = device_registry.devices.get_devices_for_area_id(self.id)
+        devices_in_area = async_entries_for_area(device_registry, self.id)
         for device in devices_in_area:
             entity_list.extend(
                 [
@@ -548,6 +549,15 @@ class AdaptiveArea:
             entity_registry = entityreg_async_get(self.hass)
             entity_entry = entity_registry.async_get(entity_id)
 
+            def _belongs_to_area() -> bool:
+                if entity_entry is None:
+                    return False
+                if entity_entry.area_id is not None:
+                    return entity_entry.area_id == self.id
+                if entity_entry.device_id is None:
+                    return False
+                return self._device_belongs_to_area(entity_entry.device_id)
+
             if (
                 action == "update"
                 and "changes" in event_data
@@ -558,19 +568,33 @@ class AdaptiveArea:
                     return True
 
                 # Is from our area
-                if entity_entry and entity_entry.area_id == self.id:
+                if _belongs_to_area():
                     return True
 
                 return False
 
             if action in ("create", "remove"):
                 # Is from our area
-                if entity_entry and entity_entry.area_id == self.id:
+                if _belongs_to_area():
                     return True
 
             return False
 
         return _entity_registry_filter
+
+    def _device_belongs_to_area(self, device_id: str) -> bool:
+        """Return whether a device's own or inherited Area matches this Area."""
+        device_registry = devicereg_async_get(self.hass)
+        device_entry = device_registry.async_get(device_id)
+        if device_entry is None:
+            return False
+        if device_entry.area_id is not None:
+            return device_entry.area_id == self.id
+        parent_device_id = getattr(device_entry, "parent_device_id", None)
+        if parent_device_id is None:
+            return False
+        parent_device = device_registry.async_get(parent_device_id)
+        return bool(parent_device and parent_device.area_id == self.id)
 
     def make_device_registry_filter(self):
         """Create device register filter for this area."""
@@ -598,11 +622,8 @@ class AdaptiveArea:
             if event_data["device_id"] in self._area_devices:
                 return True
 
-            device_registry = devicereg_async_get(self.hass)
-            device_entry = device_registry.async_get(event_data["device_id"])
-
             # Is from our area
-            if device_entry and device_entry.area_id == self.id:
+            if self._device_belongs_to_area(event_data["device_id"]):
                 return True
 
             return False
