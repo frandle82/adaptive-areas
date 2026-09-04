@@ -339,6 +339,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Set up the component."""
 
     remove_reload_timer: Callable[[], None] | None = None
+    remove_repair_timer: Callable[[], None] | None = None
 
     cleaned_options, options_changed = _sanitize_switch_groups_options(
         dict(config_entry.options)
@@ -377,6 +378,31 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
             remove_reload_timer = None
 
     @callback
+    def _async_schedule_repair_evaluation(*args, **kwargs) -> None:
+        """Coalesce registry events into one Repair evaluation."""
+        nonlocal remove_repair_timer
+        if not hass.is_running or remove_repair_timer is not None:
+            return
+
+        @callback
+        def _evaluate(_now=None) -> None:
+            nonlocal remove_repair_timer
+            remove_repair_timer = None
+            hass.async_create_task(
+                async_evaluate_config_entry(hass, config_entry),
+                f"evaluate repairs for {config_entry.entry_id}",
+            )
+
+        remove_repair_timer = async_call_later(hass, 0, _evaluate)
+
+    @callback
+    def _cancel_scheduled_repair_evaluation() -> None:
+        nonlocal remove_repair_timer
+        if remove_repair_timer is not None:
+            remove_repair_timer()
+            remove_repair_timer = None
+
+    @callback
     def _async_registry_updated(
         event: (
             Event[EventEntityRegistryUpdatedData]
@@ -384,6 +410,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         ),
     ) -> None:
         """Reload integration when entity registry is updated."""
+
+        _async_schedule_repair_evaluation()
 
         area_data: dict[str, Any] = dict(config_entry.data)
         if config_entry.options:
@@ -433,10 +461,21 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         tracked_listeners: list[Callable] = []
         tracked_listeners.append(config_entry.add_update_listener(async_update_options))
         tracked_listeners.append(_cancel_scheduled_reload)
+        tracked_listeners.append(_cancel_scheduled_repair_evaluation)
+        for event_type in (
+            EVENT_ENTITY_REGISTRY_UPDATED,
+            EVENT_DEVICE_REGISTRY_UPDATED,
+            EVENT_AREA_REGISTRY_UPDATED,
+            EVENT_FLOOR_REGISTRY_UPDATED,
+        ):
+            tracked_listeners.append(
+                hass.bus.async_listen(event_type, _async_schedule_repair_evaluation)
+            )
 
         @callback
         def _async_backing_registry_updated(event: Event) -> None:
             """Reload when the backing Area or floor changes."""
+            _async_schedule_repair_evaluation()
             target_id = event.data.get("area_id") or event.data.get("floor_id")
             if target_id == adaptive_area.id:
                 _async_reload_entry()

@@ -24,10 +24,17 @@ information.
 ### Repairs
 
 Adaptive Areas creates native Home Assistant Repair issues for persistent,
-actionable configuration problems—for example, when a configured Home Assistant
-Area or floor was deleted, or when an explicitly selected entity no longer
-exists. An entity that is merely `unavailable` or `unknown` is not treated as
-missing.
+actionable configuration problems. Repairs cover deleted Home Assistant Areas,
+floors, and explicitly selected entities; missing presence or environmental
+measurement sources; entity assignments that cannot serve their configured
+role; and structurally incomplete Wasp in a Box, BLE tracker, or climate-control
+configuration.
+
+Repairs are not runtime alarms. An entity that is merely `unavailable` or
+`unknown` is still considered present, and temporary sensor outages, current air
+quality, cleaning recommendations, and normal Area states do not create issues.
+Relevant entity, device, Area, and floor registry changes trigger an automatic,
+coalesced reevaluation without polling.
 
 Open **Settings → System → Repairs** to review an issue. Repair issues do not
 silently delete or rewrite configuration. Reconfigure or remove the affected

@@ -24,7 +24,7 @@ async def test_system_health_summary_is_private(
     assert info["regular_areas"] == 1
     assert info["meta_areas"] == 0
     assert info["interior_areas"] == 1
-    assert info["active_repairs"] == 0
+    assert info["active_repairs"] == 1
     serialized = json.dumps(info)
     assert "kitchen" not in serialized.lower()
     assert "binary_sensor" not in serialized
@@ -38,4 +38,4 @@ async def test_system_health_summary_is_private(
         translation_key="missing_area",
     )
     info = await async_system_health_info(hass)
-    assert info["active_repairs"] == 1
+    assert info["active_repairs"] == 2

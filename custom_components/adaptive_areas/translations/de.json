@@ -996,6 +996,22 @@
       "missing_entities": {
         "title": "Konfigurierte Entitäten fehlen",
         "description": "Der Adaptive-Areas-Eintrag **{entry}** enthält {count} nicht mehr vorhandene Entitätsreferenz(en) in {category_count} Konfigurationskategorie(n). Konfiguriere den Eintrag neu und wähle vorhandene Entitäten aus. Entitäten mit dem Zustand „Nicht verfügbar“ oder „Unbekannt“ gelten nicht als fehlend."
+      },
+      "no_presence_sources": {
+        "title": "Keine Anwesenheitsquelle für {entry}",
+        "description": "Adaptive Areas kann für diesen Bereich keine geeignete Anwesenheitsquelle finden. Prüfe die Bereichszuordnung und die Einstellungen zur Anwesenheitserkennung."
+      },
+      "environment_without_sources": {
+        "title": "Keine Umweltdaten für {entry}",
+        "description": "Area Climate ist aktiviert, kann in diesem Bereich aber keine verwertbaren Umweltdaten auswerten."
+      },
+      "invalid_entity_references": {
+        "title": "Ungültige Entitätszuordnung in {entry}",
+        "description": "{count} konfigurierte Entität(en) passen nicht zu der vorgesehenen Funktion. Prüfe die betroffenen Einstellungen."
+      },
+      "invalid_feature_configuration": {
+        "title": "Unvollständige Funktionskonfiguration in {entry}",
+        "description": "{count} Konfigurationsproblem(e) betreffen {feature_count} aktivierte Funktion(en). Prüfe die Integrationsoptionen."
       }
     },
     "device": {

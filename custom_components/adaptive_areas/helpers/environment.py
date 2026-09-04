@@ -11,6 +11,7 @@ from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
@@ -22,13 +23,9 @@ from homeassistant.const import (
     UnitOfRatio,
     UnitOfTemperature,
 )
-from homeassistant.core import Event, EventStateChangedData, callback
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.device_registry import (
-    async_entries_for_area,
-    async_get as async_get_device_registry,
-)
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util.unit_conversion import (
@@ -41,6 +38,7 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_EXTERIOR,
     CONF_AREA_HUMIDITY_SENSOR,
     CONF_AREA_TEMPERATURE_SENSOR,
+    CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_HUMIDITY_DURATION,
     CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
@@ -75,6 +73,10 @@ from custom_components.adaptive_areas.const import (
     VentilationFanRequest,
     VentilationStrategy,
     WindowRecommendation,
+)
+from custom_components.adaptive_areas.helpers.sources import (
+    area_entity_ids,
+    entity_device_class,
 )
 
 MICROGRAMS_PER_CUBIC_METER = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
@@ -281,6 +283,68 @@ POLLUTANT_NAMES = {
     SensorDeviceClass.AQI: "aqi",
     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS: "voc_parts",
 }
+
+
+def get_environment_source_capabilities(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> list[str]:
+    """Return stable measurement capabilities without requiring live values."""
+    config = {**config_entry.data, **config_entry.options}
+    features = config.get(CONF_ENABLED_FEATURES, {})
+    feature_config = (
+        features.get(CONF_FEATURE_ENVIRONMENT, {}) if isinstance(features, dict) else {}
+    )
+    if isinstance(feature_config, dict):
+        for key, value in feature_config.items():
+            config.setdefault(key, value)
+
+    entity_registry = async_get_entity_registry(hass)
+
+    def _existing_sensor(entity_id: Any) -> bool:
+        return bool(
+            isinstance(entity_id, str)
+            and entity_id.startswith("sensor.")
+            and (
+                hass.states.get(entity_id) is not None
+                or entity_registry.async_get(entity_id) is not None
+            )
+        )
+
+    candidates = area_entity_ids(hass, config_entry, config, domain="sensor")
+    excluded = set(config.get(CONF_EXCLUDE_ENTITIES, []))
+    dedicated = {
+        config.get(CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE),
+        config.get(CONF_ENVIRONMENT_OUTDOOR_HUMIDITY),
+        config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE),
+    }
+    candidates -= excluded | dedicated
+    device_classes: dict[str, list[str]] = {}
+    for entity_id in sorted(candidates):
+        device_class = entity_device_class(hass, entity_id)
+        if device_class is not None:
+            device_classes.setdefault(device_class, []).append(entity_id)
+
+    capabilities: set[str] = set()
+    for config_key, device_class, capability in (
+        (CONF_AREA_TEMPERATURE_SENSOR, SensorDeviceClass.TEMPERATURE, "temperature"),
+        (CONF_AREA_HUMIDITY_SENSOR, SensorDeviceClass.HUMIDITY, "humidity"),
+    ):
+        configured = config.get(config_key)
+        if _existing_sensor(configured) or (
+            not configured and len(device_classes.get(str(device_class), [])) == 1
+        ):
+            capabilities.add(capability)
+
+    pollutants = {
+        name
+        for device_class, name in POLLUTANT_NAMES.items()
+        if device_classes.get(str(device_class))
+    }
+    capabilities.update(pollutants)
+    if pollutants:
+        capabilities.add("air_quality")
+    return sorted(capabilities)
+
 
 AIR_QUALITY_RANK = {
     AirQualityState.UNKNOWN: 0,
@@ -694,46 +758,23 @@ class AreaEnvironmentEngine:
 
     def _area_sensor_ids(self) -> set[str]:
         """Return non-Adaptive sensor entities belonging to this HA Area."""
-        entity_registry = async_get_entity_registry(self.area.hass)
-        device_registry = async_get_device_registry(self.area.hass)
-        entity_ids = {
-            entry.entity_id
-            for entry in entity_registry.entities.get_entries_for_area_id(self.area.id)
-        }
-        for device in async_entries_for_area(device_registry, self.area.id):
-            entity_ids.update(
-                entry.entity_id
-                for entry in entity_registry.entities.get_entries_for_device_id(
-                    device.id
-                )
-            )
-        # The loaded snapshot also contains explicitly included entities. They are
-        # candidates only; all pollutant filters are applied during discovery.
-        entity_ids.update(
-            entity[ATTR_ENTITY_ID] for entity in self.area.entities.get("sensor", [])
+        entity_ids = area_entity_ids(
+            self.area.hass,
+            self.area.hass_config,
+            self.config,
+            domain="sensor",
         )
-        return {
-            entity_id
-            for entity_id in entity_ids
-            if entity_id.startswith("sensor.")
-            and not (
-                (entry := entity_registry.async_get(entity_id))
-                and (entry.disabled or entry.platform == DOMAIN)
-            )
-        }
+        entity_ids.update(
+            entity[ATTR_ENTITY_ID]
+            for entity in self.area.entities.get("sensor", [])
+            if entity and ATTR_ENTITY_ID in entity
+        )
+        return entity_ids
 
     def _sensor_device_class(self, entity_id: str) -> SensorDeviceClass | None:
         """Return an official sensor device class from state or registry."""
-        state = self.area.hass.states.get(entity_id)
-        device_class = (
-            state.attributes.get(ATTR_DEVICE_CLASS) if state is not None else None
-        )
-        if device_class is None:
-            entry = async_get_entity_registry(self.area.hass).async_get(entity_id)
-            if entry is not None:
-                device_class = entry.device_class or entry.original_device_class
         try:
-            return SensorDeviceClass(device_class)
+            return SensorDeviceClass(entity_device_class(self.area.hass, entity_id))
         except TypeError, ValueError:
             return None
 

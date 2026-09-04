@@ -475,6 +475,12 @@
       }
     }
   },
+  "issues": {
+    "no_presence_sources": {"title": "Brak źródła obecności dla {entry}", "description": "Adaptive Areas nie może znaleźć odpowiedniego źródła obecności dla tego obszaru. Sprawdź przypisanie obszaru i ustawienia wykrywania obecności."},
+    "environment_without_sources": {"title": "Brak danych środowiskowych dla {entry}", "description": "Area Climate jest włączone, ale nie może ocenić żadnych użytecznych danych środowiskowych w tym obszarze."},
+    "invalid_entity_references": {"title": "Nieprawidłowe przypisanie encji w {entry}", "description": "{count} skonfigurowanych encji nie pasuje do przewidzianej funkcji. Sprawdź odpowiednie ustawienia."},
+    "invalid_feature_configuration": {"title": "Niepełna konfiguracja funkcji w {entry}", "description": "{count} problemów konfiguracji dotyczy {feature_count} włączonych funkcji. Sprawdź opcje integracji."}
+  },
   "device": {
     "global": {
       "name": "Globalne"

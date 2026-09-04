@@ -440,6 +440,12 @@
             }
         }
     },
+    "issues": {
+        "no_presence_sources": {"title": "Aucune source de présence pour {entry}", "description": "Adaptive Areas ne trouve aucune source de présence adaptée pour cette zone. Vérifiez l’affectation de la zone et les réglages de détection de présence."},
+        "environment_without_sources": {"title": "Aucune donnée environnementale pour {entry}", "description": "Area Climate est activé, mais ne peut évaluer aucune donnée environnementale exploitable dans cette zone."},
+        "invalid_entity_references": {"title": "Affectation d’entité non valide dans {entry}", "description": "{count} entité(s) configurée(s) ne correspondent pas à la fonction prévue. Vérifiez les réglages concernés."},
+        "invalid_feature_configuration": {"title": "Configuration de fonctionnalité incomplète dans {entry}", "description": "{count} problème(s) de configuration concernent {feature_count} fonctionnalité(s) activée(s). Vérifiez les options de l’intégration."}
+    },
     "device": {
         "global": {
             "name": "Global"

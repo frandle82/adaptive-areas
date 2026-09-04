@@ -34,7 +34,10 @@ from custom_components.adaptive_areas.const import (
 from custom_components.adaptive_areas.helpers.diagnostics import (
     safe_entity_descriptor,
 )
-from custom_components.adaptive_areas.repairs import get_repair_summary
+from custom_components.adaptive_areas.repairs import (
+    active_issue_count,
+    get_repair_summary,
+)
 
 
 def _enabled_features(area: AdaptiveArea) -> list[str]:
@@ -193,7 +196,10 @@ async def async_get_config_entry_diagnostics(
             "states": {},
             "features": {"enabled": enabled_features},
             "entities": generated,
-            "repairs": repair_summary,
+            "repairs": {
+                "active_issue_count": active_issue_count(hass, config_entry),
+                "summary": repair_summary,
+            },
             "decision_trace": [],
             "environment": {},
         }
@@ -238,7 +244,8 @@ async def async_get_config_entry_diagnostics(
             },
         },
         "repairs": {
-            **repair_summary,
+            "active_issue_count": active_issue_count(hass, config_entry),
+            "summary": repair_summary,
             "legacy_same_area_entries": _legacy_same_area_count(hass, config_entry),
         },
         "decision_trace": area.decision_trace.export(),

@@ -53,6 +53,10 @@ async def test_config_entry_diagnostics_sections_and_trace(
     assert diagnostics["decision_trace"] == []
     assert diagnostics["environment"] == {"enabled": False}
     assert diagnostics["room_usage"] == {"enabled": False}
+    assert diagnostics["repairs"]["active_issue_count"] == 1
+    assert diagnostics["repairs"]["summary"]["presence"]["problem"] == (
+        "no_presence_sources"
+    )
 
     area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
     area.trace_decision(
@@ -99,7 +103,7 @@ async def test_diagnostics_redact_sensitive_references(hass: HomeAssistant) -> N
     ):
         assert secret not in serialized
     assert "person.<redacted>" not in serialized
-    assert diagnostics["repairs"]["missing_entities"]["count"] == 4
+    assert diagnostics["repairs"]["summary"]["missing_entities"]["count"] == 4
 
 
 async def test_device_diagnostics_use_config_entry_mapping(

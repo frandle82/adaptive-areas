@@ -327,6 +327,12 @@
             }
         }
     },
+    "issues": {
+        "no_presence_sources": {"title": "Geen aanwezigheidsbron voor {entry}", "description": "Adaptive Areas kan geen geschikte aanwezigheidsbron voor dit gebied vinden. Controleer de gebiedstoewijzing en de instellingen voor aanwezigheidsdetectie."},
+        "environment_without_sources": {"title": "Geen omgevingsgegevens voor {entry}", "description": "Area Climate is ingeschakeld, maar kan in dit gebied geen bruikbare omgevingsgegevens beoordelen."},
+        "invalid_entity_references": {"title": "Ongeldige entiteitstoewijzing in {entry}", "description": "{count} geconfigureerde entiteit(en) passen niet bij de bedoelde functie. Controleer de betreffende instellingen."},
+        "invalid_feature_configuration": {"title": "Onvolledige functieconfiguratie in {entry}", "description": "{count} configuratieproble(e)m(en) treft/treffen {feature_count} ingeschakelde functie(s). Controleer de integratieopties."}
+    },
     "device": {
         "global": {
             "name": "Global"

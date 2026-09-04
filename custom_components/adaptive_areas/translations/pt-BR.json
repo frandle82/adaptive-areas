@@ -474,6 +474,12 @@
             "name": "Exterior"
         }
     },
+    "issues": {
+        "no_presence_sources": {"title": "Sem fonte de presença para {entry}", "description": "O Adaptive Areas não encontra uma fonte de presença adequada para esta área. Verifique a atribuição da área e as configurações de detecção de presença."},
+        "environment_without_sources": {"title": "Sem dados ambientais para {entry}", "description": "O Area Climate está ativado, mas não consegue avaliar dados ambientais utilizáveis nesta área."},
+        "invalid_entity_references": {"title": "Atribuição de entidade inválida em {entry}", "description": "{count} entidade(s) configurada(s) não correspondem à função pretendida. Verifique as configurações afetadas."},
+        "invalid_feature_configuration": {"title": "Configuração de recurso incompleta em {entry}", "description": "{count} problema(s) de configuração afetam {feature_count} recurso(s) ativado(s). Verifique as opções da integração."}
+    },
     "selector": {
         "calculation_mode": {
             "options": {

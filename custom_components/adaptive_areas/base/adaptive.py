@@ -38,6 +38,7 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_INTERIOR,
     AREA_TYPE_META,
     CONF_ENABLED_FEATURES,
+    CONF_BLE_TRACKER_ENTITIES,
     CONF_EXCLUDE_ENTITIES,
     CONF_FEATURE_AGGREGATION,
     CONF_FEATURE_BLE_TRACKERS,
@@ -47,13 +48,10 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
     CONF_INCLUDE_ENTITIES,
-    CONF_PRESENCE_DEVICE_PLATFORMS,
-    CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_TYPE,
     CONFIGURABLE_AREA_STATE_MAP,
     DATA_AREA_OBJECT,
     DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES,
-    DEFAULT_PRESENCE_DEVICE_PLATFORMS,
     ADAPTIVE_AREAS_COMPONENTS,
     ADAPTIVE_AREAS_COMPONENTS_GLOBAL,
     ADAPTIVE_AREAS_COMPONENTS_META,
@@ -74,6 +72,9 @@ from custom_components.adaptive_areas.helpers.environment import (
     AreaEnvironmentEngine,
 )
 from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
+from custom_components.adaptive_areas.helpers.sources import (
+    physical_presence_source_ids,
+)
 from custom_components.adaptive_areas.repairs import (
     get_configured_entity_references,
 )
@@ -461,28 +462,19 @@ class AdaptiveArea:
 
         sensors: list[str] = []
 
-        valid_presence_platforms = self.config.get(
-            CONF_PRESENCE_DEVICE_PLATFORMS, DEFAULT_PRESENCE_DEVICE_PLATFORMS
+        sensors.extend(
+            physical_presence_source_ids(
+                self.hass,
+                self.hass_config,
+                self.config,
+                loaded_entity_ids=(
+                    entity[ATTR_ENTITY_ID]
+                    for entities in self.entities.values()
+                    for entity in entities
+                    if entity and ATTR_ENTITY_ID in entity
+                ),
+            )
         )
-
-        for component, entities in self.entities.items():
-            if component not in valid_presence_platforms:
-                continue
-
-            for entity in entities:
-                if not entity:
-                    continue
-
-                if component == BINARY_SENSOR_DOMAIN:
-                    if ATTR_DEVICE_CLASS not in entity:
-                        continue
-
-                    if entity[ATTR_DEVICE_CLASS] not in self.config.get(
-                        CONF_PRESENCE_SENSOR_DEVICE_CLASS, []
-                    ):
-                        continue
-
-                sensors.append(entity[ATTR_ENTITY_ID])
 
         # Append presence_hold switch as a presence_sensor
         if self.has_feature(CONF_FEATURE_PRESENCE_HOLD):
@@ -492,7 +484,9 @@ class AdaptiveArea:
             sensors.append(presence_hold_switch_id)
 
         # Append BLE Tracker monitor as a presence_sensor
-        if self.has_feature(CONF_FEATURE_BLE_TRACKERS):
+        if self.has_feature(CONF_FEATURE_BLE_TRACKERS) and self.feature_config(
+            CONF_FEATURE_BLE_TRACKERS
+        ).get(CONF_BLE_TRACKER_ENTITIES, []):
             ble_tracker_sensor_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_ble_trackers_{self.slug}_ble_tracker_monitor"
             sensors.append(ble_tracker_sensor_id)
 

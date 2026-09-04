@@ -1,1 +1,8 @@
-{}
+{
+  "issues": {
+    "no_presence_sources": {"title": "Ingen närvarokälla för {entry}", "description": "Adaptive Areas hittar ingen lämplig närvarokälla för detta område. Kontrollera områdestilldelningen och inställningarna för närvarodetektering."},
+    "environment_without_sources": {"title": "Inga miljödata för {entry}", "description": "Area Climate är aktiverat men kan inte utvärdera några användbara miljödata i detta område."},
+    "invalid_entity_references": {"title": "Ogiltig entitetstilldelning i {entry}", "description": "{count} konfigurerade entiteter passar inte den avsedda funktionen. Kontrollera de berörda inställningarna."},
+    "invalid_feature_configuration": {"title": "Ofullständig funktionskonfiguration i {entry}", "description": "{count} konfigurationsproblem påverkar {feature_count} aktiverade funktioner. Kontrollera integrationsalternativen."}
+  }
+}

@@ -326,6 +326,12 @@
             }
         }
     },
+    "issues": {
+        "no_presence_sources": {"title": "{entry} க்கு இருப்பு ஆதாரம் இல்லை", "description": "இந்தப் பகுதிக்கு ஏற்ற இருப்பு ஆதாரத்தை Adaptive Areas கண்டறிய முடியவில்லை. பகுதி ஒதுக்கீட்டையும் இருப்பு கண்டறிதல் அமைப்புகளையும் சரிபார்க்கவும்."},
+        "environment_without_sources": {"title": "{entry} க்கு சுற்றுச்சூழல் தரவு இல்லை", "description": "Area Climate இயக்கப்பட்டுள்ளது, ஆனால் இந்தப் பகுதியில் பயன்படுத்தக்கூடிய சுற்றுச்சூழல் தரவை மதிப்பிட முடியவில்லை."},
+        "invalid_entity_references": {"title": "{entry} இல் தவறான entity ஒதுக்கீடு", "description": "உள்ளமைக்கப்பட்ட {count} entity அதன் நோக்கத்திற்குப் பொருந்தவில்லை. தொடர்புடைய அமைப்புகளைச் சரிபார்க்கவும்."},
+        "invalid_feature_configuration": {"title": "{entry} இல் முழுமையற்ற அம்ச உள்ளமைவு", "description": "{count} உள்ளமைவுச் சிக்கல்கள் இயக்கப்பட்ட {feature_count} அம்சங்களைப் பாதிக்கின்றன. Integration விருப்பங்களைச் சரிபார்க்கவும்."}
+    },
     "device": {
         "global": {
             "name": "உலகளாவிய"
