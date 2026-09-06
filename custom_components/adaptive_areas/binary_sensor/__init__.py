@@ -96,9 +96,18 @@ class CleaningDueBinarySensor(BinaryAdaptiveEntity, BinarySensorEntity):
         self._attr_is_on = assessment["due"]
         self._attr_extra_state_attributes = {
             "cleaning_score": assessment["score"],
+            "cleaning_state": str(assessment["cleaning_state"]),
             "cumulative_presence_seconds": assessment["cumulative_presence_seconds"],
+            "presence_minutes_since_cleaning": assessment[
+                "presence_minutes_since_cleaning"
+            ],
             "presence_minutes_to_due": assessment["presence_minutes_to_due"],
+            "remaining_minutes_to_due": assessment["remaining_minutes_to_due"],
+            "overdue_minutes": assessment["overdue_minutes"],
             "last_cleaned": assessment["last_cleaned"],
+            "current_occupancy_duration_seconds": assessment[
+                "current_occupancy_duration_seconds"
+            ],
         }
         self.async_write_ha_state()
 

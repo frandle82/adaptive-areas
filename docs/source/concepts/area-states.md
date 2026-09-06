@@ -16,6 +16,10 @@ This sensor reflects the **presence state** of the area:
 - When any presence entity enters a **presence state** (`on`, `home`, `playing`), the area is considered **occupied** (`on`).
 - Once all presence entities leave those states, Adaptive Areas waits for a short delay (configured via `Clear Timeout`) before marking the area as **clear** (`off`).
 
+The same entity explains its state without creating extra sensors. Its attributes include `occupied_since`, `last_activity`, `last_cleared`, the absolute projected `clear_at`, configured/available/active source counts, active and last-active sources, `last_reason`, `last_transition`, and `active_states`. Timestamps use ISO 8601; `occupied_since` and `clear_at` are `null` while clear.
+
+Semantic transitions are also published on the Home Assistant event bus as `adaptive_areas_area_event`. The payload contains `area_id`, `area_type`, `event_type`, `previous_states`, `states`, and a stable machine-readable `reason`. Event types are `occupied`, `cleared`, `dark_started`, `dark_ended`, `sleep_started`, `sleep_ended`, `extended_started`, `extended_ended`, `accented_started`, and `accented_ended`. Unchanged state evaluations do not emit an event.
+
 !!! note
     Adaptive Areas automatically listen for area changes on entities.
     Changing an entity's area will cause Adaptive Areas to reload.

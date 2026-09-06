@@ -10,7 +10,6 @@ from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
     ATTR_UNIT_OF_MEASUREMENT,
-    PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
@@ -25,7 +24,6 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoEnvironment,
-    AdaptiveAreasFeatureInfoRoomUsage,
     EnvironmentState,
 )
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
@@ -53,9 +51,6 @@ async def async_setup_entry(
 
     if area.environment is not None:
         entities_to_add.append(EnvironmentSensor(area))
-
-    if area.room_usage is not None:
-        entities_to_add.append(RoomUsageSensor(area))
 
     if entities_to_add:
         async_add_entities(entities_to_add)
@@ -242,6 +237,11 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 ),
                 "context": assessment.get("context", ""),
                 "reason_codes": list(assessment.get("reason_codes", [])),
+                "recommended_action": str(assessment.get("recommended_action", "none")),
+                "secondary_actions": list(assessment.get("secondary_actions", [])),
+                "recommendation_reason_codes": list(
+                    assessment.get("recommendation_reason_codes", [])
+                ),
             }
             self.async_write_ha_state()
             return
@@ -307,40 +307,11 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 assessment.get("mitigation_reason_codes", [])
             ),
             "reason_codes": list(assessment.get("reason_codes", [])),
+            "recommended_action": str(assessment.get("recommended_action", "none")),
+            "secondary_actions": list(assessment.get("secondary_actions", [])),
+            "recommendation_reason_codes": list(
+                assessment.get("recommendation_reason_codes", [])
+            ),
         }
         self._attr_extra_state_attributes = attributes
-        self.async_write_ha_state()
-
-
-class RoomUsageSensor(AdaptiveEntity, SensorEntity):
-    """Expose the Area Cleaning Score under the legacy Room Usage ID."""
-
-    feature_info = AdaptiveAreasFeatureInfoRoomUsage()
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_suggested_display_precision = 2
-
-    def __init__(self, area: AdaptiveArea) -> None:
-        """Initialize Room Usage sensor."""
-        AdaptiveEntity.__init__(self, area, domain=SENSOR_DOMAIN)
-        SensorEntity.__init__(self)
-
-    async def async_added_to_hass(self) -> None:
-        """Subscribe to usage transitions."""
-        await super().async_added_to_hass()
-        assert self.area.room_usage is not None
-        self.async_on_remove(
-            self.area.room_usage.register_listener(self._assessment_changed)
-        )
-        self._assessment_changed()
-
-    def _assessment_changed(self) -> None:
-        if self.area.room_usage is None:
-            return
-        assessment = self.area.room_usage.assessment
-        self._attr_native_value = assessment["score"]
-        self._attr_extra_state_attributes = {
-            key: value
-            for key, value in assessment.items()
-            if key not in ("score", "due")
-        }
         self.async_write_ha_state()

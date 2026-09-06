@@ -237,7 +237,7 @@
             },
             "feature_conf_environment": {
                 "title": "Bereichsklima",
-                "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung anhand der konfigurierten Sensoren.",
+                "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung. Gefundene Fähigkeiten: {temperature_count} Temperatur-, {humidity_count} Feuchte- und {window_count} Fensterquellen.",
                 "data": {
                     "room_category": "Bereichskategorie",
                     "area_temperature_sensor": "Bereichstemperatursensor",
@@ -355,7 +355,7 @@
             },
             "presence_tracking": {
                 "title": "Anwesenheitsverfolgung",
-                "description": "Konfigurieren, welche Domänen und binären Sensorgeräteklassen für die Anwesenheitsverfolgung verwendet werden. In diesem Abschnitt kann ebenfalls konfiguriert werden, wie lange Adaptive Areas nach dem letzten Anwesenheitsereignis wartet, bis der Bereich freigegeben wird.",
+                "description": "Konfigurieren, welche Domänen und binären Sensorgeräteklassen für die Anwesenheitsverfolgung verwendet werden. Adaptive Areas findet aktuell {presence_source_count} passende Quellen.",
                 "data": {
                     "presence_sensor_device_class": "Geräteklassen für Anwesenheitssensoren",
                     "presence_device_platforms": "Domänen zur Anwesenheitsverfolgung",
@@ -421,7 +421,19 @@
                   },
                   "clear_timeout": {
                     "name": "Timeout"
-                  }
+                  },
+                  "occupied_since": {"name": "Belegt seit"},
+                  "last_activity": {"name": "Letzte Aktivität"},
+                  "last_cleared": {"name": "Zuletzt freigegeben"},
+                  "clear_at": {"name": "Voraussichtlich frei um"},
+                  "configured_source_count": {"name": "Konfigurierte Quellen"},
+                  "available_source_count": {"name": "Verfügbare Quellen"},
+                  "active_source_count": {"name": "Aktive Quellen"},
+                  "active_sources": {"name": "Liste aktiver Quellen"},
+                  "last_active_sources": {"name": "Zuletzt aktive Quellen"},
+                  "last_reason": {"name": "Letzter Grund"},
+                  "last_transition": {"name": "Letzter Übergang"},
+                  "active_states": {"name": "Aktive Zustände"}
                 }
             },
             "ble_tracker_monitor": {
@@ -435,8 +447,13 @@
                 },
                 "state_attributes": {
                     "cleaning_score": {"name": "Reinigungswert"},
+                    "cleaning_state": {"name": "Reinigungszustand"},
                     "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
+                    "presence_minutes_since_cleaning": {"name": "Anwesenheit seit Reinigung"},
                     "presence_minutes_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
+                    "remaining_minutes_to_due": {"name": "Restzeit bis Fälligkeit"},
+                    "overdue_minutes": {"name": "Überfällige Zeit"},
+                    "current_occupancy_duration_seconds": {"name": "Aktuelle Belegungsdauer"},
                     "last_cleaned": {"name": "Zuletzt gereinigt"}
                 }
             },

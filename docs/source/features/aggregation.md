@@ -26,6 +26,8 @@ This is especially useful for simplifying automations and dashboards, since you 
 - **Binary Sensor** → Aggregate is normally `on` if any entity is `on`; connectivity and plug classes require all members to be `on`.
 - **Sensor** → Values are averaged, except for `power`, `current`, and `energy`, which are summed.
 
+The aggregate state calculation is unchanged. Existing aggregate entities additionally expose `source_count`, `available_count`, and `unavailable_count`. Numeric aggregates also expose `minimum`, `maximum`, and `spread` (`maximum - minimum`) plus source unit/device-class metadata. Sources are not automatically discarded as outliers.
+
 ## 💡 Example Use Cases
 
 ### 🔥 Temperature Management

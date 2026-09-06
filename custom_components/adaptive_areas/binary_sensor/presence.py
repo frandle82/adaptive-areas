@@ -3,6 +3,7 @@
 import asyncio
 from collections import Counter
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 import logging
 
@@ -29,11 +30,25 @@ from custom_components.adaptive_areas.base.adaptive import (
     AdaptiveArea,
     AdaptiveMetaArea,
 )
+from custom_components.adaptive_areas.helpers.meta_summary import meta_area_summary
+from custom_components.adaptive_areas.helpers.sources import entity_device_class
 from custom_components.adaptive_areas.const import (
     ATTR_ACTIVE_SENSORS,
+    ATTR_ACTIVE_SOURCE_COUNT,
+    ATTR_ACTIVE_SOURCES,
+    ATTR_ACTIVE_STATES,
     ATTR_AREAS,
+    ATTR_AVAILABLE_SOURCE_COUNT,
+    ATTR_CLEAR_AT,
     ATTR_CLEAR_TIMEOUT,
+    ATTR_CONFIGURED_SOURCE_COUNT,
+    ATTR_LAST_ACTIVITY,
     ATTR_LAST_ACTIVE_SENSORS,
+    ATTR_LAST_ACTIVE_SOURCES,
+    ATTR_LAST_CLEARED,
+    ATTR_LAST_REASON,
+    ATTR_LAST_TRANSITION,
+    ATTR_OCCUPIED_SINCE,
     ATTR_PRESENCE_SENSORS,
     ATTR_STATES,
     ATTR_TYPE,
@@ -52,8 +67,11 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_EXTENDED_TIMEOUT,
     DEFAULT_SECONDARY_STATES_CALCULATION_MODE,
     DEFAULT_SLEEP_TIMEOUT,
+    DATA_AREA_OBJECT,
     EMPTY_STRING,
+    EVENT_ADAPTIVE_AREAS_AREA,
     INVALID_STATES,
+    MODULE_DATA,
     ONE_MINUTE,
     PRESENCE_CONTROL_VALID_ON_STATES,
     PRESENCE_SENSOR_VALID_ON_STATES,
@@ -91,6 +109,13 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         )
         self._active_sensors: list[str] = []
         self._last_active_sensors: list[str] = []
+        self._occupied_since: datetime | None = None
+        self._last_activity: datetime | None = None
+        self._last_cleared: datetime | None = None
+        self._clear_at: datetime | None = None
+        self._last_reason: str | None = None
+        self._last_transition: datetime | None = None
+        self._pending_reason: str | None = None
 
         self._load_presence_sensors()
 
@@ -188,13 +213,59 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
 
     def get_metadata(self) -> dict:
         """Return metadata information about the area's occupancy."""
+        available_source_count = sum(
+            (state := self.hass.states.get(entity_id)) is not None
+            and state.state not in INVALID_STATES
+            for entity_id in self._sensors
+        )
         return {
             ATTR_PRESENCE_SENSORS: self._sensors,
             ATTR_ACTIVE_SENSORS: self._active_sensors,
             ATTR_LAST_ACTIVE_SENSORS: self._last_active_sensors,
             ATTR_STATES: self.area.states,
             ATTR_CLEAR_TIMEOUT: self._get_clear_timeout() / ONE_MINUTE,
+            ATTR_OCCUPIED_SINCE: self._as_iso(self._occupied_since),
+            ATTR_LAST_ACTIVITY: self._as_iso(self._last_activity),
+            ATTR_LAST_CLEARED: self._as_iso(self._last_cleared),
+            ATTR_CLEAR_AT: self._as_iso(self._clear_at),
+            ATTR_CONFIGURED_SOURCE_COUNT: len(self._sensors),
+            ATTR_AVAILABLE_SOURCE_COUNT: available_source_count,
+            ATTR_ACTIVE_SOURCE_COUNT: len(self._active_sensors),
+            ATTR_ACTIVE_SOURCES: list(self._active_sensors),
+            ATTR_LAST_ACTIVE_SOURCES: list(self._last_active_sensors),
+            ATTR_LAST_REASON: self._last_reason,
+            ATTR_LAST_TRANSITION: self._as_iso(self._last_transition),
+            ATTR_ACTIVE_STATES: sorted(str(state) for state in self.area.states),
         }
+
+    @staticmethod
+    def _as_iso(value: datetime | None) -> str | None:
+        """Return a stable UTC ISO-8601 value."""
+        return value.isoformat() if value is not None else None
+
+    def _reason_for_source(self, entity_id: str) -> str:
+        """Return a stable reason code for a real presence source."""
+        if self.area.is_meta():
+            return "meta_child_occupied"
+        if "ble_tracker" in entity_id:
+            return "ble_presence"
+        if "wasp_in_a_box" in entity_id:
+            return "wasp_presence"
+        if "presence_hold" in entity_id:
+            return "presence_source_on"
+        if entity_device_class(self.hass, entity_id) == "motion":
+            return "motion_detected"
+        return "presence_source_on"
+
+    def _publish_metadata(self) -> None:
+        """Publish changed explanatory metadata without recalculating state."""
+        if not isinstance(self, AreaStateBinarySensor) or self.hass is None:
+            return
+        if self._pending_reason is not None:
+            self._last_reason = self._pending_reason
+            self._pending_reason = None
+        self._attr_extra_state_attributes.update(self.get_metadata())
+        self.async_write_ha_state()
 
     # Helpers
 
@@ -260,6 +331,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             )
             return None
 
+        self._pending_reason = "secondary_state_change"
         self.hass.async_create_task(self._async_update_state(0))
 
     @callback
@@ -283,7 +355,8 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             event.data["entity_id"],
             event.data["new_state"].state,
         )
-
+        if event.data["new_state"].state in PRESENCE_CONTROL_VALID_ON_STATES:
+            self._pending_reason = "presence_control_on"
         self.hass.async_create_task(self._async_update_state(0))
 
     @callback
@@ -292,16 +365,22 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         if event.data["new_state"] is None:
             return
 
-        # Ignore state reports taht aren't really a state change
+        to_state = event.data["new_state"].state
+        entity_id = event.data["entity_id"]
+        if to_state in self._valid_on_states():
+            self._last_activity = datetime.now(UTC)
+            self._pending_reason = self._reason_for_source(entity_id)
+        elif self.area.is_meta() and to_state not in INVALID_STATES:
+            self._pending_reason = "meta_child_cleared"
+
+        # An unchanged active report is real activity, but not a state transition.
         if (
             self.ignore_non_state_change
             and event.data["old_state"]
             and event.data["new_state"].state == event.data["old_state"].state
         ):
+            self._publish_metadata()
             return
-
-        to_state = event.data["new_state"].state
-        entity_id = event.data["entity_id"]
 
         _LOGGER.debug(
             "%s: sensor '%s' changed to {%s}",
@@ -317,6 +396,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                 entity_id,
                 to_state,
             )
+            self.hass.async_create_task(self._async_update_state(0))
             return
 
         if to_state and to_state not in self._valid_on_states():
@@ -339,8 +419,10 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
     def _update_state(self, extra: datetime | None = None) -> None:
         """Update the area's state and report changes."""
 
+        previous_states = set(self.area.states)
         states_tuple = self._update_area_states()
         new_states, lost_states = states_tuple
+        explanation_states = states_tuple
 
         state_changed = any(
             state in new_states for state in [AreaStates.OCCUPIED, AreaStates.CLEAR]
@@ -357,10 +439,98 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             # Consider all secondary states new
             states_tuple = (self.area.states.copy(), [])
 
+        if explanation_states != (set(), set()):
+            self._update_explanation(
+                previous_states, set(self.area.states), explanation_states
+            )
+        elif self._pending_reason is not None and not (
+            self._pending_reason == "meta_child_cleared" and self._is_on_clear_timeout()
+        ):
+            self._last_reason = self._pending_reason
+            self._pending_reason = None
+
         self._report_state_change(states_tuple)
 
         # Safety check: ensure stuck states get cleared
         self._validate_state_consistency()
+
+    def _update_explanation(
+        self,
+        previous_states: set[str],
+        current_states: set[str],
+        states_tuple,
+    ) -> None:
+        """Update transition metadata and fire public semantic events."""
+        now = datetime.now(UTC)
+        new_states, lost_states = (set(states_tuple[0]), set(states_tuple[1]))
+        was_occupied = AreaStates.OCCUPIED in previous_states
+        is_occupied = AreaStates.OCCUPIED in current_states
+        if is_occupied and not was_occupied:
+            self._occupied_since = now
+        elif was_occupied and not is_occupied:
+            self._occupied_since = None
+            self._last_cleared = now
+            self._clear_at = None
+
+        semantic_events = {
+            AreaStates.OCCUPIED: ("occupied", "presence_source_on"),
+            AreaStates.CLEAR: ("cleared", "clear_timeout_expired"),
+            AreaStates.DARK: ("dark_started", "secondary_state_change"),
+            AreaStates.SLEEP: ("sleep_started", "secondary_state_change"),
+            AreaStates.EXTENDED: ("extended_started", "extended_state_entered"),
+            AreaStates.ACCENT: ("accented_started", "secondary_state_change"),
+        }
+        ended_events = {
+            AreaStates.DARK: "dark_ended",
+            AreaStates.SLEEP: "sleep_ended",
+            AreaStates.EXTENDED: "extended_ended",
+            AreaStates.ACCENT: "accented_ended",
+        }
+        reason = self._pending_reason
+        if AreaStates.CLEAR in new_states and reason is None:
+            reason = "clear_timeout_expired"
+        if new_states or lost_states:
+            self._last_transition = now
+            self._last_reason = reason or "area_state_changed"
+        if previous_states:
+            for state in sorted(new_states):
+                event_info = semantic_events.get(state)
+                if event_info:
+                    self._fire_area_event(
+                        event_info[0],
+                        previous_states,
+                        current_states,
+                        reason or event_info[1],
+                    )
+            for state in sorted(lost_states):
+                if state in ended_events:
+                    self._fire_area_event(
+                        ended_events[state],
+                        previous_states,
+                        current_states,
+                        reason or "secondary_state_change",
+                    )
+        self._pending_reason = None
+
+    def _fire_area_event(
+        self,
+        event_type: str,
+        previous_states: set[str],
+        states: set[str],
+        reason: str,
+    ) -> None:
+        """Fire one privacy-conscious public Area event."""
+        self.hass.bus.async_fire(
+            EVENT_ADAPTIVE_AREAS_AREA,
+            {
+                "area_id": self.area.id,
+                "area_type": str(self.area.area_type),
+                "event_type": event_type,
+                "previous_states": sorted(str(state) for state in previous_states),
+                "states": sorted(str(state) for state in states),
+                "reason": reason,
+            },
+        )
 
     def _report_state_change(self, states_tuple=([], [])):
         """Fire an event reporting area state change."""
@@ -684,6 +854,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             return False
 
         timeout = self._get_clear_timeout()
+        self._clear_at = datetime.now(UTC) + timedelta(seconds=timeout)
 
         _LOGGER.debug("%s: Scheduling clear in %s seconds", self.area.name, timeout)
         self._clear_timeout_callback = async_call_later(
@@ -713,6 +884,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         )
 
     def _remove_clear_timeout(self) -> None:
+        self._clear_at = None
         if not self._clear_timeout_callback:
             return
 
@@ -801,29 +973,85 @@ class AreaStateBinarySensor(AreaStateTrackerEntity, BinarySensorEntity):
                     self.area.name,
                     restored_states,
                 )
+        if last_state is not None:
+            for attribute, target in (
+                (ATTR_OCCUPIED_SINCE, "_occupied_since"),
+                (ATTR_LAST_ACTIVITY, "_last_activity"),
+                (ATTR_LAST_CLEARED, "_last_cleared"),
+                (ATTR_CLEAR_AT, "_clear_at"),
+                (ATTR_LAST_TRANSITION, "_last_transition"),
+            ):
+                value = last_state.attributes.get(attribute)
+                if isinstance(value, str):
+                    with suppress(ValueError):
+                        setattr(self, target, datetime.fromisoformat(value))
+            self._last_reason = last_state.attributes.get(ATTR_LAST_REASON)
 
     async def _setup_listeners(self) -> None:
         # Setup state change listener
-        async_dispatcher_connect(
-            self.hass, AdaptiveAreasEvents.AREA_STATE_CHANGED, self._area_state_changed
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                AdaptiveAreasEvents.AREA_STATE_CHANGED,
+                self._area_state_changed,
+            )
         )
+        if isinstance(self.area, AdaptiveMetaArea):
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass,
+                    AdaptiveAreasEvents.CLEANING_UPDATED,
+                    self._cleaning_updated,
+                )
+            )
 
         self._setup_tracking_listeners()
+
+    @callback
+    def _cleaning_updated(self, area_id: str) -> None:
+        """Refresh a Meta Area summary after a child tracker update."""
+        if not isinstance(self.area, AdaptiveMetaArea):
+            return
+        if area_id not in {child.id for child in self._meta_children()}:
+            return
+        self._publish_metadata()
+
+    def _meta_children(self) -> list[AdaptiveArea]:
+        """Return runtime child objects for listener filtering."""
+        child_slugs = set(self.area.get_child_areas())
+        return [
+            runtime[DATA_AREA_OBJECT]
+            for runtime in self.hass.data.get(MODULE_DATA, {}).values()
+            if DATA_AREA_OBJECT in runtime
+            and runtime[DATA_AREA_OBJECT].slug in child_slugs
+        ]
 
     # Helpers
 
     async def _load_attributes(self) -> None:
         # Add common attributes
-        self._attr_extra_state_attributes.update(
-            {
-                ATTR_STATES: [],
-                ATTR_ACTIVE_SENSORS: [],
-                ATTR_LAST_ACTIVE_SENSORS: [],
-                ATTR_PRESENCE_SENSORS: [],
-                ATTR_TYPE: self.area.config.get(CONF_TYPE),
-                ATTR_CLEAR_TIMEOUT: 0,
-            }
-        )
+        defaults = {
+            ATTR_STATES: [],
+            ATTR_ACTIVE_SENSORS: [],
+            ATTR_LAST_ACTIVE_SENSORS: [],
+            ATTR_PRESENCE_SENSORS: [],
+            ATTR_TYPE: self.area.config.get(CONF_TYPE),
+            ATTR_CLEAR_TIMEOUT: 0,
+            ATTR_OCCUPIED_SINCE: None,
+            ATTR_LAST_ACTIVITY: None,
+            ATTR_LAST_CLEARED: None,
+            ATTR_CLEAR_AT: None,
+            ATTR_ACTIVE_SOURCE_COUNT: 0,
+            ATTR_AVAILABLE_SOURCE_COUNT: 0,
+            ATTR_CONFIGURED_SOURCE_COUNT: 0,
+            ATTR_ACTIVE_SOURCES: [],
+            ATTR_LAST_ACTIVE_SOURCES: [],
+            ATTR_LAST_REASON: None,
+            ATTR_LAST_TRANSITION: None,
+            ATTR_ACTIVE_STATES: [],
+        }
+        for key, value in defaults.items():
+            self._attr_extra_state_attributes.setdefault(key, value)
 
     # Area change handlers
     @callback
@@ -871,6 +1099,10 @@ class MetaAreaStateBinarySensor(AreaStateBinarySensor):
                 ATTR_AREAS: self.area.get_child_areas(),
             }
         )
+
+    def get_metadata(self) -> dict:
+        """Return presence metadata plus child status and cleaning summaries."""
+        return {**super().get_metadata(), **meta_area_summary(self.area)}
 
     def _get_secondary_states(self) -> list[AreaStates]:
         """Return secondary states for an area through calculation."""

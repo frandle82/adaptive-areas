@@ -298,6 +298,25 @@ async def test_aggregates_sensor_avg(
     assert round(float(aggregate_sensor_state.state), 2) == round(
         mean(entity_values), 2
     )
+    assert aggregate_sensor_state.attributes["source_count"] == len(entity_values)
+    assert aggregate_sensor_state.attributes["available_count"] == len(entity_values)
+    assert aggregate_sensor_state.attributes["unavailable_count"] == 0
+    assert aggregate_sensor_state.attributes["minimum"] == min(entity_values)
+    assert aggregate_sensor_state.attributes["maximum"] == max(entity_values)
+    assert aggregate_sensor_state.attributes["spread"] == (
+        max(entity_values) - min(entity_values)
+    )
+
+    unavailable_id = entities_sensor_temperature_multiple[0].entity_id
+    hass.states.async_set(unavailable_id, "unavailable")
+    await hass.async_block_till_done()
+    remaining_values = entity_values[1:]
+    aggregate_sensor_state = hass.states.get(aggregate_sensor_id)
+    assert round(float(aggregate_sensor_state.state), 2) == round(
+        mean(remaining_values), 2
+    )
+    assert aggregate_sensor_state.attributes["available_count"] == len(remaining_values)
+    assert aggregate_sensor_state.attributes["unavailable_count"] == 1
 
     # Change all the values
     changed_values = []

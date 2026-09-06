@@ -90,19 +90,23 @@ The Indoor Area Climate sensor exposes independent comfort, humidity, mould, pol
 
 Window advice is `open`, `close`, `keep_closed`, or `none`. Automatic discovery uses window-class binary sensors; other openings must be selected explicitly. Area Climate publishes abstract ventilation and circulation requests but never stores or controls concrete `fan.*` entities. The Fan Groups feature owns actual fan membership and consumes Area Climate requests when both features are enabled.
 
+`recommended_action` deterministically combines those existing assessments into one of `close_windows`, `ventilate`, `clean_air`, `cool`, `reduce_humidity`, `circulate_air`, `monitor`, or `none`. `secondary_actions` contains other simultaneous actions without duplicating the primary one, and `recommendation_reason_codes` reuses the assessment's reason codes. This summary adds no thresholds, weighting, presence dependency, device control, or external data source.
+
 ## Room Usage
 
-The optional **Cleaning Tracker** replaces the former daily Room Usage classifier while preserving its existing sensor and unique IDs. It uses the Area's established Adaptive Areas presence events; no separate presence detection is created.
+The optional **Cleaning Tracker** replaces the former daily Room Usage classifier. It uses the Area's established Adaptive Areas presence events; no separate presence detection is created.
 
 For every regular Home Assistant Area, the tracker accumulates occupied time since the last cleaning. The value is persisted across Home Assistant restarts and config-entry reloads and is refreshed every minute while the Area remains occupied. Configure **Presence time until cleaning is due** in minutes per Area; the default is 480 minutes (8 hours).
 
-The existing `sensor.adaptive_areas_room_usage_<area>` now reports a numeric Cleaning Score from 0 to 100%:
+Each regular Area has at most one Cleaning entity: the canonical `binary_sensor.adaptive_areas_room_usage_<area>_cleaning_due`. Its binary state remains `off` below the configured threshold and `on` at or above it. The former score sensor is removed from the entity registry during upgrade.
+
+The binary sensor exposes a numeric Cleaning Score from 0 to 100% as `cleaning_score`:
 
 ```text
 min(100, cumulative_presence_seconds / (presence_minutes_to_due * 60) * 100)
 ```
 
-`binary_sensor.adaptive_areas_room_usage_<area>_cleaning_due` turns on when the accumulated presence reaches the configured threshold.
+Additional attributes are `cleaning_state` (`clean`, `used`, `soon_due`, `due`, or `overdue`), cumulative and current occupancy durations, minutes used since cleaning, configured and remaining minutes to due, separate `overdue_minutes`, and `last_cleaned`. The score remains capped at 100%; overrun is never encoded by raising it above 100%.
 
 The following services accept one or more Home Assistant Area IDs:
 

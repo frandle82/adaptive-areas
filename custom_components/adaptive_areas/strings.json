@@ -237,7 +237,7 @@
       },
       "feature_conf_environment": {
         "title": "Area Climate",
-        "description": "Evaluate Area temperature, humidity and air quality plus indoor comfort, mould risk, ventilation and cooling using configured Area sensors.",
+        "description": "Evaluate Area temperature, humidity and air quality plus indoor comfort, mould risk, ventilation and cooling. Discovered capabilities: {temperature_count} temperature, {humidity_count} humidity and {window_count} window sources.",
         "data": {
           "room_category": "Area category",
           "area_temperature_sensor": "Area temperature sensor",
@@ -355,7 +355,7 @@
       },
       "presence_tracking": {
         "title": "Presence Tracking",
-        "description": "Configure which platforms and binary sensor device classes are used for presence tracking. This section also allows you to configure how long Adaptive Area will wait until clearing the area after the last presence event.",
+        "description": "Configure which platforms and binary sensor device classes are used for presence tracking. Adaptive Areas currently discovers {presence_source_count} matching sources.",
         "data": {
           "presence_sensor_device_class": "Presence sensors device classes",
           "presence_device_platforms": "Platforms to be used for presence sensing",
@@ -421,7 +421,19 @@
           },
           "clear_timeout": {
             "name": "Clear timeout"
-          }
+          },
+          "occupied_since": {"name": "Occupied since"},
+          "last_activity": {"name": "Last activity"},
+          "last_cleared": {"name": "Last cleared"},
+          "clear_at": {"name": "Expected clear time"},
+          "configured_source_count": {"name": "Configured sources"},
+          "available_source_count": {"name": "Available sources"},
+          "active_source_count": {"name": "Active sources"},
+          "active_sources": {"name": "Active source list"},
+          "last_active_sources": {"name": "Last active source list"},
+          "last_reason": {"name": "Last reason"},
+          "last_transition": {"name": "Last transition"},
+          "active_states": {"name": "Active states"}
         }
       },
       "ble_tracker_monitor": {
@@ -435,8 +447,13 @@
         },
         "state_attributes": {
           "cleaning_score": {"name": "Cleaning score"},
+          "cleaning_state": {"name": "Cleaning state"},
           "cumulative_presence_seconds": {"name": "Cumulative presence"},
+          "presence_minutes_since_cleaning": {"name": "Presence since cleaning"},
           "presence_minutes_to_due": {"name": "Presence time until due"},
+          "remaining_minutes_to_due": {"name": "Remaining time until due"},
+          "overdue_minutes": {"name": "Overdue time"},
+          "current_occupancy_duration_seconds": {"name": "Current occupancy duration"},
           "last_cleaned": {"name": "Last cleaned"}
         }
       },

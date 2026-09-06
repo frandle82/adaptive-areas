@@ -488,6 +488,71 @@ CONTEXT: dict[str, dict[str, str]] = {
 }
 
 
+def environment_recommendation(assessment: dict[str, Any]) -> dict[str, Any]:
+    """Combine existing assessment outputs into deterministic actions."""
+    actions: list[str] = []
+    window = str(assessment.get("window_recommendation", "none"))
+    ventilation = str(assessment.get("ventilation_demand", "unknown"))
+    strategy = str(assessment.get("ventilation_strategy", "unknown"))
+    air_cleaning = str(assessment.get("air_cleaning_recommendation", "unknown"))
+    cooling = str(assessment.get("cooling", "unknown"))
+    humidity = str(assessment.get("humidity", "unknown"))
+    circulation = str(assessment.get("circulation_fan_request", "none"))
+    ventilation_fan = str(assessment.get("ventilation_fan_request", "none"))
+
+    if window == WindowRecommendation.CLOSE:
+        actions.append("close_windows")
+    if (
+        window == WindowRecommendation.OPEN
+        or ventilation_fan != VentilationFanRequest.NONE
+        or (
+            ventilation
+            in {
+                VentilationDemand.RECOMMENDED,
+                VentilationDemand.REQUIRED,
+                VentilationDemand.URGENT,
+            }
+            and strategy
+            in {
+                VentilationStrategy.PASSIVE,
+                VentilationStrategy.MECHANICAL,
+                VentilationStrategy.FILTERED_MECHANICAL,
+            }
+        )
+    ):
+        actions.append("ventilate")
+    if air_cleaning in {
+        AirCleaningRecommendation.RECOMMENDED,
+        AirCleaningRecommendation.STRONGLY_RECOMMENDED,
+    }:
+        actions.append("clean_air")
+    if cooling in {
+        CoolingState.PASSIVE_RECOMMENDED,
+        CoolingState.ACTIVE_RECOMMENDED,
+    }:
+        actions.append("cool")
+    if humidity in {HumidityState.HIGH, HumidityState.VERY_HIGH}:
+        actions.append("reduce_humidity")
+    if circulation != CirculationFanRequest.NONE:
+        actions.append("circulate_air")
+    if not actions and str(assessment.get("state", "unknown")) in {
+        EnvironmentState.ATTENTION,
+        EnvironmentState.ACTION_REQUIRED,
+        EnvironmentState.UNKNOWN,
+    }:
+        actions.append("monitor")
+
+    actions = list(dict.fromkeys(actions))
+    recommended = actions[0] if actions else "none"
+    return {
+        "recommended_action": recommended,
+        "secondary_actions": actions[1:],
+        "recommendation_reason_codes": (
+            list(assessment.get("reason_codes", [])) if recommended != "none" else []
+        ),
+    }
+
+
 class AreaEnvironmentEngine:
     """Evaluate Area Climate without controlling devices."""
 
@@ -2383,6 +2448,7 @@ class AreaEnvironmentEngine:
                     else "Exterior Area environmental measurements and air quality assessment."
                 ),
             }
+            assessment.update(environment_recommendation(assessment))
             self.assessment = assessment
             self._trace_primary_status(trace=trace)
             if trace and dominant != self._last_dominant_decision:
@@ -2743,6 +2809,7 @@ class AreaEnvironmentEngine:
         dominant_decision, context = self._context(assessment)
         assessment["dominant_decision"] = dominant_decision
         assessment["context"] = context
+        assessment.update(environment_recommendation(assessment))
         self.assessment = assessment
         self._trace_primary_status(trace=trace)
         if trace and dominant_decision != self._last_dominant_decision:
@@ -2852,6 +2919,13 @@ class AreaEnvironmentEngine:
                 key: str(self.assessment.get(key, "unknown")) for key in assessment_keys
             },
             "recommendations": {
+                "recommended_action": str(
+                    self.assessment.get("recommended_action", "none")
+                ),
+                "secondary_actions": list(self.assessment.get("secondary_actions", [])),
+                "reason_codes": list(
+                    self.assessment.get("recommendation_reason_codes", [])
+                ),
                 "window": str(self.assessment.get("window_recommendation", "none")),
                 "ventilation_strategy": str(
                     self.assessment.get("ventilation_strategy", "unknown")

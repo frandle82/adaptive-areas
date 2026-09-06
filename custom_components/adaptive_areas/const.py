@@ -556,9 +556,11 @@ class AdaptiveAreasEvents(StrEnum):
 
     AREA_STATE_CHANGED = "adaptiveareas_area_state_changed"
     AREA_LOADED = "adaptiveareas_area_loaded"
+    CLEANING_UPDATED = "adaptiveareas_cleaning_updated"
 
 
 EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED = "adaptiveareas_area_state_changed"
+EVENT_ADAPTIVE_AREAS_AREA = "adaptive_areas_area_event"
 
 
 # SelectorTranslationKeys
@@ -593,6 +595,18 @@ ATTR_ACTIVE_SENSORS = "active_sensors"
 ATTR_LAST_ACTIVE_SENSORS = "last_active_sensors"
 ATTR_FEATURES = "features"
 ATTR_PRESENCE_SENSORS = "presence_sensors"
+ATTR_OCCUPIED_SINCE = "occupied_since"
+ATTR_LAST_ACTIVITY = "last_activity"
+ATTR_LAST_CLEARED = "last_cleared"
+ATTR_CLEAR_AT = "clear_at"
+ATTR_ACTIVE_SOURCE_COUNT = "active_source_count"
+ATTR_AVAILABLE_SOURCE_COUNT = "available_source_count"
+ATTR_CONFIGURED_SOURCE_COUNT = "configured_source_count"
+ATTR_ACTIVE_SOURCES = "active_sources"
+ATTR_LAST_ACTIVE_SOURCES = "last_active_sources"
+ATTR_LAST_REASON = "last_reason"
+ATTR_LAST_TRANSITION = "last_transition"
+ATTR_ACTIVE_STATES = "active_states"
 
 PRESENCE_SENSOR_VALID_ON_STATES = [STATE_ON, STATE_OPEN, STATE_PLAYING]
 PRESENCE_CONTROL_ENTITY_DOMAINS = [
@@ -1244,6 +1258,16 @@ class CleaningRecommendation(StrEnum):
     ALLOWED = "allowed"
     PREFERRED = "preferred"
     UNKNOWN = "unknown"
+
+
+class CleaningState(StrEnum):
+    """Stable Cleaning Tracker explanation states."""
+
+    CLEAN = "clean"
+    USED = "used"
+    SOON_DUE = "soon_due"
+    DUE = "due"
+    OVERDUE = "overdue"
 
 
 # Config Schema

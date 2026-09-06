@@ -25,6 +25,10 @@ async def test_system_health_summary_is_private(
     assert info["meta_areas"] == 0
     assert info["interior_areas"] == 1
     assert info["active_repairs"] == 1
+    assert info["environment_areas"] == 0
+    assert info["room_usage_areas"] == 0
+    assert info["areas_with_cleaning_due"] == 0
+    assert info["areas_with_cleaning_overdue"] == 0
     serialized = json.dumps(info)
     assert "kitchen" not in serialized.lower()
     assert "binary_sensor" not in serialized

@@ -5,7 +5,10 @@ from datetime import datetime, timedelta
 from typing import Any, Self
 
 from homeassistant.core import callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -18,6 +21,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_PRESENCE_MINUTES_TO_DUE,
     DOMAIN,
     AdaptiveAreasEvents,
+    CleaningState,
 )
 
 STORAGE_VERSION = 1
@@ -129,11 +133,29 @@ class RoomUsageEngine:
             if self._occupied and self._occupied_since
             else 0
         )
+        presence_minutes = self._cumulative_presence_seconds / 60
+        minutes_to_due = self._presence_seconds_to_due / 60
+        remaining_minutes = max(0.0, minutes_to_due - presence_minutes)
+        overdue_minutes = max(0.0, presence_minutes - minutes_to_due)
+        if score <= 25:
+            cleaning_state = CleaningState.CLEAN
+        elif score <= 75:
+            cleaning_state = CleaningState.USED
+        elif score < 100:
+            cleaning_state = CleaningState.SOON_DUE
+        elif overdue_minutes > minutes_to_due * 0.25:
+            cleaning_state = CleaningState.OVERDUE
+        else:
+            cleaning_state = CleaningState.DUE
         return {
             "score": round(score, 2),
+            "cleaning_state": cleaning_state,
             "due": (self._cumulative_presence_seconds >= self._presence_seconds_to_due),
             "cumulative_presence_seconds": round(self._cumulative_presence_seconds, 3),
-            "presence_minutes_to_due": round(self._presence_seconds_to_due / 60, 3),
+            "presence_minutes_since_cleaning": round(presence_minutes, 3),
+            "presence_minutes_to_due": round(minutes_to_due, 3),
+            "remaining_minutes_to_due": round(remaining_minutes, 3),
+            "overdue_minutes": round(overdue_minutes, 3),
             "current_occupancy_duration_seconds": current_duration,
             "last_cleaned": (
                 self._last_cleaned.isoformat() if self._last_cleaned else None
@@ -146,6 +168,9 @@ class RoomUsageEngine:
         self.assessment = self._evaluate(now)
         for subscriber in list(self._subscribers):
             subscriber()
+        async_dispatcher_send(
+            self.area.hass, AdaptiveAreasEvents.CLEANING_UPDATED, self.area.id
+        )
 
     @callback
     def _area_state_changed(self, area_id: str, _states_tuple) -> None:

@@ -85,7 +85,10 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     AdaptiveConfigEntryVersion,
 )
-from custom_components.adaptive_areas.helpers.environment import AreaEnvironmentEngine
+from custom_components.adaptive_areas.helpers.environment import (
+    AreaEnvironmentEngine,
+    environment_recommendation,
+)
 from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
 
 from tests.const import DEFAULT_MOCK_AREA
@@ -2473,18 +2476,19 @@ async def test_room_usage_is_independent_optional_feature(
     area = hass.data[MODULE_DATA][entry.entry_id][DATA_AREA_OBJECT]
     assert area.environment is None
     assert area.room_usage is not None
-    state = hass.states.get(f"sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}")
+    state = hass.states.get(
+        f"binary_sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}_cleaning_due"
+    )
     assert state is not None
-    assert state.state == "0.0"
+    assert state.state == STATE_OFF
+    assert state.attributes["cleaning_score"] == 0.0
     assert state.attributes["cumulative_presence_seconds"] == 0
     assert state.attributes["presence_minutes_to_due"] == (
         DEFAULT_PRESENCE_MINUTES_TO_DUE
     )
-    due = hass.states.get(
-        f"binary_sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}_cleaning_due"
+    assert (
+        hass.states.get(f"sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}") is None
     )
-    assert due is not None
-    assert due.state == STATE_OFF
 
     await shutdown_integration(hass, [entry])
 
@@ -2494,7 +2498,9 @@ async def test_room_usage_enable_disable_reload(hass: HomeAssistant) -> None:
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, minor_version=6)
     await init_integration(hass, [entry])
-    entity_id = f"sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}"
+    entity_id = (
+        f"binary_sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}_cleaning_due"
+    )
     assert hass.states.get(entity_id) is None
 
     hass.config_entries.async_update_entry(
@@ -2992,11 +2998,52 @@ async def test_legacy_room_usage_toggle_migrates_to_independent_feature(
     assert area.room_usage is not None
     assert area.environment is None
     assert (
-        hass.states.get(f"sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}")
+        hass.states.get(
+            f"binary_sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}_cleaning_due"
+        )
         is not None
+    )
+    assert (
+        hass.states.get(f"sensor.adaptive_areas_room_usage_{DEFAULT_MOCK_AREA}") is None
     )
 
     await shutdown_integration(hass, [entry])
+
+
+@pytest.mark.parametrize(
+    ("assessment", "primary"),
+    (
+        ({"window_recommendation": "close"}, "close_windows"),
+        ({"window_recommendation": "open"}, "ventilate"),
+        ({"air_cleaning_recommendation": "recommended"}, "clean_air"),
+        ({"cooling": "active_recommended"}, "cool"),
+        ({"humidity": "very_high"}, "reduce_humidity"),
+        ({"circulation_fan_request": "low"}, "circulate_air"),
+        ({"state": "attention"}, "monitor"),
+        ({"state": "good"}, "none"),
+    ),
+)
+def test_environment_recommendation_is_deterministic(
+    assessment: dict, primary: str
+) -> None:
+    """Existing assessment results map to stable actions without new policy."""
+    result = environment_recommendation(assessment)
+    assert result["recommended_action"] == primary
+
+
+def test_environment_recommendation_priority_and_secondary_actions() -> None:
+    """Concurrent actions retain one deterministic primary without duplicates."""
+    assessment = {
+        "window_recommendation": "close",
+        "air_cleaning_recommendation": "strongly_recommended",
+        "cooling": "passive_recommended",
+        "circulation_fan_request": "high",
+        "reason_codes": ["ventilation_should_stop", "air_cleaning_preferred"],
+    }
+    result = environment_recommendation(assessment)
+    assert result["recommended_action"] == "close_windows"
+    assert result["secondary_actions"] == ["clean_air", "cool", "circulate_air"]
+    assert result["recommendation_reason_codes"] == assessment["reason_codes"]
 
 
 def test_legacy_room_usage_storage_migration() -> None:

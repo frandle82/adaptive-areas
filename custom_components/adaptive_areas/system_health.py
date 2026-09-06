@@ -11,8 +11,12 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_INTERIOR,
     AREA_TYPE_META,
     CONF_ID,
+    CONF_FEATURE_ENVIRONMENT,
+    CONF_FEATURE_ROOM_USAGE,
     CONF_TYPE,
+    DATA_AREA_OBJECT,
     DOMAIN,
+    MODULE_DATA,
 )
 from custom_components.adaptive_areas.repairs import active_issue_count
 
@@ -37,6 +41,16 @@ async def async_system_health_info(hass: HomeAssistant) -> dict[str, object]:
     meta_entries = [
         entry for entry in entries if entry.data.get(CONF_TYPE) == AREA_TYPE_META
     ]
+    runtime_areas = [
+        runtime[DATA_AREA_OBJECT]
+        for runtime in hass.data.get(MODULE_DATA, {}).values()
+        if DATA_AREA_OBJECT in runtime and not runtime[DATA_AREA_OBJECT].is_meta()
+    ]
+    cleaning_assessments = [
+        area.room_usage.assessment
+        for area in runtime_areas
+        if area.room_usage is not None
+    ]
     return {
         "version": integration.version,
         "configured_entries": len(entries),
@@ -55,6 +69,22 @@ async def async_system_health_info(hass: HomeAssistant) -> dict[str, object]:
             entry.data.get(CONF_ID) in floor_ids for entry in meta_entries
         ),
         "active_repairs": active_issue_count(hass),
+        "environment_areas": sum(
+            area.has_feature(CONF_FEATURE_ENVIRONMENT) for area in runtime_areas
+        ),
+        "room_usage_areas": sum(
+            area.has_feature(CONF_FEATURE_ROOM_USAGE) for area in runtime_areas
+        ),
+        "areas_with_cleaning_due": sum(
+            bool(assessment.get("due")) for assessment in cleaning_assessments
+        ),
+        "areas_with_cleaning_overdue": sum(
+            assessment.get("cleaning_state") == "overdue"
+            for assessment in cleaning_assessments
+        ),
+        "areas_without_presence_sources": sum(
+            not area.get_presence_sensors() for area in runtime_areas
+        ),
         "legacy_magic_areas_entries": len(
             hass.config_entries.async_entries("magic_areas")
         ),

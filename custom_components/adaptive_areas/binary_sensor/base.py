@@ -5,6 +5,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
 )
 from homeassistant.components.group.binary_sensor import BinarySensorGroup
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
@@ -36,3 +37,21 @@ class AreaSensorGroupBinarySensor(AdaptiveEntity, BinarySensorGroup):
             mode=device_class in AGGREGATE_MODE_ALL,
         )
         delattr(self, "_attr_name")
+
+    @property
+    def extra_state_attributes(self):
+        """Return group attributes plus source availability counts."""
+        attributes = dict(super().extra_state_attributes or {})
+        available = sum(
+            (state := self.hass.states.get(entity_id)) is not None
+            and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+            for entity_id in self._entity_ids
+        )
+        attributes.update(
+            {
+                "source_count": len(self._entity_ids),
+                "available_count": available,
+                "unavailable_count": len(self._entity_ids) - available,
+            }
+        )
+        return attributes

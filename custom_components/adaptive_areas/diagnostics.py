@@ -20,8 +20,6 @@ from custom_components.adaptive_areas.const import (
     CONF_CLEAR_TIMEOUT,
     CONF_ENABLED_FEATURES,
     CONF_ID,
-    CONF_INCLUDE_ENTITIES,
-    CONF_KEEP_ONLY_ENTITIES,
     CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_SECONDARY_STATES,
     CONFIGURABLE_AREA_STATE_MAP,
@@ -34,6 +32,7 @@ from custom_components.adaptive_areas.const import (
 from custom_components.adaptive_areas.helpers.diagnostics import (
     safe_entity_descriptor,
 )
+from custom_components.adaptive_areas.helpers.meta_summary import meta_area_summary
 from custom_components.adaptive_areas.repairs import (
     active_issue_count,
     get_repair_summary,
@@ -76,17 +75,34 @@ def _generated_entity_summary(
     by_platform = Counter(entry.domain for entry in entries)
     available = 0
     unavailable = 0
+    aggregate_quality = []
     for entry in entries:
         state = hass.states.get(entry.entity_id)
         if state is None or state.state == STATE_UNAVAILABLE:
             unavailable += 1
         else:
             available += 1
+        if state is not None and "source_count" in state.attributes:
+            aggregate_quality.append(
+                {
+                    key: state.attributes.get(key)
+                    for key in (
+                        "source_count",
+                        "available_count",
+                        "unavailable_count",
+                        "minimum",
+                        "maximum",
+                        "spread",
+                    )
+                    if key in state.attributes
+                }
+            )
     return {
         "by_platform": dict(sorted(by_platform.items())),
         "total": len(entries),
         "available": available,
         "unavailable": unavailable,
+        "aggregate_quality": aggregate_quality,
     }
 
 
@@ -103,22 +119,39 @@ def _presence_summary(area: AdaptiveArea) -> dict[str, Any]:
         }
     )
     config = area.config
-    configured_sources = set(config.get(CONF_INCLUDE_ENTITIES, [])) | set(
-        config.get(CONF_KEEP_ONLY_ENTITIES, [])
-    )
     control_sources = config.get(CONF_PRESENCE_CONTROL_ENTITIES, [])
+    presence_entity = area.hass.states.get(
+        f"binary_sensor.adaptive_areas_presence_tracking_{area.slug}_area_state"
+    )
+    runtime_attributes = presence_entity.attributes if presence_entity else {}
     return {
-        "configured_source_count": len(configured_sources),
+        "configured_source_count": runtime_attributes.get(
+            "configured_source_count", len(sensor_ids)
+        ),
+        "available_source_count": runtime_attributes.get(
+            "available_source_count", sum(source["available"] for source in sources)
+        ),
         "discovered_source_count": len(sources),
-        "active_source_count": sum(source["active"] for source in sources),
+        "active_source_count": runtime_attributes.get(
+            "active_source_count", sum(source["active"] for source in sources)
+        ),
         "source_domains": domains,
         "source_device_classes": device_classes,
         "presence_control_source_count": len(control_sources),
-        "last_transition": area.last_changed.isoformat().replace("+00:00", "Z"),
+        "occupied_since": runtime_attributes.get("occupied_since"),
+        "last_activity": runtime_attributes.get("last_activity"),
+        "last_cleared": runtime_attributes.get("last_cleared"),
+        "clear_at": runtime_attributes.get("clear_at"),
+        "last_reason": runtime_attributes.get("last_reason"),
+        "last_transition": runtime_attributes.get(
+            "last_transition", area.last_changed.isoformat().replace("+00:00", "Z")
+        ),
         "occupancy_state": (
             AREA_STATE_OCCUPIED if area.is_occupied() else AREA_STATE_CLEAR
         ),
-        "active_state_flags": sorted(str(state) for state in area.states),
+        "active_state_flags": runtime_attributes.get(
+            "active_states", sorted(str(state) for state in area.states)
+        ),
         "sources": sources,
     }
 
@@ -134,7 +167,7 @@ def _area_summary(area: AdaptiveArea) -> dict[str, Any]:
             bool((state := area.hass.states.get(entity_id)) and state.state == STATE_ON)
             for entity_id in child_sources
         )
-    return {
+    summary = {
         "kind": "meta" if area.is_meta() else "regular",
         "classification": area.area_type,
         "meta_type": _meta_type(area),
@@ -154,6 +187,16 @@ def _area_summary(area: AdaptiveArea) -> dict[str, Any]:
         "child_area_count": child_count,
         "active_child_area_count": active_child_count,
     }
+    if isinstance(area, AdaptiveMetaArea):
+        meta = meta_area_summary(area)
+        summary["meta_status"] = {
+            key: value for key, value in meta.items() if key.endswith("_count")
+        }
+        summary["meta_cleaning"] = {
+            "most_due_score": meta["most_due_score"],
+            "most_overdue_minutes": meta["most_overdue_minutes"],
+        }
+    return summary
 
 
 def _legacy_same_area_count(hass: HomeAssistant, config_entry: ConfigEntry) -> int:
