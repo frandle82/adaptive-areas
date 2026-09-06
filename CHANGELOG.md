@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.1 - 2026-09-06
+
+### Fixed
+
+- Applied the required source formatting to the Meta Area summary helper so the
+  packaged release passes every repository quality gate.
+
 ## 1.6.0 - 2026-09-06
 
 ### Added

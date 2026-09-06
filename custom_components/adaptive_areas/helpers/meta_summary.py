@@ -4,7 +4,10 @@ from typing import Any
 
 from homeassistant.const import STATE_ON
 
-from custom_components.adaptive_areas.base.adaptive import AdaptiveArea, AdaptiveMetaArea
+from custom_components.adaptive_areas.base.adaptive import (
+    AdaptiveArea,
+    AdaptiveMetaArea,
+)
 from custom_components.adaptive_areas.const import (
     ATTR_STATES,
     DATA_AREA_OBJECT,
@@ -42,9 +45,11 @@ def meta_status_summary(area: AdaptiveMetaArea) -> dict[str, Any]:
     occupied = {
         child.id
         for child in children
-        if (state := area.hass.states.get(
-            f"binary_sensor.adaptive_areas_presence_tracking_{child.slug}_area_state"
-        ))
+        if (
+            state := area.hass.states.get(
+                f"binary_sensor.adaptive_areas_presence_tracking_{child.slug}_area_state"
+            )
+        )
         and state.state == STATE_ON
     }
     mapping = {
@@ -87,9 +92,7 @@ def meta_cleaning_summary(area: AdaptiveMetaArea) -> dict[str, Any]:
         for child in _child_area_objects(area)
         if child.room_usage is not None
     ]
-    due = sorted(
-        area_id for area_id, value in assessments if bool(value.get("due"))
-    )
+    due = sorted(area_id for area_id, value in assessments if bool(value.get("due")))
     soon_due = sorted(
         area_id
         for area_id, value in assessments
