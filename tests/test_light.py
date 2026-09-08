@@ -726,3 +726,87 @@ async def test_light_group_all_contains_valid_child_ids_for_multiple_groups(
     child_ids = all_lights_group_state.attributes["child_ids"]
     assert overhead_group_entity_id in child_ids
     assert accent_group_entity_id in child_ids
+
+
+@pytest.mark.parametrize("members_left_on", [0, 1])
+async def test_presence_activity_restores_partial_group(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    freezer,
+    members_left_on: int,
+) -> None:
+    """Real sensor reports restore all members without fake transitions or double calls."""
+    from homeassistant.helpers.entity_component import DATA_INSTANCES
+
+    from custom_components.adaptive_areas.const import (
+        EVENT_ADAPTIVE_AREAS_AREA,
+        LIGHT_GROUP_ACTIVATION,
+        LIGHT_GROUP_BRIGHTNESS,
+        LightGroupCategory,
+    )
+
+    lights = [
+        MockLight(name=f"activity_{index}", state="off", unique_id=f"activity_{index}")
+        for index in range(3)
+    ]
+    await setup_mock_entities(hass, LIGHT_DOMAIN, {DEFAULT_MOCK_AREA: lights})
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {
+        CONF_FEATURE_LIGHT_GROUPS: {
+            CONF_OVERHEAD_LIGHTS: [light.entity_id for light in lights],
+            LIGHT_GROUP_ACTIVATION[LightGroupCategory.OVERHEAD]: "occupied",
+            LIGHT_GROUP_BRIGHTNESS[LightGroupCategory.OVERHEAD]: "ignore",
+        }
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    await init_integration(hass, [entry])
+    group_id = f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    control_id = f"switch.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: control_id}, blocking=True
+    )
+    group = hass.data[DATA_INSTANCES][LIGHT_DOMAIN].get_entity(group_id)
+    calls = []
+    events = []
+    from homeassistant.const import EVENT_CALL_SERVICE
+
+    unsub_calls = hass.bus.async_listen(EVENT_CALL_SERVICE, calls.append)
+    unsub_events = hass.bus.async_listen(EVENT_ADAPTIVE_AREAS_AREA, events.append)
+    source = entities_binary_sensor_motion_one[0].entity_id
+    hass.states.async_set(source, STATE_ON)
+    await hass.async_block_till_done()
+
+    def activation_calls():
+        return [
+            event
+            for event in calls
+            if event.data["domain"] == LIGHT_DOMAIN
+            and event.data["service"] == SERVICE_TURN_ON
+            and event.data["service_data"].get(ATTR_ENTITY_ID) == group_id
+        ]
+
+    assert len(activation_calls()) == 1
+    assert all(hass.states.is_state(light.entity_id, STATE_ON) for light in lights)
+    initial_events = list(events)
+    # A partial group still reports on and must not suppress recovery.
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        "turn_off",
+        {ATTR_ENTITY_ID: [light.entity_id for light in lights[members_left_on:]]},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert group.is_on == bool(members_left_on)
+    freezer.tick(3)
+    hass.states.async_set(source, STATE_ON)
+    await hass.async_block_till_done()
+    assert len(activation_calls()) == 2
+    assert all(hass.states.is_state(light.entity_id, STATE_ON) for light in lights)
+    assert events == initial_events
+    freezer.tick(3)
+    hass.states.async_set(source, STATE_ON)
+    await hass.async_block_till_done()
+    assert len(activation_calls()) == 2
+    unsub_calls()
+    unsub_events()
+    await shutdown_integration(hass, [entry])

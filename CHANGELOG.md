@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.2 - 2026-09-08
+
+### Fixed
+
+- Re-evaluate real-area child light groups on presence activity, including
+  unchanged active sensor reports, without artificial occupancy transitions or
+  additional public area events.
+- Turn on every target light when a group is only partially on, while skipping
+  groups whose members are already on.
+- Preserve activation conditions, brightness modes, blocking states, and manual
+  overrides during activity-driven control.
+- Suppress duplicate turn-on calls when occupancy transitions and presence
+  activity occur together; expose activity decisions in the existing trace.
+
+### Validation
+
+- Regression coverage for repeated presence reports, partial groups, duplicate
+  triggers, activation conditions, brightness modes, and manual overrides.
+
 ## 1.6.1 - 2026-09-06
 
 ### Fixed

@@ -554,6 +554,7 @@ class AdaptiveAreasFeatures(StrEnum):
 class AdaptiveAreasEvents(StrEnum):
     """Adaptive Areas events."""
 
+    AREA_PRESENCE_ACTIVITY = "adaptiveareas_area_presence_activity"
     AREA_STATE_CHANGED = "adaptiveareas_area_state_changed"
     AREA_LOADED = "adaptiveareas_area_loaded"
     CLEANING_UPDATED = "adaptiveareas_cleaning_updated"

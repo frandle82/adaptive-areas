@@ -12,7 +12,8 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
 )
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_component import DATA_INSTANCES
 
 from custom_components.adaptive_areas.const import (
@@ -29,6 +30,7 @@ from custom_components.adaptive_areas.const import (
     DOMAIN,
     EVENT_ADAPTIVE_AREAS_AREA,
     MODULE_DATA,
+    AdaptiveAreasEvents,
     AreaStates,
 )
 
@@ -315,6 +317,13 @@ async def test_presence_explanation_timing_counts_and_events(
     events = []
     hass.bus.async_listen(EVENT_ADAPTIVE_AREAS_AREA, events.append)
 
+    activities = []
+    unsubscribe = async_dispatcher_connect(
+        hass,
+        AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
+        lambda area_id, reason: activities.append((area_id, reason)),
+    )
+
     initial = hass.states.get(entity_id)
     assert initial is not None
     assert initial.attributes["configured_source_count"] == 1
@@ -330,6 +339,7 @@ async def test_presence_explanation_timing_counts_and_events(
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).attributes["available_source_count"] == 1
 
+    assert activities == []
     hass.states.async_set(source_id, STATE_ON)
     await hass.async_block_till_done()
     occupied = hass.states.get(entity_id)
@@ -341,6 +351,10 @@ async def test_presence_explanation_timing_counts_and_events(
     assert occupied.attributes["active_sources"] == [source_id]
     assert occupied.attributes["last_reason"] == "motion_detected"
 
+    assert len(activities) == 1
+    assert activities[0][1] == "motion_detected"
+    events_before_activity = list(events)
+
     component = hass.data[DATA_INSTANCES][BINARY_SENSOR_DOMAIN]
     tracker = component.get_entity(entity_id)
     freezer.tick(10)
@@ -349,12 +363,32 @@ async def test_presence_explanation_timing_counts_and_events(
     assert unchanged.attributes["occupied_since"] == occupied_since
     assert unchanged.attributes["last_activity"] == first_activity
 
+    await hass.async_block_till_done()
+    assert len(activities) == 1
+
+    freezer.tick(10)
+    hass.states.async_set(source_id, STATE_ON)
+    await hass.async_block_till_done()
+    assert len(activities) == 2
+    assert events == events_before_activity
+
     freezer.tick(10)
     hass.states.async_set(source_id, STATE_ON, {"activity": "new"})
     await hass.async_block_till_done()
     repeated = hass.states.get(entity_id)
     assert repeated.attributes["occupied_since"] == occupied_since
     assert repeated.attributes["last_activity"] != first_activity
+
+    assert len(activities) == 3
+    assert events == events_before_activity
+    tracker._secondary_state_change(
+        Event(
+            "state_changed",
+            {"entity_id": source_id, "new_state": hass.states.get(source_id)},
+        )
+    )
+    await hass.async_block_till_done()
+    assert len(activities) == 3
 
     area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
     area.config[CONF_CLEAR_TIMEOUT] = 1
@@ -363,6 +397,7 @@ async def test_presence_explanation_timing_counts_and_events(
     pending = hass.states.get(entity_id)
     assert pending.state == STATE_ON
     assert pending.attributes["clear_at"] is not None
+    assert len(activities) == 3
 
     hass.states.async_set(source_id, STATE_ON)
     await hass.async_block_till_done()
@@ -375,6 +410,9 @@ async def test_presence_explanation_timing_counts_and_events(
     assert cleared.attributes["occupied_since"] is None
     assert cleared.attributes["last_cleared"] is not None
     assert cleared.attributes["clear_at"] is None
+    await hass.async_block_till_done()
+    assert len(activities) == 4
+    unsubscribe()
     assert [event.data["event_type"] for event in events] == ["occupied", "cleared"]
     assert all(
         event.data["area_id"] == basic_config_entry.data["id"] for event in events

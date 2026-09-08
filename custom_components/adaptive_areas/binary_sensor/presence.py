@@ -14,7 +14,12 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.components.sun.const import STATE_ABOVE_HORIZON
 from homeassistant.const import STATE_ON
-from homeassistant.core import Event, EventStateChangedData, callback
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    EventStateReportedData,
+    callback,
+)
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
@@ -22,6 +27,7 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
+    async_track_state_report_event,
     async_track_time_interval,
 )
 
@@ -128,6 +134,13 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                 self.hass, self._sensors, self._sensor_state_change
             )
         )
+
+        if not self.area.is_meta():
+            self.async_on_remove(
+                async_track_state_report_event(
+                    self.hass, self._sensors, self._sensor_state_report
+                )
+            )
 
         if self._presence_control_entities:
             _LOGGER.debug(
@@ -360,7 +373,15 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         self.hass.async_create_task(self._async_update_state(0))
 
     @callback
-    def _sensor_state_change(self, event: Event[EventStateChangedData]) -> None:
+    def _sensor_state_report(self, event: Event[EventStateReportedData]) -> None:
+        """Handle a source report with unchanged state and attributes."""
+        if event.data["new_state"].state in self._valid_on_states():
+            self._sensor_state_change(event)
+
+    @callback
+    def _sensor_state_change(
+        self, event: Event[EventStateChangedData | EventStateReportedData]
+    ) -> None:
         """Actions when the sensor state has changed."""
         if event.data["new_state"] is None:
             return
@@ -373,12 +394,21 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         elif self.area.is_meta() and to_state not in INVALID_STATES:
             self._pending_reason = "meta_child_cleared"
 
+        activity_reason = (
+            self._reason_for_source(entity_id)
+            if to_state in self._valid_on_states() and not self.area.is_meta()
+            else None
+        )
+
         # An unchanged active report is real activity, but not a state transition.
-        if (
-            self.ignore_non_state_change
-            and event.data["old_state"]
-            and event.data["new_state"].state == event.data["old_state"].state
+        if self.ignore_non_state_change and (
+            "old_state" not in event.data
+            or (event.data["old_state"] and to_state == event.data["old_state"].state)
         ):
+            if activity_reason is not None:
+                self.hass.async_create_task(
+                    self._async_update_state(0, activity_reason)
+                )
             self._publish_metadata()
             return
 
@@ -402,18 +432,27 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         if to_state and to_state not in self._valid_on_states():
             _LOGGER.debug(
                 "Setting last non-normal time %s %s",
-                event.data["old_state"],
+                event.data.get("old_state"),
                 event.data["new_state"],
             )
             self._last_off_time = datetime.now(UTC)  # Update last_off_time
             # Clear the timeout
             self._remove_clear_timeout()
 
-        self.hass.async_create_task(self._async_update_state(0))
+        self.hass.async_create_task(self._async_update_state(0, activity_reason))
 
-    async def _async_update_state(self, timeout: int) -> None:
+    async def _async_update_state(
+        self, timeout: int, activity_reason: str | None = None
+    ) -> None:
         await asyncio.sleep(timeout)
         self._update_state()
+        if activity_reason is not None:
+            async_dispatcher_send(
+                self.hass,
+                AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
+                self.area.id,
+                activity_reason,
+            )
 
     @callback
     def _update_state(self, extra: datetime | None = None) -> None:
