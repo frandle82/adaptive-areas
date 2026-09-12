@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.6.3 - 2026-09-12
+
+### Fixed
+
+- Apply the presence-control gate to source activity as well as occupancy.
+- Ignore blocked active sensor reports, including unchanged reports, without
+  updating activity timestamps or reasons or publishing presence activity.
+- Preserve pending clear timeouts and prevent activity-driven light group
+  reactivation while the presence-control gate is closed.
+- Re-evaluate occupancy when the gate opens without generating artificial
+  source activity; preserve the existing OR semantics for control entities.
+
+### Validation
+
+- 250 tests passed against Home Assistant 2026.9.0, including gate states,
+  repeated reports, clear timeouts, Meta Areas, and light group regressions.
+- Ruff, Black, and whitespace checks passed.
+
 ## 1.6.2 - 2026-09-08
 
 ### Fixed

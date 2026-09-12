@@ -319,6 +319,16 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         self._sensors = self.area.get_presence_sensors()
 
     # Entity state tracking & reporting
+    def _is_valid_presence_activity(self, entity_id: str, state: str) -> bool:
+        """Validate source activity before updating metadata or publishing it."""
+        return (
+            not self.area.is_meta()
+            and state not in INVALID_STATES
+            and state in self._valid_on_states()
+            and entity_id in self._sensors
+            and self._presence_control_enabled()
+        )
+
     @callback
     def _secondary_state_change(self, event: Event[EventStateChangedData]) -> None:
         """Handle area secondary state change event."""
@@ -388,17 +398,17 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
 
         to_state = event.data["new_state"].state
         entity_id = event.data["entity_id"]
-        if to_state in self._valid_on_states():
+        activity_reason = None
+        if self._is_valid_presence_activity(entity_id, to_state):
+            activity_reason = self._reason_for_source(entity_id)
             self._last_activity = datetime.now(UTC)
-            self._pending_reason = self._reason_for_source(entity_id)
+            self._pending_reason = activity_reason
         elif self.area.is_meta() and to_state not in INVALID_STATES:
-            self._pending_reason = "meta_child_cleared"
-
-        activity_reason = (
-            self._reason_for_source(entity_id)
-            if to_state in self._valid_on_states() and not self.area.is_meta()
-            else None
-        )
+            self._pending_reason = (
+                self._reason_for_source(entity_id)
+                if to_state in self._valid_on_states()
+                else "meta_child_cleared"
+            )
 
         # An unchanged active report is real activity, but not a state transition.
         if self.ignore_non_state_change and (

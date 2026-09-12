@@ -729,16 +729,20 @@ async def test_light_group_all_contains_valid_child_ids_for_multiple_groups(
 
 
 @pytest.mark.parametrize("members_left_on", [0, 1])
+@pytest.mark.parametrize("presence_control", [False, True])
 async def test_presence_activity_restores_partial_group(
     hass: HomeAssistant,
     entities_binary_sensor_motion_one: list[MockBinarySensor],
     freezer,
     members_left_on: int,
+    presence_control: bool,
 ) -> None:
     """Real sensor reports restore all members without fake transitions or double calls."""
     from homeassistant.helpers.entity_component import DATA_INSTANCES
 
     from custom_components.adaptive_areas.const import (
+        CONF_CLEAR_TIMEOUT,
+        CONF_PRESENCE_CONTROL_ENTITIES,
         EVENT_ADAPTIVE_AREAS_AREA,
         LIGHT_GROUP_ACTIVATION,
         LIGHT_GROUP_BRIGHTNESS,
@@ -751,6 +755,11 @@ async def test_presence_activity_restores_partial_group(
     ]
     await setup_mock_entities(hass, LIGHT_DOMAIN, {DEFAULT_MOCK_AREA: lights})
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    gate_id = "person.light_presence_control"
+    if presence_control:
+        hass.states.async_set(gate_id, "home")
+        data[CONF_PRESENCE_CONTROL_ENTITIES] = [gate_id]
+        data[CONF_CLEAR_TIMEOUT] = 1
     data[CONF_ENABLED_FEATURES] = {
         CONF_FEATURE_LIGHT_GROUPS: {
             CONF_OVERHEAD_LIGHTS: [light.entity_id for light in lights],
@@ -797,6 +806,22 @@ async def test_presence_activity_restores_partial_group(
     )
     await hass.async_block_till_done()
     assert group.is_on == bool(members_left_on)
+    if presence_control:
+        hass.states.async_set(source, STATE_OFF)
+        await hass.async_block_till_done()
+        hass.states.async_set(gate_id, "not_home")
+        await hass.async_block_till_done()
+        freezer.tick(3)
+        hass.states.async_set(source, STATE_ON)
+        await hass.async_block_till_done()
+        assert len(activation_calls()) == 1
+        assert all(
+            hass.states.is_state(light.entity_id, STATE_OFF)
+            for light in lights[members_left_on:]
+        )
+        hass.states.async_set(gate_id, "home")
+        await hass.async_block_till_done()
+        assert len(activation_calls()) == 1
     freezer.tick(3)
     hass.states.async_set(source, STATE_ON)
     await hass.async_block_till_done()
