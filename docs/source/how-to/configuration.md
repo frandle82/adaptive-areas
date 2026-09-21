@@ -23,7 +23,7 @@ These options define how presence is detected and maintained within an area.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| **Platforms** | `list<string>` | `media_player`, `binary_sensor` | Platforms used for room presence sensing. Options: `media_player`, `binary_sensor`, `device_tracker`, `remote`. Trackers activate only when their state matches the Area ID or Area name; global location states such as `home` never activate a room. |
+| **Platforms** | `list<string>` | `media_player`, `binary_sensor` | Platforms used for room presence sensing. Options: `media_player`, `binary_sensor`, `device_tracker`, `remote`. A tracker already discovered for an Area is active at `home`; Area-ID and Area-name states are also supported. |
 | **Presence sensor device classes** | `list<string>` | `motion`, `occupancy`, `presence` | Device classes of binary sensors considered as presence sensors. Supports all binary sensor classes. |
 | **Keep-only entities** | `list<entity>` | `[]` | Entities that will only be considered if the area is already occupied (triggered by another sensor). |
 | **Clear timeout** | `int (minutes)` | `1` | Time to wait before clearing the area after no presence is detected. |

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.6.5 - 2026-09-21
+
+### Fixed
+
+- Make `device_tracker` entities already discovered for an Area contribute to
+  occupancy when their state is `home`.
+- Preserve the 1.6.3 Area assignment and source discovery behavior while
+  retaining domain-specific runtime evaluation.
+- Keep presence-control entities as a separate confirmation mechanism and
+  preserve the optional Area-ID and Area-name tracker states.
+
+### Validation
+
+- 274 tests passed against Home Assistant 2026.9.0, including tracker source
+  counts, activity reports, presence control, Keep-Only, clear timeouts, and
+  cross-Area discovery isolation.
+- Repository-wide Ruff, Black, JSON, and whitespace checks passed.
+
 ## 1.6.4 - 2026-09-21
 
 ### Fixed

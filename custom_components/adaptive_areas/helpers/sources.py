@@ -53,7 +53,7 @@ SUPPORTED_PHYSICAL_PRESENCE_SOURCE_DOMAINS = frozenset(
         REMOTE_DOMAIN,
     )
 )
-_NON_ROOM_TRACKER_STATES = frozenset(("home", "not_home", "work", "school"))
+_INACTIVE_TRACKER_STATES = frozenset(("not_home", "work", "school"))
 
 
 def is_presence_source_active(
@@ -65,11 +65,16 @@ def is_presence_source_active(
 ) -> bool:
     """Return whether a source has an active state for its entity domain."""
     state_value = state.state if isinstance(state, State) else state
-    if state_value in (None, STATE_UNKNOWN, STATE_UNAVAILABLE):
+    if state_value is None:
+        return False
+    normalized_state = state_value.casefold()
+    if normalized_state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
         return False
     domain = entity_id.partition(".")[0]
     if domain == DEVICE_TRACKER_DOMAIN:
-        if area_id is None or state_value.casefold() in _NON_ROOM_TRACKER_STATES:
+        if normalized_state == "home":
+            return True
+        if normalized_state in _INACTIVE_TRACKER_STATES or area_id is None:
             return False
         if state_value == area_id:
             return True
