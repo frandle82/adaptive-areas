@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.6.4 - 2026-09-21
+
+### Fixed
+
+- Evaluate presence sources with domain-specific state semantics instead of a
+  shared global active-state list.
+- Resolve room-level `device_tracker` states deterministically against the
+  configured Home Assistant Area ID or Area Registry name.
+- Keep `home`, `not_home`, `work`, and `school` tracker states from occupying a
+  room while retaining trackers as regular presence sources and optional
+  presence-control entities.
+- Keep source discovery, runtime activity, source counts, and configuration
+  choices consistent without adding entities or heuristic person matching.
+
+### Validation
+
+- 269 tests passed against Home Assistant 2026.9.0, including tracker room
+  states, global location states, source counts, presence control, Meta Areas,
+  BLE tracking, Wasp in a Box, and existing presence behavior.
+- Repository-wide Ruff, Black, JSON, and whitespace checks passed.
+
 ## 1.6.3 - 2026-09-12
 
 ### Fixed

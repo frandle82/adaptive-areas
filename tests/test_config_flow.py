@@ -47,6 +47,8 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_BRIGHTNESS,
     CONF_OVERHEAD_LIGHTS_TURN_OFF_WHEN_BRIGHT,
     CONF_PRESENCE_MINUTES_TO_DUE,
+    CONF_PRESENCE_CONTROL_ENTITIES,
+    CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_ROOM_CATEGORY,
     CONF_TYPE,
     DATA_AREA_OBJECT,
@@ -149,6 +151,40 @@ async def test_optional_feature_menu_follows_enabled_features(hass) -> None:
     assert "feature_conf_environment" not in disabled["menu_options"]
     assert "feature_conf_light_groups" in disabled["menu_options"]
     assert CONF_FEATURE_ROOM_USAGE in flow.area_options[CONF_ENABLED_FEATURES]
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_device_tracker_is_available_in_both_presence_selectors(hass) -> None:
+    """The UI offers trackers as room sources and optional confirmation gates."""
+    tracker_id = "device_tracker.phone"
+    hass.states.async_set(tracker_id, "home")
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=data)
+    await init_integration(hass, [entry])
+
+    flow = OptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    await flow.async_step_init()
+
+    presence_result = await flow.async_step_presence_tracking()
+    presence_schema = presence_result["data_schema"].schema
+    platform_selector = next(
+        selector
+        for key, selector in presence_schema.items()
+        if key.schema == CONF_PRESENCE_DEVICE_PLATFORMS
+    )
+    assert "device_tracker" in platform_selector.config["options"]
+
+    area_result = await flow.async_step_area_config()
+    area_schema = area_result["data_schema"].schema
+    control_selector = next(
+        selector
+        for key, selector in area_schema.items()
+        if key.schema == CONF_PRESENCE_CONTROL_ENTITIES
+    )
+    assert tracker_id in control_selector.config["include_entities"]
 
     await shutdown_integration(hass, [entry])
 

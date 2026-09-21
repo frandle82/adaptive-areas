@@ -13,7 +13,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.components.sun.const import STATE_ABOVE_HORIZON
-from homeassistant.const import STATE_ON
+from homeassistant.const import STATE_ON, STATE_OPEN, STATE_PLAYING
 from homeassistant.core import (
     Event,
     EventStateChangedData,
@@ -37,7 +37,10 @@ from custom_components.adaptive_areas.base.adaptive import (
     AdaptiveMetaArea,
 )
 from custom_components.adaptive_areas.helpers.meta_summary import meta_area_summary
-from custom_components.adaptive_areas.helpers.sources import entity_device_class
+from custom_components.adaptive_areas.helpers.sources import (
+    entity_device_class,
+    is_presence_source_active,
+)
 from custom_components.adaptive_areas.const import (
     ATTR_ACTIVE_SENSORS,
     ATTR_ACTIVE_SOURCE_COUNT,
@@ -80,7 +83,6 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     ONE_MINUTE,
     PRESENCE_CONTROL_VALID_ON_STATES,
-    PRESENCE_SENSOR_VALID_ON_STATES,
     UPDATE_INTERVAL,
     AreaStates,
     CalculationMode,
@@ -282,16 +284,6 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
 
     # Helpers
 
-    def _valid_on_states(self, additional_states: list[str] | None = None) -> list[str]:
-        """Return valid ON states for entities."""
-
-        valid_states = PRESENCE_SENSOR_VALID_ON_STATES.copy()
-
-        if additional_states:
-            valid_states.extend(additional_states)
-
-        return [STATE_ON] if self.area.is_meta() else valid_states
-
     def _get_configured_secondary_states(self) -> list[str]:
         """Return configured secondary states."""
         secondary_states = []
@@ -324,7 +316,9 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         return (
             not self.area.is_meta()
             and state not in INVALID_STATES
-            and state in self._valid_on_states()
+            and is_presence_source_active(
+                self.hass, entity_id, state, area_id=self.area.id
+            )
             and entity_id in self._sensors
             and self._presence_control_enabled()
         )
@@ -385,7 +379,12 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
     @callback
     def _sensor_state_report(self, event: Event[EventStateReportedData]) -> None:
         """Handle a source report with unchanged state and attributes."""
-        if event.data["new_state"].state in self._valid_on_states():
+        if is_presence_source_active(
+            self.hass,
+            event.data["entity_id"],
+            event.data["new_state"],
+            area_id=self.area.id,
+        ):
             self._sensor_state_change(event)
 
     @callback
@@ -406,7 +405,9 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         elif self.area.is_meta() and to_state not in INVALID_STATES:
             self._pending_reason = (
                 self._reason_for_source(entity_id)
-                if to_state in self._valid_on_states()
+                if is_presence_source_active(
+                    self.hass, entity_id, to_state, area_id=self.area.id
+                )
                 else "meta_child_cleared"
             )
 
@@ -439,7 +440,9 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             self.hass.async_create_task(self._async_update_state(0))
             return
 
-        if to_state and to_state not in self._valid_on_states():
+        if to_state and not is_presence_source_active(
+            self.hass, entity_id, to_state, area_id=self.area.id
+        ):
             _LOGGER.debug(
                 "Setting last non-normal time %s %s",
                 event.data.get("old_state"),
@@ -729,9 +732,12 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             if not entity:
                 continue
 
-            has_valid_state = entity.state.lower() in self._valid_on_states(
-                [STATE_ABOVE_HORIZON]
-            )
+            has_valid_state = entity.state.lower() in {
+                STATE_ON,
+                STATE_OPEN,
+                STATE_PLAYING,
+                STATE_ABOVE_HORIZON,
+            }
             state_to_add = None
 
             # Handle dark state from light sensor as an inverted configurable state
@@ -788,13 +794,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
     def _get_sensors_state(self) -> bool:
         """Fetch state from tracked sensors."""
 
-        valid_states = self._valid_on_states()
-
-        _LOGGER.debug(
-            "%s: Updating state. (Valid states: %s)",
-            self.area.name,
-            ",".join(valid_states),
-        )
+        _LOGGER.debug("%s: Updating presence source states", self.area.name)
 
         if not self._presence_control_enabled():
             _LOGGER.debug(
@@ -842,7 +842,9 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                     )
                     continue
 
-                if entity.state in valid_states:
+                if is_presence_source_active(
+                    self.hass, sensor, entity, area_id=self.area.id
+                ):
                     _LOGGER.debug(
                         "%s: Valid presence sensor found: %s.", self.area.name, sensor
                     )

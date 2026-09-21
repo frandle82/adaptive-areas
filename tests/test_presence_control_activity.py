@@ -216,6 +216,43 @@ async def test_unconfigured_source_is_not_activity(hass, controlled_area):
     assert hass.states.get(AREA_SENSOR).attributes["last_activity"] is None
 
 
+async def test_device_tracker_control_gates_motion_but_never_creates_presence(
+    hass: HomeAssistant, entities_binary_sensor_motion_one
+) -> None:
+    """A phone at home confirms room activity without becoming room activity."""
+    control = "device_tracker.phone"
+    source = entities_binary_sensor_motion_one[0].entity_id
+    hass.states.async_set(control, "home")
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_PRESENCE_CONTROL_ENTITIES] = [control]
+    data[CONF_CLEAR_TIMEOUT] = 0
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    await init_integration(hass, [entry])
+
+    hass.states.async_set(source, STATE_ON)
+    await hass.async_block_till_done()
+    assert hass.states.get(AREA_SENSOR).state == STATE_ON
+    assert hass.states.get(AREA_SENSOR).attributes["active_sources"] == [source]
+
+    hass.states.async_set(source, STATE_OFF)
+    await hass.async_block_till_done()
+    assert hass.states.get(AREA_SENSOR).state == STATE_OFF
+
+    hass.states.async_set(control, "not_home")
+    hass.states.async_set(source, STATE_ON)
+    await hass.async_block_till_done()
+    assert hass.states.get(AREA_SENSOR).state == STATE_OFF
+    assert hass.states.get(AREA_SENSOR).attributes["active_sources"] == []
+
+    hass.states.async_set(source, STATE_OFF)
+    hass.states.async_set(control, "home")
+    await hass.async_block_till_done()
+    assert hass.states.get(AREA_SENSOR).state == STATE_OFF
+    assert control not in hass.states.get(AREA_SENSOR).attributes["presence_sensors"]
+
+    await shutdown_integration(hass, [entry])
+
+
 async def test_meta_areas_do_not_publish_source_activity(
     hass,
     entities_binary_sensor_motion_all_areas_with_meta,

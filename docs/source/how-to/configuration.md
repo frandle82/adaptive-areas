@@ -13,6 +13,7 @@ These options control the general behavior of the area.
 | **Area type** | `string` | `interior` | Defines the area type. Options: `interior`, `exterior`. Used for meta-area calculations. |
 | **Include entities** | `list<entity>` | `[]` | Force-add entities to the area, even if not assigned to it in Home Assistant. |
 | **Exclude entities** | `list<entity>` | `[]` | Force-remove entities from the area. Useful if you want them in Home Assistant but excluded from Adaptive Areas calculations. |
+| **Presence control entities** | `list<entity>` | `[]` | Optional confirmation gate. Room sources are evaluated only while a control is `home` or `on`; controls never occupy a room by themselves. Smartphone trackers belong here. |
 | **Automatic reload on registry updates** | `bool` | `true` | Automatically reloads the area if a new device or entity is added/removed. |
 | **Ignore diagnostic/config entities** | `bool` | `true` | Prevents Adaptive Areas from using diagnostic/config sensors (e.g., CPU temperature) that could skew aggregates. |
 
@@ -22,7 +23,7 @@ These options define how presence is detected and maintained within an area.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| **Platforms** | `list<string>` | `media_player`, `binary_sensor` | Platforms used for presence sensing. Options: `media_player`, `binary_sensor`, `device_tracker`, `remote`. |
+| **Platforms** | `list<string>` | `media_player`, `binary_sensor` | Platforms used for room presence sensing. Options: `media_player`, `binary_sensor`, `device_tracker`, `remote`. Trackers activate only when their state matches the Area ID or Area name; global location states such as `home` never activate a room. |
 | **Presence sensor device classes** | `list<string>` | `motion`, `occupancy`, `presence` | Device classes of binary sensors considered as presence sensors. Supports all binary sensor classes. |
 | **Keep-only entities** | `list<entity>` | `[]` | Entities that will only be considered if the area is already occupied (triggered by another sensor). |
 | **Clear timeout** | `int (minutes)` | `1` | Time to wait before clearing the area after no presence is detected. |

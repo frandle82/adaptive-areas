@@ -29,8 +29,6 @@ from homeassistant.components.sun.const import DOMAIN as SUN_DOMAIN
 from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import (
     STATE_ON,
-    STATE_OPEN,
-    STATE_PLAYING,
     STATE_PROBLEM,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -609,7 +607,6 @@ ATTR_LAST_REASON = "last_reason"
 ATTR_LAST_TRANSITION = "last_transition"
 ATTR_ACTIVE_STATES = "active_states"
 
-PRESENCE_SENSOR_VALID_ON_STATES = [STATE_ON, STATE_OPEN, STATE_PLAYING]
 PRESENCE_CONTROL_ENTITY_DOMAINS = [
     "person",
     DEVICE_TRACKER_DOMAIN,
