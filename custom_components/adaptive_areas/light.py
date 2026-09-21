@@ -77,14 +77,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         )
     else:
         child_light_groups: list[AreaLightGroup] = []
+        feature_config = area.feature_config(AdaptiveAreasFeatures.LIGHT_GROUPS)
+        configured_light_entities = list(
+            dict.fromkeys(
+                light_entity
+                for category in LIGHT_GROUP_CATEGORIES
+                for light_entity in feature_config.get(category, {})
+                if light_entity in light_entities
+            )
+        )
 
         # Create extended light groups
         for category in LIGHT_GROUP_CATEGORIES:
             category_lights = [
                 light_entity
-                for light_entity in area.feature_config(
-                    AdaptiveAreasFeatures.LIGHT_GROUPS
-                ).get(category, {})
+                for light_entity in feature_config.get(category, {})
                 if light_entity in light_entities
             ]
 
@@ -99,19 +106,20 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 light_groups.append(light_group_object)
                 child_light_groups.append(light_group_object)
 
-        _LOGGER.debug(
-            "%s: Creating Area light group for area with lights: %s",
-            area.name,
-            str([group.unique_id for group in child_light_groups]),
-        )
-        light_groups.append(
-            AreaLightGroup(
-                area,
-                light_entities,
-                category=LightGroupCategory.ALL,
-                child_groups=child_light_groups,
+        if configured_light_entities:
+            _LOGGER.debug(
+                "%s: Creating Area light group for area with lights: %s",
+                area.name,
+                configured_light_entities,
             )
-        )
+            light_groups.append(
+                AreaLightGroup(
+                    area,
+                    configured_light_entities,
+                    category=LightGroupCategory.ALL,
+                    child_groups=child_light_groups,
+                )
+            )
 
     # Create all groups
     if light_groups:

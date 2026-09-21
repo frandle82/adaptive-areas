@@ -385,7 +385,7 @@ async def test_light_group_basic(
 
 async def test_light_group_blocking_state_turns_off(
     hass: HomeAssistant,
-    entities_light_one: list[MockLight],
+    entities_light_two: list[MockLight],
     entities_binary_sensor_motion_one: list[MockBinarySensor],
     entities_light_secondary_states: list[MockBinarySensor],
     _setup_integration_light_groups_advanced,
@@ -412,12 +412,21 @@ async def test_light_group_blocking_state_turns_off(
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
 
+    unconfigured_light_id = entities_light_two[1].entity_id
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: unconfigured_light_id},
+        blocking=True,
+    )
+
     hass.states.async_set(sleep_sensor_entity_id, STATE_ON)
     await hass.async_block_till_done()
     await asyncio.sleep(1)
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
+    assert hass.states.is_state(unconfigured_light_id, STATE_ON)
 
     # Losing a blocking state must also re-evaluate the group.
     hass.states.async_set(sleep_sensor_entity_id, STATE_OFF)
@@ -461,7 +470,7 @@ async def test_sleep_activation_does_not_turn_on_in_clear_area(
 
 async def test_light_group_turns_off_when_bright(
     hass: HomeAssistant,
-    entities_light_one: list[MockLight],
+    entities_light_two: list[MockLight],
     entities_binary_sensor_motion_one: list[MockBinarySensor],
     entities_light_secondary_states: list[MockBinarySensor],
     _setup_integration_light_groups_advanced,
@@ -492,6 +501,14 @@ async def test_light_group_turns_off_when_bright(
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_ON)
 
+    unconfigured_light_id = entities_light_two[1].entity_id
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: unconfigured_light_id},
+        blocking=True,
+    )
+
     # Bright transition should actively turn off the group.
     hass.states.async_set(light_level_entity_id, STATE_ON)
     await hass.async_block_till_done()
@@ -499,6 +516,7 @@ async def test_light_group_turns_off_when_bright(
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
+    assert hass.states.is_state(unconfigured_light_id, STATE_ON)
 
 
 async def test_light_group_turns_back_on_when_dark_again(
@@ -728,6 +746,104 @@ async def test_light_group_all_contains_valid_child_ids_for_multiple_groups(
     assert accent_group_entity_id in child_ids
 
 
+async def test_light_groups_only_control_configured_area_lights(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+) -> None:
+    """Automatic control never targets unconfigured or removed Area lights."""
+    lights = [
+        MockLight(name=name, state="off", unique_id=name)
+        for name in ("ceiling", "floor", "vitrine", "tv_backlight")
+    ]
+    await setup_mock_entities(hass, LIGHT_DOMAIN, {DEFAULT_MOCK_AREA: lights})
+    ceiling, floor, vitrine, tv_backlight = [light.entity_id for light in lights]
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {
+        CONF_FEATURE_LIGHT_GROUPS: {
+            CONF_OVERHEAD_LIGHTS: [ceiling, "light.removed"],
+            CONF_OVERHEAD_LIGHTS_ACT_ON: [LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE],
+            CONF_OVERHEAD_LIGHTS_STATES: [AreaStates.OCCUPIED],
+            CONF_ACCENT_LIGHTS: [ceiling, floor],
+            CONF_ACCENT_LIGHTS_ACT_ON: [LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE],
+            CONF_ACCENT_LIGHTS_STATES: [AreaStates.OCCUPIED],
+        }
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    await init_integration(hass, [entry])
+    all_group_id = f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_all_lights"
+    overhead_group_id = (
+        f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    )
+    accent_group_id = (
+        f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_accent_lights"
+    )
+    control_id = f"switch.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    all_group = hass.states.get(all_group_id)
+    overhead_group = hass.states.get(overhead_group_id)
+    accent_group = hass.states.get(accent_group_id)
+    assert all_group is not None
+    assert overhead_group is not None
+    assert accent_group is not None
+    assert all_group.attributes["lights"] == [ceiling, floor]
+    assert all_group.attributes[ATTR_ENTITY_ID] == [ceiling, floor]
+    assert overhead_group.attributes["lights"] == [ceiling]
+    assert accent_group.attributes["lights"] == [ceiling, floor]
+    assert "light.removed" not in overhead_group.attributes["lights"]
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: control_id}, blocking=True
+    )
+    motion_id = entities_binary_sensor_motion_one[0].entity_id
+    hass.states.async_set(motion_id, STATE_ON)
+    await hass.async_block_till_done()
+    assert hass.states.is_state(ceiling, STATE_ON)
+    assert hass.states.is_state(floor, STATE_ON)
+    assert hass.states.is_state(vitrine, STATE_OFF)
+    assert hass.states.is_state(tv_backlight, STATE_OFF)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: [vitrine, tv_backlight]},
+        blocking=True,
+    )
+    hass.states.async_set(motion_id, STATE_OFF)
+    await hass.async_block_till_done()
+    assert hass.states.is_state(ceiling, STATE_OFF)
+    assert hass.states.is_state(floor, STATE_OFF)
+    assert hass.states.is_state(vitrine, STATE_ON)
+    assert hass.states.is_state(tv_backlight, STATE_ON)
+
+    await shutdown_integration(hass, [entry])
+
+
+async def test_light_groups_with_no_configured_lights_control_nothing(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+) -> None:
+    """An enabled but empty feature creates no controlling light groups."""
+    lights = [
+        MockLight(name=f"unconfigured_{index}", state="on", unique_id=str(index))
+        for index in range(2)
+    ]
+    await setup_mock_entities(hass, LIGHT_DOMAIN, {DEFAULT_MOCK_AREA: lights})
+    data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
+    data[CONF_ENABLED_FEATURES] = {CONF_FEATURE_LIGHT_GROUPS: {}}
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    await init_integration(hass, [entry])
+    all_group_id = f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_all_lights"
+    assert hass.states.get(all_group_id) is None
+
+    motion_id = entities_binary_sensor_motion_one[0].entity_id
+    hass.states.async_set(motion_id, STATE_ON)
+    await hass.async_block_till_done()
+    hass.states.async_set(motion_id, STATE_OFF)
+    await hass.async_block_till_done()
+    assert all(hass.states.is_state(light.entity_id, STATE_ON) for light in lights)
+
+    await shutdown_integration(hass, [entry])
+
+
 @pytest.mark.parametrize("members_left_on", [0, 1])
 @pytest.mark.parametrize("presence_control", [False, True])
 async def test_presence_activity_restores_partial_group(
@@ -753,7 +869,14 @@ async def test_presence_activity_restores_partial_group(
         MockLight(name=f"activity_{index}", state="off", unique_id=f"activity_{index}")
         for index in range(3)
     ]
-    await setup_mock_entities(hass, LIGHT_DOMAIN, {DEFAULT_MOCK_AREA: lights})
+    decorative = MockLight(
+        name="unconfigured_decorative",
+        state="off",
+        unique_id="unconfigured_decorative",
+    )
+    await setup_mock_entities(
+        hass, LIGHT_DOMAIN, {DEFAULT_MOCK_AREA: [*lights, decorative]}
+    )
     data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     gate_id = "person.light_presence_control"
     if presence_control:
@@ -796,6 +919,7 @@ async def test_presence_activity_restores_partial_group(
 
     assert len(activation_calls()) == 1
     assert all(hass.states.is_state(light.entity_id, STATE_ON) for light in lights)
+    assert hass.states.is_state(decorative.entity_id, STATE_OFF)
     initial_events = list(events)
     # A partial group still reports on and must not suppress recovery.
     await hass.services.async_call(
@@ -819,6 +943,7 @@ async def test_presence_activity_restores_partial_group(
             hass.states.is_state(light.entity_id, STATE_OFF)
             for light in lights[members_left_on:]
         )
+        assert hass.states.is_state(decorative.entity_id, STATE_OFF)
         hass.states.async_set(gate_id, "home")
         await hass.async_block_till_done()
         assert len(activation_calls()) == 1
@@ -827,6 +952,7 @@ async def test_presence_activity_restores_partial_group(
     await hass.async_block_till_done()
     assert len(activation_calls()) == 2
     assert all(hass.states.is_state(light.entity_id, STATE_ON) for light in lights)
+    assert hass.states.is_state(decorative.entity_id, STATE_OFF)
     assert events == initial_events
     freezer.tick(3)
     hass.states.async_set(source, STATE_ON)

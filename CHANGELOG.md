@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.6 - 2026-09-21
+
+### Fixed
+
+- Limit automatic light control to lights explicitly assigned to Light Group
+  categories.
+- Keep unconfigured Area lights unchanged when an Area clears or its light
+  policy is re-evaluated.
+- Build the parent All Lights group from the deduplicated union of configured,
+  valid category members while preserving activation, brightness, blocking,
+  presence-activity, and manual-override behavior.
+
+### Validation
+
+- 276 tests passed against Home Assistant 2026.9.0, including configured scope,
+  CLEAR, BRIGHT, blocking-state, presence-activity, empty configuration,
+  duplicate membership, and removed-entity regressions.
+- Repository-wide Ruff, Black, JSON, and whitespace checks passed.
+
 ## 1.6.5 - 2026-09-21
 
 ### Fixed
