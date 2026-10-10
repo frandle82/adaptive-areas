@@ -1,8 +1,8 @@
 """Adaptive Areas component for Home Assistant."""
 
 from collections.abc import Callable
-from datetime import UTC, datetime
 import logging
+from time import monotonic
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -84,6 +84,11 @@ from custom_components.adaptive_areas.services import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Short enough to keep registry-driven UI changes responsive, long enough to fold
+# Home Assistant startup bursts where devices, entities and Areas arrive together.
+REGISTRY_CHANGE_DEBOUNCE = 2
+REPAIR_EVALUATION_DEBOUNCE = 2
 
 _MIGRATED_AREA_EVALUATION_KEYS = (
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
@@ -335,11 +340,14 @@ def _sanitize_switch_groups_options(
     return cleaned_options, changed
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
+async def async_setup_entry(  # noqa: C901
+    hass: HomeAssistant, config_entry: ConfigEntry
+):
     """Set up the component."""
 
     remove_reload_timer: Callable[[], None] | None = None
     remove_repair_timer: Callable[[], None] | None = None
+    reloading = False
 
     cleaned_options, options_changed = _sanitize_switch_groups_options(
         dict(config_entry.options)
@@ -353,22 +361,29 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     @callback
     def _async_reload_entry(*args, **kwargs) -> None:
-        """Coalesce registry events into one config entry reload."""
+        """Debounce registry events into one config entry reload."""
         nonlocal remove_reload_timer
 
-        if not hass.is_running or remove_reload_timer is not None:
+        if not hass.is_running or reloading:
             return
+        if remove_reload_timer is not None:
+            remove_reload_timer()
+            remove_reload_timer = None
 
         @callback
         def _reload(_now=None) -> None:
-            nonlocal remove_reload_timer
+            nonlocal remove_reload_timer, reloading
             remove_reload_timer = None
-            hass.config_entries.async_update_entry(
-                config_entry,
-                data={**config_entry.data, "entity_ts": datetime.now(UTC)},
+            if not hass.is_running:
+                return
+            reloading = True
+            _LOGGER.debug(
+                "Adaptive Areas [%s]: scheduled config entry reload after registry burst",
+                config_entry.data[ATTR_NAME],
             )
+            hass.config_entries.async_schedule_reload(config_entry.entry_id)
 
-        remove_reload_timer = async_call_later(hass, 0, _reload)
+        remove_reload_timer = async_call_later(hass, REGISTRY_CHANGE_DEBOUNCE, _reload)
 
     @callback
     def _cancel_scheduled_reload() -> None:
@@ -379,21 +394,28 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     @callback
     def _async_schedule_repair_evaluation(*args, **kwargs) -> None:
-        """Coalesce registry events into one Repair evaluation."""
+        """Debounce registry events into one Repair evaluation."""
         nonlocal remove_repair_timer
-        if not hass.is_running or remove_repair_timer is not None:
+        if not hass.is_running:
             return
+        if remove_repair_timer is not None:
+            remove_repair_timer()
+            remove_repair_timer = None
 
         @callback
         def _evaluate(_now=None) -> None:
             nonlocal remove_repair_timer
             remove_repair_timer = None
+            if not hass.is_running:
+                return
             hass.async_create_task(
                 async_evaluate_config_entry(hass, config_entry),
                 f"evaluate repairs for {config_entry.entry_id}",
             )
 
-        remove_repair_timer = async_call_later(hass, 0, _evaluate)
+        remove_repair_timer = async_call_later(
+            hass, REPAIR_EVALUATION_DEBOUNCE, _evaluate
+        )
 
     @callback
     def _cancel_scheduled_repair_evaluation() -> None:
@@ -436,19 +458,39 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     async def _async_setup_integration(*args, **kwargs) -> bool:
         """Load integration when Hass has finished starting."""
+        nonlocal reloading
+        total_start = monotonic()
         _LOGGER.debug("Setting up entry for %s", config_entry.data[ATTR_NAME])
 
+        step_start = monotonic()
         repair_summary = await async_evaluate_config_entry(hass, config_entry)
+        _LOGGER.debug(
+            "Adaptive Areas [%s]: repair evaluation: %.0f ms",
+            config_entry.data[ATTR_NAME],
+            (monotonic() - step_start) * 1000,
+        )
         if repair_summary["missing_area"]:
             _LOGGER.error("Unable to set up Adaptive Areas entry: area is missing")
             return False
 
+        step_start = monotonic()
         adaptive_area: AdaptiveArea | None = get_adaptive_area_for_config_entry(
             hass, config_entry
         )
+        _LOGGER.debug(
+            "Adaptive Areas [%s]: area object creation: %.0f ms",
+            config_entry.data[ATTR_NAME],
+            (monotonic() - step_start) * 1000,
+        )
         if adaptive_area is None:
             return False
+        step_start = monotonic()
         await adaptive_area.initialize()
+        _LOGGER.debug(
+            "Adaptive Areas [%s]: area initialization: %.0f ms",
+            adaptive_area.name,
+            (monotonic() - step_start) * 1000,
+        )
 
         _LOGGER.debug(
             "%s: Adaptive Area (%s) created: %s",
@@ -513,10 +555,22 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         }
 
         # Setup platforms
+        step_start = monotonic()
         await hass.config_entries.async_forward_entry_setups(
             config_entry, adaptive_area.available_platforms()
         )
+        _LOGGER.debug(
+            "Adaptive Areas [%s]: platform setup: %.0f ms",
+            adaptive_area.name,
+            (monotonic() - step_start) * 1000,
+        )
         async_setup_services(hass)
+        reloading = False
+        _LOGGER.debug(
+            "Adaptive Areas [%s]: total setup: %.0f ms",
+            adaptive_area.name,
+            (monotonic() - total_start) * 1000,
+        )
         return True
 
     hass.data.setdefault(MODULE_DATA, {})

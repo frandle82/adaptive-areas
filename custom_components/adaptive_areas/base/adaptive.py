@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 import logging
+from time import monotonic
 
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
@@ -80,6 +81,8 @@ from custom_components.adaptive_areas.repairs import (
 )
 
 # Classes
+
+META_AREA_INITIAL_LOAD_DEBOUNCE = 2
 
 
 class BasicArea:
@@ -503,20 +506,50 @@ class AdaptiveArea:
 
     async def initialize(self, _=None) -> None:
         """Initialize area."""
+        total_start = monotonic()
         self.logger.debug("%s: Initializing area...", self.name)
 
+        step_start = monotonic()
         await self.load_entities()
+        self.logger.debug(
+            "Adaptive Areas [%s]: entity discovery: %.0f ms",
+            self.name,
+            (monotonic() - step_start) * 1000,
+        )
 
         if not self.is_meta() and self.has_feature(CONF_FEATURE_ENVIRONMENT):
             self.logger.debug("Area Climate enabled for %s", self.name)
+            step_start = monotonic()
             self.environment = AreaEnvironmentEngine(self)
+            self.logger.debug(
+                "Adaptive Areas [%s]: environment init: %.0f ms",
+                self.name,
+                (monotonic() - step_start) * 1000,
+            )
         else:
             self.logger.debug("Area Climate disabled for %s", self.name)
 
         if not self.is_meta() and self.has_feature(CONF_FEATURE_ROOM_USAGE):
+            step_start = monotonic()
             self.room_usage = await RoomUsageEngine.async_create(self)
+            self.logger.debug(
+                "Adaptive Areas [%s]: room usage init: %.0f ms",
+                self.name,
+                (monotonic() - step_start) * 1000,
+            )
 
+        step_start = monotonic()
         self.finalize_init()
+        self.logger.debug(
+            "Adaptive Areas [%s]: finalize init: %.0f ms",
+            self.name,
+            (monotonic() - step_start) * 1000,
+        )
+        self.logger.debug(
+            "Adaptive Areas [%s]: initialize total: %.0f ms",
+            self.name,
+            (monotonic() - total_start) * 1000,
+        )
 
     def has_entities(self, domain):
         """Check if area has entities."""
@@ -542,6 +575,8 @@ class AdaptiveArea:
             action = event_data["action"]
             entity_registry = entityreg_async_get(self.hass)
             entity_entry = entity_registry.async_get(entity_id)
+            if entity_entry is not None and self._is_adaptive_area_entity(entity_entry):
+                return False
 
             def _belongs_to_area() -> bool:
                 if entity_entry is None:
@@ -567,7 +602,20 @@ class AdaptiveArea:
 
                 return False
 
-            if action in ("create", "remove"):
+            if action == "update":
+                relevant_changes = {
+                    "area_id",
+                    "device_id",
+                    "disabled_by",
+                    "disabled",
+                }
+                if not relevant_changes.intersection(event_data.get("changes", {})):
+                    return False
+
+            if action == "remove" and entity_id in self._area_entities:
+                return True
+
+            if action == "create":
                 # Is from our area
                 if _belongs_to_area():
                     return True
@@ -611,6 +659,9 @@ class AdaptiveArea:
                 # Removed from our area
                 if event_data["changes"]["area_id"] == self.id:
                     return True
+
+            if action == "update" and "area_id" not in event_data.get("changes", {}):
+                return False
 
             # Was from our area?
             if event_data["device_id"] in self._area_devices:
@@ -798,7 +849,7 @@ class AdaptiveMetaArea(AdaptiveArea):
             return
 
         # Handle all non-Global meta-areas including floors
-        self.logger.info(
+        self.logger.debug(
             "SS %s, AT %s, AI %s, CA: %s",
             self.slug,
             area_type,
@@ -810,16 +861,21 @@ class AdaptiveMetaArea(AdaptiveArea):
 
     def schedule_reload(self, initial_load: bool = False) -> None:
         """Schedule one reload after related area-load events settle."""
-        if self.reloading:
-            return
+        if self._remove_reload_timer is not None:
+            self._remove_reload_timer()
+            self._remove_reload_timer = None
 
-        delay = 0 if initial_load else MetaAreaAutoReloadSettings.DELAY
+        delay = (
+            META_AREA_INITIAL_LOAD_DEBOUNCE
+            if initial_load
+            else MetaAreaAutoReloadSettings.DELAY
+        )
         self.reloading = True
 
         @callback
         def _reload(_now=None) -> None:
             self._remove_reload_timer = None
-            self.logger.info("%s: Reloading entry.", self.name)
+            self.logger.debug("%s: Reloading entry.", self.name)
             self.hass.config_entries.async_schedule_reload(self.hass_config.entry_id)
 
         self._remove_reload_timer = async_call_later(self.hass, delay, _reload)

@@ -338,8 +338,13 @@ async def test_registry_event_reevaluates_presence_repair(
     hass: HomeAssistant,
     basic_config_entry: MockConfigEntry,
     _setup_integration_basic,
+    monkeypatch,
 ) -> None:
     """A relevant registry update clears the Repair without polling."""
+    monkeypatch.setattr(
+        "custom_components.adaptive_areas.async_call_later",
+        lambda _hass, _delay, callback: hass.loop.call_soon(callback, None).cancel,
+    )
     registry = ir.async_get(hass)
     assert _issue(registry, ISSUE_NO_PRESENCE_SOURCES, basic_config_entry) is not None
     _register_entity(

@@ -1,17 +1,23 @@
 """Sensor controls for adaptive areas."""
 
 from collections import Counter
+from dataclasses import dataclass
 import logging
 
+from homeassistant.helpers.device_registry import EVENT_DEVICE_REGISTRY_UPDATED
+from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 from homeassistant.components.sensor.const import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
+    EVENT_STATE_CHANGED,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
     ATTR_UNIT_OF_MEASUREMENT,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -28,10 +34,23 @@ from custom_components.adaptive_areas.const import (
 )
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.sources import (
+    area_entity_ids,
+    entity_device_class,
+)
 from custom_components.adaptive_areas.sensor.base import AreaSensorGroupSensor
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AggregateSourceGroup:
+    """Discovered sources for one aggregate device class."""
+
+    device_class: str
+    entity_ids: list[str]
+    unit_of_measurement: str
 
 
 async def async_setup_entry(
@@ -46,8 +65,10 @@ async def async_setup_entry(
 
     entities_to_add = []
 
+    aggregate_manager: AreaAggregateSensorManager | None = None
     if area.has_feature(CONF_FEATURE_AGGREGATION):
-        entities_to_add.extend(create_aggregate_sensors(area))
+        aggregate_manager = AreaAggregateSensorManager(area)
+        entities_to_add.extend(aggregate_manager.create_sensors())
 
     if area.environment is not None:
         entities_to_add.append(EnvironmentSensor(area))
@@ -55,52 +76,58 @@ async def async_setup_entry(
     if entities_to_add:
         async_add_entities(entities_to_add)
 
+    if aggregate_manager is not None:
+        aggregate_manager.async_start(async_add_entities)
+
     if SENSOR_DOMAIN in area.adaptive_entities:
         cleanup_removed_entries(
             area.hass, entities_to_add, area.adaptive_entities[SENSOR_DOMAIN]
         )
 
 
-def create_aggregate_sensors(area: AdaptiveArea) -> list[Entity]:
-    """Create the aggregate sensors for the area."""
+def discover_aggregate_source_groups(area: AdaptiveArea) -> list[AggregateSourceGroup]:
+    """Discover aggregate source groups for the area."""
 
     eligible_entities: dict[str, list[str]] = {}
     unit_of_measurement_map: dict[str, list[str]] = {}
 
-    aggregates = []
-
-    if SENSOR_DOMAIN not in area.entities:
-        return []
-
     if not area.has_feature(CONF_FEATURE_AGGREGATION):
         return []
 
-    for entity in area.entities[SENSOR_DOMAIN]:
-        entity_state = area.hass.states.get(entity[ATTR_ENTITY_ID])
-        if not entity_state:
-            continue
+    entity_ids = area_entity_ids(
+        area.hass, area.hass_config, area.config, domain=SENSOR_DOMAIN
+    )
+    entity_ids.update(
+        entity[ATTR_ENTITY_ID]
+        for entity in area.entities.get(SENSOR_DOMAIN, [])
+        if isinstance(entity.get(ATTR_ENTITY_ID), str)
+    )
 
-        if (
-            ATTR_DEVICE_CLASS not in entity_state.attributes
-            or not entity_state.attributes[ATTR_DEVICE_CLASS]
+    for entity_id in sorted(entity_ids):
+        device_class = entity_device_class(area.hass, entity_id)
+        if device_class is None or device_class not in area.feature_config(
+            CONF_FEATURE_AGGREGATION
+        ).get(
+            CONF_AGGREGATES_SENSOR_DEVICE_CLASSES,
+            DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
         ):
             _LOGGER.debug(
                 "Entity %s does not have device_class defined",
-                entity[ATTR_ENTITY_ID],
+                entity_id,
             )
             continue
 
+        entity_state = area.hass.states.get(entity_id)
         if (
-            ATTR_UNIT_OF_MEASUREMENT not in entity_state.attributes
+            entity_state is None
+            or ATTR_UNIT_OF_MEASUREMENT not in entity_state.attributes
             or not entity_state.attributes[ATTR_UNIT_OF_MEASUREMENT]
         ):
             _LOGGER.debug(
                 "Entity %s does not have unit_of_measurement defined",
-                entity[ATTR_ENTITY_ID],
+                entity_id,
             )
             continue
-
-        device_class = entity_state.attributes[ATTR_DEVICE_CLASS]
 
         # Dictionary of sensors by device class.
         if device_class not in eligible_entities:
@@ -113,9 +140,9 @@ def create_aggregate_sensors(area: AdaptiveArea) -> list[Entity]:
         unit_of_measurement_map[device_class].append(
             entity_state.attributes[ATTR_UNIT_OF_MEASUREMENT]
         )
-        eligible_entities[device_class].append(entity[ATTR_ENTITY_ID])
+        eligible_entities[device_class].append(entity_id)
 
-    # Create aggregates
+    groups: list[AggregateSourceGroup] = []
     for device_class, entities in eligible_entities.items():
         if len(entities) < area.feature_config(CONF_FEATURE_AGGREGATION).get(
             CONF_AGGREGATES_MIN_ENTITIES, DEFAULT_AGGREGATES_MIN_ENTITIES
@@ -140,22 +167,36 @@ def create_aggregate_sensors(area: AdaptiveArea) -> list[Entity]:
             unit_of_measurements = Counter(unit_of_measurement_map[device_class])
             most_common_unit_of_measurement = unit_of_measurements.most_common(1)[0][0]
 
-            aggregates.append(
-                AreaAggregateSensor(
-                    area=area,
+            groups.append(
+                AggregateSourceGroup(
                     device_class=device_class,
                     entity_ids=entities,
                     unit_of_measurement=most_common_unit_of_measurement,
-                )
+                ),
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             _LOGGER.error(
-                "%s: Error creating '%s' aggregate sensor: %s",
+                "%s: Error discovering '%s' aggregate sensor: %s",
                 area.slug,
                 device_class,
                 str(e),
             )
 
+    return groups
+
+
+def create_aggregate_sensors(area: AdaptiveArea) -> list[Entity]:
+    """Create the aggregate sensors for the area."""
+    aggregates = []
+    for group in discover_aggregate_source_groups(area):
+        aggregates.append(
+            AreaAggregateSensor(
+                area=area,
+                device_class=group.device_class,
+                entity_ids=group.entity_ids,
+                unit_of_measurement=group.unit_of_measurement,
+            )
+        )
     return aggregates
 
 
@@ -163,6 +204,125 @@ class AreaAggregateSensor(AreaSensorGroupSensor):
     """Aggregate sensor for the area."""
 
     feature_info = AdaptiveAreasFeatureInfoAggregates()
+
+
+class AreaAggregateSensorManager:
+    """Refresh area aggregate sensors when source metadata becomes available."""
+
+    def __init__(self, area: AdaptiveArea) -> None:
+        """Initialize the aggregate sensor manager."""
+        self.area = area
+        self._sensors: dict[str, AreaAggregateSensor] = {}
+        self._known_source_ids: set[str] = set()
+
+    def create_sensors(self) -> list[AreaAggregateSensor]:
+        """Create initial aggregate sensors."""
+        sensors = []
+        for group in discover_aggregate_source_groups(self.area):
+            sensor = AreaAggregateSensor(
+                area=self.area,
+                device_class=group.device_class,
+                entity_ids=group.entity_ids,
+                unit_of_measurement=group.unit_of_measurement,
+            )
+            self._sensors[group.device_class] = sensor
+            self._known_source_ids.update(group.entity_ids)
+            sensors.append(sensor)
+        self._refresh_known_source_ids()
+        return sensors
+
+    @callback
+    def async_start(self, async_add_entities: AddEntitiesCallback) -> None:
+        """Start listening for source discovery changes."""
+        self.area.hass_config.async_on_unload(
+            self.area.hass.bus.async_listen(
+                EVENT_STATE_CHANGED,
+                self._state_changed,
+            )
+        )
+        self.area.hass_config.async_on_unload(
+            self.area.hass.bus.async_listen(
+                EVENT_ENTITY_REGISTRY_UPDATED,
+                self._registry_changed,
+            )
+        )
+        self.area.hass_config.async_on_unload(
+            self.area.hass.bus.async_listen(
+                EVENT_DEVICE_REGISTRY_UPDATED,
+                self._registry_changed,
+            )
+        )
+        self.async_refresh(async_add_entities)
+
+    @callback
+    def _refresh_known_source_ids(self) -> None:
+        """Refresh all registry-known Area sensor candidates."""
+        self._known_source_ids = area_entity_ids(
+            self.area.hass,
+            self.area.hass_config,
+            self.area.config,
+            domain=SENSOR_DOMAIN,
+        )
+
+    @callback
+    def _state_changed(self, event: Event) -> None:
+        """Refresh discovery when a known candidate gains useful metadata."""
+        entity_id = event.data.get(ATTR_ENTITY_ID)
+        if entity_id not in self._known_source_ids:
+            return
+        old_state = event.data.get("old_state")
+        new_state = event.data.get("new_state")
+        if new_state is None:
+            return
+        if old_state is not None and (
+            old_state.attributes.get(ATTR_DEVICE_CLASS)
+            == new_state.attributes.get(ATTR_DEVICE_CLASS)
+            and old_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+            == new_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+        ):
+            return
+        if new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return
+        self.async_refresh(prune_missing=False)
+
+    @callback
+    def _registry_changed(self, _event: Event) -> None:
+        """Refresh discovery after registry membership may have changed."""
+        self._refresh_known_source_ids()
+        self.async_refresh(prune_missing=True)
+
+    @callback
+    def async_refresh(
+        self,
+        async_add_entities: AddEntitiesCallback | None = None,
+        *,
+        prune_missing: bool = False,
+    ) -> None:
+        """Refresh existing aggregate sensors and add newly discovered ones."""
+        new_sensors: list[AreaAggregateSensor] = []
+        for group in discover_aggregate_source_groups(self.area):
+            self._known_source_ids.update(group.entity_ids)
+            if group.device_class in self._sensors:
+                entity_ids = group.entity_ids
+                if not prune_missing:
+                    entity_ids = sorted(
+                        {
+                            *self._sensors[group.device_class].source_entity_ids,
+                            *group.entity_ids,
+                        }
+                    )
+                self._sensors[group.device_class].async_set_entity_ids(entity_ids)
+                continue
+            sensor = AreaAggregateSensor(
+                area=self.area,
+                device_class=group.device_class,
+                entity_ids=group.entity_ids,
+                unit_of_measurement=group.unit_of_measurement,
+            )
+            self._sensors[group.device_class] = sensor
+            new_sensors.append(sensor)
+        if new_sensors and async_add_entities is not None:
+            async_add_entities(new_sensors)
 
 
 class EnvironmentSensor(AdaptiveEntity, SensorEntity):

@@ -2,6 +2,7 @@
 
 import logging
 import math
+from collections.abc import Callable
 from typing import Any
 
 from homeassistant.components.group.sensor import ATTR_MEAN, ATTR_SUM, SensorGroup
@@ -11,6 +12,8 @@ from homeassistant.components.sensor.const import (
     SensorStateClass,
 )
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.core import Event, callback
+from homeassistant.helpers.event import async_track_state_change_event
 
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
@@ -77,6 +80,55 @@ class AreaSensorGroupSensor(AdaptiveEntity, SensorGroup):
             unique_id=self._attr_unique_id,
         )
         delattr(self, "_attr_name")
+        self._remove_member_listener: Callable[[], None] | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Register listeners."""
+        await AdaptiveEntity.async_added_to_hass(self)
+        self._refresh_member_listener()
+        self.async_on_remove(self._async_remove_member_listener)
+        self.async_update_group_state()
+
+    @callback
+    def _async_remove_member_listener(self) -> None:
+        """Remove the active member listener."""
+        if self._remove_member_listener is not None:
+            self._remove_member_listener()
+            self._remove_member_listener = None
+
+    @callback
+    def _refresh_member_listener(self) -> None:
+        """Refresh the state listener for the current group members."""
+        self._async_remove_member_listener()
+
+        @callback
+        def _async_state_changed_listener(event: Event) -> None:
+            """Handle child updates."""
+            self.async_set_context(event.context)
+            self.async_update_group_state()
+            self.async_write_ha_state()
+
+        self._remove_member_listener = async_track_state_change_event(
+            self.hass, self._entity_ids, _async_state_changed_listener
+        )
+
+    @callback
+    def async_set_entity_ids(self, entity_ids: list[str]) -> bool:
+        """Update group members and refresh listeners."""
+        ordered_entity_ids = sorted(dict.fromkeys(entity_ids))
+        if ordered_entity_ids == self._entity_ids:
+            return False
+        self._entity_ids = ordered_entity_ids
+        if self.hass is not None:
+            self._refresh_member_listener()
+            self.async_update_group_state()
+            self.async_write_ha_state()
+        return True
+
+    @property
+    def source_entity_ids(self) -> list[str]:
+        """Return current group source entity IDs."""
+        return list(self._entity_ids)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

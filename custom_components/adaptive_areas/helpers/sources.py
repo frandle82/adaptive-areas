@@ -25,6 +25,7 @@ from homeassistant.helpers.device_registry import (
     async_entries_for_area,
     async_get as async_get_device_registry,
 )
+from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
 from custom_components.adaptive_areas.const import (
@@ -54,6 +55,28 @@ SUPPORTED_PHYSICAL_PRESENCE_SOURCE_DOMAINS = frozenset(
     )
 )
 _INACTIVE_TRACKER_STATES = frozenset(("not_home", "work", "school"))
+
+
+def device_belongs_to_area(
+    hass: HomeAssistant,
+    device_id: str | None,
+    area_id: str | None,
+) -> bool:
+    """Return whether a device's own or inherited Area matches an Area."""
+    if device_id is None or area_id is None:
+        return False
+    device_registry = async_get_device_registry(hass)
+    visited: set[str] = set()
+    device: DeviceEntry | None = device_registry.async_get(device_id)
+    while device is not None and device.id not in visited:
+        visited.add(device.id)
+        if device.area_id is not None:
+            return device.area_id == area_id
+        parent_device_id = getattr(device, "parent_device_id", None)
+        if parent_device_id is None:
+            return False
+        device = device_registry.async_get(parent_device_id)
+    return False
 
 
 def is_presence_source_active(
@@ -138,6 +161,15 @@ def area_entity_ids(
         if entry.platform == DOMAIN and entry.config_entry_id == config_entry.entry_id:
             continue
         result.add(entity_id)
+    for entry in entity_registry.entities.values():
+        if entry.entity_id in result or entry.entity_id in excluded:
+            continue
+        if domain is not None and entry.domain != domain:
+            continue
+        if entry.disabled or entry.config_entry_id == config_entry.entry_id:
+            continue
+        if device_belongs_to_area(hass, entry.device_id, area_id):
+            result.add(entry.entity_id)
     return result
 
 

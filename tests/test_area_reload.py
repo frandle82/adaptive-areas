@@ -2,19 +2,26 @@
 
 from datetime import datetime
 import logging
+from typing import Any
 
 import pytest
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.device_registry import EVENT_DEVICE_REGISTRY_UPDATED
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+)
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     _EventEntityRegistryUpdatedData_CreateRemove,
     _EventEntityRegistryUpdatedData_Update,
 )
 
-from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.base.adaptive import (
+    AdaptiveArea,
+    AdaptiveMetaArea,
+)
 from custom_components.adaptive_areas.const import (
     AdaptiveAreasEvents,
     DATA_AREA_OBJECT,
@@ -47,6 +54,39 @@ FLOOR_META_AREAS = [
 ALL_AREAS = NORMAL_AREAS + REGULAR_META_AREAS + FLOOR_META_AREAS
 
 
+class DebounceTimers:
+    """Capture async_call_later callbacks for deterministic debounce tests."""
+
+    def __init__(self) -> None:
+        """Initialize the timer capture."""
+        self._timers: list[dict[str, Any]] = []
+
+    def __call__(self, _hass, delay, callback):
+        """Store a cancellable callback."""
+        timer = {"delay": delay, "callback": callback, "cancelled": False}
+        self._timers.append(timer)
+
+        def cancel() -> None:
+            timer["cancelled"] = True
+
+        return cancel
+
+    @property
+    def active_count(self) -> int:
+        """Return pending, non-cancelled timer count."""
+        return sum(not timer["cancelled"] for timer in self._timers)
+
+    async def fire_active(self, hass: HomeAssistant) -> None:
+        """Run all currently pending callbacks once."""
+        timers = list(self._timers)
+        for timer in timers:
+            if timer["cancelled"]:
+                continue
+            timer["cancelled"] = True
+            timer["callback"](None)
+        await hass.async_block_till_done()
+
+
 @pytest.fixture(autouse=True)
 def immediate_meta_reload(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch) -> None:
     """Run coalesced meta-area reload callbacks on the next loop iteration."""
@@ -57,6 +97,9 @@ def immediate_meta_reload(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr(
         "custom_components.adaptive_areas.base.adaptive.async_call_later", _call_later
+    )
+    monkeypatch.setattr(
+        "custom_components.adaptive_areas.async_call_later", _call_later
     )
 
 
@@ -258,3 +301,303 @@ async def test_adaptive_entity_reload_is_idempotent(
     area.load_adaptive_entities()
 
     assert area.adaptive_entities == first_load
+
+
+async def test_registry_event_burst_debounces_to_one_reload(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    _setup_integration_basic,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Many relevant registry events schedule one config-entry reload."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+    area = get_entry_by_area_name(hass, MockAreaIds.KITCHEN.value)
+    assert area is not None
+    area._area_devices.append("device_kitchen")  # pylint: disable=protected-access
+    entity_id = entities_binary_sensor_motion_one[0].entity_id
+
+    for _index in range(20):
+        hass.bus.async_fire(
+            EVENT_ENTITY_REGISTRY_UPDATED,
+            {
+                "action": "update",
+                "entity_id": entity_id,
+                "changes": {"area_id": MockAreaIds.KITCHEN.value},
+            },
+        )
+    for _index in range(10):
+        hass.bus.async_fire(
+            EVENT_DEVICE_REGISTRY_UPDATED,
+            {
+                "action": "update",
+                "device_id": "device_kitchen",
+                "changes": {"area_id": MockAreaIds.KITCHEN.value},
+            },
+        )
+    await hass.async_block_till_done()
+
+    assert timers.active_count == 2  # reload + repair evaluation
+    assert reloads == []
+
+    await timers.fire_active(hass)
+
+    kitchen_entry_id = get_config_entry_by_area_name(hass, MockAreaIds.KITCHEN.value)
+    assert reloads == [kitchen_entry_id]
+
+
+async def test_spaced_registry_events_extend_single_debounce_window(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    _setup_integration_basic,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Slightly spaced events replace the pending timer instead of stacking."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+    entity_id = entities_binary_sensor_motion_one[0].entity_id
+
+    for _offset_ms in (0, 200, 400, 800, 1200):
+        hass.bus.async_fire(
+            EVENT_ENTITY_REGISTRY_UPDATED,
+            {
+                "action": "update",
+                "entity_id": entity_id,
+                "changes": {"area_id": MockAreaIds.KITCHEN.value},
+            },
+        )
+        await hass.async_block_till_done()
+        assert timers.active_count == 2
+
+    await timers.fire_active(hass)
+
+    kitchen_entry_id = get_config_entry_by_area_name(hass, MockAreaIds.KITCHEN.value)
+    assert reloads == [kitchen_entry_id]
+
+
+async def test_irrelevant_area_registry_event_does_not_reload_other_area(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_all_areas_with_meta: dict[
+        MockAreaIds, list[MockBinarySensor]
+    ],
+    _setup_integration_all_areas_with_meta,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Changes in one Area do not reload unrelated regular Areas."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+    entity_id = entities_binary_sensor_motion_all_areas_with_meta[MockAreaIds.KITCHEN][
+        0
+    ].entity_id
+
+    hass.bus.async_fire(
+        EVENT_ENTITY_REGISTRY_UPDATED,
+        {
+            "action": "update",
+            "entity_id": entity_id,
+            "changes": {"area_id": MockAreaIds.KITCHEN.value},
+        },
+    )
+    await hass.async_block_till_done()
+    await timers.fire_active(hass)
+
+    bedroom_entry_id = get_config_entry_by_area_name(
+        hass, MockAreaIds.MASTER_BEDROOM.value
+    )
+    assert bedroom_entry_id not in reloads
+
+
+async def test_generated_adaptive_entity_registry_event_does_not_reload(
+    hass: HomeAssistant,
+    _setup_integration_basic,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generated Adaptive Areas entities do not trigger self-reload loops."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+
+    hass.bus.async_fire(
+        EVENT_ENTITY_REGISTRY_UPDATED,
+        {
+            "action": "create",
+            "entity_id": "binary_sensor.adaptive_areas_presence_tracking_kitchen_area_state",
+        },
+    )
+    await hass.async_block_till_done()
+    await timers.fire_active(hass)
+
+    assert reloads == []
+
+
+async def test_repair_evaluation_registry_burst_is_debounced(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    _setup_integration_basic,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Registry bursts run one deferred Repair evaluation per affected entry."""
+    timers = DebounceTimers()
+    evaluations: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+
+    async def _evaluate(_hass, config_entry):
+        evaluations.append(config_entry.entry_id)
+        return {"missing_area": False}
+
+    monkeypatch.setattr(
+        "custom_components.adaptive_areas.async_evaluate_config_entry",
+        _evaluate,
+    )
+    monkeypatch.setattr(hass.config_entries, "async_schedule_reload", lambda _id: None)
+    entity_id = entities_binary_sensor_motion_one[0].entity_id
+
+    for _index in range(15):
+        hass.bus.async_fire(
+            EVENT_ENTITY_REGISTRY_UPDATED,
+            {
+                "action": "update",
+                "entity_id": entity_id,
+                "changes": {"area_id": MockAreaIds.KITCHEN.value},
+            },
+        )
+    await hass.async_block_till_done()
+    await timers.fire_active(hass)
+
+    kitchen_entry_id = get_config_entry_by_area_name(hass, MockAreaIds.KITCHEN.value)
+    assert evaluations.count(kitchen_entry_id) == 1
+
+
+async def test_unload_cancels_pending_reload_and_repair_timers(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    basic_config_entry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pending debounce callbacks are removed during unload."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+    await init_integration(hass, [basic_config_entry])
+    entity_id = entities_binary_sensor_motion_one[0].entity_id
+
+    hass.bus.async_fire(
+        EVENT_ENTITY_REGISTRY_UPDATED,
+        {
+            "action": "update",
+            "entity_id": entity_id,
+            "changes": {"area_id": MockAreaIds.KITCHEN.value},
+        },
+    )
+    await hass.async_block_till_done()
+    assert timers.active_count == 2
+
+    await shutdown_integration(hass, [basic_config_entry])
+    await timers.fire_active(hass)
+
+    assert reloads == []
+
+
+async def test_shutdown_suppresses_pending_registry_reload(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    _setup_integration_basic,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pending debounce callbacks do not reload while Home Assistant stops."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr("custom_components.adaptive_areas.async_call_later", timers)
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+    entity_id = entities_binary_sensor_motion_one[0].entity_id
+
+    hass.bus.async_fire(
+        EVENT_ENTITY_REGISTRY_UPDATED,
+        {
+            "action": "update",
+            "entity_id": entity_id,
+            "changes": {"area_id": MockAreaIds.KITCHEN.value},
+        },
+    )
+    await hass.async_block_till_done()
+    hass.set_state(CoreState.not_running)
+    await timers.fire_active(hass)
+
+    assert reloads == []
+
+
+async def test_meta_area_loaded_burst_schedules_one_reload(
+    hass: HomeAssistant,
+    all_areas_with_meta_config_entry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Many child AREA_LOADED signals produce one meta-area reload."""
+    timers = DebounceTimers()
+    reloads: list[str] = []
+    monkeypatch.setattr(
+        "custom_components.adaptive_areas.base.adaptive.async_call_later", timers
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_schedule_reload",
+        lambda entry_id: reloads.append(entry_id),
+    )
+    entry = next(
+        config_entry
+        for config_entry in all_areas_with_meta_config_entry
+        if config_entry.data["id"] == MockAreaIds.GLOBAL.value
+    )
+    hass.data[MODULE_DATA] = {}
+    area = AdaptiveMetaArea(
+        hass,
+        type(
+            "BasicArea",
+            (),
+            {
+                "id": MockAreaIds.GLOBAL.value,
+                "name": MockAreaIds.GLOBAL.value,
+                "icon": None,
+                "floor_id": None,
+            },
+        )(),
+        entry,
+    )
+
+    for _index in range(20):
+        area.schedule_reload(initial_load=True)
+
+    assert timers.active_count == 1
+    await timers.fire_active(hass)
+    assert reloads == [entry.entry_id]

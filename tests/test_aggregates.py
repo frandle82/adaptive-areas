@@ -18,9 +18,12 @@ from homeassistant.components.sensor.const import (
     SensorDeviceClass,
 )
 from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
+    ATTR_UNIT_OF_MEASUREMENT,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
     UnitOfElectricCurrent,
     UnitOfTemperature,
 )
@@ -339,6 +342,81 @@ async def test_aggregates_sensor_avg(
     assert round(float(aggregate_sensor_state.state), 2) == round(
         mean(changed_values), 2
     )
+
+
+async def test_aggregates_sensor_keeps_unavailable_start_source(
+    hass: HomeAssistant,
+    aggregates_config_entry: MockConfigEntry,
+    entities_sensor_temperature_multiple: list[MockSensor],
+) -> None:
+    """Unavailable startup sources remain aggregate members."""
+
+    unavailable_id = entities_sensor_temperature_multiple[0].entity_id
+    assert unavailable_id is not None
+    hass.states.async_set(
+        unavailable_id,
+        STATE_UNAVAILABLE,
+        attributes={
+            ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE,
+            ATTR_UNIT_OF_MEASUREMENT: UnitOfTemperature.CELSIUS,
+        },
+    )
+    await hass.async_block_till_done()
+
+    await init_integration(hass, [aggregates_config_entry])
+    try:
+        aggregate_sensor_state = hass.states.get(
+            f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_temperature"
+        )
+        assert aggregate_sensor_state is not None
+        assert unavailable_id in aggregate_sensor_state.attributes[ATTR_ENTITY_ID]
+        assert aggregate_sensor_state.attributes["source_count"] == len(
+            entities_sensor_temperature_multiple
+        )
+        assert aggregate_sensor_state.attributes["unavailable_count"] == 1
+    finally:
+        await shutdown_integration(hass, [aggregates_config_entry])
+
+
+async def test_aggregates_sensor_adds_late_state_source(
+    hass: HomeAssistant,
+    aggregates_config_entry: MockConfigEntry,
+    entities_sensor_temperature_multiple: list[MockSensor],
+) -> None:
+    """Registry-known sources are added when state metadata arrives later."""
+
+    late_source_id = entities_sensor_temperature_multiple[-1].entity_id
+    assert late_source_id is not None
+    hass.states.async_remove(late_source_id)
+    await hass.async_block_till_done()
+
+    await init_integration(hass, [aggregates_config_entry])
+    try:
+        aggregate_sensor_id = (
+            f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_temperature"
+        )
+        aggregate_sensor_state = hass.states.get(aggregate_sensor_id)
+        assert aggregate_sensor_state is not None
+        assert late_source_id not in aggregate_sensor_state.attributes[ATTR_ENTITY_ID]
+
+        hass.states.async_set(
+            late_source_id,
+            "23",
+            attributes={
+                ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE,
+                ATTR_UNIT_OF_MEASUREMENT: UnitOfTemperature.CELSIUS,
+            },
+        )
+        await hass.async_block_till_done()
+
+        aggregate_sensor_state = hass.states.get(aggregate_sensor_id)
+        assert aggregate_sensor_state is not None
+        assert late_source_id in aggregate_sensor_state.attributes[ATTR_ENTITY_ID]
+        assert aggregate_sensor_state.attributes["source_count"] == len(
+            entities_sensor_temperature_multiple
+        )
+    finally:
+        await shutdown_integration(hass, [aggregates_config_entry])
 
 
 async def test_aggregates_sensor_sum(
