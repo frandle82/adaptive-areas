@@ -81,13 +81,20 @@ class AreaSensorGroupSensor(AdaptiveEntity, SensorGroup):
         )
         delattr(self, "_attr_name")
         self._remove_member_listener: Callable[[], None] | None = None
+        self._added_to_hass = False
 
     async def async_added_to_hass(self) -> None:
-        """Register listeners."""
+        """Register listeners after Home Assistant has fully added the entity."""
         await AdaptiveEntity.async_added_to_hass(self)
+        self._added_to_hass = True
         self._refresh_member_listener()
         self.async_on_remove(self._async_remove_member_listener)
         self.async_update_group_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Release dynamic listeners before Home Assistant removes the entity."""
+        self._added_to_hass = False
+        self._async_remove_member_listener()
 
     @callback
     def _async_remove_member_listener(self) -> None:
@@ -100,14 +107,20 @@ class AreaSensorGroupSensor(AdaptiveEntity, SensorGroup):
     def _refresh_member_listener(self) -> None:
         """Refresh the state listener for the current group members."""
         self._async_remove_member_listener()
+        if not self._added_to_hass:
+            return
 
         @callback
         def _async_state_changed_listener(event: Event) -> None:
             """Handle child updates."""
+            if not self._added_to_hass:
+                return
             self.async_set_context(event.context)
             self.async_update_group_state()
             self.async_write_ha_state()
 
+        # SensorGroup's built-in listener cannot be replaced when group members
+        # change. Keep one refreshable listener owned by Adaptive Areas instead.
         self._remove_member_listener = async_track_state_change_event(
             self.hass, self._entity_ids, _async_state_changed_listener
         )
@@ -119,7 +132,7 @@ class AreaSensorGroupSensor(AdaptiveEntity, SensorGroup):
         if ordered_entity_ids == self._entity_ids:
             return False
         self._entity_ids = ordered_entity_ids
-        if self.hass is not None:
+        if self._added_to_hass:
             self._refresh_member_listener()
             self.async_update_group_state()
             self.async_write_ha_state()

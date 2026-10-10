@@ -21,20 +21,24 @@ from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
     ATTR_UNIT_OF_MEASUREMENT,
+    EVENT_STATE_CHANGED,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     UnitOfElectricCurrent,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant
 
 from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_AGGREGATION,
+    DATA_AREA_OBJECT,
     DOMAIN,
+    MODULE_DATA,
 )
+from custom_components.adaptive_areas.sensor import AreaAggregateSensor
 
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -415,6 +419,174 @@ async def test_aggregates_sensor_adds_late_state_source(
         assert aggregate_sensor_state.attributes["source_count"] == len(
             entities_sensor_temperature_multiple
         )
+    finally:
+        await shutdown_integration(hass, [aggregates_config_entry])
+
+
+async def test_aggregate_member_update_before_add_does_not_register_listener(
+    hass: HomeAssistant,
+    aggregates_config_entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dynamic members may change before add without state writes."""
+    await init_integration(hass, [aggregates_config_entry])
+    try:
+        area = hass.data[MODULE_DATA][aggregates_config_entry.entry_id][
+            DATA_AREA_OBJECT
+        ]
+        listener_calls: list[list[str]] = []
+        writes: list[None] = []
+        monkeypatch.setattr(
+            "custom_components.adaptive_areas.sensor.base.async_track_state_change_event",
+            lambda _hass, entity_ids, _callback: listener_calls.append(list(entity_ids))
+            or (lambda: None),
+        )
+        sensor = AreaAggregateSensor(
+            area=area,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            entity_ids=["sensor.a"],
+            unit_of_measurement=UnitOfTemperature.CELSIUS,
+        )
+        monkeypatch.setattr(sensor, "async_write_ha_state", lambda: writes.append(None))
+
+        assert sensor.async_set_entity_ids(["sensor.a", "sensor.b"])
+
+        assert sensor.source_entity_ids == ["sensor.a", "sensor.b"]
+        assert listener_calls == []
+        assert writes == []
+    finally:
+        await shutdown_integration(hass, [aggregates_config_entry])
+
+
+async def test_aggregate_listener_uses_latest_members_after_add(
+    hass: HomeAssistant,
+    aggregates_config_entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The listener registered after add uses members updated before add."""
+    await init_integration(hass, [aggregates_config_entry])
+    try:
+        area = hass.data[MODULE_DATA][aggregates_config_entry.entry_id][
+            DATA_AREA_OBJECT
+        ]
+        listener_entity_ids: list[list[str]] = []
+
+        def _track(_hass, entity_ids, _callback):
+            listener_entity_ids.append(list(entity_ids))
+            return lambda: None
+
+        monkeypatch.setattr(
+            "custom_components.adaptive_areas.sensor.base.async_track_state_change_event",
+            _track,
+        )
+        sensor = AreaAggregateSensor(
+            area=area,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            entity_ids=["sensor.a"],
+            unit_of_measurement=UnitOfTemperature.CELSIUS,
+        )
+        assert sensor.async_set_entity_ids(["sensor.a", "sensor.b"])
+
+        await sensor.async_added_to_hass()
+
+        assert listener_entity_ids == [["sensor.a", "sensor.b"]]
+    finally:
+        await shutdown_integration(hass, [aggregates_config_entry])
+
+
+async def test_aggregate_member_update_after_add_replaces_listener(
+    hass: HomeAssistant,
+    aggregates_config_entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dynamic member refresh removes the old listener and registers one new listener."""
+    await init_integration(hass, [aggregates_config_entry])
+    try:
+        area = hass.data[MODULE_DATA][aggregates_config_entry.entry_id][
+            DATA_AREA_OBJECT
+        ]
+        listeners: list[dict] = []
+        writes: list[None] = []
+
+        def _track(_hass, entity_ids, callback):
+            listener = {
+                "entity_ids": list(entity_ids),
+                "callback": callback,
+                "removed": False,
+            }
+            listeners.append(listener)
+
+            def _remove() -> None:
+                listener["removed"] = True
+
+            return _remove
+
+        monkeypatch.setattr(
+            "custom_components.adaptive_areas.sensor.base.async_track_state_change_event",
+            _track,
+        )
+        sensor = AreaAggregateSensor(
+            area=area,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            entity_ids=["sensor.a", "sensor.b"],
+            unit_of_measurement=UnitOfTemperature.CELSIUS,
+        )
+        monkeypatch.setattr(sensor, "async_write_ha_state", lambda: writes.append(None))
+
+        await sensor.async_added_to_hass()
+        assert sensor.async_set_entity_ids(["sensor.a", "sensor.b", "sensor.c"])
+
+        assert listeners[0]["removed"] is True
+        assert listeners[-1]["entity_ids"] == ["sensor.a", "sensor.b", "sensor.c"]
+        assert sum(not listener["removed"] for listener in listeners) == 1
+
+        listeners[-1]["callback"](Event(EVENT_STATE_CHANGED, {"entity_id": "sensor.c"}))
+        assert len(writes) == 2
+    finally:
+        await shutdown_integration(hass, [aggregates_config_entry])
+
+
+async def test_aggregate_listener_removed_before_entity_removal(
+    hass: HomeAssistant,
+    aggregates_config_entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Source changes after removal do not write aggregate state."""
+    await init_integration(hass, [aggregates_config_entry])
+    try:
+        area = hass.data[MODULE_DATA][aggregates_config_entry.entry_id][
+            DATA_AREA_OBJECT
+        ]
+        listeners: list[dict] = []
+        writes: list[None] = []
+
+        def _track(_hass, entity_ids, callback):
+            listener = {"callback": callback, "removed": False}
+            listeners.append(listener)
+
+            def _remove() -> None:
+                listener["removed"] = True
+
+            return _remove
+
+        monkeypatch.setattr(
+            "custom_components.adaptive_areas.sensor.base.async_track_state_change_event",
+            _track,
+        )
+        sensor = AreaAggregateSensor(
+            area=area,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            entity_ids=["sensor.a"],
+            unit_of_measurement=UnitOfTemperature.CELSIUS,
+        )
+        monkeypatch.setattr(sensor, "async_write_ha_state", lambda: writes.append(None))
+
+        await sensor.async_added_to_hass()
+        await sensor.async_will_remove_from_hass()
+        listeners[-1]["callback"](Event(EVENT_STATE_CHANGED, {"entity_id": "sensor.a"}))
+
+        assert listeners[-1]["removed"] is True
+        assert writes == []
     finally:
         await shutdown_integration(hass, [aggregates_config_entry])
 
