@@ -16,6 +16,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.components.sensor.const import (
     DOMAIN as SENSOR_DOMAIN,
     SensorDeviceClass,
+    SensorStateClass,
 )
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
@@ -26,6 +27,7 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNAVAILABLE,
     UnitOfElectricCurrent,
+    UnitOfEnergy,
     UnitOfTemperature,
 )
 from homeassistant.core import Event, HomeAssistant
@@ -160,6 +162,33 @@ async def setup_entities_sensor_current_multiple(
         hass, SENSOR_DOMAIN, {DEFAULT_MOCK_AREA: mock_sensor_entities}
     )
     return mock_sensor_entities
+
+
+@pytest.fixture(name="entities_sensor_energy")
+async def setup_entities_sensor_energy(hass: HomeAssistant) -> list[MockSensor]:
+    """Create cumulative energy sources for aggregate tests."""
+    entities = [
+        MockSensor(
+            name="energy_a",
+            unique_id="energy_a",
+            native_value=10.0,
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            extra_state_attributes={"unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR},
+        ),
+        MockSensor(
+            name="energy_b",
+            unique_id="energy_b",
+            native_value=20.0,
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            extra_state_attributes={"unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR},
+        ),
+    ]
+    await setup_mock_entities(hass, SENSOR_DOMAIN, {DEFAULT_MOCK_AREA: entities})
+    return entities
 
 
 # Tests
@@ -638,3 +667,66 @@ async def test_aggregates_sensor_sum(
     assert round(float(aggregate_sensor_state.state), 2) == round(
         sum(changed_values), 2
     )
+
+
+async def test_energy_aggregate_is_monotonic_across_unavailable_and_reset(
+    hass: HomeAssistant,
+    entities_sensor_energy: list[MockSensor],
+    _setup_integration_aggregates,
+) -> None:
+    """Energy aggregation preserves history and counts post-reset deltas."""
+    aggregate_sensor_id = (
+        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_energy"
+    )
+    aggregate_state = hass.states.get(aggregate_sensor_id)
+    assert aggregate_state is not None
+    assert float(aggregate_state.state) == 30
+    assert aggregate_state.attributes[ATTR_DEVICE_CLASS] == SensorDeviceClass.ENERGY
+    assert aggregate_state.attributes["state_class"] == SensorStateClass.TOTAL
+    assert "last_reset" not in aggregate_state.attributes
+
+    hass.states.async_set(entities_sensor_energy[1].entity_id, STATE_UNAVAILABLE)
+    await hass.async_block_till_done()
+    assert float(hass.states.get(aggregate_sensor_id).state) == 30
+
+    hass.states.async_set(
+        entities_sensor_energy[1].entity_id,
+        "0.2",
+        attributes={"unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR},
+    )
+    await hass.async_block_till_done()
+    assert float(hass.states.get(aggregate_sensor_id).state) == 30.2
+
+    hass.states.async_set(
+        entities_sensor_energy[0].entity_id,
+        "10.1",
+        attributes={"unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR},
+    )
+    await hass.async_block_till_done()
+    assert float(hass.states.get(aggregate_sensor_id).state) == 30.3
+
+
+async def test_energy_aggregate_normalizes_wh_and_does_not_double_count(
+    hass: HomeAssistant,
+    entities_sensor_energy: list[MockSensor],
+    _setup_integration_aggregates,
+) -> None:
+    """Energy sources are normalized and duplicate callbacks are harmless."""
+    aggregate_sensor_id = (
+        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_energy"
+    )
+    hass.states.async_set(
+        entities_sensor_energy[0].entity_id,
+        "10500",
+        attributes={"unit_of_measurement": UnitOfEnergy.WATT_HOUR},
+    )
+    await hass.async_block_till_done()
+    assert float(hass.states.get(aggregate_sensor_id).state) == 30.5
+
+    hass.states.async_set(
+        entities_sensor_energy[0].entity_id,
+        "10.5",
+        attributes={"unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR},
+    )
+    await hass.async_block_till_done()
+    assert float(hass.states.get(aggregate_sensor_id).state) == 30.5

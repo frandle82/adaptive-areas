@@ -38,7 +38,10 @@ from custom_components.adaptive_areas.helpers.sources import (
     area_entity_ids,
     entity_device_class,
 )
-from custom_components.adaptive_areas.sensor.base import AreaSensorGroupSensor
+from custom_components.adaptive_areas.sensor.base import (
+    AreaEnergyAggregateSensor,
+    AreaSensorGroupSensor,
+)
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
@@ -189,14 +192,7 @@ def create_aggregate_sensors(area: AdaptiveArea) -> list[Entity]:
     """Create the aggregate sensors for the area."""
     aggregates = []
     for group in discover_aggregate_source_groups(area):
-        aggregates.append(
-            AreaAggregateSensor(
-                area=area,
-                device_class=group.device_class,
-                entity_ids=group.entity_ids,
-                unit_of_measurement=group.unit_of_measurement,
-            )
-        )
+        aggregates.append(_create_aggregate_sensor(area, group))
     return aggregates
 
 
@@ -206,25 +202,37 @@ class AreaAggregateSensor(AreaSensorGroupSensor):
     feature_info = AdaptiveAreasFeatureInfoAggregates()
 
 
+def _create_aggregate_sensor(
+    area: AdaptiveArea, group: AggregateSourceGroup
+) -> AreaAggregateSensor | AreaEnergyAggregateSensor:
+    """Create the appropriate implementation for an aggregate group."""
+    sensor_class = (
+        AreaEnergyAggregateSensor
+        if group.device_class == SensorDeviceClass.ENERGY
+        else AreaAggregateSensor
+    )
+    return sensor_class(
+        area=area,
+        device_class=group.device_class,
+        entity_ids=group.entity_ids,
+        unit_of_measurement=group.unit_of_measurement,
+    )
+
+
 class AreaAggregateSensorManager:
     """Refresh area aggregate sensors when source metadata becomes available."""
 
     def __init__(self, area: AdaptiveArea) -> None:
         """Initialize the aggregate sensor manager."""
         self.area = area
-        self._sensors: dict[str, AreaAggregateSensor] = {}
+        self._sensors: dict[str, AreaAggregateSensor | AreaEnergyAggregateSensor] = {}
         self._known_source_ids: set[str] = set()
 
-    def create_sensors(self) -> list[AreaAggregateSensor]:
+    def create_sensors(self) -> list[AreaAggregateSensor | AreaEnergyAggregateSensor]:
         """Create initial aggregate sensors."""
         sensors = []
         for group in discover_aggregate_source_groups(self.area):
-            sensor = AreaAggregateSensor(
-                area=self.area,
-                device_class=group.device_class,
-                entity_ids=group.entity_ids,
-                unit_of_measurement=group.unit_of_measurement,
-            )
+            sensor = _create_aggregate_sensor(self.area, group)
             self._sensors[group.device_class] = sensor
             self._known_source_ids.update(group.entity_ids)
             sensors.append(sensor)
@@ -299,8 +307,10 @@ class AreaAggregateSensorManager:
         prune_missing: bool = False,
     ) -> None:
         """Refresh existing aggregate sensors and add newly discovered ones."""
-        new_sensors: list[AreaAggregateSensor] = []
+        new_sensors: list[AreaAggregateSensor | AreaEnergyAggregateSensor] = []
+        seen_device_classes: set[str] = set()
         for group in discover_aggregate_source_groups(self.area):
+            seen_device_classes.add(group.device_class)
             self._known_source_ids.update(group.entity_ids)
             if group.device_class in self._sensors:
                 entity_ids = group.entity_ids
@@ -313,14 +323,13 @@ class AreaAggregateSensorManager:
                     )
                 self._sensors[group.device_class].async_set_entity_ids(entity_ids)
                 continue
-            sensor = AreaAggregateSensor(
-                area=self.area,
-                device_class=group.device_class,
-                entity_ids=group.entity_ids,
-                unit_of_measurement=group.unit_of_measurement,
-            )
+            sensor = _create_aggregate_sensor(self.area, group)
             self._sensors[group.device_class] = sensor
             new_sensors.append(sensor)
+        if prune_missing:
+            for device_class, sensor in self._sensors.items():
+                if device_class not in seen_device_classes:
+                    sensor.async_set_entity_ids([])
         if new_sensors and async_add_entities is not None:
             async_add_entities(new_sensors)
 

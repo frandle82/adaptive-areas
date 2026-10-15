@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.9 - 2026-10-15
+
+### Fixed
+
+- Keep Adaptive Areas energy aggregates monotonic across unavailable sources,
+  source resets, unit changes, and Home Assistant restarts.
+- Persist per-source energy baselines and aggregate totals while preserving
+  existing entity IDs and Energy Dashboard compatibility.
+
+### Validation
+
+- 291 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository lint checks passed.
+
 ## 1.6.6 - 2026-09-21
 
 ### Fixed
