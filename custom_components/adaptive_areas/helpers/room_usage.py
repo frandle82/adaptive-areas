@@ -60,14 +60,10 @@ class RoomUsageEngine:
         # different from unoccupied: no time may be added or discarded until
         # the first authoritative area-state transition arrives.
         self._occupied: bool | None = None
-        self._last_accounted: datetime | None = None
         self._occupied_since: datetime | None = None
         self._subscribers: list[Callable[[], None]] = []
         self._remove_listener: Callable[[], None] | None = None
         self._remove_deadline: Callable[[], None] | None = None
-        # Kept as a compatibility marker for callers that inspected the old
-        # interval handle; no interval is registered anymore.
-        self._remove_interval: Callable[[], None] | None = None
         now = dt_util.utcnow()
         self.assessment = self._evaluate(now)
 
@@ -113,20 +109,23 @@ class RoomUsageEngine:
         """Persist the current tracker state."""
         await self._store.async_save(self._serialize())
 
-    def _accrue(self, now: datetime) -> None:
-        """Accrue occupied time exactly once up to now."""
-        if not self._occupied or self._last_accounted is None:
-            return
-        elapsed = (now - self._last_accounted).total_seconds()
-        if elapsed > 0:
-            self._cumulative_presence_seconds += elapsed
-        self._last_accounted = now
+    def _effective_presence_seconds(self, now: datetime) -> float:
+        """Return persisted usage plus the current, uncommitted session."""
+        if self._occupied and self._occupied_since is not None:
+            return self._cumulative_presence_seconds + max(
+                0, (now - self._occupied_since).total_seconds()
+            )
+        return self._cumulative_presence_seconds
+
+    def _commit_active_session(self, now: datetime) -> None:
+        """Commit the active session once and stop tracking it."""
+        if self._occupied and self._occupied_since is not None:
+            self._cumulative_presence_seconds = self._effective_presence_seconds(now)
+            self._occupied_since = None
 
     def _evaluate(self, now: datetime) -> dict[str, Any]:
         """Build the public tracker assessment without mutating counters."""
-        effective_presence = self._cumulative_presence_seconds
-        if self._occupied and self._occupied_since:
-            effective_presence += max(0, (now - self._occupied_since).total_seconds())
+        effective_presence = self._effective_presence_seconds(now)
         score = min(
             100.0,
             effective_presence / self._presence_seconds_to_due * 100,
@@ -168,7 +167,10 @@ class RoomUsageEngine:
     @callback
     def _publish(self, now: datetime) -> None:
         """Refresh the assessment and notify entities."""
+        previous_public = tuple(sorted(self.assessment.items()))
         self.assessment = self._evaluate(now)
+        if previous_public == tuple(sorted(self.assessment.items())):
+            return
         for subscriber in list(self._subscribers):
             subscriber()
         async_dispatcher_send(
@@ -186,9 +188,8 @@ class RoomUsageEngine:
         if not transitioned:
             return
         if self._occupied:
-            self._accrue(now)
+            self._commit_active_session(now)
         self._occupied = occupied
-        self._last_accounted = now if occupied else None
         self._occupied_since = now if occupied else None
         if occupied:
             self._schedule_deadline()
@@ -196,48 +197,67 @@ class RoomUsageEngine:
             self._remove_deadline()
             self._remove_deadline = None
         self.area.trace_decision(
-            feature="room_usage", trigger="area_state_changed",
+            feature="room_usage",
+            trigger="area_state_changed",
             decision="presence_started" if occupied else "presence_stopped",
-            outcome="tracked", reason_codes=[
+            outcome="tracked",
+            reason_codes=[
                 "cleaning_presence_started" if occupied else "cleaning_presence_stopped"
             ],
         )
         self._publish(now)
         self._store.async_delay_save(self._serialize, 1)
 
+    async def async_sync_presence_state(self, occupied: bool | None) -> None:
+        """Synchronize a known runtime Presence state without guessing."""
+        if occupied is None:
+            if self._occupied:
+                self._commit_active_session(dt_util.utcnow())
+            self._occupied = None
+            self._cancel_deadline()
+            self._publish(dt_util.utcnow())
+            return
+        self._set_presence_state(occupied)
+
+    def _set_presence_state(self, occupied: bool) -> None:
+        """Apply an authoritative Presence transition."""
+        now = dt_util.utcnow()
+        if occupied == self._occupied:
+            return
+        if self._occupied:
+            self._commit_active_session(now)
+        self._occupied = occupied
+        self._occupied_since = now if occupied else None
+        if occupied:
+            self._schedule_deadline()
+        else:
+            self._cancel_deadline()
+        self._publish(now)
+        self._store.async_delay_save(self._serialize, 1)
+
     def _schedule_deadline(self) -> None:
         """Schedule exactly one callback for the next cleaning deadline."""
-        if self._remove_deadline is not None:
-            self._remove_deadline()
-        remaining = max(
-            0.0, self._presence_seconds_to_due - self._cumulative_presence_seconds
+        self._cancel_deadline()
+        now = dt_util.utcnow()
+        remaining = self._presence_seconds_to_due - self._effective_presence_seconds(
+            now
         )
+        if remaining <= 0:
+            self._publish(now)
+            return
 
         async def _deadline(_now: datetime) -> None:
             self._remove_deadline = None
             if self._occupied:
-                self._accrue(dt_util.utcnow())
                 self._publish(dt_util.utcnow())
-                await self._async_save()
 
         self._remove_deadline = async_call_later(self.area.hass, remaining, _deadline)
-
-    async def _async_periodic_update(self, now: datetime) -> None:
-        """Update entities and persistence while the Area remains occupied."""
-        if not self._occupied:
-            return
-        now = dt_util.as_utc(now)
-        self._accrue(now)
-        self._publish(now)
-        await self._async_save()
 
     async def async_mark_cleaned(self) -> None:
         """Clear accumulated presence and record the cleaning timestamp."""
         now = dt_util.utcnow()
-        self._accrue(now)
         self._cumulative_presence_seconds = 0.0
         self._last_cleaned = now
-        self._last_accounted = now if self._occupied else None
         self._occupied_since = now if self._occupied else None
         if self._occupied:
             self._schedule_deadline()
@@ -249,7 +269,11 @@ class RoomUsageEngine:
         now = dt_util.utcnow()
         self._cumulative_presence_seconds = 0.0
         self._last_cleaned = None
-        self._last_accounted = now if self._occupied else None
+        self._occupied_since = now if self._occupied else None
+        if self._occupied:
+            self._schedule_deadline()
+        else:
+            self._cancel_deadline()
         self._publish(now)
         await self._store.async_remove()
 
@@ -257,7 +281,6 @@ class RoomUsageEngine:
         """Set score and derive the underlying cumulative presence value."""
         now = dt_util.utcnow()
         self._cumulative_presence_seconds = self._presence_seconds_to_due * score / 100
-        self._last_accounted = now if self._occupied else None
         self._occupied_since = now if self._occupied else None
         if self._occupied:
             self._schedule_deadline()
@@ -279,6 +302,10 @@ class RoomUsageEngine:
         if self._remove_listener is not None:
             self._remove_listener()
             self._remove_listener = None
+        self._cancel_deadline()
+
+    def _cancel_deadline(self) -> None:
+        """Cancel the active deadline timer, if any."""
         if self._remove_deadline is not None:
             self._remove_deadline()
             self._remove_deadline = None
@@ -287,7 +314,7 @@ class RoomUsageEngine:
         """Persist the final occupied interval and release resources."""
         self._stop()
         now = dt_util.utcnow()
-        self._accrue(now)
+        self._commit_active_session(now)
         self._publish(now)
         await self._async_save()
         self._subscribers.clear()

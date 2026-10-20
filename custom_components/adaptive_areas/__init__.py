@@ -559,6 +559,10 @@ async def async_setup_entry(  # noqa: C901
         await hass.config_entries.async_forward_entry_setups(
             config_entry, adaptive_area.available_platforms()
         )
+        if adaptive_area.room_usage is not None and adaptive_area.states:
+            await adaptive_area.room_usage.async_sync_presence_state(
+                adaptive_area.is_occupied()
+            )
         _LOGGER.debug(
             "Adaptive Areas [%s]: platform setup: %.0f ms",
             adaptive_area.name,

@@ -2158,7 +2158,7 @@ async def test_room_usage_uses_presence_transitions_only(
     engine._area_state_changed(area.id, None)
     assert len(area.decision_trace.export()) == 1
     freezer.tick(2 * 60 * 60)
-    await engine._async_periodic_update(dt_util.utcnow())
+    engine._publish(dt_util.utcnow())
     assert engine.assessment["score"] == 100
     assert engine.assessment["due"] is True
 

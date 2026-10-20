@@ -68,12 +68,12 @@ async def test_two_areas_accumulate_independently_and_services_support_multiple(
         hass, AdaptiveAreasEvents.AREA_STATE_CHANGED, kitchen.id, ([], [])
     )
     freezer.tick(40)
-    await kitchen.room_usage._async_periodic_update(dt_util.utcnow())
-    assert kitchen.room_usage.assessment["cumulative_presence_seconds"] == 40
+    kitchen.room_usage._publish(dt_util.utcnow())
+    assert kitchen.room_usage._effective_presence_seconds(dt_util.utcnow()) == 40
     assert living.room_usage.assessment["cumulative_presence_seconds"] == 0
 
     freezer.tick(80)
-    await kitchen.room_usage._async_periodic_update(dt_util.utcnow())
+    kitchen.room_usage._publish(dt_util.utcnow())
     assert kitchen.room_usage.assessment["score"] == 100
     assert hass.states.get(_due_entity(MockAreaIds.KITCHEN)).state == STATE_ON
     assert hass.states.get(_due_entity(MockAreaIds.LIVING_ROOM)).state == STATE_OFF
@@ -161,7 +161,6 @@ async def test_persistence_and_clean_unload_reload(
     assert new_area is not old_area
     assert new_area.room_usage is not old_engine
     assert old_engine._remove_listener is None
-    assert old_engine._remove_interval is None
     restored = hass.states.get(_due_entity(MockAreaIds.KITCHEN))
     assert restored is not None
     assert restored.state == STATE_OFF
