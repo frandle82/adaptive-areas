@@ -1,7 +1,7 @@
 """Persistent Cleaning Tracker driven by Adaptive Area presence events."""
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Self
 
 from homeassistant.core import callback
@@ -9,12 +9,11 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
 )
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from custom_components.adaptive_areas.const import (
-    CLEANING_TRACKER_UPDATE_INTERVAL_SECONDS,
     CONF_FEATURE_ROOM_USAGE,
     CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SECONDS_TO_DUE,
@@ -57,13 +56,19 @@ class RoomUsageEngine:
             )
         self._cumulative_presence_seconds = 0.0
         self._last_cleaned: datetime | None = None
-        self._occupied = area.is_occupied()
-        now = dt_util.utcnow()
-        self._last_accounted: datetime | None = now if self._occupied else None
-        self._occupied_since: datetime | None = now if self._occupied else None
+        # Presence can be unavailable during startup.  None is intentionally
+        # different from unoccupied: no time may be added or discarded until
+        # the first authoritative area-state transition arrives.
+        self._occupied: bool | None = None
+        self._last_accounted: datetime | None = None
+        self._occupied_since: datetime | None = None
         self._subscribers: list[Callable[[], None]] = []
         self._remove_listener: Callable[[], None] | None = None
+        self._remove_deadline: Callable[[], None] | None = None
+        # Kept as a compatibility marker for callers that inspected the old
+        # interval handle; no interval is registered anymore.
         self._remove_interval: Callable[[], None] | None = None
+        now = dt_util.utcnow()
         self.assessment = self._evaluate(now)
 
     @classmethod
@@ -75,11 +80,6 @@ class RoomUsageEngine:
             area.hass,
             AdaptiveAreasEvents.AREA_STATE_CHANGED,
             engine._area_state_changed,
-        )
-        engine._remove_interval = async_track_time_interval(
-            area.hass,
-            engine._async_periodic_update,
-            timedelta(seconds=CLEANING_TRACKER_UPDATE_INTERVAL_SECONDS),
         )
         engine.assessment = engine._evaluate(dt_util.utcnow())
         return engine
@@ -124,16 +124,19 @@ class RoomUsageEngine:
 
     def _evaluate(self, now: datetime) -> dict[str, Any]:
         """Build the public tracker assessment without mutating counters."""
+        effective_presence = self._cumulative_presence_seconds
+        if self._occupied and self._occupied_since:
+            effective_presence += max(0, (now - self._occupied_since).total_seconds())
         score = min(
             100.0,
-            self._cumulative_presence_seconds / self._presence_seconds_to_due * 100,
+            effective_presence / self._presence_seconds_to_due * 100,
         )
         current_duration = (
             max(0, int((now - self._occupied_since).total_seconds()))
             if self._occupied and self._occupied_since
             else 0
         )
-        presence_minutes = self._cumulative_presence_seconds / 60
+        presence_minutes = effective_presence / 60
         minutes_to_due = self._presence_seconds_to_due / 60
         remaining_minutes = max(0.0, minutes_to_due - presence_minutes)
         overdue_minutes = max(0.0, presence_minutes - minutes_to_due)
@@ -150,7 +153,7 @@ class RoomUsageEngine:
         return {
             "score": round(score, 2),
             "cleaning_state": cleaning_state,
-            "due": (self._cumulative_presence_seconds >= self._presence_seconds_to_due),
+            "due": (effective_presence >= self._presence_seconds_to_due),
             "cumulative_presence_seconds": round(self._cumulative_presence_seconds, 3),
             "presence_minutes_since_cleaning": round(presence_minutes, 3),
             "presence_minutes_to_due": round(minutes_to_due, 3),
@@ -178,28 +181,46 @@ class RoomUsageEngine:
         if area_id != self.area.id:
             return
         now = dt_util.utcnow()
-        self._accrue(now)
         occupied = self.area.is_occupied()
         transitioned = occupied != self._occupied
-        if transitioned:
-            self._occupied = occupied
-            self._last_accounted = now if occupied else None
-            self._occupied_since = now if occupied else None
-            self.area.trace_decision(
-                feature="room_usage",
-                trigger="area_state_changed",
-                decision="presence_started" if occupied else "presence_stopped",
-                outcome="tracked",
-                reason_codes=[
-                    (
-                        "cleaning_presence_started"
-                        if occupied
-                        else "cleaning_presence_stopped"
-                    )
-                ],
-            )
+        if not transitioned:
+            return
+        if self._occupied:
+            self._accrue(now)
+        self._occupied = occupied
+        self._last_accounted = now if occupied else None
+        self._occupied_since = now if occupied else None
+        if occupied:
+            self._schedule_deadline()
+        elif self._remove_deadline is not None:
+            self._remove_deadline()
+            self._remove_deadline = None
+        self.area.trace_decision(
+            feature="room_usage", trigger="area_state_changed",
+            decision="presence_started" if occupied else "presence_stopped",
+            outcome="tracked", reason_codes=[
+                "cleaning_presence_started" if occupied else "cleaning_presence_stopped"
+            ],
+        )
         self._publish(now)
         self._store.async_delay_save(self._serialize, 1)
+
+    def _schedule_deadline(self) -> None:
+        """Schedule exactly one callback for the next cleaning deadline."""
+        if self._remove_deadline is not None:
+            self._remove_deadline()
+        remaining = max(
+            0.0, self._presence_seconds_to_due - self._cumulative_presence_seconds
+        )
+
+        async def _deadline(_now: datetime) -> None:
+            self._remove_deadline = None
+            if self._occupied:
+                self._accrue(dt_util.utcnow())
+                self._publish(dt_util.utcnow())
+                await self._async_save()
+
+        self._remove_deadline = async_call_later(self.area.hass, remaining, _deadline)
 
     async def _async_periodic_update(self, now: datetime) -> None:
         """Update entities and persistence while the Area remains occupied."""
@@ -217,6 +238,9 @@ class RoomUsageEngine:
         self._cumulative_presence_seconds = 0.0
         self._last_cleaned = now
         self._last_accounted = now if self._occupied else None
+        self._occupied_since = now if self._occupied else None
+        if self._occupied:
+            self._schedule_deadline()
         self._publish(now)
         await self._async_save()
 
@@ -234,6 +258,9 @@ class RoomUsageEngine:
         now = dt_util.utcnow()
         self._cumulative_presence_seconds = self._presence_seconds_to_due * score / 100
         self._last_accounted = now if self._occupied else None
+        self._occupied_since = now if self._occupied else None
+        if self._occupied:
+            self._schedule_deadline()
         self._publish(now)
         await self._async_save()
 
@@ -252,9 +279,9 @@ class RoomUsageEngine:
         if self._remove_listener is not None:
             self._remove_listener()
             self._remove_listener = None
-        if self._remove_interval is not None:
-            self._remove_interval()
-            self._remove_interval = None
+        if self._remove_deadline is not None:
+            self._remove_deadline()
+            self._remove_deadline = None
 
     async def async_unload(self) -> None:
         """Persist the final occupied interval and release resources."""
