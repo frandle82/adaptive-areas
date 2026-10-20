@@ -2596,6 +2596,15 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert state is not None
     assert state.state == "on"
+    assert state.attributes["used_sensors"] == {
+        "pm25": [pm25.entity_id],
+        "humidity": [humidity.entity_id],
+        "temperature": [temperature.entity_id],
+    }
+    assert all(
+        not isinstance(value, dict) or "value" not in value
+        for value in state.attributes["used_sensors"].values()
+    )
     for removed in (
         "temperature",
         "relative_humidity",

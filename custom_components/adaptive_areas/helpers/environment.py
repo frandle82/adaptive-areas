@@ -1023,6 +1023,26 @@ class AreaEnvironmentEngine:
             "name": state.name if state is not None else entity_id,
         }
 
+    def public_used_sensors(self) -> dict[str, list[str]]:
+        """Return the selected source IDs grouped by public capability."""
+        used: dict[str, set[str]] = {}
+        for source_key, source in self._source_entities.items():
+            capability = source_key.removeprefix("outdoor_")
+            entity_ids = {
+                entity.get("entity_id")
+                for entity in source.get("entities", [])
+                if isinstance(entity, dict) and isinstance(entity.get("entity_id"), str)
+            }
+            if isinstance(source.get("entity_id"), str):
+                entity_ids.add(source["entity_id"])
+            if entity_ids:
+                used.setdefault(capability, set()).update(entity_ids)
+        return {
+            capability: sorted(entity_ids)
+            for capability, entity_ids in sorted(used.items())
+            if entity_ids
+        }
+
     def _public_assessment_key(self, assessment: dict[str, Any]) -> tuple[Any, ...]:
         """Return the qualitative values exposed to Environment entities."""
         return tuple(
@@ -1140,13 +1160,14 @@ class AreaEnvironmentEngine:
         values: list[float] = []
         used: list[str] = []
         for entity_id in candidate_ids:
+            if self._official_pollutant_device_class(entity_id) == device_class:
+                used.append(entity_id)
             value, ignored_reason = self._pollutant_value(entity_id, device_class)
             if value is None:
                 assert ignored_reason is not None
                 self._ignore_source(entity_id, ignored_reason)
                 continue
             values.append(value)
-            used.append(entity_id)
             self._ignored_sources.pop(entity_id, None)
         if used:
             source_key = POLLUTANT_NAMES.get(device_class, str(device_class))
@@ -1164,6 +1185,11 @@ class AreaEnvironmentEngine:
         if not entity_id or entity_id in self._excluded_ids:
             return None
         state = self.area.hass.states.get(entity_id)
+        if entity_id and entity_id not in self._excluded_ids:
+            self._source_entities[source_key] = {
+                "mode": "explicit",
+                "entities": [self._source_descriptor(entity_id)],
+            }
         if state and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
             try:
                 value = float(state.state)
@@ -1176,17 +1202,9 @@ class AreaEnvironmentEngine:
                     value = TemperatureConverter.convert(
                         value, unit, UnitOfTemperature.CELSIUS
                     )
-                self._source_entities[source_key] = {
-                    "mode": "explicit",
-                    "entities": [self._source_descriptor(entity_id)],
-                }
                 return value
             except TypeError, ValueError:
                 pass
-        self._source_entities[source_key] = {
-            "mode": "explicit",
-            "entities": [],
-        }
         return None
 
     def _outdoor_value(

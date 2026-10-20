@@ -513,6 +513,9 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             attributes["notices"] = sorted(set(notices))
         if operation:
             attributes["operation"] = operation
+        used_sensors = self.area.environment.public_used_sensors()
+        if used_sensors:
+            attributes["used_sensors"] = used_sensors
         return ("on" if problem else "off"), attributes
 
     def _assessment_changed(self) -> None:
