@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.6.14 - 2026-10-20
+
+### Added
+
+- Add graduated environment assessment quality from basic climate sensing to
+  comprehensive indoor/outdoor coverage.
+- Keep temperature and humidity useful as the minimum environment assessment
+  without presenting missing air-quality data as good.
+- Add actionable humidity, mould-risk, and outdoor-air ventilation notices.
+
+### Validation
+
+- 297 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository lint checks passed.
+
 ## 1.6.13 - 2026-10-20
 
 ### Fixed

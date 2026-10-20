@@ -1067,6 +1067,27 @@ class AreaEnvironmentEngine:
             if capabilities
         }
 
+    def air_quality_coverage(
+        self, pollutant_assessments: dict[str, Any] | None = None
+    ) -> dict[str, list[str]]:
+        """Return structural and currently available pollutant capabilities."""
+        expected = {
+            capability
+            for capability, source in self._source_entities.items()
+            if capability in POLLUTANT_NAMES.values() and source.get("entities")
+        }
+        available = set(
+            pollutant_assessments
+            if pollutant_assessments is not None
+            else self.assessment.get("pollutant_assessments", {})
+        )
+        available &= expected
+        return {
+            "expected": sorted(expected),
+            "available": sorted(available),
+            "temporarily_unavailable": sorted(expected - available),
+        }
+
     def _public_assessment_key(self, assessment: dict[str, Any]) -> tuple[Any, ...]:
         """Return the qualitative values exposed to Environment entities."""
         return tuple(
@@ -2837,6 +2858,25 @@ class AreaEnvironmentEngine:
             "surface_temperature": surface_temperature is not None,
             "health": health_state is not None,
         }
+        evaluation_quality = (
+            "comprehensive"
+            if temperature is not None
+            and humidity is not None
+            and (
+                len(pollutants) >= 2
+                or outdoor is not None
+                or outdoor_humidity is not None
+            )
+            else (
+                "extended"
+                if temperature is not None and humidity is not None and bool(pollutants)
+                else (
+                    "basic"
+                    if temperature is not None and humidity is not None
+                    else "limited"
+                )
+            )
+        )
         assessment = {
             "state": overall,
             "room_category": self.room_category,
@@ -2902,6 +2942,7 @@ class AreaEnvironmentEngine:
             "outdoor_pollutant_assessments": outdoor_pollutant_assessments,
             "pollutants": pollutants,
             "pollutant_assessments": pollutant_assessments,
+            "air_quality_coverage": self.air_quality_coverage(pollutant_assessments),
             "indoor_pollutant_measurements": pollutants,
             "indoor_pollutant_assessments": pollutant_assessments,
             "dominant_indoor_pollutant": dominant_indoor_pollutant,
@@ -2913,6 +2954,7 @@ class AreaEnvironmentEngine:
             "ventilation_fan_request": ventilation_request,
             "circulation_fan_request": circulation_request,
             "capabilities": capabilities,
+            "evaluation_quality": evaluation_quality,
             "evaluated_dimensions": sorted(
                 key for key, evaluated in evaluated_dimensions.items() if evaluated
             ),
@@ -3017,6 +3059,7 @@ class AreaEnvironmentEngine:
                 "pollutant_assessments": self.assessment.get(
                     "pollutant_assessments", {}
                 ),
+                "air_quality_coverage": self.assessment.get("air_quality_coverage", {}),
                 "source_summary": {
                     key: {"mode": value.get("mode", "unknown")}
                     for key, value in self.assessment.get("source_entities", {}).items()
@@ -3129,6 +3172,7 @@ class AreaEnvironmentEngine:
                 if key in ("temperature", "humidity")
             },
             "pollutant_assessments": self.assessment.get("pollutant_assessments", {}),
+            "air_quality_coverage": self.assessment.get("air_quality_coverage", {}),
             "indoor_pollutant_assessments": self.assessment.get(
                 "indoor_pollutant_assessments", {}
             ),

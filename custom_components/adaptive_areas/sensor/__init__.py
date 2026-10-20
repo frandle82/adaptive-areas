@@ -483,6 +483,25 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "high_pm25": "Feinstaub erhöht" if german else "PM2.5 elevated",
             "high_pm10": "Feinstaub erhöht" if german else "PM10 elevated",
             "high_voc": "VOC erhöht" if german else "VOC elevated",
+            "high_humidity": (
+                "Lüften empfohlen: Die Luftfeuchtigkeit ist zu hoch."
+                if german
+                else "Ventilation recommended: Humidity is too high."
+            ),
+            "prolonged_high_humidity": (
+                "Lüften empfohlen: Die Luftfeuchtigkeit ist anhaltend hoch."
+                if german
+                else "Ventilation recommended: Humidity has remained high."
+            ),
+            "rapid_humidity_rise": (
+                "Lüften empfohlen: Die Luftfeuchtigkeit steigt schnell."
+                if german
+                else "Ventilation recommended: Humidity is rising rapidly."
+            ),
+            "mould_risk_elevated": (
+                "Schimmelrisiko erhöht" if german else "Elevated mould risk"
+            ),
+            "mould_risk_high": "Schimmelrisiko hoch" if german else "High mould risk",
             "primary_temperature_sensor_unavailable": (
                 "Temperaturdaten fehlen" if german else "Temperature data missing"
             ),
@@ -491,6 +510,77 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             ),
         }
         notices.extend(notice_map[code] for code in reason_codes if code in notice_map)
+        mitigation_reason_codes = {
+            str(code) for code in assessment.get("mitigation_reason_codes", [])
+        }
+        if "outdoor_air_drier" in mitigation_reason_codes:
+            notices.append(
+                "Lüften empfohlen: Die Außenluft unterstützt den Feuchteabbau."
+                if german
+                else "Ventilation recommended: Outdoor air supports moisture removal."
+            )
+        elif {
+            "outdoor_air_more_humid",
+            "outdoor_air_quality_unknown",
+        } & mitigation_reason_codes:
+            notices.append(
+                "Lüften derzeit ungünstig: Die Außenluft unterstützt den Feuchteabbau nicht."
+                if german
+                else "Ventilation is currently unfavorable: Outdoor air does not support moisture removal."
+            )
+        coverage = assessment.get("air_quality_coverage", {})
+        expected = [str(value) for value in coverage.get("expected", [])]
+        available = [str(value) for value in coverage.get("available", [])]
+        unavailable = [
+            str(value) for value in coverage.get("temporarily_unavailable", [])
+        ]
+        pollutant_names = {
+            "co2": "CO₂",
+            "pm25": "PM2.5",
+            "pm10": "PM10",
+            "no2": "NO₂",
+            "co": "CO",
+            "ozone": "O₃",
+            "voc": "VOC",
+            "voc_parts": "VOC",
+            "pm1": "PM1",
+            "aqi": "AQI",
+        }
+
+        def _pollutant_list(capabilities: list[str]) -> str:
+            labels = [
+                pollutant_names.get(capability, capability)
+                for capability in capabilities
+            ]
+            if len(labels) < 2:
+                return "".join(labels)
+            conjunction = " und " if german else " and "
+            return f"{', '.join(labels[:-1])}{conjunction}{labels[-1]}"
+
+        if unavailable and available:
+            if german:
+                notices.append(
+                    "Luftqualität eingeschränkt bewertet: "
+                    f"{_pollutant_list(unavailable)} fehlt; Bewertung basiert derzeit "
+                    f"auf {_pollutant_list(available)}."
+                )
+            else:
+                notices.append(
+                    "Air quality assessed with limited coverage: "
+                    f"{_pollutant_list(unavailable)} unavailable; assessment currently "
+                    f"based on {_pollutant_list(available)}."
+                )
+        elif expected and not available:
+            if german:
+                notices.append(
+                    "Luftqualität derzeit nicht bewertbar: "
+                    f"{_pollutant_list(expected)} sind nicht verfügbar."
+                )
+            else:
+                notices.append(
+                    "Air quality currently unavailable: "
+                    f"{_pollutant_list(expected)} are unavailable."
+                )
         operation = (
             ("Eingeschränkt" if german else "Limited")
             if any(

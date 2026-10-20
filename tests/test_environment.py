@@ -90,6 +90,7 @@ from custom_components.adaptive_areas.helpers.environment import (
     environment_recommendation,
 )
 from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
+from custom_components.adaptive_areas.sensor import EnvironmentSensor
 
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -327,6 +328,148 @@ def test_absent_pollutants_do_not_create_phantom_assessments(
         assert absent not in assessment["pollutant_assessments"]
         assert absent not in assessment["source_entities"]
     assert engine.diagnostics()["pollutant_sources"] == {"co2": 1}
+
+
+def test_air_quality_coverage_tracks_structural_sources(hass: HomeAssistant) -> None:
+    """Coverage reports selected unavailable pollutants without phantom classes."""
+    area = _area(hass)
+    _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        10,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    hass.states.async_set(
+        "sensor.co2",
+        STATE_UNAVAILABLE,
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2},
+    )
+    engine = AreaEnvironmentEngine(area)
+    coverage = engine.assessment["air_quality_coverage"]
+
+    assert coverage == {
+        "expected": ["co2", "pm25"],
+        "available": ["pm25"],
+        "temporarily_unavailable": ["co2"],
+    }
+    assert "no2" not in coverage["temporarily_unavailable"]
+
+
+def test_air_quality_coverage_notice_is_public_but_values_are_not(
+    hass: HomeAssistant,
+) -> None:
+    """Reduced coverage is explained without exposing pollutant measurements."""
+    hass.config.language = "de"
+    area = _area(hass)
+    _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        10,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    hass.states.async_set(
+        "sensor.co2",
+        STATE_UNAVAILABLE,
+        {ATTR_DEVICE_CLASS: SensorDeviceClass.CO2},
+    )
+    engine = AreaEnvironmentEngine(area)
+    area.environment = engine
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(engine.assessment)
+
+    assert (
+        "Luftqualität eingeschränkt bewertet: CO₂ fehlt; Bewertung basiert derzeit "
+        "auf PM2.5."
+    ) in attributes["notices"]
+    assert "pollutant_assessments" not in attributes
+    assert "co2" not in attributes
+
+
+def test_air_quality_coverage_notice_when_all_sources_unavailable(
+    hass: HomeAssistant,
+) -> None:
+    """No available selected pollutant keeps air quality unassessed."""
+    hass.config.language = "de"
+    area = _area(hass)
+    _sensor(hass, area, "sensor.co2", 800, SensorDeviceClass.CO2, "ppm")
+    _sensor(
+        hass,
+        area,
+        "sensor.pm25",
+        10,
+        SensorDeviceClass.PM25,
+        UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
+    )
+    for entity_id, device_class in (
+        ("sensor.co2", SensorDeviceClass.CO2),
+        ("sensor.pm25", SensorDeviceClass.PM25),
+    ):
+        hass.states.async_set(
+            entity_id, STATE_UNAVAILABLE, {ATTR_DEVICE_CLASS: device_class}
+        )
+    engine = AreaEnvironmentEngine(area)
+    area.environment = engine
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(engine.assessment)
+
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert (
+        "Luftqualität derzeit nicht bewertbar: CO₂ und PM2.5 sind nicht verfügbar."
+    ) in attributes["notices"]
+
+
+def test_temperature_humidity_are_basic_environment_minimum(
+    hass: HomeAssistant,
+) -> None:
+    """Temperature and humidity provide a useful non-air-quality assessment."""
+    hass.config.language = "de"
+    area = _area(hass)
+    _sensor(hass, area, "sensor.temperature", 21, SensorDeviceClass.TEMPERATURE, "°C")
+    _sensor(hass, area, "sensor.humidity", 50, SensorDeviceClass.HUMIDITY, "%")
+    engine = AreaEnvironmentEngine(area)
+    area.environment = engine
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(engine.assessment)
+
+    assert engine.assessment["evaluation_quality"] == "basic"
+    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["mould_risk"] == MouldRiskState.LOW
+    assert attributes["comfort"] == "angenehm"
+    assert attributes["humidity"] == "normal"
+    assert attributes["mould_risk"] == "gering"
+    assert "air_quality" not in attributes
+    assert "notices" not in attributes
+
+
+def test_basic_high_humidity_explains_ventilation_need(
+    hass: HomeAssistant,
+) -> None:
+    """Basic mode recommends ventilation with a humidity reason."""
+    hass.config.language = "de"
+    area = _area(hass)
+    _sensor(hass, area, "sensor.temperature", 21, SensorDeviceClass.TEMPERATURE, "°C")
+    _sensor(hass, area, "sensor.humidity", 80, SensorDeviceClass.HUMIDITY, "%")
+    engine = AreaEnvironmentEngine(area)
+    area.environment = engine
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(engine.assessment)
+
+    assert engine.assessment["evaluation_quality"] == "basic"
+    assert attributes["recommendation"] == "Raum lüften"
+    assert (
+        "Lüften empfohlen: Die Luftfeuchtigkeit ist zu hoch." in attributes["notices"]
+    )
+    assert "air_quality" not in attributes
 
 
 def test_psychrometric_reference_calculations() -> None:
