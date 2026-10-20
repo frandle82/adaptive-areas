@@ -105,6 +105,7 @@ class AreaSensorGroupSensor(AdaptiveEntity, SensorGroup):
         delattr(self, "_attr_name")
         self._remove_member_listener: Callable[[], None] | None = None
         self._added_to_hass = False
+        self._last_published_signature: tuple[Any, str] | None = None
 
     async def async_added_to_hass(self) -> None:
         """Register listeners after Home Assistant has fully added the entity."""
@@ -238,6 +239,7 @@ class AreaEnergyAggregateSensor(AdaptiveEntity, SensorEntity):
         self._restored = False
         self._has_persisted_state = False
         self._initialized = False
+        self._last_published_total: float | None = None
         self._remove_member_listener: Callable[[], None] | None = None
         self._store: Store[dict[str, Any]] = Store(
             area.hass,
@@ -344,23 +346,30 @@ class AreaEnergyAggregateSensor(AdaptiveEntity, SensorEntity):
         if new_value is None:
             self._publish()
             return
-        self._apply_value(entity_id, new_value)
-        self._store.async_delay_save(self._serialize, 1)
+        changed = self._apply_value(entity_id, new_value)
+        if changed:
+            self._store.async_delay_save(self._serialize, 1)
         self._publish()
 
-    def _apply_value(self, entity_id: str, new_value: float) -> None:
+    def _apply_value(self, entity_id: str, new_value: float) -> bool:
         """Apply one normalized source value to the monotonic total."""
         old_value = self._source_values.get(entity_id)
         if old_value is None:
             self._source_values[entity_id] = new_value
+            return True
         elif new_value >= old_value - _ENERGY_RESET_TOLERANCE:
-            self._aggregate_total += max(0.0, new_value - old_value)
+            delta = max(0.0, new_value - old_value)
+            if delta == 0:
+                return False
+            self._aggregate_total += delta
             self._source_values[entity_id] = new_value
+            return True
         else:
             self._reset_count += 1
             self._last_reset_source = entity_id
             self._source_values[entity_id] = new_value
             self._aggregate_total += new_value
+            return True
 
     def _process_current_states(self, *, initializing: bool = False) -> None:
         """Initialize or reconcile currently available source states."""
@@ -416,7 +425,10 @@ class AreaEnergyAggregateSensor(AdaptiveEntity, SensorEntity):
 
     def _publish(self) -> None:
         """Publish the current monotonic aggregate and diagnostics."""
+        if self._last_published_total == self._aggregate_total:
+            return
         self._attr_native_value = self._aggregate_total
+        self._last_published_total = self._aggregate_total
         self.async_write_ha_state()
 
     @property

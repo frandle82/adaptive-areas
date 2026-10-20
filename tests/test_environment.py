@@ -2595,67 +2595,17 @@ async def test_enabled_room_climate_publishes_pollutant_context(
     assert area.environment is not None
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert state is not None
-    assert state.state == EnvironmentState.ATTENTION
-    assert "humidex" not in state.attributes
-    assert state.attributes["comfort"] != ComfortState.UNKNOWN
-    assert state.attributes["humidity"] != HumidityState.UNKNOWN
-    assert state.attributes["pollutant_state"] == PollutantState.UNKNOWN
-    assert state.attributes["dominant_indoor_pollutant"] == "unknown"
-    assert state.attributes["indoor_source_entities"] == sorted(
-        [temperature.entity_id, humidity.entity_id, pm25.entity_id]
-    )
-    assert state.attributes["outdoor_source_entities"] == []
-    assert state.attributes["source_entities"] == sorted(
-        [temperature.entity_id, humidity.entity_id, pm25.entity_id]
-    )
-    assert state.attributes["indoor_pollutant_measurements"]["pm25"] == 80
-    assert state.attributes["pollutant_measurements"]["pm25"] == 80
-    assert (
-        state.attributes["indoor_pollutant_assessments"]["pm25"]["current_state"]
-        == AirQualityState.CRITICAL
-    )
-    assert state.attributes["pollutant_assessments"]["pm25"]["current_state"] == (
-        AirQualityState.CRITICAL
-    )
-    assert state.attributes["pollutant_assessments"]["pm25"]["severity"] == (
-        AirQualityState.UNKNOWN
-    )
-    assert state.attributes["pollutant_assessments"]["pm25"]["provisional_alert"]
-    assert "ignored_sources" not in state.attributes
-    assert "PM2.5" in state.attributes["context"]
-    assert all(
-        isinstance(entity_id, str) for entity_id in state.attributes["source_entities"]
-    )
-    assert "comfort_quality" not in state.attributes
-    assert "comfort_confidence" not in state.attributes
-    assert "thermal_input_quality" not in state.attributes
-    assert "temperature" not in state.attributes
-    assert "relative_humidity" not in state.attributes
-    assert "outdoor_temperature" not in state.attributes
-    assert "outdoor_relative_humidity" not in state.attributes
-    assert "decision_context" not in state.attributes
-    assert "room_usage" not in state.attributes
-    assert "cleaning_recommendation" not in state.attributes
-    assert "surface_temperature" not in state.attributes
-    assert "surface_relative_humidity" not in state.attributes
+    assert state.state == "on"
     for removed in (
-        "temperature_state",
-        "humidity_comfort_state",
-        "combined_comfort",
-        "ventilation",
-        "apparent_temperature",
-        "thermal_profile",
+        "temperature",
+        "relative_humidity",
         "dew_point",
-        "absolute_humidity",
-        "humidity_ratio",
-        "enthalpy",
-        "mould_quality",
-        "mould_warning_duration_seconds",
-        "humidity_warning_duration_seconds",
-        "outdoor_humidity_ratio",
-        "outdoor_enthalpy",
-        "outdoor_pollutant_assessments",
-        "pollutant_comparisons",
+        "source_entities",
+        "indoor_source_entities",
+        "outdoor_source_entities",
+        "pollutant_measurements",
+        "pollutant_assessments",
+        "reason_codes",
     ):
         assert removed not in state.attributes
 
@@ -2843,8 +2793,9 @@ async def test_enabled_exterior_publishes_reduced_area_climate_sensor(
     state = hass.states.get(f"sensor.adaptive_areas_environment_{DEFAULT_MOCK_AREA}")
     assert area.environment is not None
     assert state is not None
-    assert state.attributes["temperature"] == 18
-    assert state.attributes["relative_humidity"] == 55
+    assert state.state == "off"
+    assert "temperature" not in state.attributes
+    assert "relative_humidity" not in state.attributes
     for absent in (
         "comfort",
         "ventilation",
@@ -3104,9 +3055,7 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     environment_state = hass.states.get(environment_entity_id)
     assert environment_state is not None
     assert environment_state.attributes["device_class"] == "enum"
-    assert set(environment_state.attributes["options"]) == {
-        str(state) for state in EnvironmentState
-    }
+    assert set(environment_state.attributes["options"]) == {"on", "off"}
 
     await hass.services.async_call(
         "switch", SERVICE_TURN_ON, {ATTR_ENTITY_ID: control_entity_id}, blocking=True
@@ -3118,12 +3067,9 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
     assert hass.states.get(fan.entity_id).state == STATE_ON
     environment_state = hass.states.get(environment_entity_id)
     assert environment_state is not None
-    assert environment_state.attributes["reason_codes"] == [
-        "primary_humidity_sensor_not_configured",
-        "room_too_warm",
-        "outdoor_air_quality_unknown",
-    ]
-    assert environment_state.attributes["context"]
+    assert environment_state.state == "on"
+    assert "reason_codes" not in environment_state.attributes
+    assert "context" not in environment_state.attributes
 
     await shutdown_integration(hass, [entry])
 
@@ -3131,130 +3077,29 @@ async def test_environment_sensor_fan_request_reaches_fan_control(
 def test_environment_translation_value_coverage() -> None:
     """English and German translate every Environment state and attribute value."""
     translations = Path("custom_components/adaptive_areas/translations")
-    expected_attribute_names = {
-        "en": {
-            "ventilation_fan_request": "Fan need",
-            "circulation_fan_request": "Air circulation need",
-            "moisture_ventilation": "Dehumidification by ventilation",
-            "ventilation_strategy": "Ventilation strategy",
-            "air_cleaning_recommendation": "Air cleaning recommendation",
-            "indoor_source_entities": "Indoor source entities",
-            "outdoor_source_entities": "Outdoor source entities",
-            "source_entities": "Entities used",
-        },
-        "de": {
-            "ventilation_fan_request": "Lüfterbedarf",
-            "circulation_fan_request": "Umluftbedarf",
-            "moisture_ventilation": "Entfeuchtung durch Lüften",
-            "ventilation_strategy": "Lüftungsstrategie",
-            "air_cleaning_recommendation": "Luftreinigungsempfehlung",
-            "indoor_source_entities": "Innenraum-Quellentitäten",
-            "outdoor_source_entities": "Außenluft-Quellentitäten",
-            "source_entities": "Verwendete Entitäten",
-        },
-    }
-    expected_values = {
-        "comfort": {str(state) for state in ComfortState},
-        "temperature_state": {str(state) for state in ComfortState},
-        "humidity_comfort_state": {str(state) for state in HumidityState},
-        "combined_comfort": {str(state) for state in CombinedComfortState},
-        "room_category": {str(category) for category in RoomCategory} | {"unknown"},
-        "humidity": {str(state) for state in HumidityState},
-        "mould_risk": {str(state) for state in MouldRiskState},
-        "mould_quality": {"surface_based", "room_air_estimate", "unknown"},
-        "air_quality": {str(state) for state in AirQualityState},
-        "pollutant_state": {str(state) for state in PollutantState},
-        "ventilation": {str(state) for state in VentilationState},
-        "ventilation_demand": {str(state) for state in VentilationDemand},
-        "ventilation_strategy": {str(state) for state in VentilationStrategy},
-        "air_cleaning_recommendation": {
-            str(state) for state in AirCleaningRecommendation
-        },
-        "ventilation_activity": {str(state) for state in VentilationActivity},
-        "cooling": {str(state) for state in CoolingState},
-        "window_recommendation": {str(state) for state in WindowRecommendation},
-        "ventilation_fan_request": {str(state) for state in VentilationFanRequest},
-        "circulation_fan_request": {str(state) for state in CirculationFanRequest},
-        "moisture_ventilation": {"favorable", "unfavorable", "unknown"},
-        "air_exchange_suitability": {str(state) for state in AirExchangeSuitability},
-        "dominant_indoor_pollutant": {
-            "co2",
-            "pm25",
-            "pm10",
-            "co",
-            "no2",
-            "ozone",
-            "voc",
-            "unknown",
-        },
-        "available_capabilities": {
-            "temperature",
-            "humidity",
-            "co2",
-            "pm25",
-            "pm10",
-            "pm1",
-            "voc",
-            "voc_parts",
-            "aqi",
-            "co",
-            "no2",
-            "ozone",
-            "ventilation_fans",
-            "windows",
-            "outdoor_temperature",
-            "outdoor_humidity",
-            "surface_temperature",
-            "health",
-        },
-    }
-    named_only = {
-        "temperature",
-        "relative_humidity",
-        "dew_point",
-        "absolute_humidity",
-        "humidity_ratio",
-        "enthalpy",
-        "humidex",
-        "apparent_temperature",
-        "thermal_profile",
-        "surface_temperature",
-        "surface_relative_humidity",
-        "mould_warning_duration_seconds",
-        "outdoor_humidity_ratio",
-        "outdoor_enthalpy",
-        "pollutant_measurements",
-        "pollutant_assessments",
-        "indoor_pollutant_measurements",
-        "indoor_pollutant_assessments",
-        "pollutant_comparisons",
-        "outdoor_pollutant_measurements",
-        "outdoor_pollutant_assessments",
-        "source_entities",
-        "indoor_source_entities",
-        "outdoor_source_entities",
-        "ignored_sources",
-        "humidity_warning_duration_seconds",
-        "context",
-        "indoor_reason_codes",
-        "mitigation_reason_codes",
-    }
-
     for language in ("en", "de"):
         content = json.loads((translations / f"{language}.json").read_text())
         environment = content["entity"]["sensor"]["environment"]
         assert environment["name"] == (
             "Area Climate" if language == "en" else "Bereichsklima"
         )
-        assert set(environment["state"]) == {str(state) for state in EnvironmentState}
-        assert set(expected_values) | named_only <= set(environment["state_attributes"])
-        for attribute, name in expected_attribute_names[language].items():
-            assert environment["state_attributes"][attribute]["name"] == name
-        for attribute, values in expected_values.items():
-            translation = environment["state_attributes"][attribute]
-            assert translation["name"]
-            assert set(translation["state"]) == values
-            assert all(translation["state"].values())
+        assert set(environment["state"]) == {"on", "off"}
+        public_attributes = {
+            "comfort",
+            "humidity",
+            "air_quality",
+            "mould_risk",
+            "recommendation",
+            "notices",
+            "operation",
+        }
+        assert public_attributes <= set(environment["state_attributes"])
+        assert environment["state_attributes"]["recommendation"]["name"] == (
+            "Recommendation" if language == "en" else "Empfehlung"
+        )
+        assert environment["state_attributes"]["notices"]["name"] == (
+            "Notes" if language == "en" else "Hinweise"
+        )
         usage = content["entity"]["sensor"]["room_usage"]
         assert set(usage["state_attributes"]) == {
             "cumulative_presence_seconds",

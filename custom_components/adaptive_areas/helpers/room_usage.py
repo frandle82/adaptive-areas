@@ -64,6 +64,7 @@ class RoomUsageEngine:
         self._subscribers: list[Callable[[], None]] = []
         self._remove_listener: Callable[[], None] | None = None
         self._remove_deadline: Callable[[], None] | None = None
+        self._last_persisted_snapshot: dict[str, float | str | None] | None = None
         now = dt_util.utcnow()
         self.assessment = self._evaluate(now)
 
@@ -95,6 +96,7 @@ class RoomUsageEngine:
             parsed = dt_util.parse_datetime(last_cleaned)
             if parsed is not None:
                 self._last_cleaned = dt_util.as_utc(parsed)
+        self._last_persisted_snapshot = self._serialize()
 
     def _serialize(self) -> dict[str, float | str | None]:
         """Return the persistent representation of current state."""
@@ -107,7 +109,17 @@ class RoomUsageEngine:
 
     async def _async_save(self) -> None:
         """Persist the current tracker state."""
-        await self._store.async_save(self._serialize())
+        snapshot = self._serialize()
+        await self._store.async_save(snapshot)
+        self._last_persisted_snapshot = snapshot
+
+    def _schedule_save(self) -> None:
+        """Queue persistence only when the serialized state changed."""
+        snapshot = self._serialize()
+        if snapshot == self._last_persisted_snapshot:
+            return
+        self._last_persisted_snapshot = snapshot
+        self._store.async_delay_save(lambda: snapshot, 1)
 
     def _effective_presence_seconds(self, now: datetime) -> float:
         """Return persisted usage plus the current, uncommitted session."""
@@ -206,7 +218,7 @@ class RoomUsageEngine:
             ],
         )
         self._publish(now)
-        self._store.async_delay_save(self._serialize, 1)
+        self._schedule_save()
 
     async def async_sync_presence_state(self, occupied: bool | None) -> None:
         """Synchronize a known runtime Presence state without guessing."""
@@ -233,7 +245,7 @@ class RoomUsageEngine:
         else:
             self._cancel_deadline()
         self._publish(now)
-        self._store.async_delay_save(self._serialize, 1)
+        self._schedule_save()
 
     def _schedule_deadline(self) -> None:
         """Schedule exactly one callback for the next cleaning deadline."""
@@ -315,7 +327,6 @@ class RoomUsageEngine:
         self._stop()
         now = dt_util.utcnow()
         self._commit_active_session(now)
-        self._publish(now)
         await self._async_save()
         self._subscribers.clear()
 

@@ -2,6 +2,7 @@
 
 from collections import Counter
 from dataclasses import dataclass
+from collections.abc import Callable
 import logging
 
 from homeassistant.helpers.device_registry import EVENT_DEVICE_REGISTRY_UPDATED
@@ -12,7 +13,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_ENTITY_ID,
-    EVENT_STATE_CHANGED,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     ATTR_UNIT_OF_MEASUREMENT,
@@ -20,6 +20,7 @@ from homeassistant.const import (
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_state_change_event
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
@@ -30,7 +31,6 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoEnvironment,
-    EnvironmentState,
 )
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
@@ -227,6 +227,10 @@ class AreaAggregateSensorManager:
         self.area = area
         self._sensors: dict[str, AreaAggregateSensor | AreaEnergyAggregateSensor] = {}
         self._known_source_ids: set[str] = set()
+        self._remove_source_listener: Callable[[], None] | None = None
+        self._remove_refresh_timer: Callable[[], None] | None = None
+        self._pending_add_entities: AddEntitiesCallback | None = None
+        self._pending_prune_missing = False
 
     def create_sensors(self) -> list[AreaAggregateSensor | AreaEnergyAggregateSensor]:
         """Create initial aggregate sensors."""
@@ -242,12 +246,8 @@ class AreaAggregateSensorManager:
     @callback
     def async_start(self, async_add_entities: AddEntitiesCallback) -> None:
         """Start listening for source discovery changes."""
-        self.area.hass_config.async_on_unload(
-            self.area.hass.bus.async_listen(
-                EVENT_STATE_CHANGED,
-                self._state_changed,
-            )
-        )
+        self._refresh_source_listener()
+        self.area.hass_config.async_on_unload(self._cleanup)
         self.area.hass_config.async_on_unload(
             self.area.hass.bus.async_listen(
                 EVENT_ENTITY_REGISTRY_UPDATED,
@@ -260,7 +260,7 @@ class AreaAggregateSensorManager:
                 self._registry_changed,
             )
         )
-        self.async_refresh(async_add_entities)
+        self._schedule_refresh(async_add_entities)
 
     @callback
     def _refresh_known_source_ids(self) -> None:
@@ -271,6 +271,28 @@ class AreaAggregateSensorManager:
             self.area.config,
             domain=SENSOR_DOMAIN,
         )
+        self._refresh_source_listener()
+
+    @callback
+    def _refresh_source_listener(self) -> None:
+        """Listen only to current Area sensor candidates."""
+        if self._remove_source_listener is not None:
+            self._remove_source_listener()
+            self._remove_source_listener = None
+        if self._known_source_ids:
+            self._remove_source_listener = async_track_state_change_event(
+                self.area.hass, sorted(self._known_source_ids), self._state_changed
+            )
+
+    @callback
+    def _cleanup(self) -> None:
+        """Cancel dynamic listeners and pending discovery work."""
+        if self._remove_source_listener is not None:
+            self._remove_source_listener()
+            self._remove_source_listener = None
+        if self._remove_refresh_timer is not None:
+            self._remove_refresh_timer()
+            self._remove_refresh_timer = None
 
     @callback
     def _state_changed(self, event: Event) -> None:
@@ -291,13 +313,39 @@ class AreaAggregateSensorManager:
             return
         if new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
-        self.async_refresh(prune_missing=False)
+        self._schedule_refresh(prune_missing=False)
 
     @callback
     def _registry_changed(self, _event: Event) -> None:
         """Refresh discovery after registry membership may have changed."""
         self._refresh_known_source_ids()
-        self.async_refresh(prune_missing=True)
+        self._schedule_refresh(prune_missing=True)
+
+    @callback
+    def _schedule_refresh(
+        self,
+        async_add_entities: AddEntitiesCallback | None = None,
+        *,
+        prune_missing: bool = False,
+    ) -> None:
+        """Coalesce registry and metadata bursts into one discovery pass."""
+        if async_add_entities is not None:
+            self._pending_add_entities = async_add_entities
+        self._pending_prune_missing |= prune_missing
+        if self._remove_refresh_timer is not None:
+            return
+
+        @callback
+        def _run(_now=None) -> None:
+            self._remove_refresh_timer = None
+            add_entities = self._pending_add_entities
+            self._pending_add_entities = None
+            prune = self._pending_prune_missing
+            self._pending_prune_missing = False
+            self.async_refresh(add_entities, prune_missing=prune)
+
+        handle = self.area.hass.loop.call_soon(_run)
+        self._remove_refresh_timer = handle.cancel
 
     @callback
     def async_refresh(
@@ -339,12 +387,15 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
 
     feature_info = AdaptiveAreasFeatureInfoEnvironment()
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [str(state) for state in EnvironmentState]
+    _attr_options = ["off", "on"]
 
     def __init__(self, area: AdaptiveArea) -> None:
         """Initialize the Environment sensor."""
         AdaptiveEntity.__init__(self, area, domain=SENSOR_DOMAIN)
         SensorEntity.__init__(self)
+        self._last_public_state: tuple[str, tuple[tuple[str, object], ...]] | None = (
+            None
+        )
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to assessment transitions."""
@@ -355,132 +406,126 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         )
         self._assessment_changed()
 
-    @staticmethod
-    def _used_entity_ids(
-        assessment: dict, source_key: str = "source_entities"
-    ) -> list[str]:
-        """Return a flat list of entities that contributed to the assessment."""
-        entity_ids: set[str] = set()
-        for source in assessment.get(source_key, {}).values():
-            entity_id = source.get("entity_id")
-            if (
-                source.get("available")
-                and isinstance(entity_id, str)
-                and entity_id.startswith("sensor.")
-            ):
-                entity_ids.add(entity_id)
-            entity_ids.update(
-                entity["entity_id"]
-                for entity in source.get("entities", [])
-                if entity.get("entity_id", "").startswith("sensor.")
-            )
-        return sorted(entity_ids)
-
-    def _assessment_changed(self) -> None:
-        """Publish stable assessment outputs and transparent source attribution."""
-        if self.area.environment is None:
-            return
-        assessment = self.area.environment.assessment
-        self._attr_native_value = str(assessment.get("state", "unknown"))
-        if self.area.is_exterior():
-            self._attr_extra_state_attributes = {
-                "temperature": assessment.get("temperature"),
-                "relative_humidity": assessment.get("relative_humidity"),
-                "humidity": str(assessment.get("humidity", "unknown")),
-                "pollutant_state": str(assessment.get("pollutant_state", "unknown")),
-                "dew_point": assessment.get("dew_point"),
-                "absolute_humidity": assessment.get("absolute_humidity"),
-                "humidity_ratio": assessment.get("humidity_ratio"),
-                "enthalpy": assessment.get("enthalpy"),
-                "air_quality": str(assessment.get("air_quality", "unknown")),
-                "pollutant_measurements": dict(assessment.get("pollutants", {})),
-                "pollutant_assessments": assessment.get("pollutant_assessments", {}),
-                "source_entities": self._used_entity_ids(assessment),
-                "ignored_sources": assessment.get("ignored_sources", {}),
-                "available_capabilities": sorted(
-                    capability
-                    for capability, available in assessment.get(
-                        "capabilities", {}
-                    ).items()
-                    if available
-                ),
-                "context": assessment.get("context", ""),
-                "reason_codes": list(assessment.get("reason_codes", [])),
-                "recommended_action": str(assessment.get("recommended_action", "none")),
-                "secondary_actions": list(assessment.get("secondary_actions", [])),
-                "recommendation_reason_codes": list(
-                    assessment.get("recommendation_reason_codes", [])
-                ),
-            }
-            self.async_write_ha_state()
-            return
-        attributes = {
-            "comfort": str(assessment.get("comfort", "unknown")),
-            "room_category": str(assessment.get("room_category", "unknown")),
-            "humidity": str(assessment.get("humidity", "unknown")),
-            "mould_risk": str(assessment.get("mould_risk", "unknown")),
-            "pollutant_state": str(assessment.get("pollutant_state", "unknown")),
-            "dominant_indoor_pollutant": assessment.get(
-                "dominant_indoor_pollutant", "unknown"
+    def _build_public_environment_state(
+        self, assessment: dict
+    ) -> tuple[str, dict[str, object]]:
+        """Map the internal assessment to a small qualitative public state."""
+        german = str(self.hass.config.language).startswith("de")
+        values = {
+            "comfortable": "angenehm" if german else "comfortable",
+            "cold": "zu kalt" if german else "too cold",
+            "cool": "kühl" if german else "cool",
+            "warm": "zu warm" if german else "too warm",
+            "hot": "zu warm" if german else "too warm",
+            "very_hot": "zu warm" if german else "too warm",
+            "very_dry": "zu niedrig" if german else "too low",
+            "dry": "zu niedrig" if german else "too low",
+            "normal": "normal",
+            "elevated": "erhöht" if german else "elevated",
+            "high": "zu hoch" if german else "too high",
+            "very_high": "sehr hoch" if german else "very high",
+            "good": "gut" if german else "good",
+            "degraded": "eingeschränkt" if german else "limited",
+            "poor": "schlecht" if german else "poor",
+            "critical": "kritisch" if german else "critical",
+            "low": "gering" if german else "low",
+        }
+        comfort = str(assessment.get("comfort", ""))
+        humidity = str(assessment.get("humidity", ""))
+        air_quality = str(
+            assessment.get("air_quality", assessment.get("pollutant_state", ""))
+        )
+        pollutant_state = str(assessment.get("pollutant_state", ""))
+        mould_risk = str(assessment.get("mould_risk", ""))
+        recommendation_codes = [
+            str(assessment.get("recommended_action", "none")),
+            *[str(action) for action in assessment.get("secondary_actions", [])],
+        ]
+        recommendations = {
+            "none": "Keine Maßnahme nötig" if german else "No action needed",
+            "ventilate": "Raum lüften" if german else "Ventilate the room",
+            "close_windows": "Fenster schließen" if german else "Close the windows",
+            "cool": "Raum kühlen" if german else "Cool the room",
+            "monitor": "Situation beobachten" if german else "Monitor the situation",
+            "clean_air": "Luft reinigen" if german else "Clean the air",
+        }
+        recommendation = next(
+            (
+                recommendations[code]
+                for code in recommendation_codes
+                if code in recommendations
             ),
-            "air_quality": str(assessment.get("air_quality", "unknown")),
-            "ventilation_demand": str(assessment.get("ventilation_demand", "unknown")),
-            "ventilation_activity": str(
-                assessment.get("ventilation_activity", "inactive")
+            recommendations["none"],
+        )
+        notices: list[str] = []
+        reason_codes = {str(code) for code in assessment.get("reason_codes", [])}
+        notice_map = {
+            "humidity_high": (
+                "Luftfeuchtigkeit zu hoch" if german else "Humidity too high"
             ),
-            "ventilation_strategy": str(
-                assessment.get("ventilation_strategy", "unknown")
+            "humidity_very_high": (
+                "Luftfeuchtigkeit sehr hoch" if german else "Humidity very high"
             ),
-            "air_cleaning_recommendation": str(
-                assessment.get("air_cleaning_recommendation", "unknown")
+            "humidity_dry": (
+                "Luftfeuchtigkeit zu niedrig" if german else "Humidity too low"
             ),
-            "cooling": str(assessment.get("cooling", "unknown")),
-            "moisture_ventilation": assessment.get("moisture_ventilation", "unknown"),
-            "air_exchange_suitability": str(
-                assessment.get("air_exchange_suitability", "unknown")
+            "high_co2": "CO₂ erhöht" if german else "CO₂ elevated",
+            "co2_critical": "CO₂ sehr hoch" if german else "CO₂ very high",
+            "primary_temperature_sensor_unavailable": (
+                "Temperaturdaten fehlen" if german else "Temperature data missing"
             ),
-            "outdoor_pollutant_measurements": assessment.get("outdoor_pollutants", {}),
-            "indoor_pollutant_measurements": dict(
-                assessment.get("indoor_pollutant_measurements", {})
-            ),
-            "indoor_pollutant_assessments": assessment.get(
-                "indoor_pollutant_assessments", {}
-            ),
-            # Deprecated compatibility aliases.
-            "pollutant_measurements": dict(assessment.get("pollutants", {})),
-            "pollutant_assessments": assessment.get("pollutant_assessments", {}),
-            "indoor_source_entities": self._used_entity_ids(
-                assessment, "indoor_source_entities"
-            ),
-            "outdoor_source_entities": self._used_entity_ids(
-                assessment, "outdoor_source_entities"
-            ),
-            "source_entities": self._used_entity_ids(assessment),
-            "window_recommendation": str(
-                assessment.get("window_recommendation", "none")
-            ),
-            "ventilation_fan_request": str(
-                assessment.get("ventilation_fan_request", "none")
-            ),
-            "circulation_fan_request": str(
-                assessment.get("circulation_fan_request", "none")
-            ),
-            "available_capabilities": sorted(
-                capability
-                for capability, available in assessment.get("capabilities", {}).items()
-                if available
-            ),
-            "context": assessment.get("context", ""),
-            "indoor_reason_codes": list(assessment.get("indoor_reason_codes", [])),
-            "mitigation_reason_codes": list(
-                assessment.get("mitigation_reason_codes", [])
-            ),
-            "reason_codes": list(assessment.get("reason_codes", [])),
-            "recommended_action": str(assessment.get("recommended_action", "none")),
-            "secondary_actions": list(assessment.get("secondary_actions", [])),
-            "recommendation_reason_codes": list(
-                assessment.get("recommendation_reason_codes", [])
+            "primary_humidity_sensor_unavailable": (
+                "Luftfeuchtedaten fehlen" if german else "Humidity data missing"
             ),
         }
+        notices.extend(notice_map[code] for code in reason_codes if code in notice_map)
+        operation = (
+            ("Eingeschränkt" if german else "Limited")
+            if any(
+                "unavailable" in code or "not_configured" in code
+                for code in reason_codes
+            )
+            else None
+        )
+        problem = (
+            comfort in {"cold", "warm", "hot", "very_hot"}
+            or humidity in {"very_dry", "dry", "high", "very_high"}
+            or air_quality in {"degraded", "poor", "critical"}
+            or pollutant_state in {"elevated", "poor", "critical"}
+            or mould_risk in {"elevated", "high"}
+            or any(code not in {"none", "monitor"} for code in recommendation_codes)
+            or any(
+                any(token in code for token in ("high", "critical", "elevated", "poor"))
+                for code in reason_codes
+            )
+        )
+        attributes: dict[str, object] = {}
+        for key, value in (
+            ("comfort", values.get(comfort)),
+            ("humidity", values.get(humidity)),
+            ("air_quality", values.get(air_quality)),
+            ("mould_risk", values.get(mould_risk)),
+        ):
+            if value is not None:
+                attributes[key] = value
+        attributes["recommendation"] = recommendation
+        if notices:
+            attributes["notices"] = sorted(set(notices))
+        if operation:
+            attributes["operation"] = operation
+        return ("on" if problem else "off"), attributes
+
+    def _assessment_changed(self) -> None:
+        """Publish only the qualitative, user-facing environment statement."""
+        if self.area.environment is None:
+            return
+        state, attributes = self._build_public_environment_state(
+            self.area.environment.assessment
+        )
+        public = (state, tuple(sorted(attributes.items())))
+        if public == self._last_public_state:
+            return
+        self._last_public_state = public
+        self._attr_native_value = state
         self._attr_extra_state_attributes = attributes
         self.async_write_ha_state()

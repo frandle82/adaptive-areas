@@ -384,11 +384,11 @@
     "binary_sensor": {
       "area_state": {
         "name": "Area State",
-        "state": {
-          "off": "Clear",
-          "on": "Occupied"
-        },
-        "state_attributes": {
+                "state": {
+                  "off": "Clear",
+                  "on": "Occupied"
+                },
+                "state_attributes": {
           "areas": {
             "name": "Areas"
           },
@@ -557,12 +557,13 @@
       "environment": {
         "name": "Area Climate",
         "state": {
-          "good": "Good",
-          "attention": "Attention needed",
-          "action_required": "Action required",
-          "unknown": "Unknown"
+          "on": "Problem detected",
+          "off": "No problem"
         },
         "state_attributes": {
+          "recommendation": {"name": "Recommendation"},
+          "notices": {"name": "Notes"},
+          "operation": {"name": "Operation"},
           "comfort": {
             "name": "Comfort",
             "state": {

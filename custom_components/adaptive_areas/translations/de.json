@@ -557,12 +557,13 @@
             "environment": {
                 "name": "Bereichsklima",
                 "state": {
-                    "good": "Gut",
-                    "attention": "Aufmerksamkeit erforderlich",
-                    "action_required": "Handlungsbedarf",
-                    "unknown": "Unbekannt"
+                    "on": "Problem erkannt",
+                    "off": "Kein Problem"
                 },
                 "state_attributes": {
+                    "recommendation": {"name": "Empfehlung"},
+                    "notices": {"name": "Hinweise"},
+                    "operation": {"name": "Betrieb"},
                     "comfort": {
                         "name": "Komfort",
                         "state": {

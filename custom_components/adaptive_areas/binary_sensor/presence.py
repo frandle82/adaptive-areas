@@ -1,10 +1,10 @@
 """Main presence tracking entity for Adaptive Areas."""
 
-import asyncio
 from collections import Counter
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
+import asyncio
 import logging
 
 from homeassistant.components.binary_sensor import (
@@ -28,7 +28,6 @@ from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
     async_track_state_report_event,
-    async_track_time_interval,
 )
 
 from custom_components.adaptive_areas.base.entities import BinaryAdaptiveEntity
@@ -83,7 +82,6 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     ONE_MINUTE,
     PRESENCE_CONTROL_VALID_ON_STATES,
-    UPDATE_INTERVAL,
     AreaStates,
     CalculationMode,
     AdaptiveAreasEvents,
@@ -124,6 +122,8 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         self._last_reason: str | None = None
         self._last_transition: datetime | None = None
         self._pending_reason: str | None = None
+        self._remove_update_callback: Callable[[], None] | None = None
+        self._pending_activity_reason: str | None = None
 
         self._load_presence_sensors()
 
@@ -137,10 +137,13 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             )
         )
 
-        if not self.area.is_meta():
+        # ``_sensors`` already contains only configured primary presence
+        # sources; secondary/control entities are deliberately excluded.
+        report_sensors = list(self._sensors)
+        if not self.area.is_meta() and report_sensors:
             self.async_on_remove(
                 async_track_state_report_event(
-                    self.hass, self._sensors, self._sensor_state_report
+                    self.hass, report_sensors, self._sensor_state_report
                 )
             )
 
@@ -184,18 +187,15 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                 )
             )
 
-        # Timed self update
-        delta = timedelta(seconds=UPDATE_INTERVAL)
-        self.async_on_remove(
-            async_track_time_interval(self.hass, self._update_state, delta)
-        )
-
         self.async_on_remove(self._cleanup_timers)
 
     @callback
     def _cleanup_timers(self) -> None:
         """Remove pending timers."""
         self._remove_clear_timeout()
+        if self._remove_update_callback is not None:
+            self._remove_update_callback()
+            self._remove_update_callback = None
 
     @callback
     def _validate_state_consistency(self, now: datetime | None = None) -> None:
@@ -349,7 +349,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             return None
 
         self._pending_reason = "secondary_state_change"
-        self.hass.async_create_task(self._async_update_state(0))
+        self._schedule_update()
 
     @callback
     def _presence_control_state_change(
@@ -374,7 +374,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         )
         if event.data["new_state"].state in PRESENCE_CONTROL_VALID_ON_STATES:
             self._pending_reason = "presence_control_on"
-        self.hass.async_create_task(self._async_update_state(0))
+        self._schedule_update()
 
     @callback
     def _sensor_state_report(self, event: Event[EventStateReportedData]) -> None:
@@ -417,9 +417,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             or (event.data["old_state"] and to_state == event.data["old_state"].state)
         ):
             if activity_reason is not None:
-                self.hass.async_create_task(
-                    self._async_update_state(0, activity_reason)
-                )
+                self._schedule_update(activity_reason)
             self._publish_metadata()
             return
 
@@ -437,7 +435,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                 entity_id,
                 to_state,
             )
-            self.hass.async_create_task(self._async_update_state(0))
+            self._schedule_update()
             return
 
         if to_state and not is_presence_source_active(
@@ -452,19 +450,31 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             # Clear the timeout
             self._remove_clear_timeout()
 
-        self.hass.async_create_task(self._async_update_state(0, activity_reason))
+        self._schedule_update(activity_reason)
 
-    async def _async_update_state(
-        self, timeout: int, activity_reason: str | None = None
-    ) -> None:
-        await asyncio.sleep(timeout)
-        self._update_state()
+    @callback
+    def _schedule_update(self, activity_reason: str | None = None) -> None:
+        """Schedule one same-loop state evaluation."""
         if activity_reason is not None:
+            self._pending_activity_reason = activity_reason
+        if self._remove_update_callback is not None:
+            return
+        self.hass.async_create_task(self._run_scheduled_update())
+
+    async def _run_scheduled_update(self) -> None:
+        """Run after Home Assistant has delivered all listeners for the event."""
+        await asyncio.sleep(0)
+        reason = self._pending_activity_reason
+        self._pending_activity_reason = None
+        self._update_state()
+        if self._is_on_clear_timeout() and self._get_clear_timeout() == 0:
+            self._update_state()
+        if reason is not None:
             async_dispatcher_send(
                 self.hass,
                 AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
                 self.area.id,
-                activity_reason,
+                reason,
             )
 
     @callback
