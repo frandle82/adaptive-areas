@@ -385,8 +385,8 @@ def test_air_quality_coverage_notice_is_public_but_values_are_not(
     _state, attributes = sensor._build_public_environment_state(engine.assessment)
 
     assert (
-        "Luftqualität eingeschränkt bewertet: CO₂ fehlt; Bewertung basiert derzeit "
-        "auf PM2.5."
+        "Luftqualität eingeschränkt bewertet: Bewertung anhand von PM2.5; "
+        "CO₂ ist derzeit nicht verfügbar."
     ) in attributes["notices"]
     assert "pollutant_assessments" not in attributes
     assert "co2" not in attributes
