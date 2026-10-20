@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.13 - 2026-10-20
+
+### Fixed
+
+- Prefer real rolling pollutant averages while marking live-value fallbacks as
+  `instant_indicative` instead of presenting them as official 8-/24-hour means.
+- Expose deterministic indoor and outdoor sensor-source mappings, including
+  configured sources that are temporarily unavailable.
+- Recommend brief ventilation when elevated CO2 conflicts with unfavorable or
+  hazardous outdoor air quality.
+
+### Validation
+
+- 292 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository lint checks passed.
+
 ## 1.6.9 - 2026-10-15
 
 ### Fixed

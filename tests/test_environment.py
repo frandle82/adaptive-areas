@@ -823,14 +823,14 @@ def test_worst_pollutant_does_not_request_ventilation_fan(
     engine = AreaEnvironmentEngine(area)
     assessment = engine.assessment
 
-    assert assessment["air_quality"] == AirQualityState.GOOD
+    assert assessment["air_quality"] == AirQualityState.CRITICAL
     assert assessment["pollutant_state"] == PollutantState.GOOD
     assert assessment["pollutant_assessments"]["pm25"]["quality"] == "limited"
     assert assessment["pollutant_assessments"]["pm25"]["current_state"] == (
         AirQualityState.CRITICAL
     )
-    assert assessment["state"] == EnvironmentState.ATTENTION
-    assert assessment["dominant_decision"] == "air_quality_provisional"
+    assert assessment["state"] == EnvironmentState.ACTION_REQUIRED
+    assert assessment["dominant_decision"] == "air_quality_critical"
     assert "PM2.5" in assessment["context"]
     assert assessment["source_entities"]["pm25"]["entities"][0]["entity_id"] == (
         "sensor.pm25"
@@ -1079,9 +1079,12 @@ def test_time_based_pollutant_needs_history_for_final_state(
     assessment = AreaEnvironmentEngine(area).assessment
 
     assert assessment["pollutant_state"] == PollutantState.UNKNOWN
-    assert assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert assessment["air_quality"] == expected_current
     assert assessment["pollutant_assessments"]["pm25"]["current_state"] == (
         expected_current
+    )
+    assert assessment["pollutant_assessments"]["pm25"]["assessment_method"] == (
+        "instant_indicative"
     )
 
 
@@ -1633,7 +1636,7 @@ def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
         UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     )
     engine = AreaEnvironmentEngine(area)
-    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["air_quality"] == AirQualityState.GOOD
     pm25 = engine.assessment["pollutant_assessments"]["pm25"]
     assert pm25["current"] == 10.0
     assert pm25["current_state"] == AirQualityState.GOOD
@@ -1658,7 +1661,7 @@ def test_pm_uses_observed_rolling_day(hass: HomeAssistant, freezer) -> None:
         },
     )
     engine.evaluate()
-    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["air_quality"] == AirQualityState.CRITICAL
 
     freezer.tick(18 * 60 * 60)
     engine.evaluate()
@@ -1706,7 +1709,7 @@ def test_limited_rolling_exceedance_does_not_set_severity(
     assert pm25["severity"] == AirQualityState.UNKNOWN
     assert pm25["provisional_alert"] is False
     assert engine.assessment["pollutant_state"] == PollutantState.UNKNOWN
-    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["air_quality"] == AirQualityState.GOOD
 
 
 def test_elevated_current_value_is_only_a_provisional_alert(
@@ -1733,7 +1736,7 @@ def test_elevated_current_value_is_only_a_provisional_alert(
     assert pm25["provisional_alert"] is True
     assert "high_pm25_current" in engine.assessment["reason_codes"]
     assert engine.assessment["pollutant_state"] == PollutantState.UNKNOWN
-    assert engine.assessment["air_quality"] == AirQualityState.UNKNOWN
+    assert engine.assessment["air_quality"] == AirQualityState.DEGRADED
 
 
 @pytest.mark.parametrize(
@@ -3007,6 +3010,26 @@ def test_environment_recommendation_priority_and_secondary_actions() -> None:
     assert result["recommended_action"] == "close_windows"
     assert result["secondary_actions"] == ["clean_air", "cool", "circulate_air"]
     assert result["recommendation_reason_codes"] == assessment["reason_codes"]
+
+
+def test_environment_recommendation_short_ventilation_conflict() -> None:
+    """High CO2 and hazardous outdoor air recommend brief ventilation."""
+    result = environment_recommendation(
+        {
+            "reason_codes": ["very_high_co2"],
+            "air_exchange_suitability": AirExchangeSuitability.HAZARDOUS,
+            "window_recommendation": WindowRecommendation.KEEP_CLOSED,
+            "ventilation_demand": VentilationDemand.URGENT,
+            "ventilation_strategy": VentilationStrategy.PASSIVE,
+            "air_cleaning_recommendation": AirCleaningRecommendation.NONE,
+            "cooling": "none",
+            "humidity": HumidityState.NORMAL,
+            "circulation_fan_request": CirculationFanRequest.NONE,
+            "ventilation_fan_request": VentilationFanRequest.NONE,
+            "state": EnvironmentState.ACTION_REQUIRED,
+        }
+    )
+    assert result["recommended_action"] == "short_ventilate"
 
 
 def test_legacy_room_usage_storage_migration() -> None:

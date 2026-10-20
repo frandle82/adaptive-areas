@@ -444,9 +444,16 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         recommendations = {
             "none": "Keine Maßnahme nötig" if german else "No action needed",
             "ventilate": "Raum lüften" if german else "Ventilate the room",
+            "short_ventilate": (
+                "Kurz lüften und Außenluft beachten"
+                if german
+                else "Ventilate briefly and monitor outdoor air"
+            ),
             "close_windows": "Fenster schließen" if german else "Close the windows",
             "cool": "Raum kühlen" if german else "Cool the room",
-            "reduce_humidity": "Luftfeuchtigkeit senken" if german else "Reduce humidity",
+            "reduce_humidity": (
+                "Luftfeuchtigkeit senken" if german else "Reduce humidity"
+            ),
             "circulate_air": "Luft bewegen" if german else "Circulate the air",
             "monitor": "Situation beobachten" if german else "Monitor the situation",
             "clean_air": "Luft reinigen" if german else "Clean the air",

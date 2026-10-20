@@ -499,8 +499,25 @@ def environment_recommendation(assessment: dict[str, Any]) -> dict[str, Any]:
     humidity = str(assessment.get("humidity", "unknown"))
     circulation = str(assessment.get("circulation_fan_request", "none"))
     ventilation_fan = str(assessment.get("ventilation_fan_request", "none"))
+    reasons = {
+        str(reason)
+        for reason in (
+            *assessment.get("reason_codes", []),
+            *assessment.get("indoor_reason_codes", []),
+        )
+    }
+    air_exchange = assessment.get("air_exchange_suitability")
+    co2_needs_ventilation = bool(
+        reasons & {"high_co2", "very_high_co2", "co2_hysteresis"}
+    )
+    outdoor_air_unfavourable = air_exchange in {
+        AirExchangeSuitability.UNFAVORABLE,
+        AirExchangeSuitability.HAZARDOUS,
+    }
 
-    if window == WindowRecommendation.CLOSE:
+    if co2_needs_ventilation and outdoor_air_unfavourable:
+        actions.append("short_ventilate")
+    elif window == WindowRecommendation.CLOSE:
         actions.append("close_windows")
     if (
         window == WindowRecommendation.OPEN
@@ -1682,6 +1699,16 @@ class AreaEnvironmentEngine:
                     "coverage_hours": round(coverage, 2),
                     "quality": quality,
                     "assessment_quality": quality,
+                    "instant_severity": str(current_state),
+                    "assessment_method": (
+                        (
+                            "rolling_8h"
+                            if device_class == SensorDeviceClass.OZONE
+                            else "rolling_24h"
+                        )
+                        if sufficient
+                        else "instant_indicative"
+                    ),
                     "provisional_alert": provisional_alert,
                     "basis": band.basis,
                     "basis_type": "scientific_guideline",
@@ -1748,14 +1775,13 @@ class AreaEnvironmentEngine:
                     }
                 if provisional_alert:
                     reasons.append(f"high_{name}_current")
-                if not sufficient:
-                    continue
-                if severity in (
+                if sufficient and severity in (
                     AirQualityState.DEGRADED,
                     AirQualityState.POOR,
                     AirQualityState.CRITICAL,
                 ):
                     reasons.append(f"high_{name}")
+                continue
             elif device_class == SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS:
                 state = (
                     AirQualityState.DEGRADED
@@ -1830,7 +1856,9 @@ class AreaEnvironmentEngine:
         )
 
     @staticmethod
-    def _valid_assessment_states(assessment: dict[str, Any]) -> list[AirQualityState]:
+    def _valid_assessment_states(
+        assessment: dict[str, Any], *, include_instant: bool = False
+    ) -> list[AirQualityState]:
         """Return only states backed by the required assessment quality."""
         states: list[AirQualityState] = []
         if assessment.get("assessment_quality") in {
@@ -1840,17 +1868,27 @@ class AreaEnvironmentEngine:
         }:
             with suppress(TypeError, ValueError):
                 states.append(AirQualityState(assessment.get("severity")))
+        if (
+            include_instant
+            and assessment.get("assessment_method") == "instant_indicative"
+        ):
+            with suppress(TypeError, ValueError):
+                states.append(AirQualityState(assessment.get("instant_severity")))
         if assessment.get("short_term_quality") == "sufficient":
             with suppress(TypeError, ValueError):
                 states.append(AirQualityState(assessment.get("short_term_state")))
         return states
 
     @classmethod
-    def _worst_valid_air_quality(cls, assessments: dict[str, Any]) -> AirQualityState:
+    def _worst_valid_air_quality(
+        cls, assessments: dict[str, Any], *, include_instant: bool = True
+    ) -> AirQualityState:
         """Return the worst state supported by complete or valid immediate data."""
         worst = AirQualityState.UNKNOWN
         for assessment in assessments.values():
-            for severity in cls._valid_assessment_states(assessment):
+            for severity in cls._valid_assessment_states(
+                assessment, include_instant=include_instant
+            ):
                 if AIR_QUALITY_RANK[severity] > AIR_QUALITY_RANK[worst]:
                     worst = severity
         return worst
@@ -1858,7 +1896,9 @@ class AreaEnvironmentEngine:
     @classmethod
     def _pollutant_state(cls, assessments: dict[str, Any]) -> PollutantState:
         """Return the worst valid classified pollutant severity."""
-        return POLLUTANT_STATE_BY_AIR_QUALITY[cls._worst_valid_air_quality(assessments)]
+        return POLLUTANT_STATE_BY_AIR_QUALITY[
+            cls._worst_valid_air_quality(assessments, include_instant=False)
+        ]
 
     @classmethod
     def _dominant_indoor_pollutant(cls, assessments: dict[str, Any]) -> str:
@@ -1868,7 +1908,9 @@ class AreaEnvironmentEngine:
         for name in DOMINANT_POLLUTANT_ORDER:
             assessment = assessments.get(name, {})
             severity = AirQualityState.UNKNOWN
-            for candidate in cls._valid_assessment_states(assessment):
+            for candidate in cls._valid_assessment_states(
+                assessment, include_instant=False
+            ):
                 if AIR_QUALITY_RANK[candidate] > AIR_QUALITY_RANK[severity]:
                     severity = candidate
             if AIR_QUALITY_RANK[severity] > AIR_QUALITY_RANK[worst]:
