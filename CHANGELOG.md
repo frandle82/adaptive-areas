@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.15 - 2026-10-20
+
+### Fixed
+
+- Preserve the prioritized order of public environment notices without a
+  second alphabetical sort or order-destroying deduplication.
+- Keep coverage notices last and limit public notices to the three most useful
+  messages.
+- Use stable singular/plural pollutant wording and severity-aware wording for
+  very high pollutant values.
+
+### Validation
+
+- 301 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository lint checks passed.
+
 ## 1.6.14 - 2026-10-20
 
 ### Added

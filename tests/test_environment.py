@@ -426,6 +426,102 @@ def test_air_quality_coverage_notice_when_all_sources_unavailable(
     ) in attributes["notices"]
 
 
+def test_public_notices_keep_priority_and_coverage_last(hass: HomeAssistant) -> None:
+    """Public notices retain priority order and limit coverage to the end."""
+    hass.config.language = "de"
+    area = _area(hass)
+    engine = SimpleNamespace(public_used_sensors=lambda: {})
+    area.environment = engine
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(
+        {
+            "air_quality": "critical",
+            "dominant_indoor_pollutant": "co2",
+            "reason_codes": ["very_high_co2", "mould_risk_high"],
+            "mitigation_reason_codes": [],
+            "air_quality_coverage": {
+                "expected": ["co2", "pm25"],
+                "available": ["pm25"],
+                "temporarily_unavailable": ["co2"],
+            },
+            "comfort": "comfortable",
+            "humidity": "normal",
+            "mould_risk": "high",
+            "recommended_action": "ventilate",
+            "secondary_actions": [],
+        }
+    )
+
+    assert attributes["notices"] == [
+        "Luftqualität kritisch: CO₂ ist sehr hoch.",
+        "Schimmelrisiko hoch",
+        "Luftqualität eingeschränkt bewertet: Bewertung anhand von PM2.5; "
+        "CO₂ ist derzeit nicht verfügbar.",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [
+        ("de", "Luftqualität schlecht: PM2.5 ist erhöht."),
+        ("en", "Air quality poor: PM2.5 is elevated."),
+    ],
+)
+def test_public_notice_uses_singular_pollutant_form(
+    hass: HomeAssistant, language: str, expected: str
+) -> None:
+    """A single pollutant uses singular grammar in public notices."""
+    hass.config.language = language
+    area = _area(hass)
+    area.environment = SimpleNamespace(public_used_sensors=lambda: {})
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(
+        {
+            "air_quality": "poor",
+            "dominant_indoor_pollutant": "pm25",
+            "reason_codes": ["high_pm25"],
+            "mitigation_reason_codes": [],
+            "air_quality_coverage": {},
+            "comfort": "comfortable",
+            "humidity": "normal",
+            "mould_risk": "low",
+            "recommended_action": "none",
+            "secondary_actions": [],
+        }
+    )
+
+    assert attributes["notices"] == [expected]
+
+
+def test_public_notice_uses_plural_pollutant_form(hass: HomeAssistant) -> None:
+    """Multiple pollutants are combined with plural grammar."""
+    hass.config.language = "de"
+    area = _area(hass)
+    area.environment = SimpleNamespace(public_used_sensors=lambda: {})
+    sensor = EnvironmentSensor(area)
+    sensor.hass = hass
+    _state, attributes = sensor._build_public_environment_state(
+        {
+            "air_quality": "poor",
+            "dominant_indoor_pollutant": "pm25",
+            "reason_codes": ["high_co2", "high_pm25"],
+            "mitigation_reason_codes": [],
+            "air_quality_coverage": {},
+            "comfort": "comfortable",
+            "humidity": "normal",
+            "mould_risk": "low",
+            "recommended_action": "none",
+            "secondary_actions": [],
+        }
+    )
+
+    assert attributes["notices"] == [
+        "Luftqualität schlecht: PM2.5 und CO₂ sind erhöht."
+    ]
+
+
 def test_temperature_humidity_are_basic_environment_minimum(
     hass: HomeAssistant,
 ) -> None:

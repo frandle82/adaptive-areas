@@ -560,6 +560,11 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             pollutant_causes.remove(dominant)
             pollutant_causes.insert(0, dominant)
         cause_labels = [pollutant_names[cause] for cause in pollutant_causes[:2]]
+        very_high_causes = {
+            pollutant_reasons[code]
+            for code in reason_code_list
+            if code.startswith("very_high_") and code in pollutant_reasons
+        }
         air_quality_problem = air_quality in {"degraded", "poor", "critical"}
         if air_quality_problem and cause_labels:
             quality_label = {
@@ -567,27 +572,51 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 "poor": "schlecht" if german else "poor",
                 "critical": "kritisch" if german else "critical",
             }[air_quality]
+            if len(cause_labels) == 1:
+                cause_text = (
+                    f"{cause_labels[0]} ist "
+                    f"{'sehr hoch' if pollutant_causes[0] in very_high_causes else 'erhöht'}."
+                    if german
+                    else f"{cause_labels[0]} is "
+                    f"{'very high' if pollutant_causes[0] in very_high_causes else 'elevated'}."
+                )
+            else:
+                cause_text = (
+                    f"{' und '.join(cause_labels)} sind erhöht."
+                    if german
+                    else f"{' and '.join(cause_labels)} are elevated."
+                )
             if german:
                 add_notice(
                     10,
-                    f"Luftqualität {quality_label}: {' und '.join(cause_labels)} sind erhöht.",
+                    f"Luftqualität {quality_label}: {cause_text}",
                 )
             else:
                 add_notice(
                     10,
-                    f"Air quality {quality_label}: {' and '.join(cause_labels)} are elevated.",
+                    f"Air quality {quality_label}: {cause_text}",
                 )
         elif cause_labels:
-            add_notice(
-                20,
-                (
-                    f"{ ' und '.join(cause_labels)} sind erhöht."
+            if len(cause_labels) == 1:
+                cause_text = (
+                    f"{cause_labels[0]} ist "
+                    f"{'sehr hoch' if pollutant_causes[0] in very_high_causes else 'erhöht'}."
+                    if german
+                    else f"{cause_labels[0]} is "
+                    f"{'very high' if pollutant_causes[0] in very_high_causes else 'elevated'}."
+                )
+            else:
+                cause_text = (
+                    f"{' und '.join(cause_labels)} sind erhöht."
                     if german
                     else f"{' and '.join(cause_labels)} are elevated."
-                ),
+                )
+            add_notice(
+                20,
+                cause_text,
             )
 
-        for code in reason_codes:
+        for code in reason_code_list:
             if code in notice_map and code not in pollutant_reasons:
                 priority = (
                     40 if code in {"mould_risk_elevated", "mould_risk_high"} else 50
@@ -634,7 +663,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         elif humidity_reason:
             add_notice(50, notice_map[humidity_reason])
 
-        for code in reason_codes:
+        for code in reason_code_list:
             if code.startswith("primary_") and code in notice_map:
                 add_notice(80, notice_map[code])
 
@@ -741,7 +770,7 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 attributes[key] = value
         attributes["recommendation"] = recommendation
         if notices:
-            attributes["notices"] = sorted(set(notices))
+            attributes["notices"] = notices
         if operation:
             attributes["operation"] = operation
         used_sensors = self.area.environment.public_used_sensors()
