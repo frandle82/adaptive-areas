@@ -446,6 +446,8 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             "ventilate": "Raum lüften" if german else "Ventilate the room",
             "close_windows": "Fenster schließen" if german else "Close the windows",
             "cool": "Raum kühlen" if german else "Cool the room",
+            "reduce_humidity": "Luftfeuchtigkeit senken" if german else "Reduce humidity",
+            "circulate_air": "Luft bewegen" if german else "Circulate the air",
             "monitor": "Situation beobachten" if german else "Monitor the situation",
             "clean_air": "Luft reinigen" if german else "Clean the air",
         }
@@ -471,6 +473,9 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             ),
             "high_co2": "CO₂ erhöht" if german else "CO₂ elevated",
             "co2_critical": "CO₂ sehr hoch" if german else "CO₂ very high",
+            "high_pm25": "Feinstaub erhöht" if german else "PM2.5 elevated",
+            "high_pm10": "Feinstaub erhöht" if german else "PM10 elevated",
+            "high_voc": "VOC erhöht" if german else "VOC elevated",
             "primary_temperature_sensor_unavailable": (
                 "Temperaturdaten fehlen" if german else "Temperature data missing"
             ),

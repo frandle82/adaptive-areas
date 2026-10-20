@@ -1023,10 +1023,11 @@ class AreaEnvironmentEngine:
             "name": state.name if state is not None else entity_id,
         }
 
-    def public_used_sensors(self) -> dict[str, list[str]]:
-        """Return the selected source IDs grouped by public capability."""
-        used: dict[str, set[str]] = {}
+    def public_used_sensors(self) -> dict[str, dict[str, list[str]]]:
+        """Return selected source IDs grouped by indoor/outdoor capability."""
+        used: dict[str, dict[str, set[str]]] = {}
         for source_key, source in self._source_entities.items():
+            location = "outdoor" if source_key.startswith("outdoor_") else "indoor"
             capability = source_key.removeprefix("outdoor_")
             entity_ids = {
                 entity.get("entity_id")
@@ -1036,11 +1037,17 @@ class AreaEnvironmentEngine:
             if isinstance(source.get("entity_id"), str):
                 entity_ids.add(source["entity_id"])
             if entity_ids:
-                used.setdefault(capability, set()).update(entity_ids)
+                used.setdefault(location, {}).setdefault(capability, set()).update(
+                    entity_ids
+                )
         return {
-            capability: sorted(entity_ids)
-            for capability, entity_ids in sorted(used.items())
-            if entity_ids
+            location: {
+                capability: sorted(entity_ids)
+                for capability, entity_ids in sorted(capabilities.items())
+                if entity_ids
+            }
+            for location, capabilities in sorted(used.items())
+            if capabilities
         }
 
     def _public_assessment_key(self, assessment: dict[str, Any]) -> tuple[Any, ...]:
@@ -1231,6 +1238,7 @@ class AreaEnvironmentEngine:
             ) or exterior.config.get(key, "")
             if not entity_id or entity_id in self._excluded_ids:
                 continue
+            used.append(entity_id)
             state = self.area.hass.states.get(entity_id)
             if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                 continue
@@ -1246,7 +1254,6 @@ class AreaEnvironmentEngine:
                         value, unit, UnitOfTemperature.CELSIUS
                     )
                 values.append(value)
-                used.append(entity_id)
             except TypeError, ValueError:
                 continue
         if not values and explicit_entity:
@@ -1278,6 +1285,7 @@ class AreaEnvironmentEngine:
                 SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
             )
         }
+        selected: dict[str, list[str]] = {name: [] for name in values}
         for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
             exterior = runtime.get(DATA_AREA_OBJECT)
             if exterior is None or exterior is self.area or not exterior.is_exterior():
@@ -1298,6 +1306,7 @@ class AreaEnvironmentEngine:
                     SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
                 ):
                     continue
+                selected[POLLUTANT_NAMES[device_class]].append(entity_id)
                 value, ignored_reason = self._pollutant_value(entity_id, device_class)
                 if value is None:
                     assert ignored_reason is not None
@@ -1307,6 +1316,14 @@ class AreaEnvironmentEngine:
         measurements: dict[str, float] = {}
         assessments: dict[str, Any] = {}
         for name, samples in values.items():
+            selected_ids = sorted(set(selected[name]))
+            if selected_ids:
+                self._source_entities[f"outdoor_{name}"] = {
+                    "mode": "exterior_air_quality",
+                    "entities": [
+                        self._source_descriptor(entity_id) for entity_id in selected_ids
+                    ],
+                }
             if not samples:
                 continue
             highest = max(value for value, _entity_id in samples)
@@ -1317,12 +1334,6 @@ class AreaEnvironmentEngine:
                 "aggregation": "conservative_maximum",
                 "source_entities": sorted(used),
                 "scale": "concentration",
-            }
-            self._source_entities[f"outdoor_{name}"] = {
-                "mode": "exterior_air_quality",
-                "entities": [
-                    self._source_descriptor(entity_id) for entity_id in sorted(used)
-                ],
             }
         return measurements, assessments
 
