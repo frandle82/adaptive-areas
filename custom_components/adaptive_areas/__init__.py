@@ -563,6 +563,8 @@ async def async_setup_entry(  # noqa: C901
             await adaptive_area.room_usage.async_sync_presence_state(
                 adaptive_area.is_occupied()
             )
+        if adaptive_area.environment is not None:
+            adaptive_area.environment.async_activate()
         _LOGGER.debug(
             "Adaptive Areas [%s]: platform setup: %.0f ms",
             adaptive_area.name,

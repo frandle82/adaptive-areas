@@ -520,7 +520,7 @@ class AdaptiveArea:
         if not self.is_meta() and self.has_feature(CONF_FEATURE_ENVIRONMENT):
             self.logger.debug("Area Climate enabled for %s", self.name)
             step_start = monotonic()
-            self.environment = AreaEnvironmentEngine(self)
+            self.environment = AreaEnvironmentEngine(self, activate=False)
             self.logger.debug(
                 "Adaptive Areas [%s]: environment init: %.0f ms",
                 self.name,

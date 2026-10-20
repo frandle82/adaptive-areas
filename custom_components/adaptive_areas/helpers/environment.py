@@ -27,7 +27,7 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.util.unit_conversion import (
     MassVolumeConcentrationConverter,
     TemperatureConverter,
@@ -556,7 +556,7 @@ def environment_recommendation(assessment: dict[str, Any]) -> dict[str, Any]:
 class AreaEnvironmentEngine:
     """Evaluate Area Climate without controlling devices."""
 
-    def __init__(self, area) -> None:
+    def __init__(self, area, *, activate: bool = True) -> None:
         """Initialize capability discovery, histories, and listeners."""
         self.area = area
         self.is_exterior = area.is_exterior()
@@ -638,8 +638,24 @@ class AreaEnvironmentEngine:
         self._last_comfort = ComfortState.UNKNOWN
         self._listeners: list[Callable[[], None]] = []
         self._remove_outdoor_listener: Callable[[], None] | None = None
+        self._remove_evaluation_timer: Callable[[], None] | None = None
         self._subscribers: list[Callable[[], None]] = []
-        self.assessment: dict[str, Any] = {}
+        self.assessment: dict[str, Any] = {
+            "state": EnvironmentState.UNKNOWN,
+            "capabilities": {},
+            "reason_codes": ["environment_not_activated"],
+        }
+        self._activated = False
+        self._debounce_runtime = not activate
+        if activate:
+            self.async_activate()
+
+    @callback
+    def async_activate(self) -> None:
+        """Activate runtime listeners and perform the first full evaluation."""
+        if self._activated:
+            return
+        self._activated = True
         tracked = {
             entity_id
             for entity_ids in self._sensor_ids.values()
@@ -660,19 +676,19 @@ class AreaEnvironmentEngine:
         if tracked:
             self._listeners.append(
                 async_track_state_change_event(
-                    area.hass, sorted(tracked), self._state_changed
+                    self.area.hass, sorted(tracked), self._state_changed
                 )
             )
         self._listeners.append(
             async_dispatcher_connect(
-                area.hass,
+                self.area.hass,
                 AdaptiveAreasEvents.AREA_STATE_CHANGED,
                 self._area_state_changed,
             )
         )
         self._listeners.append(
             async_dispatcher_connect(
-                area.hass,
+                self.area.hass,
                 AdaptiveAreasEvents.AREA_LOADED,
                 self._area_loaded,
             )
@@ -763,6 +779,22 @@ class AreaEnvironmentEngine:
             )
 
     @callback
+    def _schedule_evaluation(self, _event=None) -> None:
+        """Coalesce bursts of runtime input changes into one evaluation."""
+        if not self._debounce_runtime:
+            self.evaluate()
+            return
+        if self._remove_evaluation_timer is not None:
+            self._remove_evaluation_timer()
+
+        @callback
+        def _evaluate(_now=None) -> None:
+            self._remove_evaluation_timer = None
+            self.evaluate()
+
+        self._remove_evaluation_timer = async_call_later(self.area.hass, 0.5, _evaluate)
+
+    @callback
     def _area_loaded(
         self,
         area_type: str,
@@ -774,7 +806,7 @@ class AreaEnvironmentEngine:
         if area_type != AREA_TYPE_EXTERIOR:
             return
         self._refresh_outdoor_listener()
-        self.evaluate()
+        self._schedule_evaluation()
 
     def _discover_sensor_ids(self) -> dict[str, list[str]]:
         """Discover Area pollutants from official Home Assistant metadata."""
@@ -966,13 +998,13 @@ class AreaEnvironmentEngine:
 
     @callback
     def _state_changed(self, _event: Event[EventStateChangedData]) -> None:
-        self.evaluate()
+        self._schedule_evaluation()
 
     @callback
     def _area_state_changed(self, area_id: str, _states_tuple) -> None:
         if area_id != self.area.id:
             return
-        self.evaluate()
+        self._schedule_evaluation()
 
     def register_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         """Register an assessment listener and return its unsubscribe callback."""
@@ -990,6 +1022,21 @@ class AreaEnvironmentEngine:
             "entity_id": entity_id,
             "name": state.name if state is not None else entity_id,
         }
+
+    def _public_assessment_key(self, assessment: dict[str, Any]) -> tuple[Any, ...]:
+        """Return the qualitative values exposed to Environment entities."""
+        return tuple(
+            (key, assessment.get(key))
+            for key in (
+                "state",
+                "comfort",
+                "humidity",
+                "air_quality",
+                "mould_risk",
+                "recommended_action",
+                "secondary_actions",
+            )
+        )
 
     def _ignore_source(self, entity_id: str, reason: str) -> None:
         """Record why one discovered candidate did not contribute."""
@@ -2314,6 +2361,7 @@ class AreaEnvironmentEngine:
 
     def evaluate(self, *, trace: bool = True) -> None:
         """Evaluate all available dimensions and notify subscribers."""
+        previous_public = self._public_assessment_key(self.assessment)
         self._source_entities = {}
         self._ignored_sources = dict(self._discovery_ignored_sources)
         temperature = self._primary_value(
@@ -2460,8 +2508,9 @@ class AreaEnvironmentEngine:
                     reason_codes=assessment["reason_codes"],
                 )
             self._last_dominant_decision = dominant
-            for subscriber in list(self._subscribers):
-                subscriber()
+            if previous_public != self._public_assessment_key(assessment):
+                for subscriber in list(self._subscribers):
+                    subscriber()
             return
         co2_values = self._values(SensorDeviceClass.CO2)
         co2 = max(co2_values) if co2_values else None
@@ -2821,8 +2870,9 @@ class AreaEnvironmentEngine:
                 reason_codes=assessment["reason_codes"],
             )
         self._last_dominant_decision = dominant_decision
-        for subscriber in list(self._subscribers):
-            subscriber()
+        if previous_public != self._public_assessment_key(assessment):
+            for subscriber in list(self._subscribers):
+                subscriber()
 
     def _ignored_source_counts(self) -> dict[str, int]:
         """Summarize ignored sources without exposing entity identifiers."""
@@ -2838,10 +2888,37 @@ class AreaEnvironmentEngine:
             for reason in sorted(set(reasons))
         }
 
+    def _source_status(self) -> dict[str, dict[str, str | None]]:
+        """Describe structural membership separately from runtime availability."""
+        registry = async_get_entity_registry(self.area.hass)
+        statuses: dict[str, dict[str, str | None]] = {}
+        for source_key, entity_id in (
+            ("temperature", self.primary_temperature_entity),
+            ("humidity", self.primary_humidity_entity),
+        ):
+            if not entity_id:
+                statuses[source_key] = {
+                    "entity_id": None,
+                    "status": "missing_configuration",
+                }
+                continue
+            entry = registry.async_get(entity_id)
+            state = self.area.hass.states.get(entity_id)
+            if entry is None:
+                status = "missing_configuration"
+            elif state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                status = "temporarily_unavailable"
+            else:
+                status = "available"
+            statuses[source_key] = {"entity_id": entity_id, "status": status}
+        return statuses
+
     def diagnostics(self) -> dict[str, Any]:
         """Return privacy-safe capabilities, outputs, and recommendations."""
+        source_status = self._source_status()
         if self.is_exterior:
             return {
+                "source_status": source_status,
                 "capabilities": dict(self.assessment.get("capabilities", {})),
                 "derived": {
                     key: self.assessment[key]
@@ -2909,6 +2986,7 @@ class AreaEnvironmentEngine:
             "health_alert",
         )
         return {
+            "source_status": source_status,
             "capabilities": dict(self.assessment.get("capabilities", {})),
             "derived": {
                 key: self.assessment[key]
@@ -3000,6 +3078,9 @@ class AreaEnvironmentEngine:
 
     def unload(self) -> None:
         """Release listeners, subscribers, and bounded histories."""
+        if self._remove_evaluation_timer is not None:
+            self._remove_evaluation_timer()
+            self._remove_evaluation_timer = None
         if self._remove_outdoor_listener is not None:
             self._remove_outdoor_listener()
             self._remove_outdoor_listener = None
