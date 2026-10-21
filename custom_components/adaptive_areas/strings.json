@@ -561,9 +561,7 @@
           "off": "No problem"
         },
         "state_attributes": {
-          "recommendation": {"name": "Recommendation"},
           "notices": {"name": "Notes"},
-          "operation": {"name": "Operation"},
           "comfort": {
             "name": "Comfort",
             "state": {

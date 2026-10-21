@@ -522,6 +522,47 @@ def test_public_notice_uses_plural_pollutant_form(hass: HomeAssistant) -> None:
     ]
 
 
+def test_public_assessment_key_tracks_visible_notice_inputs(
+    hass: HomeAssistant,
+) -> None:
+    """Notice-affecting reasons and coverage trigger a public change."""
+    engine = AreaEnvironmentEngine(_area(hass))
+    base = {
+        "state": EnvironmentState.ATTENTION,
+        "comfort": ComfortState.COMFORTABLE,
+        "humidity": HumidityState.NORMAL,
+        "air_quality": AirQualityState.POOR,
+        "mould_risk": MouldRiskState.LOW,
+        "reason_codes": ["high_pm25"],
+        "mitigation_reason_codes": ["outdoor_air_drier"],
+        "air_quality_coverage": {
+            "expected": ["pm25"],
+            "available": ["pm25"],
+            "temporarily_unavailable": [],
+        },
+        "dominant_indoor_pollutant": "pm25",
+        "recommended_action": "ventilate",
+        "secondary_actions": [],
+    }
+
+    changed_mitigation = {**base, "mitigation_reason_codes": ["outdoor_air_polluted"]}
+    changed_coverage = {
+        **base,
+        "air_quality_coverage": {
+            "expected": ["co2", "pm25"],
+            "available": ["pm25"],
+            "temporarily_unavailable": ["co2"],
+        },
+    }
+
+    assert engine._public_assessment_key(base) != engine._public_assessment_key(
+        changed_mitigation
+    )
+    assert engine._public_assessment_key(base) != engine._public_assessment_key(
+        changed_coverage
+    )
+
+
 def test_temperature_humidity_are_basic_environment_minimum(
     hass: HomeAssistant,
 ) -> None:
@@ -561,7 +602,6 @@ def test_basic_high_humidity_explains_ventilation_need(
     _state, attributes = sensor._build_public_environment_state(engine.assessment)
 
     assert engine.assessment["evaluation_quality"] == "basic"
-    assert attributes["recommendation"] == "Raum lüften"
     assert (
         "Lüften empfohlen: Die Luftfeuchtigkeit ist zu hoch." in attributes["notices"]
     )
@@ -3363,14 +3403,9 @@ def test_environment_translation_value_coverage() -> None:
             "humidity",
             "air_quality",
             "mould_risk",
-            "recommendation",
             "notices",
-            "operation",
         }
         assert public_attributes <= set(environment["state_attributes"])
-        assert environment["state_attributes"]["recommendation"]["name"] == (
-            "Recommendation" if language == "en" else "Empfehlung"
-        )
         assert environment["state_attributes"]["notices"]["name"] == (
             "Notes" if language == "en" else "Hinweise"
         )

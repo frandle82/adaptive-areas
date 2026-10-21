@@ -1090,18 +1090,32 @@ class AreaEnvironmentEngine:
 
     def _public_assessment_key(self, assessment: dict[str, Any]) -> tuple[Any, ...]:
         """Return the qualitative values exposed to Environment entities."""
+
+        def stable(value: Any) -> Any:
+            if isinstance(value, dict):
+                return tuple((key, stable(value[key])) for key in sorted(value))
+            if isinstance(value, (list, tuple, set)):
+                normalized = tuple(stable(item) for item in value)
+                return tuple(sorted(normalized, key=repr))
+            return value
+
         return tuple(
-            (key, assessment.get(key))
+            (key, stable(assessment.get(key)))
             for key in (
                 "state",
                 "comfort",
                 "humidity",
                 "air_quality",
                 "mould_risk",
+                "reason_codes",
+                "mitigation_reason_codes",
+                "air_quality_coverage",
+                "dominant_indoor_pollutant",
                 "recommended_action",
                 "secondary_actions",
+                "used_sensors",
             )
-        )
+        ) + (("used_sensors", stable(self.public_used_sensors())),)
 
     def _ignore_source(self, entity_id: str, reason: str) -> None:
         """Record why one discovered candidate did not contribute."""

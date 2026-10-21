@@ -561,9 +561,7 @@
                     "off": "Kein Problem"
                 },
                 "state_attributes": {
-                    "recommendation": {"name": "Empfehlung"},
                     "notices": {"name": "Hinweise"},
-                    "operation": {"name": "Betrieb"},
                     "comfort": {
                         "name": "Komfort",
                         "state": {

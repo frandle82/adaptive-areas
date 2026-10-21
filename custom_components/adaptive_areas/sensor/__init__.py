@@ -441,31 +441,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
             str(assessment.get("recommended_action", "none")),
             *[str(action) for action in assessment.get("secondary_actions", [])],
         ]
-        recommendations = {
-            "none": "Keine Maßnahme nötig" if german else "No action needed",
-            "ventilate": "Raum lüften" if german else "Ventilate the room",
-            "short_ventilate": (
-                "Kurz lüften und Außenluft beachten"
-                if german
-                else "Ventilate briefly and monitor outdoor air"
-            ),
-            "close_windows": "Fenster schließen" if german else "Close the windows",
-            "cool": "Raum kühlen" if german else "Cool the room",
-            "reduce_humidity": (
-                "Luftfeuchtigkeit senken" if german else "Reduce humidity"
-            ),
-            "circulate_air": "Luft bewegen" if german else "Circulate the air",
-            "monitor": "Situation beobachten" if german else "Monitor the situation",
-            "clean_air": "Luft reinigen" if german else "Clean the air",
-        }
-        recommendation = next(
-            (
-                recommendations[code]
-                for code in recommendation_codes
-                if code in recommendations
-            ),
-            recommendations["none"],
-        )
         reason_code_list = [str(code) for code in assessment.get("reason_codes", [])]
         reason_codes = set(reason_code_list)
         mitigation_reason_codes = {
@@ -676,6 +651,38 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                     else "Ventilation recommended: Outdoor air supports moisture removal."
                 ),
             )
+        recommended_action = str(assessment.get("recommended_action", "none"))
+        if recommended_action == "short_ventilate":
+            add_notice(
+                30,
+                (
+                    "CO₂ ist sehr hoch, die Außenluft jedoch belastet; nur kurz lüften."
+                    if german
+                    else "CO₂ is very high, but outdoor air is polluted; ventilate only briefly."
+                ),
+            )
+        elif (
+            recommended_action in {"ventilate", "reduce_humidity"}
+            and not humidity_reason
+            and not prioritized_notices
+        ):
+            add_notice(
+                30,
+                (
+                    "Lüften empfohlen: Die Innenluft sollte ausgetauscht werden."
+                    if german
+                    else "Ventilation recommended: Indoor air should be exchanged."
+                ),
+            )
+        elif recommended_action == "close_windows" and not mitigation_reason_codes:
+            add_notice(
+                70,
+                (
+                    "Fenster besser geschlossen halten: Der Luftaustausch ist derzeit ungünstig."
+                    if german
+                    else "Keep the windows closed: Air exchange is currently unfavorable."
+                ),
+            )
         elif {
             "outdoor_air_more_humid",
             "outdoor_air_quality_unknown",
@@ -739,14 +746,6 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
                 enumerate(prioritized_notices), key=lambda item: item[1][0]
             )[:3]
         ]
-        operation = (
-            ("Eingeschränkt" if german else "Limited")
-            if any(
-                "unavailable" in code or "not_configured" in code
-                for code in reason_codes
-            )
-            else None
-        )
         problem = (
             comfort in {"cold", "warm", "hot", "very_hot"}
             or humidity in {"very_dry", "dry", "high", "very_high"}
@@ -768,11 +767,8 @@ class EnvironmentSensor(AdaptiveEntity, SensorEntity):
         ):
             if value is not None:
                 attributes[key] = value
-        attributes["recommendation"] = recommendation
         if notices:
             attributes["notices"] = notices
-        if operation:
-            attributes["operation"] = operation
         used_sensors = self.area.environment.public_used_sensors()
         if used_sensors:
             attributes["used_sensors"] = used_sensors
