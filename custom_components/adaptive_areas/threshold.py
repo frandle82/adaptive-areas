@@ -58,7 +58,7 @@ def create_illuminance_threshold(
         return None
 
     illuminance_sensors = [
-        sensor
+        sensor["entity_id"]
         for sensor in area.entities[SENSOR_DOMAIN]
         if ATTR_DEVICE_CLASS in sensor
         and sensor[ATTR_DEVICE_CLASS] == SensorDeviceClass.ILLUMINANCE
@@ -80,8 +80,15 @@ def create_illuminance_threshold(
             illuminance_threshold_hysteresis_percentage / 100
         )
 
-    illuminance_aggregate_entity_id = (
-        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_{area.slug}_aggregate_illuminance"
+    # A single illuminance source is already the complete signal.  Using the
+    # aggregate in that case can introduce a stale/indirect state change and
+    # unnecessarily couples the threshold to the aggregate platform.  Keep
+    # the aggregate as the source only when multiple illuminance sensors need
+    # to be combined.
+    illuminance_entity_id = (
+        illuminance_sensors[0]
+        if len(illuminance_sensors) == 1
+        else f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_{area.slug}_aggregate_illuminance"
     )
 
     _LOGGER.debug(
@@ -97,7 +104,7 @@ def create_illuminance_threshold(
             hass=hass,
             area=area,
             device_class=BinarySensorDeviceClass.LIGHT,
-            entity_id=illuminance_aggregate_entity_id,
+            entity_id=illuminance_entity_id,
             upper=illuminance_threshold,
             hysteresis=illuminance_threshold_hysteresis,
         )

@@ -102,6 +102,24 @@ async def setup_entities_sensor_illuminance_multiple(
     return mock_sensor_entities
 
 
+@pytest.fixture(name="entities_sensor_illuminance_single")
+async def setup_entities_sensor_illuminance_single(
+    hass: HomeAssistant,
+) -> list[MockSensor]:
+    """Create one illuminance source without an aggregate source."""
+    mock_sensor = MockSensor(
+        name="illuminance_sensor",
+        unique_id="illuminance_sensor",
+        native_value=0.0,
+        device_class=SensorDeviceClass.ILLUMINANCE,
+        native_unit_of_measurement=LIGHT_LUX,
+        unit_of_measurement=LIGHT_LUX,
+        extra_state_attributes={"unit_of_measurement": LIGHT_LUX},
+    )
+    await setup_mock_entities(hass, SENSOR_DOMAIN, {DEFAULT_MOCK_AREA: [mock_sensor]})
+    return [mock_sensor]
+
+
 # Tests
 
 
@@ -172,3 +190,29 @@ async def test_threshold_sensor_light(
     # Ensure threhsold sensor is cleared
     threshold_sensor_state = hass.states.get(threshold_sensor_id)
     assert_state(threshold_sensor_state, STATE_OFF)
+
+
+async def test_threshold_sensor_uses_single_illuminance_source(
+    hass: HomeAssistant,
+    entities_sensor_illuminance_single: list[MockSensor],
+    _setup_integration_threshold,
+) -> None:
+    """A single illuminance sensor is used directly by the threshold."""
+    threshold_sensor_id = (
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_threshold_kitchen_threshold_light"
+    )
+    aggregate_sensor_id = (
+        f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_kitchen_aggregate_illuminance"
+    )
+
+    assert hass.states.get(aggregate_sensor_id) is not None
+    assert_state(hass.states.get(threshold_sensor_id), STATE_OFF)
+
+    hass.states.async_set(
+        entities_sensor_illuminance_single[0].entity_id,
+        "667",
+        attributes={"unit_of_measurement": LIGHT_LUX},
+    )
+    await hass.async_block_till_done()
+    await asyncio.sleep(1)
+    assert_state(hass.states.get(threshold_sensor_id), STATE_ON)

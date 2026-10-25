@@ -13,7 +13,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.components.sun.const import STATE_ABOVE_HORIZON
-from homeassistant.const import STATE_ON, STATE_OPEN, STATE_PLAYING
+from homeassistant.const import STATE_OFF, STATE_ON, STATE_OPEN, STATE_PLAYING
 from homeassistant.core import (
     Event,
     EventStateChangedData,
@@ -742,24 +742,30 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             if not entity:
                 continue
 
-            has_valid_state = entity.state.lower() in {
+            entity_state = entity.state.lower()
+            state_to_add = None
+
+            # The automatically generated illuminance threshold has explicit
+            # light semantics: OFF means DARK and ON means BRIGHT.  Do not
+            # interpret UNKNOWN/UNAVAILABLE as DARK; preserve the last valid
+            # brightness state until the source becomes valid again.
+            if configurable_state in (AreaStates.DARK, AreaStates.DARK.value):
+                if entity_state == STATE_ON:
+                    state_to_add = AreaStates.BRIGHT
+                elif entity_state == STATE_OFF:
+                    state_to_add = AreaStates.DARK
+                elif entity_state in INVALID_STATES:
+                    if AreaStates.DARK in self.area.states:
+                        state_to_add = AreaStates.DARK
+                    elif AreaStates.BRIGHT in self.area.states:
+                        state_to_add = AreaStates.BRIGHT
+            elif entity_state in {
                 STATE_ON,
                 STATE_OPEN,
                 STATE_PLAYING,
                 STATE_ABOVE_HORIZON,
-            }
-            state_to_add = None
-
-            # Handle dark state from light sensor as an inverted configurable state
-            inverted_states = [AreaStates.DARK]
-
-            # Handle both forward and inverted configurable state
-            if configurable_state in inverted_states:
-                if not has_valid_state:
-                    state_to_add = configurable_state
-            else:
-                if has_valid_state:
-                    state_to_add = configurable_state
+            }:
+                state_to_add = configurable_state
 
             if state_to_add:
                 _LOGGER.debug(
@@ -767,9 +773,9 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                     self.area.name,
                     secondary_state_entity,
                     entity.state.lower(),
-                    configurable_state,
+                    state_to_add,
                 )
-                states.append(AreaStates(configurable_state))
+                states.append(AreaStates(state_to_add))
 
         # Meta-state bright
         if AreaStates.DARK in configurable_states and AreaStates.DARK not in states:
