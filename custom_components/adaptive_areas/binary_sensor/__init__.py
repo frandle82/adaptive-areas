@@ -1,6 +1,8 @@
 """Binary sensor control for adaptive areas."""
 
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from homeassistant.components.binary_sensor import (
     DOMAIN as BINARY_SENSOR_DOMAIN,
@@ -9,9 +11,14 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.device_registry import EVENT_DEVICE_REGISTRY_UPDATED
+from homeassistant.helpers.entity_registry import (
+    EVENT_ENTITY_REGISTRY_UPDATED,
+    async_get as async_get_entity_registry,
+)
 
 from custom_components.adaptive_areas.base.adaptive import (
     AdaptiveArea,
@@ -48,10 +55,153 @@ from custom_components.adaptive_areas.const import (
 )
 from custom_components.adaptive_areas.base.entities import BinaryAdaptiveEntity
 from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.sources import area_entity_ids
 from custom_components.adaptive_areas.threshold import create_illuminance_threshold
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class BinaryAggregateSourceGroup:
+    """Discovered binary sensor sources for one device class."""
+
+    device_class: str
+    entity_ids: list[str]
+
+
+def discover_binary_aggregate_source_groups(
+    area: AdaptiveArea,
+) -> list[BinaryAggregateSourceGroup]:
+    """Discover binary aggregate sources, including own generated entities."""
+    if not area.has_feature(CONF_FEATURE_AGGREGATION):
+        return []
+
+    config = area.feature_config(CONF_FEATURE_AGGREGATION)
+    allowed = config.get(
+        CONF_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+        DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
+    )
+    min_entities = config.get(CONF_AGGREGATES_MIN_ENTITIES, 0)
+    entity_ids = area_entity_ids(
+        area.hass, area.hass_config, area.config, domain=BINARY_SENSOR_DOMAIN
+    )
+    # Generated thresholds belong to this config entry and are intentionally
+    # excluded by area_entity_ids; include them once they exist in the registry.
+    registry = async_get_entity_registry(area.hass)
+    entity_ids.update(
+        entry.entity_id
+        for entry in registry.entities.get_entries_for_config_entry_id(
+            area.hass_config.entry_id
+        )
+        if entry.domain == BINARY_SENSOR_DOMAIN
+    )
+
+    grouped: dict[str, list[str]] = {}
+    for entity_id in sorted(entity_ids):
+        state = area.hass.states.get(entity_id)
+        device_class = state.attributes.get(ATTR_DEVICE_CLASS) if state else None
+        if device_class not in allowed:
+            continue
+        if entity_id.startswith(
+            f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{area.slug}_aggregate_"
+        ):
+            continue
+        grouped.setdefault(device_class, []).append(entity_id)
+
+    return [
+        BinaryAggregateSourceGroup(device_class, ids)
+        for device_class, ids in grouped.items()
+        if len(ids) >= min_entities
+    ]
+
+
+class AreaAggregateBinarySensorManager:
+    """Keep binary aggregate sources synchronized with registry discovery."""
+
+    def __init__(self, area: AdaptiveArea) -> None:
+        """Initialize the manager."""
+        self.area = area
+        self._aggregates: dict[str, AreaAggregateBinarySensor] = {}
+        self._remove_refresh: Callable[[], None] | None = None
+        self._pending_add_entities: AddEntitiesCallback | None = None
+
+    def create_sensors(self) -> list[AreaAggregateBinarySensor]:
+        """Create initially discoverable aggregates."""
+        entities = []
+        for group in discover_binary_aggregate_source_groups(self.area):
+            aggregate = AreaAggregateBinarySensor(
+                self.area, group.device_class, group.entity_ids
+            )
+            self._aggregates[group.device_class] = aggregate
+            entities.append(aggregate)
+        return entities
+
+    @callback
+    def async_start(self, async_add_entities: AddEntitiesCallback) -> None:
+        """Start registry and source metadata tracking."""
+        self._pending_add_entities = async_add_entities
+        self.area.hass_config.async_on_unload(self._cleanup)
+        self.area.hass_config.async_on_unload(
+            self.area.hass.bus.async_listen(
+                EVENT_ENTITY_REGISTRY_UPDATED, self._registry_changed
+            )
+        )
+        self.area.hass_config.async_on_unload(
+            self.area.hass.bus.async_listen(
+                EVENT_DEVICE_REGISTRY_UPDATED, self._registry_changed
+            )
+        )
+        self._schedule_refresh()
+
+    @callback
+    def _registry_changed(self, _event: Event) -> None:
+        """Refresh after entities enter or leave the area registry."""
+        self._schedule_refresh()
+
+    @callback
+    def _schedule_refresh(self) -> None:
+        """Coalesce registry bursts into one refresh."""
+        if self._remove_refresh is not None:
+            return
+
+        @callback
+        def _run(_now=None) -> None:
+            self._remove_refresh = None
+            self._refresh()
+
+        handle = self.area.hass.loop.call_soon(_run)
+        self._remove_refresh = handle.cancel
+
+    @callback
+    def _refresh(self) -> None:
+        """Update existing aggregates or add newly eligible ones."""
+        new_entities = []
+        seen = set()
+        for group in discover_binary_aggregate_source_groups(self.area):
+            seen.add(group.device_class)
+            aggregate = self._aggregates.get(group.device_class)
+            if aggregate is None:
+                aggregate = AreaAggregateBinarySensor(
+                    self.area, group.device_class, group.entity_ids
+                )
+                self._aggregates[group.device_class] = aggregate
+                new_entities.append(aggregate)
+            else:
+                aggregate.async_set_entity_ids(group.entity_ids)
+        for device_class, aggregate in self._aggregates.items():
+            if device_class not in seen:
+                aggregate.async_set_entity_ids([])
+        if new_entities and self._pending_add_entities is not None:
+            self._pending_add_entities(new_entities)
+
+    @callback
+    def _cleanup(self) -> None:
+        """Clean up pending refresh callbacks."""
+        if self._remove_refresh is not None:
+            self._remove_refresh()
+            self._remove_refresh = None
+
 
 # Classes
 
@@ -128,6 +278,7 @@ async def async_setup_entry(
     assert area is not None
 
     entities = []
+    aggregate_manager = None
 
     # Create main presence sensor
     if area.is_meta() and isinstance(area, AdaptiveMetaArea):
@@ -137,7 +288,8 @@ async def async_setup_entry(
 
     # Create extra sensors
     if area.has_feature(CONF_FEATURE_AGGREGATION):
-        entities.extend(create_aggregate_sensors(area))
+        aggregate_manager = AreaAggregateBinarySensorManager(area)
+        entities.extend(aggregate_manager.create_sensors())
         illuminance_threshold_sensor = create_illuminance_threshold(hass, area)
         if illuminance_threshold_sensor:
             entities.append(illuminance_threshold_sensor)
@@ -157,6 +309,9 @@ async def async_setup_entry(
 
     # Add all entities
     async_add_entities(entities)
+
+    if aggregate_manager is not None:
+        aggregate_manager.async_start(async_add_entities)
 
     # Cleanup
     if BINARY_SENSOR_DOMAIN in area.adaptive_entities:

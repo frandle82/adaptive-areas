@@ -221,7 +221,6 @@ async def test_area_secondary_state_change(
         )
         if state_tuples[1]:
             assert_in_attribute(area_binary_sensor, ATTR_STATES, state_tuples[1])
-
         # Turn entity on
         hass.states.async_set(entity_id, STATE_ON)
         await hass.async_block_till_done()
@@ -253,6 +252,49 @@ async def test_area_secondary_state_change(
         )
         if state_tuples[1]:
             assert_in_attribute(area_binary_sensor, ATTR_STATES, state_tuples[1])
+
+
+async def test_area_brightness_recovers_from_unavailable(
+    hass: HomeAssistant,
+    secondary_states_sensors: list[MockBinarySensor],
+    _setup_integration_secondary_states,
+) -> None:
+    """A live brightness state replaces restored state after recovery."""
+    area_sensor_entity_id = (
+        f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
+    )
+    brightness_entity_id = secondary_states_sensors[1].entity_id
+
+    hass.states.async_set(brightness_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+    assert_in_attribute(
+        hass.states.get(area_sensor_entity_id), ATTR_STATES, AreaStates.BRIGHT
+    )
+    assert_in_attribute(
+        hass.states.get(area_sensor_entity_id),
+        ATTR_STATES,
+        AreaStates.DARK,
+        negate=True,
+    )
+
+    for invalid_state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+        hass.states.async_set(brightness_entity_id, invalid_state)
+        await hass.async_block_till_done()
+        assert_in_attribute(
+            hass.states.get(area_sensor_entity_id), ATTR_STATES, AreaStates.BRIGHT
+        )
+
+    hass.states.async_set(brightness_entity_id, STATE_OFF)
+    await hass.async_block_till_done()
+    assert_in_attribute(
+        hass.states.get(area_sensor_entity_id), ATTR_STATES, AreaStates.DARK
+    )
+    assert_in_attribute(
+        hass.states.get(area_sensor_entity_id),
+        ATTR_STATES,
+        AreaStates.BRIGHT,
+        negate=True,
+    )
 
 
 # Test extended state

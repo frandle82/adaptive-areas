@@ -6,6 +6,8 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.components.group.binary_sensor import BinarySensorGroup
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.core import callback
+from homeassistant.helpers.event import async_track_state_change_event
 
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
@@ -37,6 +39,27 @@ class AreaSensorGroupBinarySensor(AdaptiveEntity, BinarySensorGroup):
             mode=device_class in AGGREGATE_MODE_ALL,
         )
         delattr(self, "_attr_name")
+
+    def async_set_entity_ids(self, entity_ids: list[str]) -> None:
+        """Update sources and listen for sources added after setup."""
+        previous = set(self._entity_ids)
+        self._entity_ids = list(dict.fromkeys(entity_ids))
+        if self.hass is not None:
+            added = [
+                entity_id for entity_id in self._entity_ids if entity_id not in previous
+            ]
+            if added:
+                self.async_on_remove(
+                    async_track_state_change_event(
+                        self.hass, added, self._async_group_state_changed
+                    )
+                )
+            self.async_write_ha_state()
+
+    @callback
+    def _async_group_state_changed(self, event) -> None:
+        """Recalculate the group after a dynamically added source changes."""
+        self.async_update_group_state()
 
     @property
     def extra_state_attributes(self):
