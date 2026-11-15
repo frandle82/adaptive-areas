@@ -25,6 +25,7 @@ from custom_components.adaptive_areas.dashboard import (
 )
 from custom_components.adaptive_areas.websocket import (
     _get_area,
+    async_update_area,
     async_register_websocket_commands,
 )
 from custom_components.adaptive_areas.panel import async_setup_panel
@@ -39,6 +40,7 @@ async def test_dashboard_overview_is_empty_without_loaded_areas(
     json.dumps(overview)
     assert overview == {
         "areas": [],
+        "enabled_feature_tabs": [],
         "counts": {
             "areas": 0,
             "meta_areas": 0,
@@ -70,7 +72,52 @@ async def test_dashboard_detail_handles_minimal_area(
         "adaptive_areas/get_area",
         "adaptive_areas/get_diagnostics",
         "adaptive_areas/subscribe_updates",
+        "adaptive_areas/get_area_configuration",
+        "adaptive_areas/create_area",
+        "adaptive_areas/update_area",
+        "adaptive_areas/delete_area",
     } <= set(hass.data["websocket_api"])
+
+
+async def test_dashboard_area_update_validates_then_reloads_once(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Admin writes keep ConfigEntry options atomic and reload exactly once."""
+    with patch.object(
+        hass.config_entries, "async_reload", new_callable=AsyncMock
+    ) as reload:
+        errors = await async_update_area(
+            hass,
+            basic_config_entry,
+            {CONF_ENABLED_FEATURES: {"environment": {}}},
+        )
+
+    assert errors == {}
+    assert "environment" in basic_config_entry.options[CONF_ENABLED_FEATURES]
+    reload.assert_awaited_once_with(basic_config_entry.entry_id)
+
+
+async def test_dashboard_area_update_returns_field_errors_without_mutation(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Invalid panel values remain a recoverable form error."""
+    original = dict(basic_config_entry.options)
+
+    errors = await async_update_area(
+        hass, basic_config_entry, {"clear_timeout": "not-a-number"}
+    )
+
+    assert "clear_timeout" in errors
+    assert dict(basic_config_entry.options) == original
+
+
+async def test_dashboard_area_update_cannot_change_regular_area_to_meta(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """A ConfigEntry cannot be rebound to a different Area ownership model."""
+    errors = await async_update_area(hass, basic_config_entry, {"type": "meta"})
+
+    assert errors == {"type": "Area type cannot change to or from Meta"}
 
 
 async def test_dashboard_controls_are_owned_deduplicated_and_json_safe(
@@ -224,7 +271,7 @@ async def test_dashboard_overview_websocket_command_returns_payload(
     await _call_dashboard_command(hass, connection, "adaptive_areas/get_overview")
 
     assert connection.result is not None
-    assert set(connection.result) == {"areas", "counts"}
+    assert set(connection.result) == {"areas", "counts", "enabled_feature_tabs"}
 
 
 async def test_dashboard_diagnostics_websocket_command_returns_payload(

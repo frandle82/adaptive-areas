@@ -22,6 +22,7 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_DARK,
     CONF_ACCENT_LIGHTS,
     CONF_DARK_ENTITY,
+    CONF_ENABLED_FEATURES,
     CONF_OVERHEAD_LIGHTS,
     CONF_SLEEP_LIGHTS,
     CONF_TASK_LIGHTS,
@@ -303,6 +304,7 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         "cleaning": _cleaning(area),
         "sources": _source_coverage(hass, sources),
         "controls": _controls(hass, area),
+        "enabled_features": sorted(area.config.get(CONF_ENABLED_FEATURES, {})),
     }
 
 
@@ -352,6 +354,13 @@ def build_overview(hass: HomeAssistant) -> dict[str, Any]:
     summaries = [build_area_summary(hass, area) for area in areas]
     return {
         "areas": summaries,
+        "enabled_feature_tabs": sorted(
+            {
+                feature
+                for summary in summaries
+                for feature in summary["enabled_features"]
+            }
+        ),
         "counts": {
             "areas": sum(not area.is_meta() for area in areas),
             "meta_areas": sum(area.is_meta() for area in areas),
