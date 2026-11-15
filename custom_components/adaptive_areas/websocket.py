@@ -26,19 +26,19 @@ def _get_area(hass: HomeAssistant, area_id: str):
     raise HomeAssistantError("Adaptive Area not found")
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command({vol.Required("type"): "adaptive_areas/get_overview"})
 @websocket_api.async_response
-@websocket_api.require_admin
 async def websocket_get_overview(hass, connection, msg):
     """Return the compact dashboard overview."""
     connection.send_result(msg["id"], build_overview(hass))
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): "adaptive_areas/get_area", vol.Required("area_id"): str}
 )
 @websocket_api.async_response
-@websocket_api.require_admin
 async def websocket_get_area(hass, connection, msg):
     """Return one detailed read-only area snapshot."""
     connection.send_result(
@@ -46,22 +46,22 @@ async def websocket_get_area(hass, connection, msg):
     )
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): "adaptive_areas/get_diagnostics"}
 )
 @websocket_api.async_response
-@websocket_api.require_admin
 async def websocket_get_diagnostics(hass, connection, msg):
     """Return compact dashboard diagnostics."""
     integration = await async_get_integration(hass, "adaptive_areas")
     connection.send_result(msg["id"], build_diagnostics(hass, integration.version))
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): "adaptive_areas/subscribe_updates"}
 )
 @websocket_api.async_response
-@websocket_api.require_admin
 async def websocket_subscribe_updates(hass, connection, msg):
     """Send changed area summaries for tracked runtime entities only."""
     entity_to_area = {
@@ -80,9 +80,11 @@ async def websocket_subscribe_updates(hass, connection, msg):
         if area := entity_to_area.get(entity_id):
             connection.send_event(msg["id"], {"area": build_area_summary(hass, area)})
 
-    remove_listener = async_track_state_change_event(
-        hass, list(entity_to_area), _state_changed
-    )
+    remove_listener = lambda: None
+    if entity_to_area:
+        remove_listener = async_track_state_change_event(
+            hass, list(entity_to_area), _state_changed
+        )
     connection.subscriptions[msg["id"]] = remove_listener
     connection.send_result(msg["id"])
 

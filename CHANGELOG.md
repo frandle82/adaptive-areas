@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.6.19-rc.2 - 2026-11-15
+
+### Fixed
+
+- Restore the Adaptive Areas dashboard WebSocket command handlers by applying
+  Home Assistant's required decorator order.
+- Keep the overview visible when live-update subscription fails and show a
+  controlled command/error-code message for dashboard requests.
+- Use the installed integration version for the dashboard frontend asset URL.
+
+### Validation
+
+- 319 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository pre-commit hooks and the whitespace check passed.
+
 ## 1.6.15 - 2026-10-20
 
 ### Fixed

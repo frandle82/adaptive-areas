@@ -1,6 +1,7 @@
 """Tests for the read-only Adaptive Areas dashboard DTOs."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,7 +21,10 @@ from custom_components.adaptive_areas.dashboard import (
     build_diagnostics,
     build_overview,
 )
-from custom_components.adaptive_areas.websocket import _get_area
+from custom_components.adaptive_areas.websocket import (
+    _get_area,
+    async_register_websocket_commands,
+)
 from custom_components.adaptive_areas.panel import async_setup_panel
 
 
@@ -144,3 +148,76 @@ async def test_panel_and_websocket_registration_are_idempotent(
     hass.http.async_register_static_paths.assert_awaited_once()
     register_panel.assert_awaited_once()
     assert hass.data["adaptive_areas_dashboard_websocket_registered"] is True
+
+
+class _DashboardConnection:
+    """Minimal WebSocket connection exercising registered command handlers."""
+
+    user = SimpleNamespace(is_admin=True)
+
+    def __init__(self) -> None:
+        self.result = None
+        self.events = []
+        self.subscriptions = {}
+
+    def send_result(self, _msg_id, result=None) -> None:
+        self.result = result
+
+    def send_event(self, _msg_id, event) -> None:
+        self.events.append(event)
+
+
+async def _call_dashboard_command(
+    hass: HomeAssistant, connection: _DashboardConnection, command: str
+) -> None:
+    """Call a command through HA's registered handler and schema."""
+    handler, schema = hass.data["websocket_api"][command]
+    message = {"id": 1, "type": command}
+    handler(hass, connection, message if schema is False else schema(message))
+    await hass.async_block_till_done()
+
+
+async def test_dashboard_overview_websocket_command_returns_payload(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """The registered overview command returns a successful runtime payload."""
+    _ = basic_config_entry
+    connection = _DashboardConnection()
+
+    await _call_dashboard_command(hass, connection, "adaptive_areas/get_overview")
+
+    assert connection.result is not None
+    assert set(connection.result) == {"areas", "counts"}
+
+
+async def test_dashboard_subscription_websocket_command_pushes_updates(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """The registered subscription command listens only to dashboard entities."""
+    _ = basic_config_entry
+    connection = _DashboardConnection()
+
+    await _call_dashboard_command(hass, connection, "adaptive_areas/subscribe_updates")
+    assert connection.result is None
+    assert connection.subscriptions
+
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    hass.states.async_set(
+        f"binary_sensor.adaptive_areas_presence_tracking_{area.slug}_area_state",
+        "on",
+    )
+    await hass.async_block_till_done()
+
+    assert connection.events
+    assert connection.events[0]["area"]["id"] == area.id
+
+
+async def test_dashboard_empty_subscription_is_successful(hass: HomeAssistant) -> None:
+    """No loaded Areas still produces a closable successful subscription."""
+    async_register_websocket_commands(hass)
+    connection = _DashboardConnection()
+
+    await _call_dashboard_command(hass, connection, "adaptive_areas/subscribe_updates")
+
+    assert connection.result is None
+    connection.subscriptions[1]()

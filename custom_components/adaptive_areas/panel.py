@@ -6,7 +6,9 @@ from homeassistant.components import panel_custom
 from homeassistant.components.frontend import async_panel_exists
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
+from custom_components.adaptive_areas.const import DOMAIN
 from custom_components.adaptive_areas.websocket import async_register_websocket_commands
 
 _PANEL_PATH = "adaptive-areas"
@@ -21,6 +23,7 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         return
     if async_panel_exists(hass, _PANEL_PATH):
         return
+    integration = await async_get_integration(hass, DOMAIN)
     asset_path = Path(__file__).parent / "frontend"
     await hass.http.async_register_static_paths(
         [StaticPathConfig(_STATIC_PATH, str(asset_path), cache_headers=False)]
@@ -31,6 +34,6 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         webcomponent_name="adaptive-areas-panel",
         sidebar_title="Adaptive Areas",
         sidebar_icon="mdi:floor-plan",
-        module_url=f"{_STATIC_PATH}/adaptive-areas-panel.js?v=1.6.18",
+        module_url=f"{_STATIC_PATH}/adaptive-areas-panel.js?v={integration.version}",
         require_admin=True,
     )

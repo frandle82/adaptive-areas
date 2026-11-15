@@ -1,6 +1,6 @@
 const TEXT = {
-  en: { overview: "Overview", areas: "Areas", diagnostics: "Diagnostics", loading: "Loading…", empty: "No Adaptive Areas configured.", error: "Adaptive Areas could not be loaded.", occupied: "Occupied", clear: "Clear", unavailable: "Unavailable" },
-  de: { overview: "Übersicht", areas: "Areas", diagnostics: "Diagnose", loading: "Laden…", empty: "Noch keine Adaptive Areas konfiguriert.", error: "Adaptive Areas konnte nicht geladen werden.", occupied: "Belegt", clear: "Frei", unavailable: "Nicht verfügbar" },
+  en: { overview: "Overview", areas: "Areas", diagnostics: "Diagnostics", loading: "Loading…", empty: "No Adaptive Areas configured.", error: "Adaptive Areas could not be loaded.", liveError: "Live updates are unavailable.", diagnosticsError: "Diagnostics could not be loaded.", detailError: "Area details could not be loaded.", occupied: "Occupied", clear: "Clear", unavailable: "Unavailable" },
+  de: { overview: "Übersicht", areas: "Areas", diagnostics: "Diagnose", loading: "Laden…", empty: "Noch keine Adaptive Areas konfiguriert.", error: "Adaptive Areas konnte nicht geladen werden.", liveError: "Live-Aktualisierung nicht verfügbar.", diagnosticsError: "Diagnose konnte nicht geladen werden.", detailError: "Area-Details konnten nicht geladen werden.", occupied: "Belegt", clear: "Frei", unavailable: "Nicht verfügbar" },
 };
 
 const escape = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
@@ -20,12 +20,24 @@ class AdaptiveAreasPanel extends HTMLElement {
     this._render();
     try {
       this._overview = await this._hass.callWS({ type: "adaptive_areas/get_overview" });
+    } catch (error) {
+      this._error = this._commandError("adaptive_areas/get_overview", error);
+      this._render();
+      return;
+    }
+    try {
       this._unsubscribe = await this._hass.connection.subscribeMessage(
-        (event) => this._updateArea(event.area),
-        { type: "adaptive_areas/subscribe_updates" },
+          (event) => this._updateArea(event.area),
+          { type: "adaptive_areas/subscribe_updates" },
       );
-    } catch (_error) { this._error = true; }
+    } catch (error) {
+      this._liveError = this._commandError("adaptive_areas/subscribe_updates", error);
+    }
     this._render();
+  }
+
+  _commandError(command, error) {
+    return { command, code: error?.code || "unknown_error", message: error?.message || "" };
   }
 
   _updateArea(area) {
@@ -35,13 +47,23 @@ class AdaptiveAreasPanel extends HTMLElement {
   }
 
   async _select(area) {
-    this._selected = await this._hass.callWS({ type: "adaptive_areas/get_area", area_id: area.id });
+    this._detailError = null;
+    try {
+      this._selected = await this._hass.callWS({ type: "adaptive_areas/get_area", area_id: area.id });
+    } catch (error) {
+      this._detailError = this._commandError("adaptive_areas/get_area", error);
+    }
     this._tab = "areas";
     this._render();
   }
 
   async _diagnostics() {
-    this._diagnosticsData ??= await this._hass.callWS({ type: "adaptive_areas/get_diagnostics" });
+    this._diagnosticsError = null;
+    try {
+      this._diagnosticsData ??= await this._hass.callWS({ type: "adaptive_areas/get_diagnostics" });
+    } catch (error) {
+      this._diagnosticsError = this._commandError("adaptive_areas/get_diagnostics", error);
+    }
     this._tab = "diagnostics";
     this._render();
   }
@@ -50,7 +72,8 @@ class AdaptiveAreasPanel extends HTMLElement {
     if (!this.isConnected) return;
     const t = this._text;
     const tab = this._tab || "overview";
-    const body = this._error ? `<ha-alert alert-type="error">${t.error}</ha-alert>` : !this._overview ? `<div class="center"><ha-spinner></ha-spinner>${t.loading}</div>` : this._content(tab, t);
+    const error = (label, detail) => `<ha-alert alert-type="error">${label}<br><small>${escape(detail.command)} · ${escape(detail.code)}</small></ha-alert>`;
+    const body = this._error ? error(t.error, this._error) : !this._overview ? `<div class="center"><ha-spinner></ha-spinner>${t.loading}</div>` : `${this._liveError ? error(t.liveError, this._liveError) : ""}${this._content(tab, t)}`;
     this.innerHTML = `<style>
       :host { display:block; padding:16px; max-width:1200px; margin:auto; color:var(--primary-text-color); }
       header, nav, .stats, .grid { display:flex; gap:12px; flex-wrap:wrap; } header { align-items:center; justify-content:space-between; } nav { margin:16px 0; } button { background:var(--secondary-background-color); color:inherit; border:0; border-radius:8px; padding:9px 13px; cursor:pointer; } button.active { background:var(--primary-color); color:var(--text-primary-color); } .stats > div, .card { padding:14px; border-radius:12px; background:var(--card-background-color); box-shadow:var(--ha-card-box-shadow, none); } .stats > div { min-width:110px; } .stats strong { display:block; font-size:1.4rem; } .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); } .card { text-align:left; color:inherit; } .meta { opacity:.7; } .center { display:grid; place-items:center; min-height:160px; gap:12px; } .section { margin:16px 0; } .sources { font-family:var(--code-font-family, monospace); font-size:.9em; } @media (max-width:600px) { :host { padding:12px; } .stats { display:grid; grid-template-columns:repeat(2, 1fr); } }
@@ -60,7 +83,8 @@ class AdaptiveAreasPanel extends HTMLElement {
   }
 
   _content(tab, t) {
-    if (tab === "diagnostics") return this._diagnosticsData ? this._diagnosticsView() : `<div class="center"><ha-spinner></ha-spinner></div>`;
+    if (tab === "diagnostics") return this._diagnosticsError ? `<ha-alert alert-type="error">${t.diagnosticsError}<br><small>${escape(this._diagnosticsError.command)} · ${escape(this._diagnosticsError.code)}</small></ha-alert>` : this._diagnosticsData ? this._diagnosticsView() : `<div class="center"><ha-spinner></ha-spinner></div>`;
+    if (tab === "areas" && this._detailError) return `<ha-alert alert-type="error">${t.detailError}<br><small>${escape(this._detailError.command)} · ${escape(this._detailError.code)}</small></ha-alert>`;
     if (tab === "areas" && this._selected) return this._detailView(this._selected, t);
     const counts = this._overview.counts;
     const cards = this._overview.areas.map((area) => this._card(area, t)).join("");
