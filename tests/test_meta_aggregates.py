@@ -6,6 +6,10 @@ from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAI
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
+from custom_components.adaptive_areas.binary_sensor import (
+    discover_binary_aggregate_source_groups,
+)
+from custom_components.adaptive_areas.const import DATA_AREA_OBJECT, MODULE_DATA
 from tests.const import MockAreaIds
 from tests.helpers import assert_state
 from tests.mocks import MockBinarySensor
@@ -14,6 +18,30 @@ _LOGGER = logging.getLogger(__name__)
 
 
 # Tests
+async def test_meta_binary_aggregate_discovers_child_entry_sources(
+    hass: HomeAssistant,
+    entities_binary_sensor_motion_all_areas_with_meta: dict[
+        MockAreaIds, list[MockBinarySensor]
+    ],
+    _setup_integration_all_areas_with_meta,
+) -> None:
+    """Meta discovery includes generated entities from child config entries."""
+    _ = entities_binary_sensor_motion_all_areas_with_meta
+    interior = next(
+        runtime[DATA_AREA_OBJECT]
+        for runtime in hass.data[MODULE_DATA].values()
+        if runtime[DATA_AREA_OBJECT].id == MockAreaIds.INTERIOR
+    )
+
+    groups = discover_binary_aggregate_source_groups(interior)
+
+    motion_group = next(group for group in groups if group.device_class == "motion")
+    assert (
+        f"binary_sensor.adaptive_areas_aggregates_{MockAreaIds.KITCHEN.value}_aggregate_motion"
+        in motion_group.entity_ids
+    )
+
+
 async def test_meta_aggregates_binary_sensor(
     hass: HomeAssistant,
     entities_binary_sensor_motion_all_areas_with_meta: dict[

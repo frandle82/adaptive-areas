@@ -82,6 +82,7 @@ from custom_components.adaptive_areas.services import (
     async_setup_services,
     async_unload_services,
 )
+from custom_components.adaptive_areas.panel import async_setup_panel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -344,6 +345,8 @@ async def async_setup_entry(  # noqa: C901
     hass: HomeAssistant, config_entry: ConfigEntry
 ):
     """Set up the component."""
+
+    await async_setup_panel(hass)
 
     remove_reload_timer: Callable[[], None] | None = None
     remove_repair_timer: Callable[[], None] | None = None

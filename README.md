@@ -17,6 +17,10 @@ Adaptive Areas knows when a room is occupied (and when it’s not) and reacts au
 
 Smart areas that just work, every time, out of the box. Fully customizable if you want it.
 
+### Adaptive Areas Dashboard
+
+Adaptive Areas includes an administrator-only, read-only sidebar dashboard at **Adaptive Areas**. It shows area status, sources, aggregates, environment data, and runtime diagnostics. The dashboard never changes configuration or automations.
+
 #### Download and install through [HACS (Home Assistant Community Store)](https://hacs.xyz/):
 
 [![Open your Home Assistant instance and add the Adaptive Areas repository to HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=frandle82&repository=adaptive-areas&category=integration)

@@ -49,6 +49,8 @@ from custom_components.adaptive_areas.const import (
     CONF_HEALTH_SENSOR_DEVICE_CLASSES,
     DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
     DEFAULT_HEALTH_SENSOR_DEVICE_CLASSES,
+    DATA_AREA_OBJECT,
+    MODULE_DATA,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoHealth,
     AdaptiveAreasFeatureInfoRoomUsage,
@@ -83,24 +85,42 @@ def discover_binary_aggregate_source_groups(
         DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
     )
     min_entities = config.get(CONF_AGGREGATES_MIN_ENTITIES, 0)
-    entity_ids = area_entity_ids(
-        area.hass, area.hass_config, area.config, domain=BINARY_SENSOR_DOMAIN
-    )
-    # Generated thresholds belong to this config entry and are intentionally
-    # excluded by area_entity_ids; include them once they exist in the registry.
     registry = async_get_entity_registry(area.hass)
-    entity_ids.update(
-        entry.entity_id
-        for entry in registry.entities.get_entries_for_config_entry_id(
-            area.hass_config.entry_id
+    if area.is_meta():
+        # Meta Areas aggregate generated entities of their children, not entities
+        # assigned to the Meta Area's own (non-physical) registry Area.
+        entity_ids = {
+            entry.entity_id
+            for runtime in area.hass.data.get(MODULE_DATA, {}).values()
+            if runtime[DATA_AREA_OBJECT].slug in area.child_areas
+            for entry in registry.entities.get_entries_for_config_entry_id(
+                runtime[DATA_AREA_OBJECT].hass_config.entry_id
+            )
+            if entry.domain == BINARY_SENSOR_DOMAIN
+        }
+    else:
+        entity_ids = area_entity_ids(
+            area.hass, area.hass_config, area.config, domain=BINARY_SENSOR_DOMAIN
         )
-        if entry.domain == BINARY_SENSOR_DOMAIN
-    )
+        # Generated thresholds belong to this config entry and are intentionally
+        # excluded by area_entity_ids; include them once they exist in the registry.
+        entity_ids.update(
+            entry.entity_id
+            for entry in registry.entities.get_entries_for_config_entry_id(
+                area.hass_config.entry_id
+            )
+            if entry.domain == BINARY_SENSOR_DOMAIN
+        )
 
     grouped: dict[str, list[str]] = {}
     for entity_id in sorted(entity_ids):
         state = area.hass.states.get(entity_id)
-        device_class = state.attributes.get(ATTR_DEVICE_CLASS) if state else None
+        entry = registry.async_get(entity_id)
+        device_class = (
+            state.attributes.get(ATTR_DEVICE_CLASS)
+            if state
+            else entry.device_class or entry.original_device_class if entry else None
+        )
         if device_class not in allowed:
             continue
         if entity_id.startswith(
