@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.19-rc.6 - 2026-11-15
+
+### Changed
+
+- Redesign the Adaptive Areas panel with role-aware navigation, a whole-home
+  summary, dense feature-aware Area cards, and responsive layouts.
+- Move diagnostics into the admin settings view while keeping dashboard reads
+  available to normal users.
+
+### Validation
+
+- 323 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository pre-commit hooks and the whitespace check passed.
+
 ## 1.6.19-rc.5 - 2026-11-15
 
 ### Added

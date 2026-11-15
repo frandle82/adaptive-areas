@@ -27,7 +27,6 @@ def _get_area(hass: HomeAssistant, area_id: str):
     raise HomeAssistantError("Adaptive Area not found")
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command({vol.Required("type"): "adaptive_areas/get_overview"})
 @websocket_api.async_response
 async def websocket_get_overview(hass, connection, msg):
@@ -35,7 +34,6 @@ async def websocket_get_overview(hass, connection, msg):
     connection.send_result(msg["id"], build_overview(hass))
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): "adaptive_areas/get_area", vol.Required("area_id"): str}
 )
@@ -58,7 +56,6 @@ async def websocket_get_diagnostics(hass, connection, msg):
     connection.send_result(msg["id"], build_diagnostics(hass, integration.version))
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): "adaptive_areas/subscribe_updates"}
 )
