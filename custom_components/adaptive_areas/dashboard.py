@@ -129,6 +129,69 @@ def _light_groups(hass: HomeAssistant, area: AdaptiveArea) -> list[dict[str, Any
     return groups
 
 
+def _environment(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any] | None:
+    """Return the public environment presentation, if the feature has data."""
+    for entity in _generated_states(hass, area):
+        state = hass.states.get(entity["entity_id"])
+        if state is None or "notices" not in state.attributes:
+            continue
+        return {
+            **entity,
+            **{
+                key: state.attributes[key]
+                for key in (
+                    "temperature",
+                    "humidity",
+                    "comfort",
+                    "air_quality",
+                    "mould_risk",
+                    "notices",
+                    "used_sensors",
+                )
+                if key in state.attributes
+            },
+        }
+    return None
+
+
+def _source_coverage(hass: HomeAssistant, entity_ids: list[str]) -> dict[str, int]:
+    """Return the availability of already configured area sources."""
+    states = [
+        _state_data(hass.states.get(entity_id), entity_id) for entity_id in entity_ids
+    ]
+    return {
+        "available": sum(state["available"] for state in states),
+        "total": len(states),
+    }
+
+
+def _room_usage(area: AdaptiveArea) -> dict[str, Any] | None:
+    """Return current, already calculated usage values."""
+    if area.room_usage is None:
+        return None
+    assessment = area.room_usage.assessment
+    return {
+        key: assessment[key]
+        for key in (
+            "presence_minutes_since_cleaning",
+            "current_occupancy_duration_seconds",
+        )
+        if key in assessment
+    }
+
+
+def _cleaning(area: AdaptiveArea) -> dict[str, Any] | None:
+    """Return the existing cleaning assessment without recomputing it."""
+    if area.room_usage is None:
+        return None
+    assessment = area.room_usage.assessment
+    return {
+        key: str(assessment[key]) if key == "cleaning_state" else assessment[key]
+        for key in ("cleaning_state", "due", "remaining_minutes_to_due")
+        if key in assessment
+    }
+
+
 def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]:
     """Build the compact stable DTO used by the overview and update events."""
     aggregates = _aggregates(hass, area)
@@ -136,6 +199,8 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         (item for item in aggregates if item.get("device_class") == "illuminance"), None
     )
     groups = _light_groups(hass, area)
+    presence_sources = area.get_presence_sensors()
+    sources = _area_sources(area)
     dark_source_id = area.config.get(CONF_DARK_ENTITY)
     dark_source = (
         _state_data(hass.states.get(dark_source_id), dark_source_id)
@@ -159,6 +224,10 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         "type": "meta" if area.is_meta() else "area",
         "occupied": area.is_occupied(),
         "active_states": sorted(str(state) for state in area.states),
+        "presence": {
+            "state": "occupied" if area.is_occupied() else "clear",
+            **_source_coverage(hass, presence_sources),
+        },
         "brightness": (
             {
                 "state": brightness_state,
@@ -175,10 +244,18 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
             {
                 "on": sum(group["on"] for group in groups),
                 "total": sum(group["total"] for group in groups),
+                "groups": [
+                    {key: group[key] for key in ("id", "name", "on", "total")}
+                    for group in groups
+                ],
             }
             if groups
             else None
         ),
+        "environment": _environment(hass, area),
+        "room_usage": _room_usage(area),
+        "cleaning": _cleaning(area),
+        "sources": _source_coverage(hass, sources),
     }
 
 
@@ -187,34 +264,6 @@ def build_area_detail(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]
     summary = build_area_summary(hass, area)
     aggregates = _aggregates(hass, area)
     dark_source_id = area.config.get(CONF_DARK_ENTITY)
-    environment = next(
-        (
-            state
-            for state in _generated_states(hass, area)
-            if state["entity_id"].startswith("sensor.")
-            and hass.states.get(state["entity_id"])
-            and "notices" in hass.states[state["entity_id"]].attributes
-        ),
-        None,
-    )
-    if environment is not None:
-        raw = hass.states.get(environment["entity_id"])
-        environment = {
-            **environment,
-            **{
-                key: raw.attributes.get(key)
-                for key in (
-                    "temperature",
-                    "humidity",
-                    "comfort",
-                    "air_quality",
-                    "mould_risk",
-                    "notices",
-                    "used_sensors",
-                )
-                if key in raw.attributes
-            },
-        }
     return {
         **summary,
         "presence": {
@@ -234,7 +283,7 @@ def build_area_detail(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]
         },
         "light_groups": _light_groups(hass, area),
         "aggregates": aggregates,
-        "environment": environment,
+        "environment": _environment(hass, area),
         "sources": [
             _state_data(hass.states.get(source), source)
             for source in _area_sources(area)

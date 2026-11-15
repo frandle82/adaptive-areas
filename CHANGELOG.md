@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.19-rc.4 - 2026-11-15
+
+### Changed
+
+- Enrich dashboard Area cards with existing presence coverage, light groups,
+  public environment assessments, room usage, cleaning, and source coverage.
+- Keep the presentation feature-aware and Home Assistant theme-native.
+
+### Validation
+
+- 322 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository pre-commit hooks and the whitespace check passed.
+
 ## 1.6.19-rc.3 - 2026-11-15
 
 ### Fixed
