@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.19-rc.5 - 2026-11-15
+
+### Added
+
+- Add read-model controls for configured lights and Adaptive Areas switches to
+  the dashboard, using Home Assistant's service and entity-permission model.
+
+### Validation
+
+- 323 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository pre-commit hooks and the whitespace check passed.
+
 ## 1.6.19-rc.4 - 2026-11-15
 
 ### Changed

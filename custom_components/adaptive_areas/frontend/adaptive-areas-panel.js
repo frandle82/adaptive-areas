@@ -21,6 +21,13 @@ class AdaptiveAreasPanel extends HTMLElement {
   }
 
   _commandError(command, error) { return { command, code: error?.code || "unknown_error" }; }
+  async _control(control) {
+    const key = control.entity_id;
+    this._pending ??= new Set(); this._pending.add(key); this._controlError = null; this._render();
+    try { await this._hass.callService(control.domain, control.state === "on" ? "turn_off" : "turn_on", { entity_id: key }); }
+    catch (_error) { this._controlError = key; }
+    finally { this._pending.delete(key); this._render(); }
+  }
   _updateArea(area) { if (!this._overview) return; this._overview.areas = this._overview.areas.map((item) => item.id === area.id ? area : item); this._render(); }
   async _select(area) { this._detailError = null; try { this._selected = await this._hass.callWS({ type: "adaptive_areas/get_area", area_id: area.id }); } catch (error) { this._detailError = this._commandError("adaptive_areas/get_area", error); } this._tab = "areas"; this._render(); }
   async _diagnostics() { this._diagnosticsError = null; try { this._diagnosticsData ??= await this._hass.callWS({ type: "adaptive_areas/get_diagnostics" }); } catch (error) { this._diagnosticsError = this._commandError("adaptive_areas/get_diagnostics", error); } this._tab = "diagnostics"; this._render(); }
@@ -37,6 +44,7 @@ class AdaptiveAreasPanel extends HTMLElement {
     this.querySelectorAll("[data-tab]").forEach((button) => button.onclick = () => button.dataset.tab === "diagnostics" ? this._diagnostics() : this._setTab(button.dataset.tab));
     this.querySelectorAll("[data-area]").forEach((button) => button.onclick = () => this._select(this._overview.areas.find((area) => area.id === button.dataset.area)));
     this.querySelectorAll("[data-back]").forEach((button) => button.onclick = () => this._setTab("overview"));
+    this.querySelectorAll("[data-control]").forEach((button) => button.onclick = () => this._control(this._overview.areas.flatMap((area) => area.controls || []).flatMap((group) => group.controls).find((control) => control.entity_id === button.dataset.control)));
   }
 
   _content(tab, t) { if (tab === "diagnostics") return this._diagnosticsError ? this._renderError(t.diagnosticsError, this._diagnosticsError) : this._diagnosticsData ? this._diagnosticsView(t) : `<div class="center"><ha-spinner></ha-spinner></div>`; if (tab === "areas") return this._detailError ? this._renderError(t.detailError, this._detailError) : this._selected ? this._detailView(this._selected, t) : this._areasView(t); return this._overviewView(t); }
@@ -50,7 +58,8 @@ class AdaptiveAreasPanel extends HTMLElement {
     const presence = area.presence ? `${area.presence.available} ${t.of} ${area.presence.total} ${t.sources.toLowerCase()}` : "";
     const groups = area.lights?.groups?.map((group) => `${escape(group.name)} ${group.on}/${group.total}`).join(" · ") || "";
     const coverage = area.sources?.total ? `${area.sources.available} ${t.of} ${area.sources.total} ${t.sources.toLowerCase()}` : "";
-    return `${area.presence ? `<div class="feature"><span>${t.presence}</span><strong>${this._state(area, t)}</strong><small>${presence}</small></div>` : ""}${area.brightness ? `<div class="feature"><span>${t.brightness}</span><strong>${this._brightness(area, t)}</strong></div>` : ""}${area.lights ? `<div class="feature"><span>${t.light}</span><strong>${this._lights(area, t)}</strong><small>${groups}</small></div>` : ""}${this._environment(area) ? `<div class="feature"><span>${t.environment}</span><strong>${this._environment(area)}</strong></div>` : ""}${coverage ? `<small class="coverage"><ha-icon icon="mdi:access-point"></ha-icon>${coverage}</small>` : ""}`;
+    const controls = (area.controls || []).map((group) => `<div class="feature"><span>${escape(group.name)}</span>${group.controls.map((control) => `<button class="control" data-control="${escape(control.entity_id)}" ${!control.available || this._pending?.has(control.entity_id) ? "disabled" : ""}>${escape(control.name)} · ${control.state === "on" ? t.on : t.unavailable}</button>`).join("")}</div>`).join("");
+    return `${area.presence ? `<div class="feature"><span>${t.presence}</span><strong>${this._state(area, t)}</strong><small>${presence}</small></div>` : ""}${area.brightness ? `<div class="feature"><span>${t.brightness}</span><strong>${this._brightness(area, t)}</strong></div>` : ""}${area.lights ? `<div class="feature"><span>${t.light}</span><strong>${this._lights(area, t)}</strong><small>${groups}</small></div>` : ""}${this._environment(area) ? `<div class="feature"><span>${t.environment}</span><strong>${this._environment(area)}</strong></div>` : ""}${controls}${coverage ? `<small class="coverage"><ha-icon icon="mdi:access-point"></ha-icon>${coverage}</small>` : ""}`;
   }
 
   _overviewView(t) {

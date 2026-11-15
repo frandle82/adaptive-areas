@@ -35,5 +35,5 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         sidebar_title="Adaptive Areas",
         sidebar_icon="mdi:floor-plan",
         module_url=f"{_STATIC_PATH}/adaptive-areas-panel.js?v={integration.version}",
-        require_admin=True,
+        require_admin=False,
     )

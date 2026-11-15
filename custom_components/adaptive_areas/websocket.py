@@ -11,6 +11,7 @@ from homeassistant.loader import async_get_integration
 from custom_components.adaptive_areas.dashboard import (
     _areas,
     _area_sources,
+    _controls,
     _generated_states,
     build_area_detail,
     build_area_summary,
@@ -71,6 +72,11 @@ async def websocket_subscribe_updates(hass, connection, msg):
             *_area_sources(area),
             *(state["entity_id"] for state in _generated_states(hass, area)),
             *area.get_presence_sensors(),
+            *(
+                control["entity_id"]
+                for group in _controls(hass, area)
+                for control in group["controls"]
+            ),
         }
     }
 

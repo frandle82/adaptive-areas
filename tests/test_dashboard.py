@@ -13,6 +13,8 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
     AREA_STATE_DARK,
     CONF_DARK_ENTITY,
+    CONF_ENABLED_FEATURES,
+    CONF_OVERHEAD_LIGHTS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
 )
@@ -61,6 +63,7 @@ async def test_dashboard_detail_handles_minimal_area(
     assert detail["presence"]["occupied"] is False
     assert detail["light_groups"] == []
     assert detail["environment"] is None
+    assert detail["controls"] == []
     json.dumps(detail)
     assert {
         "adaptive_areas/get_overview",
@@ -68,6 +71,40 @@ async def test_dashboard_detail_handles_minimal_area(
         "adaptive_areas/get_diagnostics",
         "adaptive_areas/subscribe_updates",
     } <= set(hass.data["websocket_api"])
+
+
+async def test_dashboard_controls_are_owned_deduplicated_and_json_safe(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Only configured area lights become safe, explicit control DTOs."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    light_id = "light.dashboard_control"
+    hass.states.async_set(light_id, "off", {"friendly_name": "Desk light"})
+    area.config[CONF_ENABLED_FEATURES] = {
+        "light_groups": {CONF_OVERHEAD_LIGHTS: [light_id, light_id]}
+    }
+
+    detail = build_area_detail(hass, area)
+
+    assert detail["controls"] == [
+        {
+            "id": CONF_OVERHEAD_LIGHTS,
+            "name": "Overhead",
+            "controls": [
+                {
+                    "entity_id": light_id,
+                    "name": "Desk light",
+                    "domain": "light",
+                    "state": "off",
+                    "available": True,
+                    "controllable": True,
+                    "actions": ["turn_on", "turn_off"],
+                    "icon": None,
+                }
+            ],
+        }
+    ]
+    json.dumps(detail["controls"])
 
 
 async def test_dashboard_marks_meta_areas_and_reports_diagnostics(

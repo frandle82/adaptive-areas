@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_FRIENDLY_NAME,
+    ATTR_ICON,
     ATTR_UNIT_OF_MEASUREMENT,
     STATE_ON,
     STATE_UNAVAILABLE,
@@ -126,6 +127,51 @@ def _light_groups(hass: HomeAssistant, area: AdaptiveArea) -> list[dict[str, Any
                 ],
             }
         )
+    return groups
+
+
+def _control(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
+    """Map one explicitly configured light or integration switch control."""
+    state = hass.states.get(entity_id)
+    domain = entity_id.split(".", 1)[0]
+    return {
+        "entity_id": entity_id,
+        "name": (
+            state.attributes.get(ATTR_FRIENDLY_NAME, entity_id) if state else entity_id
+        ),
+        "domain": domain,
+        "state": state.state if state else None,
+        "available": state is not None
+        and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN),
+        "controllable": domain in {"light", "switch"},
+        "actions": ["turn_on", "turn_off"],
+        "icon": state.attributes.get(ATTR_ICON) if state else None,
+    }
+
+
+def _controls(hass: HomeAssistant, area: AdaptiveArea) -> list[dict[str, Any]]:
+    """Return deduplicated controls already assigned to a non-meta Area."""
+    if area.is_meta():
+        return []
+    seen: set[str] = set()
+    groups = []
+    for group in _light_groups(hass, area):
+        controls = [
+            _control(hass, entity_id)
+            for entity_id in area.feature_config("light_groups").get(group["id"], [])
+            if entity_id not in seen and not seen.add(entity_id)
+        ]
+        if controls:
+            groups.append(
+                {"id": group["id"], "name": group["name"], "controls": controls}
+            )
+    switches = [
+        _control(hass, entry["entity_id"])
+        for entry in area.adaptive_entities.get("switch", [])
+        if entry.get("entity_id") not in seen and not seen.add(entry["entity_id"])
+    ]
+    if switches:
+        groups.append({"id": "switches", "name": "Controls", "controls": switches})
     return groups
 
 
@@ -256,6 +302,7 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         "room_usage": _room_usage(area),
         "cleaning": _cleaning(area),
         "sources": _source_coverage(hass, sources),
+        "controls": _controls(hass, area),
     }
 
 
@@ -288,6 +335,7 @@ def build_area_detail(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]
             _state_data(hass.states.get(source), source)
             for source in _area_sources(area)
         ],
+        "controls": summary["controls"],
     }
 
 
