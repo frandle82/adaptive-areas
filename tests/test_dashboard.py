@@ -190,6 +190,68 @@ async def test_dashboard_overview_websocket_command_returns_payload(
     assert set(connection.result) == {"areas", "counts"}
 
 
+async def test_dashboard_diagnostics_websocket_command_returns_payload(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """The registered diagnostics command returns a successful runtime payload."""
+    _ = basic_config_entry
+    connection = _DashboardConnection()
+
+    await _call_dashboard_command(hass, connection, "adaptive_areas/get_diagnostics")
+
+    assert connection.result is not None
+    assert connection.result["version"]
+    assert connection.result["area_count"] == 1
+    assert connection.result["warning_count"] == 0
+
+
+async def test_dashboard_diagnostics_degrades_for_malformed_optional_data(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """One malformed optional diagnostic value does not break the payload."""
+    _ = basic_config_entry
+    with patch(
+        "custom_components.adaptive_areas.dashboard.build_area_detail",
+        side_effect=ValueError,
+    ):
+        diagnostics = build_diagnostics(hass, "test")
+
+    assert diagnostics["warning_count"] == 1
+    assert diagnostics["issues"] == [
+        {
+            "severity": "warning",
+            "area_id": str(basic_config_entry.data["id"]),
+            "code": "diagnostics_unavailable",
+            "message": "Some diagnostics are unavailable.",
+        }
+    ]
+
+
+async def test_dashboard_diagnostics_reports_optional_source_and_aggregate_issues(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Unavailable sources and empty aggregates remain actionable diagnostics."""
+    _ = basic_config_entry
+    with patch(
+        "custom_components.adaptive_areas.dashboard.build_area_detail",
+        return_value={
+            "id": str(basic_config_entry.data["id"]),
+            "aggregates": [{"source_count": 0}],
+            "brightness_detail": {"dark_source": None},
+            "active_states": [],
+            "sources": [{"available": False}],
+        },
+    ):
+        diagnostics = build_diagnostics(hass, "test")
+
+    assert diagnostics["empty_aggregate_count"] == 1
+    assert diagnostics["unavailable_source_count"] == 1
+    assert {issue["code"] for issue in diagnostics["issues"]} == {
+        "empty_aggregate",
+        "unavailable_source",
+    }
+
+
 async def test_dashboard_subscription_websocket_command_pushes_updates(
     hass: HomeAssistant, basic_config_entry, _setup_integration_basic
 ) -> None:

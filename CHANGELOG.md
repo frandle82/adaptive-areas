@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.19-rc.3 - 2026-11-15
+
+### Fixed
+
+- Keep dashboard diagnostics available when an optional Area diagnostic cannot
+  be mapped, while reporting a compact warning for the affected Area.
+- Show unavailable sources and empty aggregates as compact dashboard issues.
+
+### Changed
+
+- Separate the dashboard overview, Area list, Area details, and Diagnostics
+  into distinct, localized Home Assistant-native views.
+
+### Validation
+
+- 322 tests passed against the configured Home Assistant stable environment;
+  1 test skipped.
+- Repository pre-commit hooks and the whitespace check passed.
+
 ## 1.6.19-rc.2 - 2026-11-15
 
 ### Fixed

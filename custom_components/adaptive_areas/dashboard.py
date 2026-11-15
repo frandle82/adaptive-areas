@@ -1,6 +1,7 @@
 """Read-only presentation data for the Adaptive Areas dashboard."""
 
 from collections.abc import Iterable
+import logging
 from typing import Any
 
 from homeassistant.const import (
@@ -33,6 +34,7 @@ _LIGHT_GROUPS = {
     CONF_ACCENT_LIGHTS: "Accent",
     CONF_SLEEP_LIGHTS: "Sleep",
 }
+_LOGGER = logging.getLogger(__name__)
 
 
 def _state_data(state: State | None, entity_id: str) -> dict[str, Any]:
@@ -134,6 +136,23 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         (item for item in aggregates if item.get("device_class") == "illuminance"), None
     )
     groups = _light_groups(hass, area)
+    dark_source_id = area.config.get(CONF_DARK_ENTITY)
+    dark_source = (
+        _state_data(hass.states.get(dark_source_id), dark_source_id)
+        if dark_source_id
+        else None
+    )
+    brightness_state = (
+        AREA_STATE_BRIGHT
+        if area.has_state(AREA_STATE_BRIGHT)
+        else AREA_STATE_DARK if area.has_state(AREA_STATE_DARK) else None
+    )
+    warning_count = sum(aggregate.get("source_count") == 0 for aggregate in aggregates)
+    if dark_source and (
+        (dark_source["state"] == STATE_ON and brightness_state == AREA_STATE_DARK)
+        or (dark_source["state"] == "off" and brightness_state == AREA_STATE_BRIGHT)
+    ):
+        warning_count += 1
     return {
         "id": str(area.id),
         "name": area.name,
@@ -142,11 +161,7 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         "active_states": sorted(str(state) for state in area.states),
         "brightness": (
             {
-                "state": (
-                    AREA_STATE_BRIGHT
-                    if area.has_state(AREA_STATE_BRIGHT)
-                    else AREA_STATE_DARK if area.has_state(AREA_STATE_DARK) else None
-                ),
+                "state": brightness_state,
                 "illuminance": illuminance.get("state") if illuminance else None,
                 "unit": illuminance.get("unit") if illuminance else None,
             }
@@ -155,6 +170,7 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
             or area.has_state(AREA_STATE_DARK)
             else None
         ),
+        "warning_count": warning_count,
         "lights": (
             {
                 "on": sum(group["on"] for group in groups),
@@ -253,9 +269,27 @@ def build_overview(hass: HomeAssistant) -> dict[str, Any]:
 def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any]:
     """Report simple read-only dashboard diagnostics."""
     areas = list(_areas(hass))
-    details = [build_area_detail(hass, area) for area in areas]
     issues = []
-    for detail in details:
+    adaptive_entity_count = 0
+    unavailable = 0
+    for area in areas:
+        try:
+            detail = build_area_detail(hass, area)
+        except Exception:  # Diagnostics must not hide every other Area.
+            _LOGGER.exception(
+                "Unable to build dashboard diagnostics for area %s", area.id
+            )
+            issues.append(
+                {
+                    "severity": "warning",
+                    "area_id": str(area.id),
+                    "code": "diagnostics_unavailable",
+                    "message": "Some diagnostics are unavailable.",
+                }
+            )
+            continue
+        adaptive_entity_count += len(_generated_states(hass, area))
+        unavailable += sum(not source["available"] for source in detail["sources"])
         for aggregate in detail["aggregates"]:
             if aggregate["source_count"] == 0:
                 issues.append(
@@ -280,16 +314,21 @@ def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any
                         "message": "Dark source and area brightness state disagree.",
                     }
                 )
-    unavailable = sum(
-        not source["available"] for detail in details for source in detail["sources"]
-    )
+        issues.extend(
+            {
+                "severity": "warning",
+                "area_id": detail["id"],
+                "code": "unavailable_source",
+                "message": "A source is unavailable.",
+            }
+            for source in detail["sources"]
+            if not source["available"]
+        )
     return {
         "version": version,
         "area_count": sum(not area.is_meta() for area in areas),
         "meta_area_count": sum(area.is_meta() for area in areas),
-        "adaptive_entity_count": sum(
-            len(_generated_states(hass, area)) for area in areas
-        ),
+        "adaptive_entity_count": adaptive_entity_count,
         "unavailable_source_count": unavailable,
         "empty_aggregate_count": sum(
             issue["code"] == "empty_aggregate" for issue in issues
