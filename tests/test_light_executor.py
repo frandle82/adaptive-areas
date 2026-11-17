@@ -23,7 +23,9 @@ def _snapshot(*targets: LightTargetSource) -> LightSourceSnapshot:
     return LightSourceSnapshot("area", targets, None, False, None, (), False, None)
 
 
-def _decision(action: LightPolicyAction, reason: LightPolicyReason) -> LightPolicyDecision:
+def _decision(
+    action: LightPolicyAction, reason: LightPolicyReason
+) -> LightPolicyDecision:
     return LightPolicyDecision(action, reason)
 
 
@@ -54,7 +56,9 @@ async def test_executor_dispatches_one_sorted_call(action, service) -> None:
     assert decision.reason is LightPolicyReason.UNOCCUPIED
 
 
-@pytest.mark.parametrize("action", [LightPolicyAction.HOLD, LightPolicyAction.NO_ACTION])
+@pytest.mark.parametrize(
+    "action", [LightPolicyAction.HOLD, LightPolicyAction.NO_ACTION]
+)
 async def test_executor_skips_non_dispatch_actions(action) -> None:
     """HOLD and NO_ACTION never call Home Assistant services."""
     async_call = AsyncMock()
@@ -71,13 +75,17 @@ async def test_executor_skips_non_dispatch_actions(action) -> None:
     async_call.assert_not_awaited()
 
 
-async def test_executor_skips_empty_or_unavailable_targets_and_propagates_errors() -> None:
+async def test_executor_skips_empty_or_unavailable_targets_and_propagates_errors() -> (
+    None
+):
     """No target is a no-op; service failures never report a false success."""
     async_call = AsyncMock()
     hass = SimpleNamespace(services=SimpleNamespace(async_call=async_call))
     decision = _decision(LightPolicyAction.TURN_ON, LightPolicyReason.OCCUPIED_AND_DARK)
 
-    assert not (await async_execute_light_decision(hass, _snapshot(), decision)).executed
+    assert not (
+        await async_execute_light_decision(hass, _snapshot(), decision)
+    ).executed
     assert not (
         await async_execute_light_decision(
             hass, _snapshot(LightTargetSource("light.room", False)), decision

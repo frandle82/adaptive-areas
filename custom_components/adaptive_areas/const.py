@@ -38,7 +38,9 @@ from homeassistant.helpers import config_validation as cv
 from custom_components.adaptive_areas.helpers.light_policy import (
     CONF_TURN_OFF_ABOVE,
     CONF_TURN_ON_BELOW,
+    CONF_VACANCY_DELAY,
     light_policy_config_from_feature,
+    light_vacancy_delay_from_feature,
 )
 
 ONE_MINUTE = 60  # seconds, for conversion
@@ -1593,7 +1595,8 @@ def _validate_light_policy_feature(value: object) -> dict:
         raise vol.Invalid("Light policy configuration must be an object")
     try:
         light_policy_config_from_feature(value)
-    except ValueError as err:
+        light_vacancy_delay_from_feature(value)
+    except (TypeError, ValueError) as err:
         raise vol.Invalid(str(err)) from err
     return value
 
@@ -1606,6 +1609,7 @@ CONFIGURABLE_FEATURES = {
             {
                 vol.Optional(CONF_TURN_ON_BELOW): object,
                 vol.Optional(CONF_TURN_OFF_ABOVE): object,
+                vol.Optional(CONF_VACANCY_DELAY): object,
             },
             extra=vol.PREVENT_EXTRA,
         ),

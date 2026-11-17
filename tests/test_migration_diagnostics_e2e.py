@@ -24,7 +24,11 @@ from custom_components.adaptive_areas.repairs import (
     async_evaluate_single_global_entry_migration,
 )
 from tests.const import MockAreaIds
-from tests.helpers import get_basic_config_entry_data, init_integration, setup_mock_entities
+from tests.helpers import (
+    get_basic_config_entry_data,
+    init_integration,
+    setup_mock_entities,
+)
 from tests.mocks import MockBinarySensor
 
 REGULAR = (
@@ -41,11 +45,16 @@ def _identity(hass) -> tuple[dict, dict]:
     devices = async_get_device_registry(hass)
     return (
         {item.entity_id: item.config_entry_id for item in entities.entities.values()},
-        {item.id: tuple(sorted(item.config_entries)) for item in devices.devices.values()},
+        {
+            item.id: tuple(sorted(item.config_entries))
+            for item in devices.devices.values()
+        },
     )
 
 
-async def test_repair_migration_exposes_global_container_diagnostics(hass, monkeypatch) -> None:
+async def test_repair_migration_exposes_global_container_diagnostics(
+    hass, monkeypatch
+) -> None:
     """The native endpoint describes every logical Area owned by a GlobalEntry."""
     sources = {
         area: [
@@ -73,7 +82,9 @@ async def test_repair_migration_exposes_global_container_diagnostics(hass, monke
     flow.hass = hass
     assert (await flow.async_step_init({}))["type"] == "create_entry"
     (global_entry,) = get_global_entries(hass)
-    assert global_entry.options["migration"]["migration_phase"] == MigrationPhase.COMPLETE
+    assert (
+        global_entry.options["migration"]["migration_phase"] == MigrationPhase.COMPLETE
+    )
 
     import custom_components.adaptive_areas.migration as migration
 
@@ -100,7 +111,9 @@ async def test_repair_migration_exposes_global_container_diagnostics(hass, monke
     assert diagnostics["areas"][MockAreaIds.KITCHEN.value]["type"] == "regular"
     assert diagnostics["areas"][MockAreaIds.FIRST_FLOOR.value]["type"] == "floor"
     assert diagnostics["areas"][MockAreaIds.GLOBAL.value]["type"] == "global"
-    assert all(item["generated_entity_count"] > 0 for item in diagnostics["areas"].values())
+    assert all(
+        item["generated_entity_count"] > 0 for item in diagnostics["areas"].values()
+    )
 
     assert await hass.config_entries.async_reload(global_entry.entry_id)
     await hass.async_block_till_done()

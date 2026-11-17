@@ -146,7 +146,9 @@ async def test_repair_migration_preserves_meta_scoping_and_late_discovery(hass) 
         in floor_sources
         for area in (MockAreaIds.KITCHEN, MockAreaIds.LIVING_ROOM)
     )
-    assert not any(MockAreaIds.MASTER_BEDROOM.value in source for source in floor_sources)
+    assert not any(
+        MockAreaIds.MASTER_BEDROOM.value in source for source in floor_sources
+    )
     global_sources = _source_ids(after[GLOBAL_META.value])["motion"]
     assert all(
         f"binary_sensor.adaptive_areas_aggregates_{area.value}_aggregate_motion"
@@ -207,11 +209,14 @@ async def test_repair_migration_preserves_meta_scoping_and_late_discovery(hass) 
                 for entity in entity_ids
             )
     for area_id in (FLOOR_META.value, GLOBAL_META.value):
-        assert len(
-            [
-                entity
-                for entity in entity_registry.entities.values()
-                if entity.entity_id
-                == f"binary_sensor.adaptive_areas_aggregates_{area_id}_aggregate_motion"
-            ]
-        ) == 1
+        assert (
+            len(
+                [
+                    entity
+                    for entity in entity_registry.entities.values()
+                    if entity.entity_id
+                    == f"binary_sensor.adaptive_areas_aggregates_{area_id}_aggregate_motion"
+                ]
+            )
+            == 1
+        )

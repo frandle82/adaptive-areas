@@ -3,13 +3,15 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING
+from collections.abc import Mapping
 
 if TYPE_CHECKING:
     from custom_components.adaptive_areas.helpers.sources import LightSourceSnapshot
 
 CONF_TURN_ON_BELOW = "turn_on_below"
 CONF_TURN_OFF_ABOVE = "turn_off_above"
+CONF_VACANCY_DELAY = "vacancy_delay"
 
 
 class LightPolicyAction(StrEnum):
@@ -45,7 +47,10 @@ class LightPolicyConfig:
     def __post_init__(self) -> None:
         """Reject invalid or ambiguous hysteresis boundaries."""
         values = (self.turn_on_below, self.turn_off_above)
-        if any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in values):
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in values
+        ):
             raise ValueError("Light policy thresholds must be finite numbers")
         if any(not isfinite(value) or value < 0 for value in values):
             raise ValueError("Light policy thresholds must be finite and non-negative")
@@ -68,12 +73,28 @@ def light_policy_config_from_feature(
     if not feature_config:
         return None
     keys = {CONF_TURN_ON_BELOW, CONF_TURN_OFF_ABOVE}
-    if set(feature_config) != keys:
+    if not keys <= set(feature_config) or set(feature_config) - (
+        keys | {CONF_VACANCY_DELAY}
+    ):
         raise ValueError("Light policy requires both thresholds and no other values")
     return LightPolicyConfig(
         turn_on_below=feature_config[CONF_TURN_ON_BELOW],
         turn_off_above=feature_config[CONF_TURN_OFF_ABOVE],
     )
+
+
+def light_vacancy_delay_from_feature(
+    feature_config: Mapping[str, object],
+) -> float | None:
+    """Return the optional validated vacancy delay without mutating feature data."""
+    if CONF_VACANCY_DELAY not in feature_config:
+        return None
+    delay = feature_config[CONF_VACANCY_DELAY]
+    if isinstance(delay, bool) or not isinstance(delay, (int, float)):
+        raise TypeError("Vacancy delay must be a finite non-negative number")
+    if not isfinite(delay) or delay < 0:
+        raise ValueError("Vacancy delay must be a finite non-negative number")
+    return float(delay)
 
 
 def evaluate_light_policy(
@@ -101,9 +122,7 @@ def evaluate_light_policy(
             LightPolicyAction.NO_ACTION, LightPolicyReason.ILLUMINANCE_UNAVAILABLE
         )
     if snapshot.illuminance_value <= policy_config.turn_on_below:
-        return _decision(
-            LightPolicyAction.TURN_ON, LightPolicyReason.OCCUPIED_AND_DARK
-        )
+        return _decision(LightPolicyAction.TURN_ON, LightPolicyReason.OCCUPIED_AND_DARK)
     if snapshot.illuminance_value >= policy_config.turn_off_above:
         return _decision(
             LightPolicyAction.TURN_OFF, LightPolicyReason.OCCUPIED_AND_BRIGHT
@@ -111,6 +130,8 @@ def evaluate_light_policy(
     return _decision(LightPolicyAction.HOLD, LightPolicyReason.WITHIN_HYSTERESIS)
 
 
-def _decision(action: LightPolicyAction, reason: LightPolicyReason) -> LightPolicyDecision:
+def _decision(
+    action: LightPolicyAction, reason: LightPolicyReason
+) -> LightPolicyDecision:
     """Construct decisions consistently without attaching runtime data."""
     return LightPolicyDecision(action=action, reason=reason)

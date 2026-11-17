@@ -420,7 +420,10 @@ async def test_partial_remove_restart_only_removes_remaining_source_on_repair_re
     assert partial.migration_phase is MigrationPhase.REMOVE_OLD
     assert partial.removed_source_entry_ids == remove_calls[:2]
     assert partial.snapshot is not None
-    assert all(hass.config_entries.async_get_entry(entry_id) is None for entry_id in remove_calls[:2])
+    assert all(
+        hass.config_entries.async_get_entry(entry_id) is None
+        for entry_id in remove_calls[:2]
+    )
     assert hass.config_entries.async_get_entry(remove_calls[2]) is not None
     assert _registry_identity(hass, target) == before
 
@@ -440,8 +443,12 @@ async def test_partial_remove_restart_only_removes_remaining_source_on_repair_re
     async def stop_at_cleanup(*_args, **_kwargs):
         raise RuntimeError("cleanup boundary")
 
-    monkeypatch.setattr(migration_module, "async_get_or_create_global_entry", forbid_earlier_phase)
-    monkeypatch.setattr(migration_module, "async_activate_global_entry", forbid_earlier_phase)
+    monkeypatch.setattr(
+        migration_module, "async_get_or_create_global_entry", forbid_earlier_phase
+    )
+    monkeypatch.setattr(
+        migration_module, "async_activate_global_entry", forbid_earlier_phase
+    )
     monkeypatch.setattr(migration_module, "async_cleanup_migration", stop_at_cleanup)
     with pytest.raises(RuntimeError, match="cleanup boundary"):
         await async_run_single_global_entry_migration(hass)
@@ -449,7 +456,10 @@ async def test_partial_remove_restart_only_removes_remaining_source_on_repair_re
     assert checkpoint.migration_phase is MigrationPhase.CLEANUP
     assert checkpoint.removed_source_entry_ids == remove_calls
     assert checkpoint.snapshot is not None
-    assert all(hass.config_entries.async_get_entry(entry_id) is None for entry_id in remove_calls)
+    assert all(
+        hass.config_entries.async_get_entry(entry_id) is None
+        for entry_id in remove_calls
+    )
     assert _registry_identity(hass, target) == before
 
 
@@ -470,7 +480,9 @@ async def test_cleanup_resume_discards_only_temporary_migration_snapshot(
     cleanup = MigrationState.from_dict(target.options[CONF_MIGRATION])
     assert cleanup.migration_phase is MigrationPhase.CLEANUP
     assert cleanup.snapshot is not None
-    assert all(hass.config_entries.async_get_entry(entry.entry_id) is None for entry in sources)
+    assert all(
+        hass.config_entries.async_get_entry(entry.entry_id) is None for entry in sources
+    )
     before = _registry_identity(hass, target)
 
     restored = MigrationState.from_dict(cleanup.as_dict())
@@ -489,7 +501,9 @@ async def test_cleanup_resume_discards_only_temporary_migration_snapshot(
     assert _registry_identity(hass, target) == before
 
 
-async def test_complete_restart_is_a_noop_without_a_migration_repair(hass, monkeypatch) -> None:
+async def test_complete_restart_is_a_noop_without_a_migration_repair(
+    hass, monkeypatch
+) -> None:
     """COMPLETE survives a state round-trip without recreating runtime or entries."""
     area_ids, sources, target = await _checkpoint_before_remove(hass, monkeypatch)
     complete = await async_run_single_global_entry_migration(hass)
@@ -498,7 +512,9 @@ async def test_complete_restart_is_a_noop_without_a_migration_repair(hass, monke
     runtime_ids = [area.id for area in get_runtime_areas_for_entry(hass, target)]
     assert set(runtime_ids) == {area.value for area in area_ids}
     assert len(runtime_ids) == len(set(runtime_ids))
-    assert all(hass.config_entries.async_get_entry(entry.entry_id) is None for entry in sources)
+    assert all(
+        hass.config_entries.async_get_entry(entry.entry_id) is None for entry in sources
+    )
 
     restored = MigrationState.from_dict(complete.as_dict())
     assert restored == complete
@@ -509,5 +525,7 @@ async def test_complete_restart_is_a_noop_without_a_migration_repair(hass, monke
         is None
     )
     assert _registry_identity(hass, target) == before
-    assert [area.id for area in get_runtime_areas_for_entry(hass, target)] == runtime_ids
+    assert [
+        area.id for area in get_runtime_areas_for_entry(hass, target)
+    ] == runtime_ids
     assert len({entry[1] for entry in before[0].values()}) == len(before[0])

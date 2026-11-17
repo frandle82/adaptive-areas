@@ -31,7 +31,9 @@ async def async_execute_light_decision(
     if decision.action not in (LightPolicyAction.TURN_ON, LightPolicyAction.TURN_OFF):
         return LightExecutionResult(False, decision.action, ())
 
-    targets = tuple(sorted({target.entity_id for target in snapshot.targets if target.available}))
+    targets = tuple(
+        sorted({target.entity_id for target in snapshot.targets if target.available})
+    )
     if not targets:
         return LightExecutionResult(False, decision.action, ())
 

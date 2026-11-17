@@ -9,7 +9,6 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
 )
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
@@ -107,7 +106,12 @@ def test_light_targets_reuse_area_entity_discovery_without_mutation(hass) -> Non
 
     ceiling = _entity(hass, source_entry, "light", "ceiling", area_id=living.id)
     floor_lamp = _entity(
-        hass, source_entry, "light", "floor_lamp", area_id=living.id, device_id=living_device.id
+        hass,
+        source_entry,
+        "light",
+        "floor_lamp",
+        area_id=living.id,
+        device_id=living_device.id,
     )
     unavailable = _entity(
         hass,

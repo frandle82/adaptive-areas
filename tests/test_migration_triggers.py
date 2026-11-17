@@ -81,7 +81,9 @@ def _entry_identity(hass) -> list[tuple]:
     )
 
 
-async def _partial_migration(hass) -> tuple[MockConfigEntry, MockConfigEntry, MigrationState]:
+async def _partial_migration(
+    hass,
+) -> tuple[MockConfigEntry, MockConfigEntry, MigrationState]:
     """Create a real legacy runtime beside a persisted partial global checkpoint."""
     source = MockConfigEntry(
         domain=DOMAIN, data=get_basic_config_entry_data(DEFAULT_MOCK_AREA)
@@ -156,7 +158,9 @@ async def _call(hass, command: str, **data) -> _Connection:
     return connection
 
 
-async def test_setup_and_reload_do_not_resume_partial_migration(hass, monkeypatch) -> None:
+async def test_setup_and_reload_do_not_resume_partial_migration(
+    hass, monkeypatch
+) -> None:
     """Normal legacy and global setup paths only retain the visible Repair state."""
     source, target, state = await _partial_migration(hass)
     calls = _forbid_migration_side_effects(monkeypatch)
@@ -214,7 +218,9 @@ async def test_dashboard_read_paths_do_not_resume_partial_migration(
     )
 
 
-async def test_native_diagnostics_does_not_resume_partial_migration(hass, monkeypatch) -> None:
+async def test_native_diagnostics_does_not_resume_partial_migration(
+    hass, monkeypatch
+) -> None:
     """Native diagnostics remains an inert read of a partial migration install."""
     source, target, state = await _partial_migration(hass)
     calls = _forbid_migration_side_effects(monkeypatch)
@@ -230,7 +236,9 @@ async def test_native_diagnostics_does_not_resume_partial_migration(hass, monkey
     assert _entry_identity(hass) == before_entries
 
 
-async def test_repair_confirmation_is_the_only_migration_trigger(hass, monkeypatch) -> None:
+async def test_repair_confirmation_is_the_only_migration_trigger(
+    hass, monkeypatch
+) -> None:
     """Opening Repair is inert; its explicit confirmation calls the orchestrator once."""
     _source, _target, _state = await _partial_migration(hass)
     from custom_components.adaptive_areas import migration as migration_module
@@ -243,7 +251,9 @@ async def test_repair_confirmation_is_the_only_migration_trigger(hass, monkeypat
         return None
 
     monkeypatch.setattr(
-        migration_module, "async_run_single_global_entry_migration", tracked_orchestrator
+        migration_module,
+        "async_run_single_global_entry_migration",
+        tracked_orchestrator,
     )
     flow = SingleGlobalEntryMigrationRepairFlow()
     flow.hass = hass

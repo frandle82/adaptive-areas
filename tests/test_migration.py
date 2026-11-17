@@ -74,7 +74,9 @@ def test_precheck_blocks_duplicate_and_partial_state() -> None:
 
 
 def test_migration_state_round_trip() -> None:
-    state = MigrationState(1, MigrationPhase.TRANSFER_CONFIG, ["old"], "new", ["kitchen"])
+    state = MigrationState(
+        1, MigrationPhase.TRANSFER_CONFIG, ["old"], "new", ["kitchen"]
+    )
     assert MigrationState.from_dict(state.as_dict()) == state
 
 
@@ -115,7 +117,11 @@ async def test_remove_keeps_transferred_entity_and_device_identity(hass) -> None
     )
     device_registry.async_update_device(device.id, area_id="kitchen-area")
     entity = entity_registry.async_get_or_create(
-        "sensor", DOMAIN, "kitchen_temperature", config_entry=target, device_id=device.id
+        "sensor",
+        DOMAIN,
+        "kitchen_temperature",
+        config_entry=target,
+        device_id=device.id,
     )
     result = await async_remove_legacy_entries(
         hass, state=state, verify_result=_verified()
@@ -145,7 +151,9 @@ async def test_remove_rejects_failed_verify_gate(hass) -> None:
 
 async def test_remove_rejects_target_in_source_list(hass) -> None:
     target, _sources, state = _removal_fixture(hass)
-    unsafe = MigrationState(1, MigrationPhase.REMOVE_OLD, [target.entry_id], target.entry_id, [])
+    unsafe = MigrationState(
+        1, MigrationPhase.REMOVE_OLD, [target.entry_id], target.entry_id, []
+    )
     with pytest.raises(MigrationRemoveError, match="target"):
         await async_remove_legacy_entries(hass, state=unsafe, verify_result=_verified())
 
@@ -169,7 +177,9 @@ async def test_remove_rejects_remaining_device_ownership(hass) -> None:
         await async_remove_legacy_entries(hass, state=state, verify_result=_verified())
 
 
-async def test_partial_remove_persists_forward_recovery_and_retries(hass, monkeypatch) -> None:
+async def test_partial_remove_persists_forward_recovery_and_retries(
+    hass, monkeypatch
+) -> None:
     target, sources, state = _removal_fixture(hass, 2)
     original_remove = hass.config_entries.async_remove
     calls: list[str] = []
@@ -208,29 +218,54 @@ async def test_cleanup_completes_only_after_every_source_is_removed(hass) -> Non
         await async_cleanup_migration(hass, state)
     await hass.config_entries.async_remove(source.entry_id)
     removed = MigrationState(
-        1, MigrationPhase.REMOVE_OLD, state.source_entry_ids, target.entry_id, ["kitchen"], state.source_entry_ids
+        1,
+        MigrationPhase.REMOVE_OLD,
+        state.source_entry_ids,
+        target.entry_id,
+        ["kitchen"],
+        state.source_entry_ids,
     )
     complete = await async_cleanup_migration(hass, removed)
     assert complete.migration_phase is MigrationPhase.COMPLETE
     assert complete.source_entry_ids == []
     assert complete.removed_source_entry_ids == []
-    assert MigrationState.from_dict(target.options[CONF_MIGRATION]).migration_phase is MigrationPhase.COMPLETE
+    assert (
+        MigrationState.from_dict(target.options[CONF_MIGRATION]).migration_phase
+        is MigrationPhase.COMPLETE
+    )
 
 
 async def test_complete_retry_is_a_noop(hass) -> None:
     _target, _sources, state = _removal_fixture(hass)
     complete = MigrationState(
-        1, MigrationPhase.COMPLETE, state.source_entry_ids, state.target_entry_id, state.area_ids, state.source_entry_ids
+        1,
+        MigrationPhase.COMPLETE,
+        state.source_entry_ids,
+        state.target_entry_id,
+        state.area_ids,
+        state.source_entry_ids,
     )
-    assert await async_remove_legacy_entries(hass, state=complete, verify_result=_verified()) is complete
+    assert (
+        await async_remove_legacy_entries(
+            hass, state=complete, verify_result=_verified()
+        )
+        is complete
+    )
     assert await async_cleanup_migration(hass, complete) is complete
 
 
-async def test_cleanup_failure_keeps_recoverable_cleanup_checkpoint(hass, monkeypatch) -> None:
+async def test_cleanup_failure_keeps_recoverable_cleanup_checkpoint(
+    hass, monkeypatch
+) -> None:
     target, (source,), state = _removal_fixture(hass)
     await hass.config_entries.async_remove(source.entry_id)
     removed = MigrationState(
-        1, MigrationPhase.REMOVE_OLD, state.source_entry_ids, target.entry_id, ["kitchen"], state.source_entry_ids
+        1,
+        MigrationPhase.REMOVE_OLD,
+        state.source_entry_ids,
+        target.entry_id,
+        ["kitchen"],
+        state.source_entry_ids,
     )
     original_update = hass.config_entries.async_update_entry
     update_calls = 0
@@ -245,7 +280,10 @@ async def test_cleanup_failure_keeps_recoverable_cleanup_checkpoint(hass, monkey
     monkeypatch.setattr(hass.config_entries, "async_update_entry", fail_complete)
     with pytest.raises(MigrationCleanupError, match="did not complete"):
         await async_cleanup_migration(hass, removed)
-    assert MigrationState.from_dict(target.options[CONF_MIGRATION]).migration_phase is MigrationPhase.CLEANUP
+    assert (
+        MigrationState.from_dict(target.options[CONF_MIGRATION]).migration_phase
+        is MigrationPhase.CLEANUP
+    )
 
 
 async def test_restart_partial_remove_only_restores_checkpoint(hass) -> None:
@@ -281,7 +319,9 @@ async def test_restart_during_cleanup_can_resume_cleanup(hass) -> None:
         target, options={**target.options, CONF_MIGRATION: cleanup.as_dict()}
     )
     restored = MigrationState.from_dict(target.options[CONF_MIGRATION])
-    assert (await async_cleanup_migration(hass, restored)).migration_phase is MigrationPhase.COMPLETE
+    assert (
+        await async_cleanup_migration(hass, restored)
+    ).migration_phase is MigrationPhase.COMPLETE
 
 
 async def test_factory_creates_and_reuses_registered_global_entry(hass) -> None:

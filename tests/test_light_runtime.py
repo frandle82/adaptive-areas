@@ -54,7 +54,14 @@ async def test_runtime_evaluates_once_and_deduplicates_dispatch(hass) -> None:
         feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
     )
     snapshot = LightSourceSnapshot(
-        "living", (LightTargetSource("light.room", True),), None, True, 50, (), True, True
+        "living",
+        (LightTargetSource("light.room", True),),
+        None,
+        True,
+        50,
+        (),
+        True,
+        True,
     )
     dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
     hass.states.async_set("light.room", "off")
@@ -62,8 +69,14 @@ async def test_runtime_evaluates_once_and_deduplicates_dispatch(hass) -> None:
     hass.states.async_set("sensor.lux", "50")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", return_value=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
     ):
         manager = LightRuntimeManager(area)
         await manager.async_evaluate()
@@ -85,10 +98,18 @@ async def test_runtime_initial_policy_matrix(hass, snapshot, action) -> None:
     """Initial evaluation preserves the policy action including safe no-ops."""
     dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", return_value=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
     ):
-        await LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200})).async_evaluate()
+        await LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        ).async_evaluate()
     if action is None:
         dispatched.assert_not_awaited()
     else:
@@ -97,13 +118,27 @@ async def test_runtime_initial_policy_matrix(hass, snapshot, action) -> None:
 
 async def test_runtime_hold_and_no_action_reset_dispatch_dedupe(hass) -> None:
     """A neutral policy decision permits the next identical dispatch."""
-    snapshots = [_snapshot(lux=50), _snapshot(lux=150), _snapshot(lux=50), _snapshot(lux=None), _snapshot(lux=50)]
+    snapshots = [
+        _snapshot(lux=50),
+        _snapshot(lux=150),
+        _snapshot(lux=50),
+        _snapshot(lux=None),
+        _snapshot(lux=50),
+    ]
     dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=snapshots),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=snapshots,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
     ):
-        manager = LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200}))
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
         for _ in snapshots:
             await manager.async_evaluate()
     assert dispatched.await_count == 3
@@ -112,13 +147,26 @@ async def test_runtime_hold_and_no_action_reset_dispatch_dedupe(hass) -> None:
 async def test_runtime_unavailable_target_exception_and_unload(hass) -> None:
     """Failed or unavailable dispatches are retriable and unload removes listeners."""
     removers = [Mock(), Mock(), Mock()]
-    dispatched = AsyncMock(side_effect=[RuntimeError("boom"), SimpleNamespace(executed=True)])
+    dispatched = AsyncMock(
+        side_effect=[RuntimeError("boom"), SimpleNamespace(executed=True)]
+    )
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", return_value=_snapshot()),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_track_state_change_event", side_effect=removers),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_track_state_change_event",
+            side_effect=removers,
+        ),
     ):
-        manager = LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200}))
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
         await manager.async_setup()
         await manager.async_evaluate()
         manager.unload()
@@ -134,7 +182,9 @@ async def test_runtime_creation_requires_complete_new_light_policy(hass) -> None
     assert await LightRuntimeManager.async_create(_area(hass, {})) is None
 
 
-async def test_runtime_presence_and_target_events_use_real_state_listeners(hass) -> None:
+async def test_runtime_presence_and_target_events_use_real_state_listeners(
+    hass,
+) -> None:
     """Presence events evaluate; ordinary target on/off events deliberately do not."""
     initial = _snapshot(lux=50, occupied=True)
     vacant = _snapshot(lux=None, occupied=False)
@@ -144,10 +194,18 @@ async def test_runtime_presence_and_target_events_use_real_state_listeners(hass)
     hass.states.async_set("sensor.lux", "50")
     snapshots = iter((initial, initial, vacant))
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=lambda _area: next(snapshots, vacant)),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=lambda _area: next(snapshots, vacant),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
     ):
-        manager = LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200}))
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
         await manager.async_setup()
         hass.states.async_set("light.room", "on")
         hass.states.async_set("light.room", "off")
@@ -161,16 +219,26 @@ async def test_runtime_presence_and_target_events_use_real_state_listeners(hass)
         manager.unload()
 
 
-async def test_runtime_availability_events_reenable_dispatch_and_unload_is_inert(hass) -> None:
+async def test_runtime_availability_events_reenable_dispatch_and_unload_is_inert(
+    hass,
+) -> None:
     """Availability transitions evaluate, while all real events stop after unload."""
     unavailable = _snapshot(lux=50, available=False)
     available = _snapshot(lux=50, available=True)
     dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=[unavailable, available]),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=[unavailable, available],
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
     ):
-        manager = LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200}))
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
         await manager.async_setup()
         hass.states.async_set("light.room", "unavailable")
         hass.states.async_set("light.room", "off")
@@ -190,10 +258,18 @@ async def test_runtime_real_lux_events_dedupe_and_reset(hass) -> None:
     hass.states.async_set("sensor.lux", "80")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", dispatched),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
     ):
-        manager = LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200}))
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
         await manager.async_setup()
         for state in ("70", "60", "150", "70", "unavailable", "60"):
             hass.states.async_set("sensor.lux", state)
@@ -207,19 +283,45 @@ async def test_runtime_real_lux_events_dedupe_and_reset(hass) -> None:
 async def test_runtime_global_lux_isolated_per_area(hass) -> None:
     """One global Lux event evaluates each Area with only its own inputs."""
     living = _named_area(hass, "living", {"turn_on_below": 100, "turn_off_above": 200})
-    kitchen = _named_area(hass, "kitchen", {"turn_on_below": 150, "turn_off_above": 250})
+    kitchen = _named_area(
+        hass, "kitchen", {"turn_on_below": 150, "turn_off_above": 250}
+    )
     calls = AsyncMock(return_value=SimpleNamespace(executed=True))
 
     def snapshot(area):
         if area.id == "living":
-            return LightSourceSnapshot("living", (LightTargetSource("light.living", True),), "sensor.lux", True, 120, ("binary_sensor.living",), True, True)
-        return LightSourceSnapshot("kitchen", (LightTargetSource("light.kitchen", True),), "sensor.lux", True, 120, ("binary_sensor.kitchen",), True, True)
+            return LightSourceSnapshot(
+                "living",
+                (LightTargetSource("light.living", True),),
+                "sensor.lux",
+                True,
+                120,
+                ("binary_sensor.living",),
+                True,
+                True,
+            )
+        return LightSourceSnapshot(
+            "kitchen",
+            (LightTargetSource("light.kitchen", True),),
+            "sensor.lux",
+            True,
+            120,
+            ("binary_sensor.kitchen",),
+            True,
+            True,
+        )
 
     hass.states.async_set("sensor.lux", "120")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", calls),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            calls,
+        ),
     ):
         living_manager = LightRuntimeManager(living)
         kitchen_manager = LightRuntimeManager(kitchen)
@@ -237,20 +339,43 @@ async def test_runtime_global_lux_isolated_per_area(hass) -> None:
 async def test_runtime_cross_area_presence_and_availability_are_isolated(hass) -> None:
     """Area-local listeners never evaluate the other Area's policy."""
     living = _named_area(hass, "living", {"turn_on_below": 100, "turn_off_above": 200})
-    kitchen = _named_area(hass, "kitchen", {"turn_on_below": 100, "turn_off_above": 200})
+    kitchen = _named_area(
+        hass, "kitchen", {"turn_on_below": 100, "turn_off_above": 200}
+    )
     calls = AsyncMock(return_value=SimpleNamespace(executed=True))
     states = {"living": True, "kitchen": True}
 
     def snapshot(area):
         area_id = area.id
-        return LightSourceSnapshot(area_id, (LightTargetSource(f"light.{area_id}", True),), "sensor.lux", True, 50, (f"binary_sensor.{area_id}",), True, states[area_id])
+        return LightSourceSnapshot(
+            area_id,
+            (LightTargetSource(f"light.{area_id}", True),),
+            "sensor.lux",
+            True,
+            50,
+            (f"binary_sensor.{area_id}",),
+            True,
+            states[area_id],
+        )
 
-    for entity_id in ("binary_sensor.living", "binary_sensor.kitchen", "light.living", "light.kitchen", "sensor.lux"):
+    for entity_id in (
+        "binary_sensor.living",
+        "binary_sensor.kitchen",
+        "light.living",
+        "light.kitchen",
+        "sensor.lux",
+    ):
         hass.states.async_set(entity_id, "off")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", calls),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            calls,
+        ),
     ):
         living_manager = LightRuntimeManager(living)
         kitchen_manager = LightRuntimeManager(kitchen)
@@ -290,10 +415,18 @@ async def test_runtime_serializes_executor_calls_per_area(hass) -> None:
     hass.states.async_set("sensor.lux", "50")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", return_value=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", side_effect=dispatch),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            side_effect=dispatch,
+        ),
     ):
-        manager = LightRuntimeManager(_area(hass, {"turn_on_below": 100, "turn_off_above": 200}))
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
         task = hass.async_create_task(manager.async_setup())
         await started.wait()
         hass.states.async_set("sensor.lux", "60")
@@ -316,8 +449,14 @@ async def test_runtime_reload_replaces_presence_and_lux_listeners(hass) -> None:
         hass.states.async_set(entity_id, "off")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=[old, old, new, new, new]),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", calls),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=[old, old, new, new, new],
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            calls,
+        ),
     ):
         manager_a = LightRuntimeManager(area)
         await manager_a.async_setup()
@@ -338,15 +477,37 @@ async def test_runtime_sensor_and_policy_reload_are_fresh(hass) -> None:
     calls = AsyncMock(return_value=SimpleNamespace(executed=True))
 
     def snapshot(_area):
-        sensor = "sensor.lux_old" if feature["turn_on_below"] == 100 else "sensor.lux_new"
-        return LightSourceSnapshot("living", (LightTargetSource("light.room", True),), sensor, True, 120, ("binary_sensor.presence",), True, True)
+        sensor = (
+            "sensor.lux_old" if feature["turn_on_below"] == 100 else "sensor.lux_new"
+        )
+        return LightSourceSnapshot(
+            "living",
+            (LightTargetSource("light.room", True),),
+            sensor,
+            True,
+            120,
+            ("binary_sensor.presence",),
+            True,
+            True,
+        )
 
-    for entity_id in ("sensor.lux_old", "sensor.lux_new", "binary_sensor.presence", "light.room"):
+    for entity_id in (
+        "sensor.lux_old",
+        "sensor.lux_new",
+        "binary_sensor.presence",
+        "light.room",
+    ):
         hass.states.async_set(entity_id, "off")
     await hass.async_block_till_done()
     with (
-        patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", side_effect=snapshot),
-        patch("custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision", calls),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            calls,
+        ),
     ):
         manager_a = LightRuntimeManager(area)
         await manager_a.async_setup()
@@ -372,17 +533,24 @@ async def test_runtime_ignores_light_groups_without_new_light_feature(hass) -> N
     assert await LightRuntimeManager.async_create(legacy) is None
 
 
-async def test_runtime_light_groups_and_migration_are_isolated(hass, monkeypatch) -> None:
+async def test_runtime_light_groups_and_migration_are_isolated(
+    hass, monkeypatch
+) -> None:
     """The new runtime needs Light only and never starts migration work."""
     migration_spy = AsyncMock()
-    monkeypatch.setattr(migration_module, "async_run_single_global_entry_migration", migration_spy)
+    monkeypatch.setattr(
+        migration_module, "async_run_single_global_entry_migration", migration_spy
+    )
     area = _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
     area.feature_config = lambda feature: (
         {"turn_on_below": 100, "turn_off_above": 200}
         if feature == "light"
         else {"legacy": "unchanged"}
     )
-    with patch("custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot", return_value=_snapshot()):
+    with patch(
+        "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+        return_value=_snapshot(),
+    ):
         manager = await LightRuntimeManager.async_create(area)
         assert manager is not None
         manager.unload()

@@ -22,12 +22,16 @@ from custom_components.adaptive_areas import migration as migration_module
 
 
 def _entry(options: dict) -> MockConfigEntry:
-    return MockConfigEntry(domain=DOMAIN, data={CONF_GLOBAL_ENTRY: True}, options=options)
+    return MockConfigEntry(
+        domain=DOMAIN, data={CONF_GLOBAL_ENTRY: True}, options=options
+    )
 
 
 async def test_global_options_are_empty_safe_and_partially_updated(hass) -> None:
     """Global options are optional, isolated from Areas, and clearable."""
-    entry = _entry({CONF_AREAS: {"kitchen": {"name": "Kitchen"}}, CONF_GLOBAL_OPTIONS: {}})
+    entry = _entry(
+        {CONF_AREAS: {"kitchen": {"name": "Kitchen"}}, CONF_GLOBAL_OPTIONS: {}}
+    )
     entry.add_to_hass(hass)
     areas_before = dict(entry.options[CONF_AREAS])
 
@@ -39,7 +43,9 @@ async def test_global_options_are_empty_safe_and_partially_updated(hass) -> None
         "weather_entity": "weather.home",
         "global_light_sensor": "sensor.outdoor_lux",
     }
-    update_global_options(hass, entry, {"weather_entity": "weather.city", "global_light_sensor": None})
+    update_global_options(
+        hass, entry, {"weather_entity": "weather.city", "global_light_sensor": None}
+    )
     assert get_global_options(entry) == {
         "weather_entity": "weather.city",
         "global_light_sensor": None,
@@ -56,7 +62,9 @@ async def test_global_options_missing_key_is_read_only(hass) -> None:
     assert CONF_GLOBAL_OPTIONS not in entry.options
 
 
-async def test_global_options_websocket_is_partial_and_read_only(hass, monkeypatch) -> None:
+async def test_global_options_websocket_is_partial_and_read_only(
+    hass, monkeypatch
+) -> None:
     """The production API exposes only container-owned partial updates."""
     flow = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -80,30 +88,62 @@ async def test_global_options_websocket_is_partial_and_read_only(hass, monkeypat
         "async_reload",
         wraps=hass.config_entries.async_reload,
     ) as reload:
-        assert (await _call(hass, "adaptive_areas/get_global_configuration"))["options"] == {
+        assert (await _call(hass, "adaptive_areas/get_global_configuration"))[
+            "options"
+        ] == {
             "weather_entity": None,
             "global_light_sensor": None,
         }
         assert reload.await_count == 0
-        assert (await _call(hass, "adaptive_areas/update_global_configuration", options={"weather_entity": "weather.home"}))["ok"]
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"weather_entity": "weather.home"},
+            )
+        )["ok"]
         assert reload.await_count == 1
-        result = await _call(hass, "adaptive_areas/update_global_configuration", options={"global_light_sensor": "sensor.outdoor_lux"})
+        result = await _call(
+            hass,
+            "adaptive_areas/update_global_configuration",
+            options={"global_light_sensor": "sensor.outdoor_lux"},
+        )
         assert result["options"] == {
             "weather_entity": "weather.home",
             "global_light_sensor": "sensor.outdoor_lux",
         }
         assert reload.await_count == 2
-        assert (await _call(hass, "adaptive_areas/update_global_configuration", options={"global_light_sensor": None}))["ok"]
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"global_light_sensor": None},
+            )
+        )["ok"]
         assert reload.await_count == 3
-        assert (await _call(hass, "adaptive_areas/update_global_configuration", options={"global_light_sensor": None}))["ok"]
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"global_light_sensor": None},
+            )
+        )["ok"]
         assert reload.await_count == 3
-        assert not (await _call(hass, "adaptive_areas/update_global_configuration", options={"unknown": "value"}))["ok"]
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"unknown": "value"},
+            )
+        )["ok"]
         assert reload.await_count == 3
     assert entry.options[CONF_AREAS] == areas_before
     migration_spy.assert_not_awaited()
 
 
-async def test_global_options_websocket_rejects_ambiguous_containers(hass, monkeypatch) -> None:
+async def test_global_options_websocket_rejects_ambiguous_containers(
+    hass, monkeypatch
+) -> None:
     """Settings never select or create a GlobalEntry implicitly."""
     async_register_websocket_commands(hass)
     migration_spy = AsyncMock()
@@ -112,7 +152,10 @@ async def test_global_options_websocket_rejects_ambiguous_containers(hass, monke
     )
     for command, data in (
         ("adaptive_areas/get_global_configuration", {}),
-        ("adaptive_areas/update_global_configuration", {"options": {"weather_entity": "weather.home"}}),
+        (
+            "adaptive_areas/update_global_configuration",
+            {"options": {"weather_entity": "weather.home"}},
+        ),
     ):
         assert not (await _call(hass, command, **data))["ok"]
 
@@ -148,10 +191,43 @@ async def test_global_options_websocket_validates_entities_atomically(hass) -> N
         "sensor.temperature", "20", {"device_class": SensorDeviceClass.TEMPERATURE}
     )
     with patch.object(hass.config_entries, "async_reload") as reload:
-        assert not (await _call(hass, "adaptive_areas/update_global_configuration", options={"weather_entity": "sensor.temperature"}))["ok"]
-        assert not (await _call(hass, "adaptive_areas/update_global_configuration", options={"weather_entity": "weather.unknown"}))["ok"]
-        assert not (await _call(hass, "adaptive_areas/update_global_configuration", options={"global_light_sensor": "sensor.temperature"}))["ok"]
-        assert not (await _call(hass, "adaptive_areas/update_global_configuration", options={"global_light_sensor": "sensor.unknown"}))["ok"]
-        assert not (await _call(hass, "adaptive_areas/update_global_configuration", options={"weather_entity": "weather.city", "global_light_sensor": "sensor.temperature"}))["ok"]
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"weather_entity": "sensor.temperature"},
+            )
+        )["ok"]
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"weather_entity": "weather.unknown"},
+            )
+        )["ok"]
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"global_light_sensor": "sensor.temperature"},
+            )
+        )["ok"]
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={"global_light_sensor": "sensor.unknown"},
+            )
+        )["ok"]
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_global_configuration",
+                options={
+                    "weather_entity": "weather.city",
+                    "global_light_sensor": "sensor.temperature",
+                },
+            )
+        )["ok"]
         reload.assert_not_awaited()
         assert entry.options[CONF_GLOBAL_OPTIONS] == {}

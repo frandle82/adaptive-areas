@@ -21,7 +21,9 @@ from custom_components.adaptive_areas.const import (
 )
 from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas import migration as migration_module
-from custom_components.adaptive_areas.diagnostics import async_get_config_entry_diagnostics
+from custom_components.adaptive_areas.diagnostics import (
+    async_get_config_entry_diagnostics,
+)
 from custom_components.adaptive_areas.websocket import async_register_websocket_commands
 
 
@@ -67,29 +69,53 @@ async def test_global_entry_area_crud_websocket_lifecycle(hass, monkeypatch) -> 
         "async_reload",
         wraps=hass.config_entries.async_reload,
     ) as reload:
-        assert (await _call(hass, "adaptive_areas/create_area", area_id=living.id, options={}))["ok"]
+        assert (
+            await _call(
+                hass, "adaptive_areas/create_area", area_id=living.id, options={}
+            )
+        )["ok"]
         assert reload.await_count == 1
         assert set(entry.options[CONF_AREAS]) == {living.id}
-        assert [area.id for area in get_runtime_areas_for_entry(hass, entry)] == [living.id]
+        assert [area.id for area in get_runtime_areas_for_entry(hass, entry)] == [
+            living.id
+        ]
         assert len(hass.config_entries.async_entries(DOMAIN)) == 1
 
-        living_entity_id = "binary_sensor.adaptive_areas_presence_tracking_wohnzimmer_area_state"
+        living_entity_id = (
+            "binary_sensor.adaptive_areas_presence_tracking_wohnzimmer_area_state"
+        )
         living_entity = async_get_entity_registry(hass).async_get(living_entity_id)
         assert living_entity is not None
         assert living_entity.config_entry_id == entry.entry_id
         assert living_entity.area_id == living.id
         living_unique_id = living_entity.unique_id
 
-        assert (await _call(hass, "adaptive_areas/create_area", area_id=kitchen.id, options={}))["ok"]
+        assert (
+            await _call(
+                hass, "adaptive_areas/create_area", area_id=kitchen.id, options={}
+            )
+        )["ok"]
         assert reload.await_count == 2
         assert set(entry.options[CONF_AREAS]) == {kitchen.id, living.id}
-        assert {area.id for area in get_runtime_areas_for_entry(hass, entry)} == {living.id, kitchen.id}
+        assert {area.id for area in get_runtime_areas_for_entry(hass, entry)} == {
+            living.id,
+            kitchen.id,
+        }
 
-        duplicate = await _call(hass, "adaptive_areas/create_area", area_id=kitchen.id, options={})
+        duplicate = await _call(
+            hass, "adaptive_areas/create_area", area_id=kitchen.id, options={}
+        )
         assert not duplicate["ok"]
         assert reload.await_count == 2
 
-        assert (await _call(hass, "adaptive_areas/update_area", area_id=living.id, options={"clear_timeout": 7}))["ok"]
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={"clear_timeout": 7},
+            )
+        )["ok"]
         assert reload.await_count == 3
         assert entry.options[CONF_AREAS][living.id]["clear_timeout"] == 7
         assert kitchen.id in entry.options[CONF_AREAS]
@@ -107,9 +133,9 @@ async def test_global_entry_area_crud_websocket_lifecycle(hass, monkeypatch) -> 
                 options={},
             )
         )["ok"]
-        assert not (
-            await _call(hass, "adaptive_areas/delete_area", area_id="unknown")
-        )["ok"]
+        assert not (await _call(hass, "adaptive_areas/delete_area", area_id="unknown"))[
+            "ok"
+        ]
         assert dict(entry.options) == before_options
         assert reload.await_count == 3
 
@@ -118,12 +144,18 @@ async def test_global_entry_area_crud_websocket_lifecycle(hass, monkeypatch) -> 
         await _call(hass, "adaptive_areas/get_area", area_id=living.id)
         assert reload.await_count == 3
 
-        assert (await _call(hass, "adaptive_areas/delete_area", area_id=kitchen.id))["ok"]
+        assert (await _call(hass, "adaptive_areas/delete_area", area_id=kitchen.id))[
+            "ok"
+        ]
         assert reload.await_count == 4
         assert set(entry.options[CONF_AREAS]) == {living.id}
-        assert [area.id for area in get_runtime_areas_for_entry(hass, entry)] == [living.id]
+        assert [area.id for area in get_runtime_areas_for_entry(hass, entry)] == [
+            living.id
+        ]
 
-        assert (await _call(hass, "adaptive_areas/delete_area", area_id=living.id))["ok"]
+        assert (await _call(hass, "adaptive_areas/delete_area", area_id=living.id))[
+            "ok"
+        ]
         assert reload.await_count == 5
     assert entry.options[CONF_AREAS] == {}
     assert get_runtime_areas_for_entry(hass, entry) == []
@@ -190,9 +222,10 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             CONF_FEATURE_PRESENCE_HOLD,
             CONF_FEATURE_LIGHT,
         }
-        assert CONF_FEATURE_LIGHT not in entry.options[CONF_AREAS][kitchen.id][
-            CONF_ENABLED_FEATURES
-        ]
+        assert (
+            CONF_FEATURE_LIGHT
+            not in entry.options[CONF_AREAS][kitchen.id][CONF_ENABLED_FEATURES]
+        )
         assert entry.options[CONF_GLOBAL_OPTIONS] == global_options_before
         assert len(hass.config_entries.async_entries(DOMAIN)) == 1
         assert {
@@ -206,7 +239,9 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             item for item in configurations["areas"] if item["area_id"] == living.id
         )
         assert CONF_FEATURE_LIGHT in living_configuration["available_features"]
-        assert CONF_FEATURE_LIGHT in living_configuration["options"][CONF_ENABLED_FEATURES]
+        assert (
+            CONF_FEATURE_LIGHT in living_configuration["options"][CONF_ENABLED_FEATURES]
+        )
         overview = await _call(hass, "adaptive_areas/get_overview")
         assert CONF_FEATURE_LIGHT in next(
             item["enabled_features"]
@@ -214,9 +249,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             if item["id"] == living.id
         )
         diagnostics = await async_get_config_entry_diagnostics(hass, entry)
-        assert CONF_FEATURE_LIGHT in diagnostics["areas"][living.id][
-            "enabled_features"
-        ]
+        assert CONF_FEATURE_LIGHT in diagnostics["areas"][living.id]["enabled_features"]
 
         living_features[CONF_FEATURE_LIGHT] = {
             CONF_TURN_ON_BELOW: 75.5,
@@ -258,9 +291,12 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             )
         )["ok"]
         assert reload.await_count == 5
-        assert entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES][
-            CONF_FEATURE_LIGHT
-        ] == {}
+        assert (
+            entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES][
+                CONF_FEATURE_LIGHT
+            ]
+            == {}
+        )
 
         assert (
             await _call(
@@ -278,12 +314,14 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
         )["ok"]
         assert reload.await_count == 6
 
-    assert CONF_FEATURE_LIGHT not in entry.options[CONF_AREAS][living.id][
-        CONF_ENABLED_FEATURES
-    ]
-    assert CONF_FEATURE_PRESENCE_HOLD in entry.options[CONF_AREAS][living.id][
-        CONF_ENABLED_FEATURES
-    ]
+    assert (
+        CONF_FEATURE_LIGHT
+        not in entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES]
+    )
+    assert (
+        CONF_FEATURE_PRESENCE_HOLD
+        in entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES]
+    )
     migration_spy.assert_not_awaited()
 
 

@@ -18,7 +18,9 @@ from tests.const import MockAreaIds
 from tests.helpers import get_basic_config_entry_data, init_integration
 
 
-async def test_repair_orchestrator_migrates_multi_area_runtime_without_new_entities(hass) -> None:
+async def test_repair_orchestrator_migrates_multi_area_runtime_without_new_entities(
+    hass,
+) -> None:
     """Three running legacy Areas become one running container without ID churn."""
     area_ids = [
         MockAreaIds.KITCHEN,
@@ -34,7 +36,9 @@ async def test_repair_orchestrator_migrates_multi_area_runtime_without_new_entit
     before = {
         entity.entity_id: entity.unique_id
         for entry in legacy
-        for entity in entity_registry.entities.get_entries_for_config_entry_id(entry.entry_id)
+        for entity in entity_registry.entities.get_entries_for_config_entry_id(
+            entry.entry_id
+        )
         if entity.platform == DOMAIN
     }
 
