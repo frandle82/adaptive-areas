@@ -11,13 +11,14 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
     CONF_FEATURE_MEDIA_PLAYER_GROUPS,
     CONF_NOTIFICATION_DEVICES,
-    DATA_AREA_OBJECT,
     EMPTY_STRING,
     META_AREA_GLOBAL,
-    MODULE_DATA,
     AdaptiveAreasFeatureInfoMediaPlayerGroups,
 )
-from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.area import (
+    get_runtime_areas_for_entry,
+    iter_runtime_areas,
+)
 from custom_components.adaptive_areas.media_player.area_aware_media_player import (
     AreaAwareMediaPlayer,
 )
@@ -28,9 +29,12 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the area media player config entry."""
+    for area in get_runtime_areas_for_entry(hass, config_entry):
+        await _async_setup_area(hass, area, async_add_entities)
 
-    area: AdaptiveArea | None = get_area_from_config_entry(hass, config_entry)
-    assert area is not None
+
+async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
+    """Set up media players for one runtime Area."""
 
     entities_to_add: list[AreaAwareMediaPlayer | AreaMediaPlayerGroup] = []
 
@@ -68,13 +72,10 @@ def setup_media_player_group(area):
 
 def setup_area_aware_media_player(area):
     """Create Area-aware media player."""
-    ma_data = area.hass.data[MODULE_DATA]
-
     # Check if we have areas with MEDIA_PLAYER_DOMAIN entities
     areas_with_media_players = []
 
-    for entry in ma_data.values():
-        current_area = entry[DATA_AREA_OBJECT]
+    for current_area in iter_runtime_areas(area.hass):
 
         # Skip meta areas
         if current_area.is_meta():

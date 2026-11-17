@@ -18,7 +18,7 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatureInfoEnvironmentReferenceTemperature,
     RoomCategory,
 )
-from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 DEFAULT_MANUAL_REFERENCE_TEMPERATURE = 20.0
@@ -30,8 +30,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up manual Area Climate controls for an Area."""
-    area: AdaptiveArea | None = get_area_from_config_entry(hass, config_entry)
-    assert area is not None
+    for area in get_runtime_areas_for_entry(hass, config_entry):
+        await _async_setup_area(hass, area, async_add_entities)
+
+
+async def _async_setup_area(
+    hass: HomeAssistant, area: AdaptiveArea, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up manual climate controls for one runtime Area."""
 
     entities_to_add: list[NumberEntity] = []
     if (

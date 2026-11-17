@@ -35,11 +35,27 @@ from homeassistant.const import (
 )
 from homeassistant.helpers import config_validation as cv
 
+from custom_components.adaptive_areas.helpers.light_policy import (
+    CONF_TURN_OFF_ABOVE,
+    CONF_TURN_ON_BELOW,
+    light_policy_config_from_feature,
+)
+
 ONE_MINUTE = 60  # seconds, for conversion
 EMPTY_STRING = ""
 
 DOMAIN = "adaptive_areas"
 MODULE_DATA = f"{DOMAIN}_data"
+
+# Single-entry storage introduced by the GlobalEntry migration.  Area IDs remain
+# the stable keys; the ConfigEntry ID only identifies the integration container.
+CONF_AREAS = "areas"
+CONF_GLOBAL_OPTIONS = "global_options"
+CONF_WEATHER_ENTITY = "weather_entity"
+CONF_GLOBAL_LIGHT_SENSOR = "global_light_sensor"
+CONF_GLOBAL_ENTRY = "global_entry"
+CONF_MIGRATION = "migration"
+GLOBAL_ENTRY_UNIQUE_ID = "adaptive_areas_global"
 
 ADDITIONAL_LIGHT_TRACKING_ENTITIES = ["sun.sun"]
 DEFAULT_SENSOR_PRECISION = 2
@@ -531,6 +547,7 @@ class AdaptiveAreasFeatures(StrEnum):
     """Adaptive Areas features."""
 
     AREA = "area"  # Default feature
+    LIGHT = "light"
     PRESENCE_HOLD = "presence_hold"
     LIGHT_GROUPS = "light_groups"
     SWITCH_GROUPS = "switch_groups"
@@ -582,6 +599,7 @@ ALL_SENSOR_DEVICE_CLASSES = [cls.value for cls in SensorDeviceClass]
 
 # Data Items
 DATA_AREA_OBJECT = "area_object"
+DATA_AREAS = "areas"
 DATA_TRACKED_LISTENERS = "tracked_listeners"
 
 # Attributes
@@ -915,6 +933,7 @@ CONFIGURABLE_AREA_STATE_MAP = {
 }
 
 # features
+CONF_FEATURE_LIGHT = "light"
 CONF_FEATURE_CLIMATE_CONTROL = "climate_control"
 CONF_FEATURE_FAN_GROUPS = "fan_groups"
 CONF_FEATURE_MEDIA_PLAYER_GROUPS = "media_player_groups"
@@ -956,6 +975,7 @@ CONF_FEATURE_LIST_META = [
 ]
 
 CONF_FEATURE_LIST = CONF_FEATURE_LIST_META + [
+    CONF_FEATURE_LIGHT,
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_AREA_AWARE_MEDIA_PLAYER,
@@ -1566,9 +1586,31 @@ AREA_AWARE_MEDIA_PLAYER_FEATURE_SCHEMA = vol.Schema(
     extra=vol.REMOVE_EXTRA,
 )
 
+
+def _validate_light_policy_feature(value: object) -> dict:
+    """Validate persisted Light thresholds through the policy model."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("Light policy configuration must be an object")
+    try:
+        light_policy_config_from_feature(value)
+    except ValueError as err:
+        raise vol.Invalid(str(err)) from err
+    return value
+
+
 ALL_FEATURES = set(CONF_FEATURE_LIST) | set(CONF_FEATURE_LIST_GLOBAL)
 
 CONFIGURABLE_FEATURES = {
+    CONF_FEATURE_LIGHT: vol.All(
+        vol.Schema(
+            {
+                vol.Optional(CONF_TURN_ON_BELOW): object,
+                vol.Optional(CONF_TURN_OFF_ABOVE): object,
+            },
+            extra=vol.PREVENT_EXTRA,
+        ),
+        _validate_light_policy_feature,
+    ),
     CONF_FEATURE_ENVIRONMENT: AREA_EVALUATION_OPTIONS_SCHEMA,
     CONF_FEATURE_ROOM_USAGE: CLEANING_TRACKER_FEATURE_SCHEMA,
     CONF_FEATURE_LIGHT_GROUPS: LIGHT_GROUP_FEATURE_SCHEMA,

@@ -49,14 +49,16 @@ from custom_components.adaptive_areas.const import (
     CONF_HEALTH_SENSOR_DEVICE_CLASSES,
     DEFAULT_AGGREGATES_BINARY_SENSOR_DEVICE_CLASSES,
     DEFAULT_HEALTH_SENSOR_DEVICE_CLASSES,
-    DATA_AREA_OBJECT,
-    MODULE_DATA,
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoHealth,
     AdaptiveAreasFeatureInfoRoomUsage,
 )
 from custom_components.adaptive_areas.base.entities import BinaryAdaptiveEntity
-from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.area import (
+    generated_entities_for_area,
+    get_runtime_areas_for_entry,
+    iter_runtime_areas,
+)
 from custom_components.adaptive_areas.helpers.sources import area_entity_ids
 from custom_components.adaptive_areas.threshold import create_illuminance_threshold
 from custom_components.adaptive_areas.util import cleanup_removed_entries
@@ -91,11 +93,9 @@ def discover_binary_aggregate_source_groups(
         # assigned to the Meta Area's own (non-physical) registry Area.
         entity_ids = {
             entry.entity_id
-            for runtime in area.hass.data.get(MODULE_DATA, {}).values()
-            if runtime[DATA_AREA_OBJECT].slug in area.child_areas
-            for entry in registry.entities.get_entries_for_config_entry_id(
-                runtime[DATA_AREA_OBJECT].hass_config.entry_id
-            )
+            for child_area in iter_runtime_areas(area.hass)
+            if child_area.slug in area.child_areas
+            for entry in generated_entities_for_area(area.hass, child_area)
             if entry.domain == BINARY_SENSOR_DOMAIN
         }
     else:
@@ -106,9 +106,7 @@ def discover_binary_aggregate_source_groups(
         # excluded by area_entity_ids; include them once they exist in the registry.
         entity_ids.update(
             entry.entity_id
-            for entry in registry.entities.get_entries_for_config_entry_id(
-                area.hass_config.entry_id
-            )
+            for entry in generated_entities_for_area(area.hass, area)
             if entry.domain == BINARY_SENSOR_DOMAIN
         )
 
@@ -291,11 +289,16 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the area binary sensor config entry."""
+    for area in get_runtime_areas_for_entry(hass, config_entry):
+        await _async_setup_area(hass, area, async_add_entities)
 
-    area: AdaptiveArea | AdaptiveMetaArea | None = get_area_from_config_entry(
-        hass, config_entry
-    )
-    assert area is not None
+
+async def _async_setup_area(
+    hass: HomeAssistant,
+    area: AdaptiveArea | AdaptiveMetaArea,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up binary sensors for one runtime Area."""
 
     entities = []
     aggregate_manager = None

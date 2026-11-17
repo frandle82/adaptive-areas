@@ -3,6 +3,7 @@
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
+from homeassistant.components.sensor.const import SensorDeviceClass
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
@@ -20,11 +21,41 @@ from custom_components.adaptive_areas.dashboard import (
 )
 from custom_components.adaptive_areas.area_config import (
     area_configuration,
+    area_configurations,
     async_create_area,
+    async_delete_area,
     async_update_area,
     available_areas,
+    get_global_options,
+    update_global_options,
 )
-from custom_components.adaptive_areas.const import DOMAIN
+from custom_components.adaptive_areas.const import (
+    CONF_GLOBAL_LIGHT_SENSOR,
+    CONF_WEATHER_ENTITY,
+    DOMAIN,
+)
+from custom_components.adaptive_areas.migration import get_global_entries
+
+
+def _validate_global_options(hass: HomeAssistant, updates: dict) -> dict[str, str]:
+    """Validate only global-option fields explicitly supplied by the client."""
+    errors = {}
+    weather = updates.get(CONF_WEATHER_ENTITY)
+    if CONF_WEATHER_ENTITY in updates and weather is not None:
+        if not isinstance(weather, str) or not weather.startswith("weather."):
+            errors[CONF_WEATHER_ENTITY] = "Expected an existing weather entity"
+        elif hass.states.get(weather) is None:
+            errors[CONF_WEATHER_ENTITY] = "Unknown weather entity"
+    light_sensor = updates.get(CONF_GLOBAL_LIGHT_SENSOR)
+    if CONF_GLOBAL_LIGHT_SENSOR in updates and light_sensor is not None:
+        state = hass.states.get(light_sensor) if isinstance(light_sensor, str) else None
+        if not isinstance(light_sensor, str) or not light_sensor.startswith("sensor."):
+            errors[CONF_GLOBAL_LIGHT_SENSOR] = "Expected an illuminance sensor"
+        elif state is None:
+            errors[CONF_GLOBAL_LIGHT_SENSOR] = "Unknown illuminance sensor"
+        elif state.attributes.get("device_class") != SensorDeviceClass.ILLUMINANCE:
+            errors[CONF_GLOBAL_LIGHT_SENSOR] = "Expected an illuminance sensor"
+    return errors
 
 
 def _get_area(hass: HomeAssistant, area_id: str):
@@ -81,12 +112,85 @@ async def websocket_get_area_configuration(hass, connection, msg):
     connection.send_result(
         msg["id"],
         {
-            "areas": [
-                area_configuration(entry)
-                for entry in hass.config_entries.async_entries(DOMAIN)
-            ],
+            "areas": sorted(
+                (
+                    configuration
+                    for entry in hass.config_entries.async_entries(DOMAIN)
+                    for configuration in area_configurations(entry)
+                ),
+                key=lambda configuration: configuration["area_id"],
+            ),
             "available_areas": available_areas(hass),
         },
+    )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {vol.Required("type"): "adaptive_areas/get_global_configuration"}
+)
+@websocket_api.async_response
+async def websocket_get_global_configuration(hass, connection, msg):
+    """Return global options without mutating or reloading the container."""
+    entries = get_global_entries(hass)
+    if len(entries) != 1:
+        connection.send_result(
+            msg["id"],
+            {"ok": False, "errors": {"base": "Exactly one GlobalEntry is required"}},
+        )
+        return
+    options = get_global_options(entries[0])
+    connection.send_result(
+        msg["id"],
+        {
+            "ok": True,
+            "errors": {},
+            "options": {
+                CONF_WEATHER_ENTITY: options.get(CONF_WEATHER_ENTITY),
+                CONF_GLOBAL_LIGHT_SENSOR: options.get(CONF_GLOBAL_LIGHT_SENSOR),
+            },
+        },
+    )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "adaptive_areas/update_global_configuration",
+        vol.Required("options"): dict,
+    }
+)
+@websocket_api.async_response
+async def websocket_update_global_configuration(hass, connection, msg):
+    """Persist partial global options and reload only for a real mutation."""
+    updates = msg["options"]
+    allowed = {CONF_WEATHER_ENTITY, CONF_GLOBAL_LIGHT_SENSOR}
+    if not updates or set(updates) - allowed:
+        connection.send_result(
+            msg["id"], {"ok": False, "errors": {"base": "Unsupported global option"}}
+        )
+        return
+    entries = get_global_entries(hass)
+    if len(entries) != 1:
+        connection.send_result(
+            msg["id"],
+            {"ok": False, "errors": {"base": "Exactly one GlobalEntry is required"}},
+        )
+        return
+    entry = entries[0]
+    if errors := _validate_global_options(hass, updates):
+        connection.send_result(msg["id"], {"ok": False, "errors": errors})
+        return
+    current = get_global_options(entry)
+    if all(current.get(key) == value for key, value in updates.items()):
+        connection.send_result(
+            msg["id"], {"ok": True, "errors": {}, "options": current}
+        )
+        return
+    update_global_options(hass, entry, updates)
+    await hass.async_block_till_done()
+    connection.send_result(
+        msg["id"], {"ok": True, "errors": {}, "options": get_global_options(entry)}
     )
 
 
@@ -107,7 +211,11 @@ async def websocket_create_area(hass, connection, msg):
         {
             "ok": entry is not None,
             "errors": errors,
-            "area": area_configuration(entry) if entry else None,
+            "area": (
+                area_configuration(entry, entry.options["areas"][msg["area_id"]])
+                if entry
+                else None
+            ),
         },
     )
 
@@ -116,29 +224,26 @@ async def websocket_create_area(hass, connection, msg):
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "adaptive_areas/update_area",
-        vol.Required("entry_id"): str,
+        vol.Required("area_id"): str,
         vol.Required("options"): dict,
     }
 )
 @websocket_api.async_response
 async def websocket_update_area(hass, connection, msg):
-    """Persist a complete Area options snapshot and reload the entry once."""
-    errors = await async_update_area(
-        hass, _get_entry(hass, msg["entry_id"]), msg["options"]
-    )
+    """Persist a complete logical Area snapshot and reload the container once."""
+    errors = await async_update_area(hass, msg["area_id"], msg["options"])
     connection.send_result(msg["id"], {"ok": not errors, "errors": errors})
 
 
 @websocket_api.require_admin
 @websocket_api.websocket_command(
-    {vol.Required("type"): "adaptive_areas/delete_area", vol.Required("entry_id"): str}
+    {vol.Required("type"): "adaptive_areas/delete_area", vol.Required("area_id"): str}
 )
 @websocket_api.async_response
 async def websocket_delete_area(hass, connection, msg):
-    """Delete one Area through the normal ConfigEntry lifecycle."""
-    entry = _get_entry(hass, msg["entry_id"])
-    await hass.config_entries.async_remove(entry.entry_id)
-    connection.send_result(msg["id"], {"ok": True})
+    """Delete one logical Area without deleting the GlobalEntry."""
+    errors = await async_delete_area(hass, msg["area_id"])
+    connection.send_result(msg["id"], {"ok": not errors, "errors": errors})
 
 
 @websocket_api.websocket_command(
@@ -161,12 +266,17 @@ async def websocket_subscribe_updates(hass, connection, msg):
             ),
         }
     }
+    last_summaries: dict[str, dict] = {}
 
     @callback
     def _state_changed(event) -> None:
         entity_id = event.data["entity_id"]
         if area := entity_to_area.get(entity_id):
-            connection.send_event(msg["id"], {"area": build_area_summary(hass, area)})
+            summary = build_area_summary(hass, area)
+            if last_summaries.get(summary["id"]) == summary:
+                return
+            last_summaries[summary["id"]] = summary
+            connection.send_event(msg["id"], {"area": summary})
 
     remove_listener = lambda: None
     if entity_to_area:
@@ -188,6 +298,8 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
         websocket_get_area,
         websocket_get_diagnostics,
         websocket_get_area_configuration,
+        websocket_get_global_configuration,
+        websocket_update_global_configuration,
         websocket_create_area,
         websocket_update_area,
         websocket_delete_area,

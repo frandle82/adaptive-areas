@@ -75,11 +75,9 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_EXTENDED_TIMEOUT,
     DEFAULT_SECONDARY_STATES_CALCULATION_MODE,
     DEFAULT_SLEEP_TIMEOUT,
-    DATA_AREA_OBJECT,
     EMPTY_STRING,
     EVENT_ADAPTIVE_AREAS_AREA,
     INVALID_STATES,
-    MODULE_DATA,
     ONE_MINUTE,
     PRESENCE_CONTROL_VALID_ON_STATES,
     AreaStates,
@@ -1085,12 +1083,11 @@ class AreaStateBinarySensor(AreaStateTrackerEntity, BinarySensorEntity):
 
     def _meta_children(self) -> list[AdaptiveArea]:
         """Return runtime child objects for listener filtering."""
+        from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
+
         child_slugs = set(self.area.get_child_areas())
         return [
-            runtime[DATA_AREA_OBJECT]
-            for runtime in self.hass.data.get(MODULE_DATA, {}).values()
-            if DATA_AREA_OBJECT in runtime
-            and runtime[DATA_AREA_OBJECT].slug in child_slugs
+            area for area in iter_runtime_areas(self.hass) if area.slug in child_slugs
         ]
 
     # Helpers

@@ -1,7 +1,9 @@
 """Shared entity-source discovery for Adaptive Areas features."""
 
 from collections.abc import Iterable
-from typing import Any
+from dataclasses import dataclass
+from math import isfinite
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
@@ -30,6 +32,9 @@ from homeassistant.helpers.entity_registry import async_get as async_get_entity_
 
 from custom_components.adaptive_areas.const import (
     CONF_EXCLUDE_ENTITIES,
+    CONF_FEATURE_LIGHT,
+    CONF_GLOBAL_LIGHT_SENSOR,
+    CONF_GLOBAL_OPTIONS,
     CONF_ID,
     CONF_INCLUDE_ENTITIES,
     CONF_PRESENCE_DEVICE_PLATFORMS,
@@ -37,6 +42,9 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_PRESENCE_DEVICE_PLATFORMS,
     DOMAIN,
 )
+
+if TYPE_CHECKING:
+    from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 
 _PRESENCE_SOURCE_ACTIVE_STATES: dict[str, frozenset[str]] = {
     BINARY_SENSOR_DOMAIN: frozenset((STATE_ON, STATE_OPEN)),
@@ -55,6 +63,33 @@ SUPPORTED_PHYSICAL_PRESENCE_SOURCE_DOMAINS = frozenset(
     )
 )
 _INACTIVE_TRACKER_STATES = frozenset(("not_home", "work", "school"))
+
+
+@dataclass(frozen=True, slots=True)
+class LightTargetSource:
+    """One discovered physical Light target and its current availability."""
+
+    entity_id: str
+    available: bool
+
+
+@dataclass(frozen=True, slots=True)
+class LightSourceSnapshot:
+    """Read-only inputs available to a future Light policy."""
+
+    area_id: str
+    targets: tuple[LightTargetSource, ...]
+    illuminance_entity_id: str | None
+    illuminance_available: bool
+    illuminance_value: float | None
+    presence_source_entity_ids: tuple[str, ...]
+    presence_available: bool
+    presence_state: bool | None
+
+    @property
+    def target_light_entity_ids(self) -> tuple[str, ...]:
+        """Return stable target IDs without exposing availability internals."""
+        return tuple(target.entity_id for target in self.targets)
 
 
 def device_belongs_to_area(
@@ -171,6 +206,73 @@ def area_entity_ids(
         if device_belongs_to_area(hass, entry.device_id, area_id):
             result.add(entry.entity_id)
     return result
+
+
+def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
+    """Resolve read-only Light inputs for one regular Area with the new feature."""
+    if area.is_meta() or not area.has_feature(CONF_FEATURE_LIGHT):
+        return None
+
+    target_ids = sorted(
+        area_entity_ids(
+            area.hass,
+            area.hass_config,
+            area.config,
+            domain="light",
+        )
+    )
+    targets = tuple(
+        LightTargetSource(
+            entity_id=entity_id,
+            available=_state_available(area.hass.states.get(entity_id)),
+        )
+        for entity_id in target_ids
+    )
+    global_options = area.hass_config.options.get(CONF_GLOBAL_OPTIONS, {})
+    illuminance_entity_id = (
+        global_options.get(CONF_GLOBAL_LIGHT_SENSOR)
+        if isinstance(global_options, dict)
+        else None
+    )
+    illuminance_entity_id = (
+        illuminance_entity_id if isinstance(illuminance_entity_id, str) else None
+    )
+    illuminance_state = (
+        area.hass.states.get(illuminance_entity_id)
+        if illuminance_entity_id is not None
+        else None
+    )
+    presence_source_entity_ids = tuple(sorted(set(area.get_presence_sensors())))
+    presence_available = any(
+        _state_available(area.hass.states.get(entity_id))
+        for entity_id in presence_source_entity_ids
+    )
+    return LightSourceSnapshot(
+        area_id=area.id,
+        targets=targets,
+        illuminance_entity_id=illuminance_entity_id,
+        illuminance_available=_state_available(illuminance_state),
+        illuminance_value=_numeric_state_value(illuminance_state),
+        presence_source_entity_ids=presence_source_entity_ids,
+        presence_available=presence_available,
+        presence_state=area.is_occupied() if presence_available else None,
+    )
+
+
+def _state_available(state: State | None) -> bool:
+    """Return availability without excluding a configured/discovered source."""
+    return state is not None and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+
+
+def _numeric_state_value(state: State | None) -> float | None:
+    """Return a finite numeric source value without unit conversion or policy."""
+    if not _state_available(state):
+        return None
+    try:
+        value = float(state.state)
+    except TypeError, ValueError:
+        return None
+    return value if isfinite(value) else None
 
 
 def physical_presence_source_ids(

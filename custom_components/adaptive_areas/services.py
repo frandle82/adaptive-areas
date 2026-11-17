@@ -12,13 +12,12 @@ import homeassistant.helpers.config_validation as cv
 
 from custom_components.adaptive_areas.const import (
     ATTR_SCORE,
-    DATA_AREA_OBJECT,
     DOMAIN,
-    MODULE_DATA,
     SERVICE_MARK_CLEANED,
     SERVICE_RESET,
     SERVICE_SET_SCORE,
 )
+from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
 
 AREA_SERVICE_SCHEMA = vol.Schema(
     {
@@ -44,8 +43,8 @@ def _trackers_for_call(hass: HomeAssistant, call: ServiceCall) -> list[Any]:
     requested_ids = list(dict.fromkeys(call.data[ATTR_AREA_ID]))
     trackers_by_area = {
         area.id: area.room_usage
-        for entry_data in hass.data.get(MODULE_DATA, {}).values()
-        if (area := entry_data[DATA_AREA_OBJECT]).room_usage is not None
+        for area in iter_runtime_areas(hass)
+        if area.room_usage is not None
     }
     missing = [area_id for area_id in requested_ids if area_id not in trackers_by_area]
     if missing:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from types import MappingProxyType
 from typing import Any
 
 import voluptuous as vol
@@ -13,9 +12,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
 from custom_components.adaptive_areas.const import (
-    AdaptiveConfigEntryVersion,
     AREA_TYPE_META,
+    CONF_AREAS,
     CONF_ENABLED_FEATURES,
+    CONF_GLOBAL_OPTIONS,
     CONF_FEATURE_LIST,
     CONF_FEATURE_LIST_GLOBAL,
     CONF_FEATURE_LIST_META,
@@ -28,11 +28,28 @@ from custom_components.adaptive_areas.const import (
     META_AREA_SCHEMA,
     REGULAR_AREA_SCHEMA,
 )
+from custom_components.adaptive_areas.migration import get_global_entries
 
 
 def _entry_options(entry: ConfigEntry) -> dict[str, Any]:
     """Return the persisted effective config without exposing mutable entry data."""
     return {**entry.data, **entry.options}
+
+
+def get_global_options(entry: ConfigEntry) -> dict[str, Any]:
+    """Return a detached, empty-safe view of GlobalEntry options."""
+    options = entry.options.get(CONF_GLOBAL_OPTIONS, {})
+    return dict(options) if isinstance(options, Mapping) else {}
+
+
+def update_global_options(
+    hass: HomeAssistant, entry: ConfigEntry, updates: Mapping[str, Any]
+) -> None:
+    """Persist a partial global-options update without touching Area settings."""
+    options = {**get_global_options(entry), **updates}
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_GLOBAL_OPTIONS: options}
+    )
 
 
 def _schema_for(config: Mapping[str, Any]):
@@ -75,9 +92,11 @@ def validate_area_options(
         }
 
 
-def area_configuration(entry: ConfigEntry) -> dict[str, Any]:
+def area_configuration(
+    entry: ConfigEntry, config: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
     """Build the editable DTO from persisted settings, never runtime state."""
-    config = _entry_options(entry)
+    config = dict(config) if config is not None else _entry_options(entry)
     validated, errors = validate_area_options(config, {})
     return {
         "entry_id": entry.entry_id,
@@ -90,13 +109,30 @@ def area_configuration(entry: ConfigEntry) -> dict[str, Any]:
     }
 
 
+def area_configurations(entry: ConfigEntry) -> list[dict[str, Any]]:
+    """Return every logical Area configuration owned by an entry."""
+    areas = entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS))
+    if isinstance(areas, dict):
+        return sorted(
+            [
+                area_configuration(entry, config)
+                for config in areas.values()
+                if isinstance(config, Mapping)
+            ],
+            key=lambda item: item["area_id"],
+        )
+    return [area_configuration(entry)]
+
+
 def available_areas(hass: HomeAssistant) -> list[dict[str, str]]:
     """List unused Home Assistant Areas available for regular Adaptive Areas."""
-    configured = {
-        str(entry.data.get(CONF_ID))
-        for entry in hass.config_entries.async_entries(DOMAIN)
-        if entry.data.get(CONF_ID)
-    }
+    configured = set()
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        areas = entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS))
+        if isinstance(areas, dict):
+            configured.update(str(area_id) for area_id in areas)
+        elif entry.data.get(CONF_ID):
+            configured.add(str(entry.data[CONF_ID]))
     return [
         {"id": area.id, "name": area.name}
         for area in sorted(
@@ -110,14 +146,16 @@ def available_areas(hass: HomeAssistant) -> list[dict[str, str]]:
 async def async_create_area(
     hass: HomeAssistant, area_id: str, updates: Mapping[str, Any]
 ) -> tuple[ConfigEntry | None, dict[str, str]]:
-    """Create one regular Area ConfigEntry from the standard defaults."""
+    """Create one regular Area in the unique GlobalEntry container."""
+    entries = get_global_entries(hass)
+    if len(entries) != 1:
+        return None, {"base": "Exactly one GlobalEntry is required"}
+    entry = entries[0]
     area = async_get_area_registry(hass).async_get_area(area_id)
     if area is None:
         return None, {"area_id": "Unknown Home Assistant area"}
-    if any(
-        str(entry.data.get(CONF_ID)) == area_id
-        for entry in hass.config_entries.async_entries(DOMAIN)
-    ):
+    areas = dict(entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS, {})))
+    if area_id in areas:
         return None, {"area_id": "Area is already configured"}
     if updates.get(CONF_TYPE) == AREA_TYPE_META:
         return None, {CONF_TYPE: "Home Assistant areas cannot be Meta Areas"}
@@ -126,27 +164,32 @@ async def async_create_area(
     if defaults is None:
         return None, errors
     data = {**defaults, CONF_ID: area_id, CONF_NAME: area.name}
-    entry = ConfigEntry(
-        data=data,
-        discovery_keys=MappingProxyType({}),
-        domain=DOMAIN,
-        minor_version=AdaptiveConfigEntryVersion.MINOR,
-        options={},
-        source="user",
-        subentries_data=None,
-        title=area.name,
-        unique_id=area_id,
-        version=AdaptiveConfigEntryVersion.MAJOR,
+    areas[area_id] = data
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_AREAS: areas}
     )
-    await hass.config_entries.async_add(entry)
+    await hass.async_block_till_done()
     return entry, {}
 
 
 async def async_update_area(
-    hass: HomeAssistant, entry: ConfigEntry, updates: Mapping[str, Any]
+    hass: HomeAssistant, area_id: str | ConfigEntry, updates: Mapping[str, Any]
 ) -> dict[str, str]:
-    """Atomically update one entry's panel-managed options and reload once."""
-    current = _entry_options(entry)
+    """Atomically update one logical Area and reload its container once."""
+    legacy_entry = area_id if isinstance(area_id, ConfigEntry) else None
+    if legacy_entry is not None:
+        entry = legacy_entry
+        current = _entry_options(entry)
+    else:
+        entries = get_global_entries(hass)
+        if len(entries) != 1:
+            return {"base": "Exactly one GlobalEntry is required"}
+        entry = entries[0]
+        areas = dict(entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS, {})))
+        current = areas.get(area_id)
+        if not isinstance(current, Mapping):
+            return {"area_id": "Adaptive Area not found"}
+        current = dict(current)
     if updates.get(CONF_TYPE, current[CONF_TYPE]) != current[CONF_TYPE] and (
         updates.get(CONF_TYPE, current[CONF_TYPE]) == AREA_TYPE_META
         or current[CONF_TYPE] == AREA_TYPE_META
@@ -160,9 +203,36 @@ async def async_update_area(
     validated, errors = validate_area_options(current, updates)
     if validated is None:
         return errors
-    # Identity belongs to the entry data and is deliberately not panel-editable.
+    # Identity belongs to the container key and is deliberately not panel-editable.
     validated.pop(CONF_ID, None)
     validated.pop(CONF_NAME, None)
-    hass.config_entries.async_update_entry(entry, options=validated)
+    if legacy_entry is not None:
+        hass.config_entries.async_update_entry(entry, options=validated)
+    else:
+        areas[area_id] = {
+            **validated,
+            CONF_ID: area_id,
+            CONF_NAME: current[CONF_NAME],
+        }
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_AREAS: areas}
+        )
+    await hass.async_block_till_done()
+    return {}
+
+
+async def async_delete_area(hass: HomeAssistant, area_id: str) -> dict[str, str]:
+    """Remove one logical Area while retaining the GlobalEntry."""
+    entries = get_global_entries(hass)
+    if len(entries) != 1:
+        return {"base": "Exactly one GlobalEntry is required"}
+    entry = entries[0]
+    areas = dict(entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS, {})))
+    if area_id not in areas:
+        return {"area_id": "Adaptive Area not found"}
+    areas.pop(area_id)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_AREAS: areas}
+    )
     await hass.async_block_till_done()
     return {}

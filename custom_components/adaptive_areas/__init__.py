@@ -29,6 +29,7 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_META,
     AREA_TYPE_INTERIOR,
     CONF_AREA_HUMIDITY_SENSOR,
+    CONF_AREAS,
     CONF_AREA_TEMPERATURE_SENSOR,
     CONF_ENABLED_FEATURES,
     CONF_ENVIRONMENT_CIRCULATION_FANS,
@@ -43,7 +44,9 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_SWITCH_GROUPS,
+    CONF_GLOBAL_ENTRY,
     CONF_ID,
+    CONF_MIGRATION,
     CONF_INCLUDE_ENTITIES,
     CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
@@ -61,6 +64,7 @@ from custom_components.adaptive_areas.const import (
     CONF_TASK_SWITCHES_STATES,
     CONF_TYPE,
     DATA_AREA_OBJECT,
+    DATA_AREAS,
     DATA_TRACKED_LISTENERS,
     DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
     DEFAULT_ROOM_CATEGORY,
@@ -69,13 +73,17 @@ from custom_components.adaptive_areas.const import (
     AdaptiveConfigEntryVersion,
 )
 from custom_components.adaptive_areas.helpers.area import (
-    get_adaptive_area_for_config_entry,
+    entity_belongs_to_area,
+    get_adaptive_areas_for_config_entry,
+    get_runtime_areas_for_entry,
 )
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
+from custom_components.adaptive_areas.helpers.light_runtime import LightRuntimeManager
 from custom_components.adaptive_areas.repairs import (
     async_evaluate_config_entry,
+    async_evaluate_single_global_entry_migration,
     async_remove_config_entry_issues,
 )
 from custom_components.adaptive_areas.services import (
@@ -121,6 +129,21 @@ _REMOVED_MANUAL_POLLUTANT_KEYS = (
     "manual_ozone_unit",
     "manual_voc_unit",
 )
+
+
+def _assign_generated_entities_to_areas(
+    hass: HomeAssistant, config_entry: ConfigEntry, areas: list[AdaptiveArea]
+) -> None:
+    """Keep generated entity ownership separate from logical HA Area assignment."""
+    entity_registry = async_get_entity_registry(hass)
+    for adaptive_area in areas:
+        for entity in entity_registry.entities.get_entries_for_config_entry_id(
+            config_entry.entry_id
+        ):
+            if entity_belongs_to_area(entity, adaptive_area):
+                entity_registry.async_update_entity(
+                    entity.entity_id, area_id=adaptive_area.id
+                )
 
 
 def _eligible_primary_sources(
@@ -346,6 +369,17 @@ async def async_setup_entry(  # noqa: C901
 ):
     """Set up the component."""
 
+    # Detection is read-only: only the explicit Repair fix may migrate entries.
+    await async_evaluate_single_global_entry_migration(hass)
+    migration = config_entry.options.get(CONF_MIGRATION, {})
+    if (
+        config_entry.data.get(CONF_GLOBAL_ENTRY)
+        and migration.get("migration_phase") == "prepare"
+    ):
+        # The ConfigFlow factory registers entries immediately.  Keep the
+        # container inert until ownership has moved, otherwise HA would create
+        # duplicate devices before the registry transfer.
+        return True
     await async_setup_panel(hass)
 
     remove_reload_timer: Callable[[], None] | None = None
@@ -459,48 +493,59 @@ async def async_setup_entry(  # noqa: C901
 
         _async_reload_entry()
 
-    async def _async_setup_integration(*args, **kwargs) -> bool:
+    async def _async_setup_integration(*args, **kwargs) -> bool:  # noqa: C901
         """Load integration when Hass has finished starting."""
         nonlocal reloading
         total_start = monotonic()
-        _LOGGER.debug("Setting up entry for %s", config_entry.data[ATTR_NAME])
-
-        step_start = monotonic()
-        repair_summary = await async_evaluate_config_entry(hass, config_entry)
-        _LOGGER.debug(
-            "Adaptive Areas [%s]: repair evaluation: %.0f ms",
-            config_entry.data[ATTR_NAME],
-            (monotonic() - step_start) * 1000,
+        _LOGGER.debug("Setting up entry for %s", config_entry.title)
+        is_container = (
+            CONF_AREAS in config_entry.data or CONF_AREAS in config_entry.options
         )
-        if repair_summary["missing_area"]:
-            _LOGGER.error("Unable to set up Adaptive Areas entry: area is missing")
+        if not is_container:
+            repair_summary = await async_evaluate_config_entry(hass, config_entry)
+            if repair_summary["missing_area"]:
+                _LOGGER.error("Unable to set up Adaptive Areas entry: area is missing")
+                return False
+
+        adaptive_areas = get_adaptive_areas_for_config_entry(hass, config_entry)
+        if is_container and not adaptive_areas and migration:
+            return False
+        configured_areas = (
+            config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
+            if is_container
+            else None
+        )
+        if (
+            (not is_container and not adaptive_areas)
+            or (
+                isinstance(configured_areas, dict)
+                and len(adaptive_areas) != len(configured_areas)
+            )
+            or len({area.id for area in adaptive_areas}) != len(adaptive_areas)
+        ):
+            _LOGGER.error("Unable to set up Adaptive Areas entry: area creation failed")
             return False
 
-        step_start = monotonic()
-        adaptive_area: AdaptiveArea | None = get_adaptive_area_for_config_entry(
-            hass, config_entry
-        )
-        _LOGGER.debug(
-            "Adaptive Areas [%s]: area object creation: %.0f ms",
-            config_entry.data[ATTR_NAME],
-            (monotonic() - step_start) * 1000,
-        )
-        if adaptive_area is None:
-            return False
-        step_start = monotonic()
-        await adaptive_area.initialize()
-        _LOGGER.debug(
-            "Adaptive Areas [%s]: area initialization: %.0f ms",
-            adaptive_area.name,
-            (monotonic() - step_start) * 1000,
-        )
-
-        _LOGGER.debug(
-            "%s: Adaptive Area (%s) created: %s",
-            adaptive_area.name,
-            adaptive_area.id,
-            str(adaptive_area.config),
-        )
+        hass.data[MODULE_DATA][config_entry.entry_id] = {
+            DATA_AREAS: {area.id: area for area in adaptive_areas},
+        }
+        # Meta Areas derive their children from the active runtime.  A container
+        # creates every Area before this runtime map exists, so resolve children
+        # only after all regular Areas are visible.
+        for adaptive_area in adaptive_areas:
+            if adaptive_area.is_meta():
+                adaptive_area.child_areas = adaptive_area.get_child_areas()
+        initialized_areas: list[AdaptiveArea] = []
+        try:
+            for adaptive_area in adaptive_areas:
+                _LOGGER.debug("Setting up Area %s", adaptive_area.id)
+                await adaptive_area.initialize()
+                initialized_areas.append(adaptive_area)
+        except Exception:
+            for adaptive_area in initialized_areas:
+                adaptive_area.unload()
+            hass.data[MODULE_DATA].pop(config_entry.entry_id, None)
+            raise
 
         # Setup config uptate listener
         tracked_listeners: list[Callable] = []
@@ -522,62 +567,101 @@ async def async_setup_entry(  # noqa: C901
             """Reload when the backing Area or floor changes."""
             _async_schedule_repair_evaluation()
             target_id = event.data.get("area_id") or event.data.get("floor_id")
-            if target_id == adaptive_area.id:
+            if any(
+                area.id == target_id
+                for area in get_runtime_areas_for_entry(hass, config_entry)
+            ):
                 _async_reload_entry()
 
         # Watch for area changes.
-        if not adaptive_area.is_meta():
-            tracked_listeners.append(
-                hass.bus.async_listen(
-                    EVENT_AREA_REGISTRY_UPDATED, _async_backing_registry_updated
+        for adaptive_area in adaptive_areas:
+            if not adaptive_area.is_meta():
+                tracked_listeners.append(
+                    hass.bus.async_listen(
+                        EVENT_AREA_REGISTRY_UPDATED, _async_backing_registry_updated
+                    )
                 )
-            )
-            tracked_listeners.append(
-                hass.bus.async_listen(
-                    EVENT_ENTITY_REGISTRY_UPDATED,
-                    _async_registry_updated,
-                    adaptive_area.make_entity_registry_filter(),
+                tracked_listeners.append(
+                    hass.bus.async_listen(
+                        EVENT_ENTITY_REGISTRY_UPDATED,
+                        _async_registry_updated,
+                        adaptive_area.make_entity_registry_filter(),
+                    )
                 )
-            )
-            tracked_listeners.append(
-                hass.bus.async_listen(
-                    EVENT_DEVICE_REGISTRY_UPDATED,
-                    _async_registry_updated,
-                    adaptive_area.make_device_registry_filter(),
+                tracked_listeners.append(
+                    hass.bus.async_listen(
+                        EVENT_DEVICE_REGISTRY_UPDATED,
+                        _async_registry_updated,
+                        adaptive_area.make_device_registry_filter(),
+                    )
                 )
-            )
-        elif adaptive_area.floor_id:
-            tracked_listeners.append(
-                hass.bus.async_listen(
-                    EVENT_FLOOR_REGISTRY_UPDATED, _async_backing_registry_updated
+            elif adaptive_area.floor_id:
+                tracked_listeners.append(
+                    hass.bus.async_listen(
+                        EVENT_FLOOR_REGISTRY_UPDATED, _async_backing_registry_updated
+                    )
                 )
-            )
         hass.data[MODULE_DATA][config_entry.entry_id] = {
-            DATA_AREA_OBJECT: adaptive_area,
+            DATA_AREAS: {area.id: area for area in adaptive_areas},
             DATA_TRACKED_LISTENERS: tracked_listeners,
         }
-
-        # Setup platforms
-        step_start = monotonic()
-        await hass.config_entries.async_forward_entry_setups(
-            config_entry, adaptive_area.available_platforms()
-        )
-        if adaptive_area.room_usage is not None and adaptive_area.states:
-            await adaptive_area.room_usage.async_sync_presence_state(
-                adaptive_area.is_occupied()
+        if (
+            len(adaptive_areas) == 1
+            and CONF_AREAS not in config_entry.options
+            and CONF_AREAS not in config_entry.data
+        ):
+            hass.data[MODULE_DATA][config_entry.entry_id][DATA_AREA_OBJECT] = (
+                adaptive_areas[0]
             )
-        if adaptive_area.environment is not None:
-            adaptive_area.environment.async_activate()
+
+        # Setup each platform exactly once for this container.
+        platforms = list(
+            dict.fromkeys(
+                platform
+                for area in adaptive_areas
+                for platform in area.available_platforms()
+            )
+        )
+        step_start = monotonic()
+        try:
+            await hass.config_entries.async_forward_entry_setups(
+                config_entry, platforms
+            )
+        except Exception:
+            await hass.config_entries.async_unload_platforms(config_entry, platforms)
+            for area in adaptive_areas:
+                if area.room_usage is not None:
+                    await area.room_usage.async_unload()
+                area.unload()
+            for tracked_listener in tracked_listeners:
+                tracked_listener()
+            hass.data[MODULE_DATA].pop(config_entry.entry_id, None)
+            raise
+        for adaptive_area in adaptive_areas:
+            if adaptive_area.room_usage is not None and adaptive_area.states:
+                await adaptive_area.room_usage.async_sync_presence_state(
+                    adaptive_area.is_occupied()
+                )
+            if adaptive_area.environment is not None:
+                adaptive_area.environment.async_activate()
+            if adaptive_area.is_meta():
+                # Child aggregate entities are registered with the platforms above.
+                # Refresh the Meta source list after that registration boundary.
+                await adaptive_area.load_entities()
+            manager = await LightRuntimeManager.async_create(adaptive_area)
+            if manager is not None:
+                adaptive_area.light_runtime_manager = manager
+        _assign_generated_entities_to_areas(hass, config_entry, adaptive_areas)
         _LOGGER.debug(
             "Adaptive Areas [%s]: platform setup: %.0f ms",
-            adaptive_area.name,
+            config_entry.title,
             (monotonic() - step_start) * 1000,
         )
         async_setup_services(hass)
         reloading = False
         _LOGGER.debug(
             "Adaptive Areas [%s]: total setup: %.0f ms",
-            adaptive_area.name,
+            config_entry.title,
             (monotonic() - total_start) * 1000,
         )
         return True
@@ -599,10 +683,8 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     """Unload a config entry."""
 
     if MODULE_DATA not in hass.data:
-        _LOGGER.warning(
-            "Module data object for Adaptive Areas not found, possibly already removed."
-        )
-        return False
+        # An inert migration container intentionally has no runtime data yet.
+        return True
 
     data = hass.data[MODULE_DATA]
 
@@ -614,15 +696,25 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
         return True
 
     area_data = data[config_entry.entry_id]
-    area = area_data[DATA_AREA_OBJECT]
+    areas = list(area_data.get(DATA_AREAS, {}).values())
+    if not areas and (area := area_data.get(DATA_AREA_OBJECT)) is not None:
+        areas = [area]
 
     all_unloaded = await hass.config_entries.async_unload_platforms(
-        config_entry, area.available_platforms()
+        config_entry,
+        list(
+            dict.fromkeys(
+                platform for area in areas for platform in area.available_platforms()
+            )
+        ),
     )
 
-    if area.room_usage is not None:
-        await area.room_usage.async_unload()
-    area.unload()
+    for area in areas:
+        if manager := getattr(area, "light_runtime_manager", None):
+            manager.unload()
+        if area.room_usage is not None:
+            await area.room_usage.async_unload()
+        area.unload()
 
     for tracked_listener in area_data[DATA_TRACKED_LISTENERS]:
         tracked_listener()
@@ -645,6 +737,15 @@ async def async_remove_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
 # Update config version
 async def async_migrate_entry(hass, config_entry: ConfigEntry):
     """Migrate old entry."""
+    if config_entry.data.get(CONF_GLOBAL_ENTRY):
+        # The container intentionally has no legacy Area name or feature schema.
+        hass.config_entries.async_update_entry(
+            config_entry,
+            version=AdaptiveConfigEntryVersion.MAJOR,
+            minor_version=AdaptiveConfigEntryVersion.MINOR,
+        )
+        return True
+
     _LOGGER.info(
         "%s: Migrating configuration from version %s.%s, current config: %s",
         config_entry.data[ATTR_NAME],

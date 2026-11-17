@@ -10,22 +10,19 @@ from custom_components.adaptive_areas.base.adaptive import (
 )
 from custom_components.adaptive_areas.const import (
     ATTR_STATES,
-    DATA_AREA_OBJECT,
-    MODULE_DATA,
     AreaStates,
     CleaningState,
 )
+from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
 
 
 def _child_area_objects(area: AdaptiveMetaArea) -> list[AdaptiveArea]:
     """Return the configured child Area objects in deterministic order."""
     child_slugs = set(area.get_child_areas())
     children = [
-        runtime[DATA_AREA_OBJECT]
-        for runtime in area.hass.data.get(MODULE_DATA, {}).values()
-        if DATA_AREA_OBJECT in runtime
-        and not runtime[DATA_AREA_OBJECT].is_meta()
-        and runtime[DATA_AREA_OBJECT].slug in child_slugs
+        child
+        for child in iter_runtime_areas(area.hass)
+        if not child.is_meta() and child.slug in child_slugs
     ]
     return sorted(children, key=lambda child: child.id)
 

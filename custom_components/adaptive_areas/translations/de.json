@@ -22,6 +22,7 @@
                 "title": "Funktionen auswählen",
                 "description": "Funktionen auswählen, die für diesen Bereich aktiviert werden sollen. Sofern Einstellungen für diese Funktion vorhanden sind, wird ein weiterer Menüeintrag zum Konfigurieren der Funktion angezeigt.",
                 "data": {
+                    "light": "Zukünftige Lichtsteuerung aktivieren",
                     "fan_groups": "Lüftergruppen",
                     "climate_control": "Klimasteuerung",
                     "media_player_groups": "Media-Player-Gruppen erstellen",
@@ -1028,6 +1029,10 @@
       "invalid_feature_configuration": {
         "title": "Unvollständige Funktionskonfiguration in {entry}",
         "description": "{count} Konfigurationsproblem(e) betreffen {feature_count} aktivierte Funktion(en). Prüfe die Integrationsoptionen."
+      },
+      "single_global_entry_migration": {
+        "title": "Migration der Adaptive-Areas-Konfiguration erforderlich",
+        "description": "Adaptive Areas muss bestehende Bereiche in einen zentralen Konfigurationseintrag überführen. Bereiche und Einstellungen bleiben erhalten. Status: {status}. Wähle „Beheben“ und bestätige, um die Migration zu starten."
       }
     },
     "device": {

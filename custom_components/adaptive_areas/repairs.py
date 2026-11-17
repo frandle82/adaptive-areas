@@ -4,7 +4,10 @@ from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
@@ -65,6 +68,7 @@ ISSUE_NO_PRESENCE_SOURCES = "no_presence_sources"
 ISSUE_ENVIRONMENT_WITHOUT_SOURCES = "environment_without_sources"
 ISSUE_INVALID_ENTITIES = "invalid_entity_references"
 ISSUE_INVALID_FEATURE_CONFIGURATION = "invalid_feature_configuration"
+ISSUE_SINGLE_GLOBAL_ENTRY_MIGRATION = "single_global_entry_migration"
 
 REPAIR_ISSUE_CATEGORIES = (
     ISSUE_MISSING_AREA,
@@ -74,6 +78,90 @@ REPAIR_ISSUE_CATEGORIES = (
     ISSUE_INVALID_ENTITIES,
     ISSUE_INVALID_FEATURE_CONFIGURATION,
 )
+REPAIR_ISSUE_TRANSLATION_KEYS = (
+    *REPAIR_ISSUE_CATEGORIES,
+    ISSUE_SINGLE_GLOBAL_ENTRY_MIGRATION,
+)
+
+
+def _migration_issue_id() -> str:
+    return ISSUE_SINGLE_GLOBAL_ENTRY_MIGRATION
+
+
+async def async_evaluate_single_global_entry_migration(hass: HomeAssistant) -> None:
+    """Detect legacy multi-entry installs without starting a migration."""
+    from custom_components.adaptive_areas.migration import (
+        MigrationPhase,
+        MigrationState,
+        get_global_entries,
+    )
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    globals_ = get_global_entries(hass)
+    state = (
+        MigrationState.from_dict(globals_[0].options["migration"])
+        if len(globals_) == 1 and globals_[0].options.get("migration")
+        else None
+    )
+    if state is not None and state.migration_phase is MigrationPhase.COMPLETE:
+        ir.async_delete_issue(hass, DOMAIN, _migration_issue_id())
+        return
+    legacy_count = len([entry for entry in entries if entry not in globals_])
+    if legacy_count < 2 and state is None:
+        ir.async_delete_issue(hass, DOMAIN, _migration_issue_id())
+        return
+    status = (
+        "blocked"
+        if len(globals_) > 1
+        else "resumable" if state is not None else "required"
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _migration_issue_id(),
+        is_fixable=status != "blocked",
+        severity=(
+            ir.IssueSeverity.WARNING if status != "blocked" else ir.IssueSeverity.ERROR
+        ),
+        translation_key=ISSUE_SINGLE_GLOBAL_ENTRY_MIGRATION,
+        translation_placeholders={"status": status},
+    )
+
+
+class SingleGlobalEntryMigrationRepairFlow(RepairsFlow):
+    """Require explicit confirmation before the destructive migration starts."""
+
+    async def async_step_init(
+        self, user_input: dict[str, str] | None
+    ) -> RepairsFlowResult:
+        """Show confirmation first, then run the sole supported migration trigger."""
+        if user_input is None:
+            return self.async_show_form(step_id="init", data_schema=vol.Schema({}))
+        from custom_components.adaptive_areas.migration import (
+            async_run_single_global_entry_migration,
+        )
+
+        try:
+            await async_run_single_global_entry_migration(self.hass)
+        except Exception:  # Repair remains open; technical detail stays in logs.
+            return self.async_show_form(
+                step_id="init",
+                data_schema=vol.Schema({}),
+                errors={"base": "migration_failed"},
+            )
+        return self.async_create_entry(data={})
+
+
+async def async_create_fix_flow(
+    hass: HomeAssistant,
+    issue_id: str,
+    data: dict[str, str | int | float | None] | None,
+) -> RepairsFlow:
+    """Create a fix flow only for the explicit migration Repair issue."""
+    if issue_id != _migration_issue_id():
+        raise ValueError(f"unsupported repair issue: {issue_id}")
+    return SingleGlobalEntryMigrationRepairFlow()
+
 
 _ENTITY_REFERENCE_CATEGORIES = {
     CONF_AREA_TEMPERATURE_SENSOR: "area_climate",

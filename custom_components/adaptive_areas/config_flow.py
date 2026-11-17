@@ -145,6 +145,10 @@ from .const import (
     CONF_TASK_SWITCHES_STATES,
     CONF_TASK_SWITCHES_ACTION,
     CONF_TYPE,
+    CONF_AREAS,
+    CONF_GLOBAL_ENTRY,
+    CONF_GLOBAL_OPTIONS,
+    GLOBAL_ENTRY_UNIQUE_ID,
     CONF_WASP_IN_A_BOX_DELAY,
     CONF_WASP_IN_A_BOX_WASP_DEVICE_CLASSES,
     CONF_WASP_IN_A_BOX_WASP_TIMEOUT,
@@ -212,6 +216,7 @@ from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
 from custom_components.adaptive_areas.helpers.sources import area_entity_ids
+from custom_components.adaptive_areas.migration import is_global_entry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -371,6 +376,17 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
     VERSION = AdaptiveConfigEntryVersion.MAJOR
     MINOR_VERSION = AdaptiveConfigEntryVersion.MINOR
 
+    async def async_step_migration(self, user_input=None):
+        """Create the internal Single-GlobalEntry migration container."""
+        await self.async_set_unique_id(GLOBAL_ENTRY_UNIQUE_ID)
+        self._abort_if_unique_id_configured()
+        options = user_input or {CONF_GLOBAL_OPTIONS: {}, CONF_AREAS: {}}
+        return self.async_create_entry(
+            title="Adaptive Areas",
+            data={CONF_GLOBAL_ENTRY: True},
+            options=options,
+        )
+
     @callback
     def _legacy_import_choices(self) -> dict[str, config_entries.ConfigEntry]:
         """Return importable Magic Areas entries keyed by display label."""
@@ -432,6 +448,19 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
+        entries = self.hass.config_entries.async_entries(DOMAIN)
+        if any(is_global_entry(entry) for entry in entries):
+            return self.async_abort(reason="already_configured")
+        if entries:
+            return self.async_abort(reason="already_configured")
+        await self.async_set_unique_id(GLOBAL_ENTRY_UNIQUE_ID)
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title="Adaptive Areas",
+            data={CONF_GLOBAL_ENTRY: True},
+            options={CONF_GLOBAL_OPTIONS: {}, CONF_AREAS: {}},
+        )
+
         errors = {}
 
         reserved_names = []

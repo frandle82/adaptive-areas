@@ -15,7 +15,7 @@ from custom_components.adaptive_areas.const import (
     EMPTY_STRING,
     AdaptiveAreasFeatureInfoFanGroups,
 )
-from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,9 +27,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     """Set up the Area config entry."""
+    for area in get_runtime_areas_for_entry(hass, config_entry):
+        await _async_setup_area(hass, area, async_add_entities)
 
-    area: AdaptiveArea | None = get_area_from_config_entry(hass, config_entry)
-    assert area is not None
+
+async def _async_setup_area(
+    hass: HomeAssistant, area: AdaptiveArea, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up fans for one runtime Area."""
 
     # Check feature availability
     if not area.has_feature(CONF_FEATURE_FAN_GROUPS):

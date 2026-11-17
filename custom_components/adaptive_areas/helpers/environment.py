@@ -49,12 +49,10 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_ENVIRONMENT,
     CONF_EXCLUDE_ENTITIES,
     CONF_ROOM_CATEGORY,
-    DATA_AREA_OBJECT,
     DEFAULT_ENVIRONMENT_HUMIDITY_DURATION,
     DEFAULT_ENVIRONMENT_PASSIVE_COOLING_DELTA,
     DEFAULT_ROOM_CATEGORY,
     DOMAIN,
-    MODULE_DATA,
     AdaptiveAreasEvents,
     AirCleaningRecommendation,
     AirExchangeSuitability,
@@ -744,10 +742,11 @@ class AreaEnvironmentEngine:
 
     def _exterior_sensor_ids(self) -> list[str]:
         """Return authoritative exterior primary and air-quality sources."""
+        from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
+
         result: set[str] = set()
-        for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
-            exterior = runtime.get(DATA_AREA_OBJECT)
-            if exterior is None or exterior is self.area or not exterior.is_exterior():
+        for exterior in iter_runtime_areas(self.area.hass):
+            if exterior is self.area or not exterior.is_exterior():
                 continue
             exterior_environment = exterior.environment
             if exterior_environment is not None:
@@ -1272,11 +1271,12 @@ class AreaEnvironmentEngine:
         explicit_entity: str,
         source_key: str,
     ) -> float | None:
+        from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
+
         values: list[float] = []
         used: list[str] = []
-        for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
-            exterior = runtime.get(DATA_AREA_OBJECT)
-            if exterior is None or exterior is self.area or not exterior.is_exterior():
+        for exterior in iter_runtime_areas(self.area.hass):
+            if exterior is self.area or not exterior.is_exterior():
                 continue
             key = (
                 CONF_AREA_TEMPERATURE_SENSOR
@@ -1326,6 +1326,8 @@ class AreaEnvironmentEngine:
 
     def _outdoor_pollutants(self) -> tuple[dict[str, float], dict[str, Any]]:
         """Return conservative maxima from valid exterior Area pollutant sensors."""
+        from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
+
         values: dict[str, list[tuple[float, str]]] = {
             POLLUTANT_NAMES[device_class]: []
             for device_class in (
@@ -1338,9 +1340,8 @@ class AreaEnvironmentEngine:
             )
         }
         selected: dict[str, list[str]] = {name: [] for name in values}
-        for runtime in self.area.hass.data.get(MODULE_DATA, {}).values():
-            exterior = runtime.get(DATA_AREA_OBJECT)
-            if exterior is None or exterior is self.area or not exterior.is_exterior():
+        for exterior in iter_runtime_areas(self.area.hass):
+            if exterior is self.area or not exterior.is_exterior():
                 continue
             entity_ids = {
                 entity[ATTR_ENTITY_ID] for entity in exterior.entities.get("sensor", [])

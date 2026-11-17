@@ -23,16 +23,19 @@ from custom_components.adaptive_areas.const import (
     CONF_PRESENCE_CONTROL_ENTITIES,
     CONF_SECONDARY_STATES,
     CONFIGURABLE_AREA_STATE_MAP,
-    DATA_AREA_OBJECT,
     DEFAULT_CLEAR_TIMEOUT,
     DOMAIN,
-    MODULE_DATA,
     MetaAreaType,
 )
 from custom_components.adaptive_areas.helpers.diagnostics import (
     safe_entity_descriptor,
 )
+from custom_components.adaptive_areas.helpers.area import (
+    generated_entities_for_area,
+    get_runtime_areas_for_entry,
+)
 from custom_components.adaptive_areas.helpers.meta_summary import meta_area_summary
+from custom_components.adaptive_areas.migration import is_global_entry
 from custom_components.adaptive_areas.repairs import (
     active_issue_count,
     get_repair_summary,
@@ -213,8 +216,39 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return privacy-safe config-entry diagnostics in stable sections."""
     integration = await async_get_integration(hass, DOMAIN)
-    runtime = hass.data.get(MODULE_DATA, {}).get(config_entry.entry_id, {})
-    area: AdaptiveArea | None = runtime.get(DATA_AREA_OBJECT)
+    areas = get_runtime_areas_for_entry(hass, config_entry)
+    if is_global_entry(config_entry):
+        area_summaries = {
+            area.id: {
+                "name": area.name,
+                "type": _meta_type(area) if area.is_meta() else "regular",
+                "enabled_features": _enabled_features(area),
+                "generated_entity_count": len(generated_entities_for_area(hass, area)),
+            }
+            for area in sorted(areas, key=lambda item: item.id)
+        }
+        return {
+            "integration": {
+                "name": "Adaptive Areas",
+                "version": integration.version,
+                "config_entry_version": config_entry.version,
+                "config_entry_minor_version": config_entry.minor_version,
+                "loaded": config_entry.state is ConfigEntryState.LOADED,
+            },
+            "configuration": {
+                "runtime_available": config_entry.state is ConfigEntryState.LOADED
+            },
+            "container": {
+                "logical_area_count": len(area_summaries),
+                "runtime_area_count": len(areas),
+            },
+            "areas": area_summaries,
+            "repairs": {
+                "active_issue_count": active_issue_count(hass, config_entry),
+                "summary": get_repair_summary(hass, config_entry),
+            },
+        }
+    area: AdaptiveArea | None = areas[0] if len(areas) == 1 else None
     generated = _generated_entity_summary(hass, config_entry)
     repair_summary = get_repair_summary(hass, config_entry)
 

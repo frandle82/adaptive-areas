@@ -41,7 +41,7 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatures,
     SwitchGroupCategory,
 )
-from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas.switch.base import SwitchBase
 from custom_components.adaptive_areas.switch.climate_control import ClimateControlSwitch
 from custom_components.adaptive_areas.switch.fan_control import FanControlSwitch
@@ -60,9 +60,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     """Set up the area switch config entry."""
+    for area in get_runtime_areas_for_entry(hass, config_entry):
+        await _async_setup_area(hass, area, async_add_entities)
 
-    area: AdaptiveArea | None = get_area_from_config_entry(hass, config_entry)
-    assert area is not None
+
+async def _async_setup_area(
+    hass: HomeAssistant, area: AdaptiveArea, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up switches for one runtime Area."""
 
     switch_entities = []
 

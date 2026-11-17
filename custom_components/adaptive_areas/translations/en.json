@@ -22,6 +22,7 @@
         "title": "Feature selection",
         "description": "Select the features you want to enable for this area. A new menu option will show up for configuring the feature if there are configurations options for that feature.",
         "data": {
+                    "light": "Enable future light control",
           "fan_groups": "Create fan groups",
           "climate_control": "Create climate controller",
           "media_player_groups": "Create media player groups",
@@ -1028,6 +1029,10 @@
     "invalid_feature_configuration": {
       "title": "Incomplete feature configuration in {entry}",
       "description": "{count} configuration problem(s) affect {feature_count} enabled feature(s). Check the integration options."
+    },
+    "single_global_entry_migration": {
+      "title": "Adaptive Areas configuration migration required",
+      "description": "Adaptive Areas must move existing Areas into one central configuration entry. Your Areas and settings are preserved. Status: {status}. Select Fix and confirm to start the migration."
     }
   },
   "device": {

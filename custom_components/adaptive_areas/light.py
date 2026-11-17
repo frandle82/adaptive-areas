@@ -38,7 +38,7 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatureInfoLightGroups,
     AdaptiveAreasFeatures,
 )
-from custom_components.adaptive_areas.helpers.area import get_area_from_config_entry
+from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_group_feature_config,
 )
@@ -51,9 +51,12 @@ ATTR_MANUAL_OVERRIDE = "manual_override"
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the area light config entry."""
+    for area in get_runtime_areas_for_entry(hass, config_entry):
+        await _async_setup_area(hass, area, async_add_entities)
 
-    area: AdaptiveArea | None = get_area_from_config_entry(hass, config_entry)
-    assert area is not None
+
+async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
+    """Set up lights for one runtime Area."""
 
     # Check feature availability
     if not area.has_feature(AdaptiveAreasFeatures.LIGHT_GROUPS):

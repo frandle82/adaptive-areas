@@ -1,5 +1,8 @@
 """Tests for config flow behavior."""
 
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant import config_entries
@@ -12,6 +15,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
@@ -25,6 +29,11 @@ from custom_components.adaptive_areas.config_flow import (
     _remove_legacy_environmental_sensors,
     _replace_legacy_entity_ids,
 )
+from custom_components.adaptive_areas.diagnostics import (
+    async_get_config_entry_diagnostics,
+)
+from custom_components.adaptive_areas.dashboard import build_overview
+from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas.const import (
     AREA_TYPE_EXTERIOR,
     AREA_STATE_BRIGHT,
@@ -33,14 +42,17 @@ from custom_components.adaptive_areas.const import (
     CONF_AREA_TEMPERATURE_SENSOR,
     CONF_OVERHEAD_LIGHTS_ACTIVATION,
     CONF_ENABLED_FEATURES,
-    CONF_DARK_ENTITY,
     CONF_ENVIRONMENT_OUTDOOR_HUMIDITY,
     CONF_ENVIRONMENT_OUTDOOR_TEMPERATURE,
     CONF_ENVIRONMENT_SURFACE_TEMPERATURE,
+    CONF_FEATURE_LIGHT,
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_HEALTH,
     CONF_FEATURE_ROOM_USAGE,
+    CONF_AREAS,
+    CONF_GLOBAL_ENTRY,
+    CONF_GLOBAL_OPTIONS,
     CONF_INCLUDE_ENTITIES,
     CONF_ID,
     CONF_OVERHEAD_LIGHTS_BLOCKING_STATES,
@@ -62,6 +74,7 @@ from custom_components.adaptive_areas.const import (
     REGULAR_AREA_SCHEMA,
     AdaptiveConfigEntryVersion,
     RoomCategory,
+    GLOBAL_ENTRY_UNIQUE_ID,
 )
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -75,6 +88,12 @@ def test_room_usage_is_not_a_meta_area_option() -> None:
     """Cleaning suitability remains limited to physical regular Areas."""
     assert CONF_FEATURE_ROOM_USAGE not in CONF_FEATURE_LIST_META
     assert CONF_FEATURE_ROOM_USAGE not in {option[0] for option in OPTIONS_AREA_META}
+
+
+def test_future_light_feature_is_regular_area_only() -> None:
+    """The configuration-only light feature must not enable meta-area runtime."""
+    assert CONF_FEATURE_LIGHT not in CONF_FEATURE_LIST_META
+    assert CONF_FEATURE_LIGHT not in {option[0] for option in OPTIONS_AREA_META}
 
 
 def test_regular_area_schema_preserves_primary_climate_sources() -> None:
@@ -189,61 +208,76 @@ async def test_device_tracker_is_available_in_both_presence_selectors(hass) -> N
     await shutdown_integration(hass, [entry])
 
 
-async def test_user_flow_imports_legacy_magic_areas_entry(hass) -> None:
-    """Test importing a legacy entry without modifying the original."""
-    area_registry = async_get_area_registry(hass)
-    area_registry.async_create("Kitchen")
+async def test_user_flow_creates_empty_global_entry(hass) -> None:
+    """A fresh public installation creates one valid empty GlobalEntry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
 
-    legacy_data = get_basic_config_entry_data(DEFAULT_MOCK_AREA)
-    legacy_data[CONF_ENABLED_FEATURES] = {
-        CONF_FEATURE_HEALTH: {},
-        CONF_FEATURE_LIGHT_GROUPS: {},
-    }
-    legacy_options = {
-        **legacy_data,
-        CONF_DARK_ENTITY: "binary_sensor.magic_areas_aggregates_kitchen_light",
-    }
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    entry = result["result"]
+    assert entry.unique_id == GLOBAL_ENTRY_UNIQUE_ID
+    assert entry.data == {CONF_GLOBAL_ENTRY: True}
+    assert entry.options == {CONF_GLOBAL_OPTIONS: {}, CONF_AREAS: {}}
+
+
+async def test_user_flow_aborts_when_global_entry_exists(hass) -> None:
+    """A second public setup cannot create another GlobalEntry."""
+    first = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    second = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    assert first["type"] is FlowResultType.CREATE_ENTRY
+    assert second["type"] is FlowResultType.ABORT
+    assert second["reason"] == "already_configured"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_user_flow_aborts_when_legacy_adaptive_areas_entries_exist(hass) -> None:
+    """Legacy installations must be migrated through Repair, never in user flow."""
     legacy_entry = MockConfigEntry(
-        domain=LEGACY_DOMAIN,
-        title="Kitchen",
-        unique_id=str(DEFAULT_MOCK_AREA),
-        data=legacy_data,
-        options=legacy_options,
-        version=2,
-        minor_version=1,
+        domain=DOMAIN, data=get_basic_config_entry_data(DEFAULT_MOCK_AREA)
     )
     legacy_entry.add_to_hass(hass)
 
     result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_USER},
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result["type"] is FlowResultType.FORM
-    import_label = f"{LEGACY_IMPORT_PREFIX} Kitchen"
-    choice_validator = next(iter(result["data_schema"].schema.values()))
-    assert import_label in choice_validator.container
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert hass.config_entries.async_entries(DOMAIN) == [legacy_entry]
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {ATTR_NAME: import_label},
+
+async def test_empty_global_entry_loads_without_runtime_areas_or_entities(hass) -> None:
+    """A fresh GlobalEntry is a valid zero-area runtime container."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
+    entry = result["result"]
 
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Kitchen"
-    assert result["data"][CONF_ID] == legacy_data[CONF_ID]
-    assert CONF_FEATURE_HEALTH not in result["data"][CONF_ENABLED_FEATURES]
-    assert CONF_FEATURE_LIGHT_GROUPS in result["data"][CONF_ENABLED_FEATURES]
-    assert CONF_FEATURE_HEALTH not in result["options"][CONF_ENABLED_FEATURES]
-    assert result["options"][CONF_DARK_ENTITY] == (
-        "binary_sensor.adaptive_areas_aggregates_kitchen_light"
-    )
+    await hass.async_block_till_done()
 
-    imported_entry = result["result"]
-    assert imported_entry.unique_id == str(DEFAULT_MOCK_AREA)
-    assert imported_entry.version == AdaptiveConfigEntryVersion.MAJOR
-    assert imported_entry.minor_version == AdaptiveConfigEntryVersion.MINOR
-    assert legacy_entry in hass.config_entries.async_entries(LEGACY_DOMAIN)
+    assert entry.state is ConfigEntryState.LOADED
+    assert get_runtime_areas_for_entry(hass, entry) == []
+    assert build_overview(hass)["areas"] == []
+    handler, schema = hass.data["websocket_api"][
+        "adaptive_areas/get_area_configuration"
+    ]
+    connection = Mock(user=SimpleNamespace(is_admin=True))
+    message = {"id": 1, "type": "adaptive_areas/get_area_configuration"}
+    handler(hass, connection, message if schema is False else schema(message))
+    await hass.async_block_till_done()
+    assert connection.send_result.call_args.args[1]["areas"] == []
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["configuration"]["runtime_available"] is True
+    assert diagnostics["container"] == {
+        "logical_area_count": 0,
+        "runtime_area_count": 0,
+    }
 
 
 async def test_legacy_entry_is_hidden_after_area_was_imported(hass) -> None:

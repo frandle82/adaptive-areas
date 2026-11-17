@@ -14,10 +14,9 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_ENVIRONMENT,
     CONF_FEATURE_ROOM_USAGE,
     CONF_TYPE,
-    DATA_AREA_OBJECT,
     DOMAIN,
-    MODULE_DATA,
 )
+from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
 from custom_components.adaptive_areas.repairs import active_issue_count
 
 
@@ -41,11 +40,7 @@ async def async_system_health_info(hass: HomeAssistant) -> dict[str, object]:
     meta_entries = [
         entry for entry in entries if entry.data.get(CONF_TYPE) == AREA_TYPE_META
     ]
-    runtime_areas = [
-        runtime[DATA_AREA_OBJECT]
-        for runtime in hass.data.get(MODULE_DATA, {}).values()
-        if DATA_AREA_OBJECT in runtime and not runtime[DATA_AREA_OBJECT].is_meta()
-    ]
+    runtime_areas = [area for area in iter_runtime_areas(hass) if not area.is_meta()]
     cleaning_assessments = [
         area.room_usage.assessment
         for area in runtime_areas

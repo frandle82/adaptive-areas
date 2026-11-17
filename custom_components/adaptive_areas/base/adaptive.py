@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 import logging
 from time import monotonic
+from typing import Any
 
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
@@ -51,7 +52,6 @@ from custom_components.adaptive_areas.const import (
     CONF_INCLUDE_ENTITIES,
     CONF_TYPE,
     CONFIGURABLE_AREA_STATE_MAP,
-    DATA_AREA_OBJECT,
     DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES,
     ADAPTIVE_AREAS_COMPONENTS,
     ADAPTIVE_AREAS_COMPONENTS_GLOBAL,
@@ -59,7 +59,6 @@ from custom_components.adaptive_areas.const import (
     ADAPTIVE_DEVICE_ID_PREFIX,
     ADAPTIVEAREAS_UNIQUEID_PREFIX,
     META_AREA_GLOBAL,
-    MODULE_DATA,
     AdaptiveAreasEvents,
     MetaAreaAutoReloadSettings,
     MetaAreaType,
@@ -106,6 +105,7 @@ class AdaptiveArea:
         hass: HomeAssistant,
         area: BasicArea,
         config: ConfigEntry,
+        area_config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the adaptive area with all the stuff."""
         self.hass: HomeAssistant = hass
@@ -130,10 +130,12 @@ class AdaptiveArea:
         self._remove_dispatcher_listener: Callable[[], None] | None = None
         self._remove_reload_timer: Callable[[], None] | None = None
 
-        # Merged options
-        area_config = dict(config.data)
-        if config.options:
-            area_config.update(config.options)
+        # The container owns the lifecycle; a GlobalEntry supplies one local
+        # configuration per Area. Legacy entries retain their merged config.
+        if area_config is None:
+            area_config = dict(config.data)
+            if config.options:
+                area_config.update(config.options)
         self.config = area_config
 
         self.entities: dict[str, list[dict[str, str]]] = {}
@@ -379,18 +381,15 @@ class AdaptiveArea:
 
     def load_adaptive_entities(self):
         """Load adaptive areas-generated entities."""
-
-        entity_registry = entityreg_async_get(self.hass)
-        self.adaptive_entities = {}
-
-        # Add magic are entities
-        entities_for_config_id = (
-            entity_registry.entities.get_entries_for_config_entry_id(
-                self.hass_config.entry_id
-            )
+        from custom_components.adaptive_areas.helpers.area import (
+            generated_entities_for_area,
         )
 
-        for entity_id in [entity.entity_id for entity in entities_for_config_id]:
+        self.adaptive_entities = {}
+
+        for entity_id in [
+            entity.entity_id for entity in generated_entities_for_area(self.hass, self)
+        ]:
             entity_domain = entity_id.split(".")[0]
 
             if entity_domain not in self.adaptive_entities:
@@ -684,9 +683,10 @@ class AdaptiveMetaArea(AdaptiveArea):
         hass: HomeAssistant,
         area: BasicArea,
         config: ConfigEntry,
+        area_config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the meta adaptive area with all the stuff."""
-        super().__init__(hass, area, config)
+        super().__init__(hass, area, config, area_config)
         self.child_areas: list[str] = self.get_child_areas()
 
     def get_presence_sensors(self) -> list[str]:
@@ -728,11 +728,10 @@ class AdaptiveMetaArea(AdaptiveArea):
 
     def get_child_areas(self):
         """Return areas that a Meta area is watching."""
-        data = self.hass.data[MODULE_DATA]
         areas: list[str] = []
+        from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
 
-        for area_info in data.values():
-            area: AdaptiveArea = area_info[DATA_AREA_OBJECT]
+        for area in iter_runtime_areas(self.hass):
 
             if area.is_meta():
                 continue
@@ -767,9 +766,9 @@ class AdaptiveMetaArea(AdaptiveArea):
         entity_registry = entityreg_async_get(self.hass)
         entity_list: list[RegistryEntry] = []
 
-        data = self.hass.data[MODULE_DATA]
-        for area_info in data.values():
-            area: AdaptiveArea = area_info[DATA_AREA_OBJECT]
+        from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
+
+        for area in iter_runtime_areas(self.hass):
 
             if area.slug not in self.child_areas:
                 continue

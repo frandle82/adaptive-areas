@@ -14,6 +14,11 @@ from homeassistant.helpers.area_registry import (
     AreaEntry,
     async_get as areareg_async_get,
 )
+from homeassistant.helpers.device_registry import async_get as devicereg_async_get
+from homeassistant.helpers.entity_registry import (
+    RegistryEntry,
+    async_get as entityreg_async_get,
+)
 
 from custom_components.adaptive_areas.base.adaptive import (
     BasicArea,
@@ -21,6 +26,12 @@ from custom_components.adaptive_areas.base.adaptive import (
     AdaptiveMetaArea,
 )
 from custom_components.adaptive_areas.const import (
+    CONF_AREAS,
+    CONF_TYPE,
+    AREA_TYPE_META,
+    ADAPTIVE_DEVICE_ID_PREFIX,
+    DOMAIN,
+    DATA_AREAS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
     MetaAreaIcons,
@@ -85,12 +96,13 @@ def basic_area_from_floor(floor: Any) -> BasicArea:
 
 
 def get_adaptive_area_for_config_entry(
-    hass: HomeAssistant, config_entry: ConfigEntry
+    hass: HomeAssistant, config_entry: ConfigEntry, area_config: dict | None = None
 ) -> AdaptiveArea | None:
     """Return adaptive area object for given config entry."""
 
-    area_id = config_entry.data[ATTR_ID]
-    area_name = config_entry.data[ATTR_NAME]
+    config = area_config or {**config_entry.data, **config_entry.options}
+    area_id = config[ATTR_ID]
+    area_name = config[ATTR_NAME]
 
     adaptive_area: AdaptiveArea | None = None
 
@@ -117,13 +129,13 @@ def get_adaptive_area_for_config_entry(
     if area_id in non_floor_meta_ids:
         # Non-floor Meta-Area (Global/Interior/Exterior)
         meta_area = basic_area_from_meta(area_id)
-        adaptive_area = AdaptiveMetaArea(hass, meta_area, config_entry)
+        adaptive_area = AdaptiveMetaArea(hass, meta_area, config_entry, config)
     elif area_id in floor_ids and floor_registry is not None:
         # Floor Meta-Area
         floor_entry = floor_registry.async_get_floor(area_id)
         assert floor_entry is not None
         meta_area = basic_area_from_floor(floor_entry)
-        adaptive_area = AdaptiveMetaArea(hass, meta_area, config_entry)
+        adaptive_area = AdaptiveMetaArea(hass, meta_area, config_entry, config)
     else:
         # Regular Area
         area_registry = areareg_async_get(hass)
@@ -139,9 +151,137 @@ def get_adaptive_area_for_config_entry(
             hass,
             basic_area_from_object(area),
             config_entry,
+            config,
         )
 
     return adaptive_area
+
+
+def get_adaptive_areas_for_config_entry(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> list[AdaptiveArea]:
+    """Build every runtime Area owned by one Global ConfigEntry."""
+    areas = config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
+    if not isinstance(areas, dict):
+        area = get_adaptive_area_for_config_entry(hass, config_entry)
+        return [area] if area is not None else []
+    ordered_areas = sorted(
+        areas.items(),
+        key=lambda item: (item[1].get(CONF_TYPE) == AREA_TYPE_META, item[0]),
+    )
+    return [
+        area
+        for _area_id, area_config in ordered_areas
+        if isinstance(area_config, dict)
+        and (
+            area := get_adaptive_area_for_config_entry(hass, config_entry, area_config)
+        )
+        is not None
+    ]
+
+
+def get_runtime_areas_for_entry(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> list[AdaptiveArea]:
+    """Return loaded Areas for an entry, including legacy single-Area entries."""
+    runtime = hass.data.get(MODULE_DATA, {}).get(config_entry.entry_id, {})
+    if areas := runtime.get(DATA_AREAS):
+        return list(areas.values())
+    if area := runtime.get(DATA_AREA_OBJECT):
+        return [area]
+    return []
+
+
+def iter_runtime_areas(hass: HomeAssistant):
+    """Yield every loaded Adaptive Area across legacy and container runtimes."""
+    for runtime in hass.data.get(MODULE_DATA, {}).values():
+        if areas := runtime.get(DATA_AREAS):
+            yield from areas.values()
+        elif area := runtime.get(DATA_AREA_OBJECT):
+            yield area
+
+
+def entity_belongs_to_area(entity: RegistryEntry, area: AdaptiveArea) -> bool:
+    """Return whether an Adaptive Areas registry entity belongs to one Area.
+
+    The generated unique ID is the stable Area-specific identity; the config entry
+    only identifies its current container owner.
+    """
+    return entity.platform == DOMAIN and f"_{area.slug}_" in f"_{entity.unique_id}_"
+
+
+def generated_entities_for_area(
+    hass: HomeAssistant, area: AdaptiveArea
+) -> list[RegistryEntry]:
+    """Return generated entities for one Area, scoped independently of owner ID."""
+    registry = entityreg_async_get(hass)
+    return [
+        entity
+        for entity in registry.entities.get_entries_for_config_entry_id(
+            area.hass_config.entry_id
+        )
+        if entity_belongs_to_area(entity, area)
+    ]
+
+
+def transfer_area_entities_to_container(
+    hass: HomeAssistant,
+    *,
+    old_entry_id: str,
+    global_entry_id: str,
+    area: AdaptiveArea,
+) -> list[str]:
+    """Transfer verified Area entity ownership without changing entity identity."""
+    registry = entityreg_async_get(hass)
+    candidates = [
+        entity
+        for entity in registry.entities.get_entries_for_config_entry_id(old_entry_id)
+        if entity_belongs_to_area(entity, area)
+    ]
+    for entity in candidates:
+        conflict = next(
+            (
+                other
+                for other in registry.entities.get_entries_for_config_entry_id(
+                    global_entry_id
+                )
+                if other.entity_id != entity.entity_id
+                and other.platform == entity.platform
+                and other.unique_id == entity.unique_id
+            ),
+            None,
+        )
+        if conflict is not None:
+            raise ValueError(
+                f"Conflicting generated entity unique ID: {entity.unique_id}"
+            )
+    for entity in candidates:
+        registry.async_update_entity(entity.entity_id, config_entry_id=global_entry_id)
+    return [entity.entity_id for entity in candidates]
+
+
+def transfer_area_devices_to_container(
+    hass: HomeAssistant,
+    *,
+    old_entry_id: str,
+    global_entry_id: str,
+    area_id: str,
+) -> list[str]:
+    """Transfer only the stable Adaptive Areas device for one Area."""
+    registry = devicereg_async_get(hass)
+    identifier = (DOMAIN, f"{ADAPTIVE_DEVICE_ID_PREFIX}{area_id}")
+    candidates = [
+        device
+        for device in registry.devices.values()
+        if old_entry_id in device.config_entries and identifier in device.identifiers
+    ]
+    for device in candidates:
+        registry.async_update_device(
+            device.id,
+            add_config_entry_id=global_entry_id,
+            remove_config_entry_id=old_entry_id,
+        )
+    return [device.id for device in candidates]
 
 
 def get_area_from_config_entry(
@@ -149,7 +289,5 @@ def get_area_from_config_entry(
 ) -> AdaptiveArea | AdaptiveMetaArea | None:
     """Return area object for given config entry."""
 
-    if config_entry.entry_id not in hass.data[MODULE_DATA]:
-        return None
-
-    return hass.data[MODULE_DATA][config_entry.entry_id][DATA_AREA_OBJECT]
+    areas = get_runtime_areas_for_entry(hass, config_entry)
+    return areas[0] if len(areas) == 1 else None
