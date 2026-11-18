@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from homeassistant.core import Context
 
 from custom_components.adaptive_areas.helpers.light_executor import (
     async_execute_light_decision,
@@ -98,3 +99,19 @@ async def test_executor_skips_empty_or_unavailable_targets_and_propagates_errors
         await async_execute_light_decision(
             hass, _snapshot(LightTargetSource("light.room", True)), decision
         )
+
+
+async def test_executor_transports_optional_runtime_context() -> None:
+    """Executor preserves an optional manager-owned context on service dispatch."""
+    async_call = AsyncMock()
+    hass = SimpleNamespace(services=SimpleNamespace(async_call=async_call))
+    context = Context(id="runtime")
+
+    await async_execute_light_decision(
+        hass,
+        _snapshot(LightTargetSource("light.room", True)),
+        _decision(LightPolicyAction.TURN_ON, LightPolicyReason.OCCUPIED_AND_DARK),
+        context=context,
+    )
+
+    assert async_call.await_args.kwargs["context"] is context

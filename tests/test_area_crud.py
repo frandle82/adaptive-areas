@@ -17,6 +17,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_PRESENCE_HOLD,
     CONF_TURN_OFF_ABOVE,
     CONF_TURN_ON_BELOW,
+    CONF_VACANCY_DELAY,
     DOMAIN,
 )
 from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
@@ -268,6 +269,70 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             CONF_FEATURE_LIGHT
         ] == {CONF_TURN_ON_BELOW: 75.5, CONF_TURN_OFF_ABOVE: 150.25}
 
+        living_features[CONF_FEATURE_LIGHT][CONF_VACANCY_DELAY] = 30
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={CONF_ENABLED_FEATURES: living_features},
+            )
+        )["ok"]
+        assert reload.await_count == 5
+        assert (
+            entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES][
+                CONF_FEATURE_LIGHT
+            ][CONF_VACANCY_DELAY]
+            == 30
+        )
+        assert entry.options[CONF_AREAS][kitchen.id][CONF_ENABLED_FEATURES] == {}
+
+        living_features[CONF_FEATURE_LIGHT][CONF_VACANCY_DELAY] = 30.5
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={CONF_ENABLED_FEATURES: living_features},
+            )
+        )["ok"]
+        assert reload.await_count == 6
+        assert (
+            entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES][
+                CONF_FEATURE_LIGHT
+            ][CONF_VACANCY_DELAY]
+            == 30.5
+        )
+
+        invalid_features = dict(living_features)
+        invalid_features[CONF_FEATURE_LIGHT] = {
+            CONF_TURN_ON_BELOW: 75.5,
+            CONF_TURN_OFF_ABOVE: 150.25,
+            CONF_VACANCY_DELAY: -1,
+        }
+        before_invalid = dict(entry.options)
+        assert not (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={CONF_ENABLED_FEATURES: invalid_features},
+            )
+        )["ok"]
+        assert entry.options == before_invalid
+        assert reload.await_count == 6
+
+        living_features[CONF_FEATURE_LIGHT].pop(CONF_VACANCY_DELAY)
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={CONF_ENABLED_FEATURES: living_features},
+            )
+        )["ok"]
+        assert reload.await_count == 7
+
         before_invalid = dict(entry.options)
         living_features[CONF_FEATURE_LIGHT] = {CONF_TURN_ON_BELOW: 100}
         assert not (
@@ -279,7 +344,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             )
         )["ok"]
         assert entry.options == before_invalid
-        assert reload.await_count == 4
+        assert reload.await_count == 7
 
         living_features[CONF_FEATURE_LIGHT] = {}
         assert (
@@ -290,7 +355,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
                 options={CONF_ENABLED_FEATURES: living_features},
             )
         )["ok"]
-        assert reload.await_count == 5
+        assert reload.await_count == 8
         assert (
             entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES][
                 CONF_FEATURE_LIGHT
@@ -312,7 +377,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
                 },
             )
         )["ok"]
-        assert reload.await_count == 6
+        assert reload.await_count == 9
 
     assert (
         CONF_FEATURE_LIGHT

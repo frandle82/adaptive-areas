@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 
 from custom_components.adaptive_areas.helpers.light_policy import (
     LightPolicyAction,
@@ -26,6 +26,8 @@ async def async_execute_light_decision(
     hass: HomeAssistant,
     snapshot: LightSourceSnapshot,
     decision: LightPolicyDecision,
+    *,
+    context: Context | None = None,
 ) -> LightExecutionResult:
     """Dispatch one on/off decision to the available snapshot targets only."""
     if decision.action not in (LightPolicyAction.TURN_ON, LightPolicyAction.TURN_OFF):
@@ -42,7 +44,10 @@ async def async_execute_light_decision(
         if decision.action is LightPolicyAction.TURN_ON
         else SERVICE_TURN_OFF
     )
+    kwargs = {"blocking": True}
+    if context is not None:
+        kwargs["context"] = context
     await hass.services.async_call(
-        LIGHT_DOMAIN, service, {ATTR_ENTITY_ID: targets}, blocking=True
+        LIGHT_DOMAIN, service, {ATTR_ENTITY_ID: targets}, **kwargs
     )
     return LightExecutionResult(True, decision.action, targets)

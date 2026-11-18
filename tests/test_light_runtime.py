@@ -5,9 +5,16 @@ from unittest.mock import AsyncMock, Mock, patch
 import asyncio
 
 import pytest
+from homeassistant.core import Context
+
+from custom_components.adaptive_areas.helpers.light_override import (
+    LightManualOverrideMode,
+    LightManualOverrideState,
+)
 
 from custom_components.adaptive_areas.helpers.light_policy import LightPolicyAction
 from custom_components.adaptive_areas.helpers.light_runtime import LightRuntimeManager
+from custom_components.adaptive_areas.helpers.light_vacancy import LightVacancyState
 from custom_components.adaptive_areas import migration as migration_module
 from custom_components.adaptive_areas.helpers.sources import (
     LightSourceSnapshot,
@@ -402,7 +409,7 @@ async def test_runtime_serializes_executor_calls_per_area(hass) -> None:
     release = asyncio.Event()
     current = max_parallel = 0
 
-    async def dispatch(*_args):
+    async def dispatch(*_args, **_kwargs):
         nonlocal current, max_parallel
         current += 1
         max_parallel = max(max_parallel, current)
@@ -555,3 +562,601 @@ async def test_runtime_light_groups_and_migration_are_isolated(
         assert manager is not None
         manager.unload()
     migration_spy.assert_not_awaited()
+
+
+@pytest.mark.parametrize("delay", (None, 0))
+async def test_runtime_vacancy_without_positive_delay_turns_off_immediately(
+    hass, delay
+) -> None:
+    """Absent and zero delays retain the immediate vacancy-off policy."""
+    feature = {"turn_on_below": 100, "turn_off_above": 200}
+    if delay is not None:
+        feature["vacancy_delay"] = delay
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    scheduler = Mock()
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(lux=None, occupied=False),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        await LightRuntimeManager(_area(hass, feature)).async_evaluate()
+    assert dispatched.await_args.args[2].action is LightPolicyAction.TURN_OFF
+    scheduler.assert_not_called()
+
+
+async def test_runtime_vacancy_timer_has_one_stable_deadline_and_rechecks_sources(
+    hass,
+) -> None:
+    """A pending vacancy is scheduled once, then re-evaluated at its deadline."""
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    cancel = Mock()
+    scheduler = Mock(return_value=cancel)
+    vacant = _snapshot(lux=None, occupied=False)
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=vacant,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(
+                hass,
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30},
+            )
+        )
+        await manager.async_evaluate()
+        first_deadline = (
+            manager._vacancy_state.due_at
+        )  # pylint: disable=protected-access
+        await manager.async_evaluate()
+        assert (
+            manager._vacancy_state.due_at == first_deadline
+        )  # pylint: disable=protected-access
+        scheduler.assert_called_once()
+        dispatched.assert_not_awaited()
+
+        manager._vacancy_state = LightVacancyState(  # pylint: disable=protected-access
+            detected_at=hass.loop.time() - 30, due_at=hass.loop.time()
+        )
+        scheduler.call_args.args[2](None)
+        await hass.async_block_till_done()
+
+    assert dispatched.await_args.args[2].action is LightPolicyAction.TURN_OFF
+    cancel.assert_not_called()
+
+
+async def test_runtime_vacancy_timer_cancels_for_occupied_or_unavailable_presence(
+    hass,
+) -> None:
+    """Presence recovery and unavailability discard the pending deadline."""
+    state = {"snapshot": _snapshot(lux=None, occupied=False)}
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    cancels = [Mock(), Mock()]
+    scheduler = Mock(side_effect=cancels)
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=lambda _area: state["snapshot"],
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(
+                hass,
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30},
+            )
+        )
+        await manager.async_evaluate()
+        state["snapshot"] = _snapshot(lux=150, occupied=True)
+        await manager.async_evaluate()
+        cancels[0].assert_called_once()
+        assert not manager._vacancy_state.pending  # pylint: disable=protected-access
+
+        state["snapshot"] = _snapshot(lux=None, occupied=False)
+        await manager.async_evaluate()
+        state["snapshot"] = _snapshot(lux=None, occupied=False, presence=False)
+        await manager.async_evaluate()
+        cancels[1].assert_called_once()
+        assert not manager._vacancy_state.pending  # pylint: disable=protected-access
+    dispatched.assert_not_awaited()
+
+
+async def test_runtime_vacancy_delay_only_applies_to_unoccupied_off(hass) -> None:
+    """Bright off and dark on remain immediate even with a vacancy delay."""
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    scheduler = Mock()
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=[_snapshot(lux=250), _snapshot(lux=50)],
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(
+                hass,
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 60},
+            )
+        )
+        await manager.async_evaluate()
+        await manager.async_evaluate()
+    assert [call.args[2].action for call in dispatched.await_args_list] == [
+        LightPolicyAction.TURN_OFF,
+        LightPolicyAction.TURN_ON,
+    ]
+    scheduler.assert_not_called()
+
+
+async def test_runtime_unload_cancels_vacancy_timer_and_old_callback_is_inert(
+    hass,
+) -> None:
+    """An unloaded manager cannot dispatch from a stale timer callback."""
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    cancel = Mock()
+    scheduler = Mock(return_value=cancel)
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(lux=None, occupied=False),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(
+                hass,
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30},
+            )
+        )
+        await manager.async_evaluate()
+        callback = scheduler.call_args.args[2]
+        manager.unload()
+        callback(None)
+        await hass.async_block_till_done()
+    cancel.assert_called_once()
+    dispatched.assert_not_awaited()
+
+
+async def test_runtime_vacancy_callback_uses_fresh_occupied_snapshot(hass) -> None:
+    """A stale timer never turns lights off after presence has returned."""
+    state = {"snapshot": _snapshot(lux=None, occupied=False)}
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    scheduler = Mock(return_value=Mock())
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=lambda _area: state["snapshot"],
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(
+                hass,
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30},
+            )
+        )
+        await manager.async_evaluate()
+        state["snapshot"] = _snapshot(lux=150, occupied=True)
+        manager._vacancy_state = LightVacancyState(  # pylint: disable=protected-access
+            detected_at=hass.loop.time() - 30, due_at=hass.loop.time()
+        )
+        scheduler.call_args.args[2](None)
+        await hass.async_block_till_done()
+    dispatched.assert_not_awaited()
+    assert not manager._vacancy_state.pending  # pylint: disable=protected-access
+
+
+async def test_runtime_vacancy_timers_are_area_local_and_lux_stable(hass) -> None:
+    """Lux re-evaluation preserves each Area's single independent deadline."""
+    states = {
+        "living": _snapshot(lux=None, occupied=False),
+        "kitchen": _snapshot(lux=None, occupied=False),
+    }
+    scheduler = Mock(side_effect=[Mock(), Mock()])
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            side_effect=lambda area: states[area.id],
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        living = LightRuntimeManager(
+            _named_area(
+                hass,
+                "living",
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30},
+            )
+        )
+        kitchen = LightRuntimeManager(
+            _named_area(
+                hass,
+                "kitchen",
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 120},
+            )
+        )
+        await living.async_evaluate()
+        await kitchen.async_evaluate()
+        living_deadline = (
+            living._vacancy_state.due_at
+        )  # pylint: disable=protected-access
+        kitchen_deadline = (
+            kitchen._vacancy_state.due_at
+        )  # pylint: disable=protected-access
+        states["living"] = _snapshot(lux=500, occupied=False)
+        await living.async_evaluate()
+    assert scheduler.call_count == 2
+    assert (
+        living._vacancy_state.due_at == living_deadline
+    )  # pylint: disable=protected-access
+    assert (
+        kitchen._vacancy_state.due_at == kitchen_deadline
+    )  # pylint: disable=protected-access
+    assert kitchen_deadline - living_deadline == pytest.approx(90, abs=0.1)
+
+
+async def test_runtime_reload_discards_old_vacancy_timer_and_uses_new_delay(
+    hass,
+) -> None:
+    """Replacement managers start a fresh deadline from their current config."""
+    feature = {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30}
+    area = _area(hass, feature)
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    old_cancel, new_cancel = Mock(), Mock()
+    scheduler = Mock(side_effect=[old_cancel, new_cancel])
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(lux=None, occupied=False),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        old_manager = LightRuntimeManager(area)
+        await old_manager.async_evaluate()
+        old_callback = scheduler.call_args.args[2]
+        old_manager.unload()
+
+        feature["vacancy_delay"] = 60
+        new_manager = LightRuntimeManager(area)
+        await new_manager.async_evaluate()
+        old_callback(None)
+        await hass.async_block_till_done()
+
+        feature.pop("vacancy_delay")
+        new_manager.unload()
+        await LightRuntimeManager(area).async_evaluate()
+
+    assert old_cancel.called
+    assert new_cancel.called
+    assert scheduler.call_args_list[0].args[1] == pytest.approx(30, abs=0.1)
+    assert scheduler.call_args_list[1].args[1] == pytest.approx(60, abs=0.1)
+    assert dispatched.await_args.args[2].action is LightPolicyAction.TURN_OFF
+    assert dispatched.await_count == 1
+
+
+async def test_runtime_target_context_detection_sets_only_user_override(hass) -> None:
+    """Target on/off events classify user intent without policy re-evaluation."""
+    snapshot = _snapshot(lux=150, occupied=True)
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    hass.states.async_set("light.room", "off")
+    await hass.async_block_till_done()
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
+        await manager.async_setup()
+        own_context = Context(id="runtime")
+        manager._own_action_context_ids.append(
+            own_context.id
+        )  # pylint: disable=protected-access
+        hass.states.async_set("light.room", "on", context=own_context)
+        await hass.async_block_till_done()
+        assert (
+            manager._manual_override_state.mode.value == "none"
+        )  # pylint: disable=protected-access
+        assert not manager._own_action_context_ids  # pylint: disable=protected-access
+
+        hass.states.async_set("light.room", "off", context=Context(user_id="user"))
+        await hass.async_block_till_done()
+        assert (
+            manager._manual_override_state.mode.value == "force_off"
+        )  # pylint: disable=protected-access
+        dispatched.assert_not_awaited()
+        manager.unload()
+
+
+async def test_runtime_target_detection_is_area_local_and_unloads(hass) -> None:
+    """Only subscribed targets change a manager's transient override state."""
+    living_snapshot = _snapshot(lux=150, occupied=True)
+    kitchen_snapshot = LightSourceSnapshot(
+        "kitchen",
+        (LightTargetSource("light.kitchen", True),),
+        "sensor.lux",
+        True,
+        150,
+        ("binary_sensor.kitchen",),
+        True,
+        True,
+    )
+    hass.states.async_set("light.room", "off")
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    with patch(
+        "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+        side_effect=lambda area: (
+            living_snapshot if area.id == "living" else kitchen_snapshot
+        ),
+    ):
+        living = LightRuntimeManager(
+            _named_area(hass, "living", {"turn_on_below": 100, "turn_off_above": 200})
+        )
+        kitchen = LightRuntimeManager(
+            _named_area(hass, "kitchen", {"turn_on_below": 100, "turn_off_above": 200})
+        )
+        await living.async_setup()
+        await kitchen.async_setup()
+        hass.states.async_set("light.kitchen", "on", context=Context(user_id="user"))
+        await hass.async_block_till_done()
+        assert (
+            living._manual_override_state.mode.value == "none"
+        )  # pylint: disable=protected-access
+        assert (
+            kitchen._manual_override_state.mode.value == "force_on"
+        )  # pylint: disable=protected-access
+        kitchen.unload()
+        hass.states.async_set("light.kitchen", "off", context=Context(user_id="user"))
+        await hass.async_block_till_done()
+        assert (
+            kitchen._manual_override_state.mode.value == "none"
+        )  # pylint: disable=protected-access
+        living.unload()
+
+
+async def test_runtime_own_context_tracking_is_bounded_and_cleared_on_unload(
+    hass,
+) -> None:
+    """Transient own-action context tracking cannot grow across dispatches."""
+    manager = LightRuntimeManager(
+        _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+    )
+    manager._own_action_context_ids.extend(  # pylint: disable=protected-access
+        f"context-{index}" for index in range(65)
+    )
+    assert (
+        len(manager._own_action_context_ids) == 64
+    )  # pylint: disable=protected-access
+    manager.unload()
+    assert not manager._own_action_context_ids  # pylint: disable=protected-access
+
+
+@pytest.mark.parametrize(
+    ("mode", "snapshot", "expected_calls"),
+    [
+        (LightManualOverrideMode.FORCE_OFF, _snapshot(lux=50), 0),
+        (LightManualOverrideMode.FORCE_ON, _snapshot(lux=250), 0),
+        (LightManualOverrideMode.NONE, _snapshot(lux=50), 1),
+        (LightManualOverrideMode.FORCE_ON, _snapshot(lux=50), 1),
+        (LightManualOverrideMode.FORCE_OFF, _snapshot(lux=250), 1),
+    ],
+)
+async def test_runtime_manual_override_filters_only_opposing_decisions(
+    hass, mode, snapshot, expected_calls
+) -> None:
+    """Override filtering precedes dispatch without changing normal directions."""
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=snapshot,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
+        manager._manual_override_state = LightManualOverrideState(
+            mode, 1
+        )  # pylint: disable=protected-access
+        await manager.async_evaluate()
+    assert dispatched.await_count == expected_calls
+    if not expected_calls:
+        assert (
+            manager._last_dispatched_action is None
+        )  # pylint: disable=protected-access
+        assert (
+            manager._manual_override_state.mode is mode
+        )  # pylint: disable=protected-access
+
+
+@pytest.mark.parametrize(
+    "mode", (LightManualOverrideMode.FORCE_ON, LightManualOverrideMode.FORCE_OFF)
+)
+async def test_runtime_confirmed_vacancy_resets_override_before_off(hass, mode) -> None:
+    """Confirmed vacancy clears either override direction before immediate off."""
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(lux=None, occupied=False),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
+        manager._manual_override_state = LightManualOverrideState(
+            mode, 1
+        )  # pylint: disable=protected-access
+        await manager.async_evaluate()
+    assert dispatched.await_args.args[2].action is LightPolicyAction.TURN_OFF
+    assert (
+        manager._manual_override_state == LightManualOverrideState()
+    )  # pylint: disable=protected-access
+
+
+async def test_runtime_timer_callback_and_lux_evaluation_share_one_lock(hass) -> None:
+    """A timer callback cannot execute concurrently with a Lux re-evaluation."""
+    started = asyncio.Event()
+    release = asyncio.Event()
+    current = max_parallel = 0
+
+    async def dispatch(*_args, **_kwargs):
+        nonlocal current, max_parallel
+        current += 1
+        max_parallel = max(max_parallel, current)
+        started.set()
+        await release.wait()
+        current -= 1
+        return SimpleNamespace(executed=True)
+
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(lux=50, occupied=True),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            side_effect=dispatch,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+        )
+        lux_task = hass.async_create_task(manager.async_evaluate())
+        await started.wait()
+        manager._async_vacancy_due(None)  # pylint: disable=protected-access
+        await asyncio.sleep(0)
+        assert max_parallel == 1
+        release.set()
+        await lux_task
+        await hass.async_block_till_done()
+    assert max_parallel == 1
+
+
+async def test_runtime_unavailable_presence_preserves_manual_override(hass) -> None:
+    """Unknown occupancy never clears a user override."""
+    manager = LightRuntimeManager(
+        _area(hass, {"turn_on_below": 100, "turn_off_above": 200})
+    )
+    manager._manual_override_state = (
+        LightManualOverrideState(  # pylint: disable=protected-access
+            LightManualOverrideMode.FORCE_ON, 1
+        )
+    )
+    with patch(
+        "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+        return_value=_snapshot(lux=None, occupied=False, presence=False),
+    ):
+        await manager.async_evaluate()
+    assert (
+        manager._manual_override_state.mode is LightManualOverrideMode.FORCE_ON
+    )  # pylint: disable=protected-access
+
+
+async def test_runtime_vacancy_timer_resets_force_on_before_off(hass) -> None:
+    """A pending vacancy ignores stale force-on intent at its fresh callback."""
+    dispatched = AsyncMock(return_value=SimpleNamespace(executed=True))
+    scheduler = Mock(return_value=Mock())
+    with (
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.light_source_snapshot",
+            return_value=_snapshot(lux=None, occupied=False),
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_execute_light_decision",
+            dispatched,
+        ),
+        patch(
+            "custom_components.adaptive_areas.helpers.light_runtime.async_call_later",
+            scheduler,
+        ),
+    ):
+        manager = LightRuntimeManager(
+            _area(
+                hass,
+                {"turn_on_below": 100, "turn_off_above": 200, "vacancy_delay": 30},
+            )
+        )
+        await manager.async_evaluate()
+        manager._manual_override_state = (
+            LightManualOverrideState(  # pylint: disable=protected-access
+                LightManualOverrideMode.FORCE_ON, 1
+            )
+        )
+        manager._vacancy_state = LightVacancyState(  # pylint: disable=protected-access
+            detected_at=hass.loop.time() - 30, due_at=hass.loop.time()
+        )
+        scheduler.call_args.args[2](None)
+        await hass.async_block_till_done()
+    assert dispatched.await_args.args[2].action is LightPolicyAction.TURN_OFF
+    assert (
+        manager._manual_override_state == LightManualOverrideState()
+    )  # pylint: disable=protected-access
