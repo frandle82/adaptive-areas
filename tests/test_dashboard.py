@@ -1,6 +1,7 @@
 """Tests for the read-only Adaptive Areas dashboard DTOs."""
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_DARK,
     CONF_DARK_ENTITY,
     CONF_ENABLED_FEATURES,
+    CONF_FEATURE_LIGHT,
     CONF_OVERHEAD_LIGHTS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
@@ -21,7 +23,17 @@ from custom_components.adaptive_areas.const import (
 from custom_components.adaptive_areas.dashboard import (
     build_area_detail,
     build_diagnostics,
+    build_light_runtime_status,
     build_overview,
+)
+from custom_components.adaptive_areas.helpers.light_override import (
+    LightManualOverrideMode,
+    LightManualOverrideState,
+)
+from custom_components.adaptive_areas.helpers.light_vacancy import LightVacancyState
+from custom_components.adaptive_areas.helpers.sources import (
+    LightSourceSnapshot,
+    LightTargetSource,
 )
 from custom_components.adaptive_areas.websocket import (
     _get_area,
@@ -73,10 +85,111 @@ async def test_dashboard_detail_handles_minimal_area(
         "adaptive_areas/get_diagnostics",
         "adaptive_areas/subscribe_updates",
         "adaptive_areas/get_area_configuration",
+        "adaptive_areas/get_light_runtime_status",
         "adaptive_areas/create_area",
         "adaptive_areas/update_area",
         "adaptive_areas/delete_area",
     } <= set(hass.data["websocket_api"])
+
+
+def test_light_runtime_status_is_read_only_and_handles_disabled_and_partial_policy(
+    hass: HomeAssistant,
+) -> None:
+    """The form DTO reads a fresh source snapshot without requiring a manager."""
+    disabled = SimpleNamespace(
+        id="disabled",
+        has_feature=lambda _feature: False,
+    )
+    assert build_light_runtime_status(hass, disabled) == {
+        "area_id": "disabled",
+        "light": {"enabled": False},
+    }
+
+    area = SimpleNamespace(
+        id="living",
+        has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
+        feature_config=lambda _feature: {},
+    )
+    snapshot = LightSourceSnapshot(
+        "living",
+        (
+            LightTargetSource("light.available", True),
+            LightTargetSource("light.off", False),
+        ),
+        None,
+        False,
+        None,
+        ("binary_sensor.presence",),
+        True,
+        True,
+    )
+    with patch(
+        "custom_components.adaptive_areas.dashboard.light_source_snapshot",
+        return_value=snapshot,
+    ):
+        status = build_light_runtime_status(hass, area)
+
+    assert status["light"] == {
+        "enabled": True,
+        "presence": {"available": True, "occupied": True},
+        "illuminance": {"configured": False, "available": False, "value": None},
+        "policy": {"decision": "NO_ACTION", "reason": "policy_not_configured"},
+        "override": {"mode": "NONE"},
+        "vacancy": {"pending": False, "due_at": None},
+        "targets": {"total": 2, "available": 1},
+    }
+
+
+def test_light_runtime_status_keeps_manager_state_area_local(
+    hass: HomeAssistant,
+) -> None:
+    """Override and vacancy values come only from the requested Area manager."""
+    manager = SimpleNamespace(
+        override_state=LightManualOverrideState(LightManualOverrideMode.FORCE_ON, 1),
+        vacancy_state=LightVacancyState(detected_at=10, due_at=40),
+    )
+    area = SimpleNamespace(
+        id="living",
+        light_runtime_manager=manager,
+        has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
+        feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
+    )
+    snapshot = LightSourceSnapshot(
+        "living", (), "sensor.lux", True, 120, (), False, None
+    )
+    with patch(
+        "custom_components.adaptive_areas.dashboard.light_source_snapshot",
+        return_value=snapshot,
+    ):
+        status = build_light_runtime_status(hass, area)
+
+    assert status["light"]["override"] == {"mode": "FORCE_ON"}
+    assert status["light"]["vacancy"] == {"pending": True, "due_at": 40}
+    assert status["light"]["policy"] == {
+        "decision": "NO_ACTION",
+        "reason": "no_targets",
+    }
+
+    kitchen = SimpleNamespace(
+        id="kitchen",
+        light_runtime_manager=SimpleNamespace(
+            override_state=LightManualOverrideState(
+                LightManualOverrideMode.FORCE_OFF, 1
+            ),
+            vacancy_state=LightVacancyState(),
+        ),
+        has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
+        feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
+    )
+    with patch(
+        "custom_components.adaptive_areas.dashboard.light_source_snapshot",
+        return_value=snapshot,
+    ):
+        kitchen_status = build_light_runtime_status(hass, kitchen)
+
+    assert kitchen_status["area_id"] == "kitchen"
+    assert kitchen_status["light"]["override"] == {"mode": "FORCE_OFF"}
+    assert kitchen_status["light"]["vacancy"] == {"pending": False, "due_at": None}
 
 
 async def test_dashboard_area_update_validates_then_reloads_once(
@@ -367,3 +480,15 @@ async def test_dashboard_empty_subscription_is_successful(hass: HomeAssistant) -
 
     assert connection.result is None
     connection.subscriptions[1]()
+
+
+def test_panel_keeps_vacancy_delay_and_renders_light_runtime_status() -> None:
+    """The static panel keeps zero-capable config inputs beside the status block."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    assert 'name="vacancy_delay"' in panel
+    assert 'light.vacancy_delay??""' in panel
+    assert "adaptive_areas/get_light_runtime_status" in panel
+    assert "Aktueller Status" in panel

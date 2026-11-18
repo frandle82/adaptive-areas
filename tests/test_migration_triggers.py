@@ -187,6 +187,10 @@ async def test_setup_and_reload_do_not_resume_partial_migration(
         ("adaptive_areas/get_overview", {}),
         ("adaptive_areas/get_area", {"area_id": DEFAULT_MOCK_AREA.value}),
         ("adaptive_areas/get_area_configuration", {}),
+        (
+            "adaptive_areas/get_light_runtime_status",
+            {"area_id": DEFAULT_MOCK_AREA.value},
+        ),
         ("adaptive_areas/subscribe_updates", {}),
         ("adaptive_areas/get_diagnostics", {}),
     ],

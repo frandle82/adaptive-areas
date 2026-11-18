@@ -239,6 +239,16 @@ class LightRuntimeManager:
             self._vacancy_timer_unsub = None
         self._vacancy_state = LightVacancyState()
 
+    @property
+    def vacancy_state(self) -> LightVacancyState:
+        """Return the current vacancy state without exposing timer controls."""
+        return self._vacancy_state
+
+    @property
+    def override_state(self) -> LightManualOverrideState:
+        """Return the current manual override state without allowing mutation."""
+        return self._manual_override_state
+
     def unload(self) -> None:
         """Remove all targeted listeners owned by this manager."""
         self._unloaded = True

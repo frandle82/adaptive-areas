@@ -142,6 +142,7 @@ async def test_global_entry_area_crud_websocket_lifecycle(hass, monkeypatch) -> 
 
         await _call(hass, "adaptive_areas/get_overview")
         await _call(hass, "adaptive_areas/get_area_configuration")
+        await _call(hass, "adaptive_areas/get_light_runtime_status", area_id=living.id)
         await _call(hass, "adaptive_areas/get_area", area_id=living.id)
         assert reload.await_count == 3
 

@@ -15,6 +15,7 @@ from custom_components.adaptive_areas.dashboard import (
     _controls,
     _generated_states,
     build_area_detail,
+    build_light_runtime_status,
     build_area_summary,
     build_diagnostics,
     build_overview,
@@ -122,6 +123,21 @@ async def websocket_get_area_configuration(hass, connection, msg):
             ),
             "available_areas": available_areas(hass),
         },
+    )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "adaptive_areas/get_light_runtime_status",
+        vol.Required("area_id"): str,
+    }
+)
+@websocket_api.async_response
+async def websocket_get_light_runtime_status(hass, connection, msg):
+    """Return the current, non-mutating Light runtime snapshot for one Area."""
+    connection.send_result(
+        msg["id"], build_light_runtime_status(hass, _get_area(hass, msg["area_id"]))
     )
 
 
@@ -298,6 +314,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
         websocket_get_area,
         websocket_get_diagnostics,
         websocket_get_area_configuration,
+        websocket_get_light_runtime_status,
         websocket_get_global_configuration,
         websocket_update_global_configuration,
         websocket_create_area,

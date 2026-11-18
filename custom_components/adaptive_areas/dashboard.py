@@ -25,11 +25,17 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS,
     CONF_SLEEP_LIGHTS,
     CONF_TASK_LIGHTS,
+    CONF_FEATURE_LIGHT,
 )
 from custom_components.adaptive_areas.helpers.area import (
     generated_entities_for_area,
     iter_runtime_areas,
 )
+from custom_components.adaptive_areas.helpers.light_policy import (
+    evaluate_light_policy,
+    light_policy_config_from_feature,
+)
+from custom_components.adaptive_areas.helpers.sources import light_source_snapshot
 
 _LIGHT_GROUPS = {
     CONF_OVERHEAD_LIGHTS: "Overhead",
@@ -338,6 +344,76 @@ def build_area_detail(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]
             for source in _area_sources(area)
         ],
         "controls": summary["controls"],
+    }
+
+
+def build_light_runtime_status(
+    hass: HomeAssistant, area: AdaptiveArea
+) -> dict[str, Any]:
+    """Build a read-only snapshot for the Light section of one Area form."""
+    if not area.has_feature(CONF_FEATURE_LIGHT):
+        return {"area_id": str(area.id), "light": {"enabled": False}}
+
+    snapshot = light_source_snapshot(area)
+    if snapshot is None:
+        return {
+            "area_id": str(area.id),
+            "light": {
+                "enabled": True,
+                "presence": {"available": False, "occupied": None},
+                "illuminance": {
+                    "configured": False,
+                    "available": False,
+                    "value": None,
+                },
+                "policy": {"decision": "NO_ACTION", "reason": "policy_not_configured"},
+                "override": {"mode": "NONE"},
+                "vacancy": {"pending": False, "due_at": None},
+                "targets": {"total": 0, "available": 0},
+            },
+        }
+
+    try:
+        policy_config = light_policy_config_from_feature(
+            area.feature_config(CONF_FEATURE_LIGHT)
+        )
+    except ValueError:
+        policy_config = None
+    decision = evaluate_light_policy(snapshot, policy_config)
+    manager = getattr(area, "light_runtime_manager", None)
+    vacancy = manager.vacancy_state if manager is not None else None
+    override = manager.override_state if manager is not None else None
+    return {
+        "area_id": str(area.id),
+        "light": {
+            "enabled": True,
+            "presence": {
+                "available": snapshot.presence_available,
+                "occupied": snapshot.presence_state,
+            },
+            "illuminance": {
+                "configured": snapshot.illuminance_entity_id is not None,
+                "available": snapshot.illuminance_available,
+                "value": snapshot.illuminance_value,
+            },
+            "policy": {
+                "decision": decision.action.value.upper(),
+                "reason": decision.reason.value,
+            },
+            "override": {
+                "mode": (
+                    override.mode.value.upper() if override is not None else "NONE"
+                )
+            },
+            "vacancy": {
+                "pending": bool(vacancy and vacancy.pending),
+                "due_at": vacancy.due_at if vacancy and vacancy.pending else None,
+            },
+            "targets": {
+                "total": len(snapshot.targets),
+                "available": sum(target.available for target in snapshot.targets),
+            },
+        },
     }
 
 
