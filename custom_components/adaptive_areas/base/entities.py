@@ -26,6 +26,20 @@ class AdaptiveEntity(RestoreEntity):
     _extra_identifiers: list[str] | None = None
     _attr_has_entity_name = True
 
+    async def async_internal_added_to_hass(self) -> None:
+        """Let Meta Areas reconcile their sources once this entity is registered.
+
+        Home Assistant calls this internal hook for every entity before
+        async_added_to_hass and continues the MRO chain, so group and restore
+        behaviour stays unchanged.
+        """
+        await super().async_internal_added_to_hass()
+        from custom_components.adaptive_areas.helpers.area import (
+            refresh_meta_area_sources,
+        )
+
+        refresh_meta_area_sources(self.area.hass)
+
     def __init__(
         self,
         area: AdaptiveArea,

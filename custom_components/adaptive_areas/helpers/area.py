@@ -204,6 +204,18 @@ def iter_runtime_areas(hass: HomeAssistant):
             yield area
 
 
+def refresh_meta_area_sources(hass: HomeAssistant) -> None:
+    """Reconcile every loaded Meta Area after an Adaptive Areas entity registered.
+
+    A Meta Area snapshots the generated entities of its children. Children can
+    register those entities after the Meta Area loaded, so each registration
+    refreshes all Meta Areas. The refresh is idempotent and does not reload entries.
+    """
+    for area in iter_runtime_areas(hass):
+        if area.is_meta():
+            area.async_refresh_sources()
+
+
 def entity_belongs_to_area(entity: RegistryEntry, area: AdaptiveArea) -> bool:
     """Return whether an Adaptive Areas registry entity belongs to one Area.
 

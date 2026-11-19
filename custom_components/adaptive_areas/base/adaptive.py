@@ -760,6 +760,21 @@ class AdaptiveMetaArea(AdaptiveArea):
 
         self.finalize_init()
 
+    @callback
+    def async_refresh_sources(self) -> None:
+        """Re-resolve child Areas and reload sources after a child entity registered.
+
+        Child entities register at different times, so the source list must be
+        reconciled whenever one is added. Before initialize() the first load is
+        still pending and runs there, so this is a no-op.
+        """
+        if not self.initialized:
+            return
+        self.child_areas = self.get_child_areas()
+        self.hass.async_create_task(
+            self.load_entities(), f"adaptive_areas refresh sources {self.slug}"
+        )
+
     async def load_entities(self) -> None:
         """Load entities into entity list."""
 
