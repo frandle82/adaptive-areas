@@ -634,7 +634,7 @@ async def test_verify_blocks_wrong_device_owner(hass) -> None:
     """The original device must retain GlobalEntry ownership."""
     target, entity, device, snapshot = _verify_fixture(hass)
     devices = async_get_device_registry(hass)
-    devices.async_update_device(device.id, remove_config_entry_id=target.entry_id)
+    devices.async_remove_device(device.id)
     before = devices.async_get(device.id)
     result = verify_global_entry(hass, target, snapshot)
     assert not result.success
@@ -669,9 +669,7 @@ async def test_orchestrated_verify_failure_never_reaches_remove_or_cleanup(
     if missing == "entity":
         async_get_entity_registry(hass).async_remove(entity.entity_id)
     else:
-        async_get_device_registry(hass).async_update_device(
-            device.id, remove_config_entry_id=target.entry_id
-        )
+        async_get_device_registry(hass).async_remove_device(device.id)
     remove_calls = 0
 
     async def forbidden_remove(*_args, **_kwargs):
@@ -696,7 +694,7 @@ async def test_orchestrated_verify_failure_never_reaches_remove_or_cleanup(
     if missing == "entity":
         restored_device = async_get_device_registry(hass).async_get(device.id)
         assert restored_device is not None
-        assert restored_device.config_entries == {source.entry_id}
+        assert restored_device.config_entry_id == source.entry_id
 
 
 async def test_verify_blocks_stale_original_device_and_replacement_link(hass) -> None:

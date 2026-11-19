@@ -8,6 +8,9 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import (
+    async_entries_for_config_entry,
+)
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
@@ -118,13 +121,13 @@ def capture_registry_snapshot(
         {
             "id": device.id,
             "identifiers": list(device.identifiers),
-            "config_entries": list(device.config_entries),
+            "config_entries": [device.config_entry_id],
             "area_id": device.area_id,
             "name": device.name,
             "name_by_user": device.name_by_user,
         }
-        for device in device_registry.devices.values()
-        if set(device.config_entries).intersection(source_entry_ids)
+        for source_id in source_entry_ids
+        for device in async_entries_for_config_entry(device_registry, source_id)
     ]
     return MigrationSnapshot(entities, devices)
 
@@ -145,14 +148,12 @@ def rollback_registry_snapshot(
         if current is None:
             continue
         previous = set(device["config_entries"])
-        # Keep the device alive while ownership moves back to a legacy entry.
-        for entry_id in previous - set(current.config_entries):
+        # A device has exactly one owner in HA 2026.10+, so restoring ownership is
+        # an immediate move to the single legacy entry (not add/remove calls).
+        if len(previous) == 1 and current.config_entry_id not in previous:
+            (legacy_entry_id,) = previous
             device_registry.async_update_device(
-                current.id, add_config_entry_id=entry_id
-            )
-        for entry_id in set(current.config_entries) - previous:
-            device_registry.async_update_device(
-                current.id, remove_config_entry_id=entry_id
+                current.id, new_config_entry_id=legacy_entry_id
             )
 
 
@@ -394,13 +395,14 @@ def _validate_removal_preconditions(
                 f"legacy entity ownership remains: {entry.entry_id}"
             )
         if any(
-            entry.entry_id in device.config_entries
-            and any(
+            any(
                 domain == "adaptive_areas"
                 and identifier.startswith("adaptive_area_device_")
                 for domain, identifier in device.identifiers
             )
-            for device in device_registry.devices.values()
+            for device in async_entries_for_config_entry(
+                device_registry, entry.entry_id
+            )
         ):
             raise MigrationRemoveError(
                 f"legacy device ownership remains: {entry.entry_id}"
@@ -581,7 +583,7 @@ def verify_global_entry(
         if current is None:
             errors.append(f"missing device: {saved['id']}")
         elif (
-            entry.entry_id not in current.config_entries
+            entry.entry_id != current.config_entry_id
             or current.area_id != saved["area_id"]
         ):
             errors.append(f"device ownership mismatch: {saved['id']}")

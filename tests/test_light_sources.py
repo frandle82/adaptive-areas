@@ -79,6 +79,8 @@ def _entity(
         "test",
         object_id,
         suggested_object_id=object_id,
+        # HA 2026.10 rejects an entity area for an entity without its own name.
+        original_name=object_id,
         config_entry=source_entry,
         device_id=device_id,
         original_device_class=(attributes or {}).get(ATTR_DEVICE_CLASS),

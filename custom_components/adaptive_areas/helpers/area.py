@@ -14,6 +14,9 @@ from homeassistant.helpers.area_registry import (
     AreaEntry,
     async_get as areareg_async_get,
 )
+from homeassistant.helpers.device_registry import (
+    async_entries_for_config_entry as devicereg_entries_for_config_entry,
+)
 from homeassistant.helpers.device_registry import async_get as devicereg_async_get
 from homeassistant.helpers.entity_registry import (
     RegistryEntry,
@@ -272,15 +275,11 @@ def transfer_area_devices_to_container(
     identifier = (DOMAIN, f"{ADAPTIVE_DEVICE_ID_PREFIX}{area_id}")
     candidates = [
         device
-        for device in registry.devices.values()
-        if old_entry_id in device.config_entries and identifier in device.identifiers
+        for device in devicereg_entries_for_config_entry(registry, old_entry_id)
+        if identifier in device.identifiers
     ]
     for device in candidates:
-        registry.async_update_device(
-            device.id,
-            add_config_entry_id=global_entry_id,
-            remove_config_entry_id=old_entry_id,
-        )
+        registry.async_update_device(device.id, new_config_entry_id=global_entry_id)
     return [device.id for device in candidates]
 
 

@@ -6,6 +6,9 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
+from homeassistant.helpers.device_registry import (
+    async_entries_for_config_entry,
+)
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import (
     RegistryEntryDisabler,
@@ -173,9 +176,13 @@ def _registry_identity(hass, target):
         if entry.platform == DOMAIN
     }
     devices = {
-        entry.id: (entry.id, entry.identifiers, entry.config_entries, entry.area_id)
-        for entry in device_registry.devices.values()
-        if target.entry_id in entry.config_entries
+        entry.id: (
+            entry.id,
+            entry.identifiers,
+            {entry.config_entry_id},
+            entry.area_id,
+        )
+        for entry in async_entries_for_config_entry(device_registry, target.entry_id)
     }
     return entities, devices
 

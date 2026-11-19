@@ -6,6 +6,9 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.helpers.device_registry import (
+    async_entries_for_config_entry,
+)
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers import issue_registry as ir
@@ -62,8 +65,9 @@ def _registry_identity(hass) -> tuple[list[tuple], list[tuple]]:
             for entry in entities.entities.values()
         ),
         sorted(
-            (entry.id, tuple(sorted(entry.config_entries)), entry.identifiers)
-            for entry in devices.devices.values()
+            (entry.id, (entry.config_entry_id,), entry.identifiers)
+            for config_entry in hass.config_entries.async_entries()
+            for entry in async_entries_for_config_entry(devices, config_entry.entry_id)
         ),
     )
 

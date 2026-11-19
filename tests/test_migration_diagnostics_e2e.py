@@ -3,6 +3,9 @@
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
+from homeassistant.helpers.device_registry import (
+    async_entries_for_config_entry,
+)
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
@@ -46,8 +49,9 @@ def _identity(hass) -> tuple[dict, dict]:
     return (
         {item.entity_id: item.config_entry_id for item in entities.entities.values()},
         {
-            item.id: tuple(sorted(item.config_entries))
-            for item in devices.devices.values()
+            item.id: (item.config_entry_id,)
+            for entry in hass.config_entries.async_entries()
+            for item in async_entries_for_config_entry(devices, entry.entry_id)
         },
     )
 

@@ -857,7 +857,7 @@ async def test_repair_verify_failure_keeps_sources_and_blocks_remove(
     assert entities.async_get(entity.entity_id) is None
     restored_device = devices.async_get(device.id)
     assert restored_device is not None
-    assert restored_device.config_entries == {source.entry_id}
+    assert restored_device.config_entry_id == source.entry_id
     assert restored_device.identifiers == device.identifiers
     assert hass.config_entries.async_get_entry(source.entry_id) is source
     assert ir.async_get(hass).async_get_issue(

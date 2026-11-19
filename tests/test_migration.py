@@ -138,7 +138,7 @@ async def test_remove_keeps_transferred_entity_and_device_identity(hass) -> None
     assert current_device.id == device.id
     assert current_device.identifiers == device.identifiers
     assert current_device.area_id == "kitchen-area"
-    assert current_device.config_entries == {target.entry_id}
+    assert current_device.config_entry_id == target.entry_id
 
 
 async def test_remove_rejects_failed_verify_gate(hass) -> None:

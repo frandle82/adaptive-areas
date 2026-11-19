@@ -161,8 +161,8 @@ async def test_registry_ownership_transfer_preserves_area_identity(
     assert device is not None
     assert device.id == original.device_id
     assert device.area_id == area.id
-    assert global_entry_id in device.config_entries
-    assert basic_config_entry.entry_id not in device.config_entries
+    assert device.config_entry_id == global_entry_id
+    assert device.config_entry_id != basic_config_entry.entry_id
 
 
 async def test_cleaning_threshold_migrates_from_seconds_to_minutes(
