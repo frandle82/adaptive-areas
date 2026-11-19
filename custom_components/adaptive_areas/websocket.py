@@ -210,16 +210,21 @@ async def websocket_update_global_configuration(hass, connection, msg):
         )
         return
     entry = entries[0]
-    if errors := _validate_global_options(hass, updates):
+    current = get_global_options(entry)
+    # Only new or changed values are validated; unchanged stored entities are kept
+    # even when they are currently unavailable. Explicit None still clears a field.
+    changed = {
+        key: value for key, value in updates.items() if current.get(key) != value
+    }
+    if errors := _validate_global_options(hass, changed):
         connection.send_result(msg["id"], {"ok": False, "errors": errors})
         return
-    current = get_global_options(entry)
-    if all(current.get(key) == value for key, value in updates.items()):
+    if not changed:
         connection.send_result(
             msg["id"], {"ok": True, "errors": {}, "options": current}
         )
         return
-    update_global_options(hass, entry, updates)
+    update_global_options(hass, entry, changed)
     await hass.async_block_till_done()
     connection.send_result(
         msg["id"], {"ok": True, "errors": {}, "options": get_global_options(entry)}

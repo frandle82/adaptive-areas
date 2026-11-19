@@ -231,3 +231,112 @@ async def test_global_options_websocket_validates_entities_atomically(hass) -> N
         )["ok"]
         reload.assert_not_awaited()
         assert entry.options[CONF_GLOBAL_OPTIONS] == {}
+
+
+async def test_global_options_save_keeps_unavailable_stored_entity(hass) -> None:
+    """Saving one global field keeps an unavailable stored weather entity intact."""
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    entry = flow["result"]
+    await hass.async_block_till_done()
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            **entry.options,
+            CONF_GLOBAL_OPTIONS: {"weather_entity": "weather.gone"},
+        },
+    )
+    hass.states.async_set(
+        "sensor.lux", "10", {"device_class": SensorDeviceClass.ILLUMINANCE}
+    )
+    with patch.object(hass.config_entries, "async_reload"):
+        result = await _call(
+            hass,
+            "adaptive_areas/update_global_configuration",
+            options={
+                "weather_entity": "weather.gone",
+                "global_light_sensor": "sensor.lux",
+            },
+        )
+
+    assert result["ok"], result["errors"]
+    assert entry.options[CONF_GLOBAL_OPTIONS] == {
+        "weather_entity": "weather.gone",
+        "global_light_sensor": "sensor.lux",
+    }
+
+
+async def test_global_options_stale_entities_follow_explicit_change_rules(hass) -> None:
+    """Unchanged stale ids survive; new ids are validated; removal and replacement work."""
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    entry = flow["result"]
+    await hass.async_block_till_done()
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            **entry.options,
+            CONF_GLOBAL_OPTIONS: {
+                "weather_entity": "weather.gone",
+                "global_light_sensor": "sensor.gone",
+            },
+        },
+    )
+    hass.states.async_set("weather.city", "sunny")
+    hass.states.async_set(
+        "sensor.lux", "10", {"device_class": SensorDeviceClass.ILLUMINANCE}
+    )
+    with patch.object(hass.config_entries, "async_reload") as reload:
+        # Both stale fields sent unchanged: accepted, nothing reloaded.
+        result = await _call(
+            hass,
+            "adaptive_areas/update_global_configuration",
+            options={
+                "weather_entity": "weather.gone",
+                "global_light_sensor": "sensor.gone",
+            },
+        )
+        assert result["ok"], result["errors"]
+        reload.assert_not_awaited()
+
+        # New invalid id is rejected; the other valid change in the same call is not persisted.
+        result = await _call(
+            hass,
+            "adaptive_areas/update_global_configuration",
+            options={
+                "weather_entity": "weather.unknown",
+                "global_light_sensor": "sensor.lux",
+            },
+        )
+        assert not result["ok"]
+        assert "weather_entity" in result["errors"]
+        assert (
+            entry.options[CONF_GLOBAL_OPTIONS]["global_light_sensor"] == "sensor.gone"
+        )
+        reload.assert_not_awaited()
+
+        # Valid replacement of the stale weather id; the unsent sensor value is kept.
+        result = await _call(
+            hass,
+            "adaptive_areas/update_global_configuration",
+            options={"weather_entity": "weather.city"},
+        )
+        assert result["ok"], result["errors"]
+        assert entry.options[CONF_GLOBAL_OPTIONS] == {
+            "weather_entity": "weather.city",
+            "global_light_sensor": "sensor.gone",
+        }
+
+        # Explicit removal is allowed without validation.
+        result = await _call(
+            hass,
+            "adaptive_areas/update_global_configuration",
+            options={"global_light_sensor": None},
+        )
+        assert result["ok"], result["errors"]
+        assert entry.options[CONF_GLOBAL_OPTIONS] == {
+            "weather_entity": "weather.city",
+            "global_light_sensor": None,
+        }
