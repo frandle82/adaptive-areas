@@ -11,13 +11,13 @@
 | Targeted stable test | `.tox/ha-stable/bin/pytest -q tests/test_<area>.py` |
 | JSON validation | `python3 scripts/validate_json.py` |
 
-`scripts/test` and `scripts/lint` resolve current Home Assistant versions from PyPI and require `curl`, `jq`, `tox`, and network access. Tox environments use Python 3.14.
+Tox environments use Python 3.14. `scripts/lint` needs `tox` only. `scripts/test beta` needs `curl` and `jq` to look up the newest beta release on PyPI; stable runs do not need network access.
 
 ## Home Assistant compatibility
 
-- The `test-stable` CI job is temporarily pinned to Home Assistant 2026.10.4. `pytest-homeassistant-custom-component` 0.13.375 pins that version exactly and is resolved through it.
+- The supported stable target is Home Assistant 2026.10.4. It is the default of `HA_STABLE_VERSION` in `tox.ini` (`ha-stable`) and is pinned in the `test-stable` CI job. `pytest-homeassistant-custom-component` 0.13.375 pins that version exactly and resolves through it.
 - The newest Home Assistant stable release (2026.11.x) has no matching test harness release yet. Do not run or pin it until a harness release supports it.
-- Scripts `scripts/test` and `scripts/lint` still resolve the latest stable release from PyPI, so they will fail until the harness supports it. Use `HA_STABLE_VERSION=2026.10.4 tox -e ha-stable` as the compatibility check.
+- Override the default only for experiments, for example `HA_STABLE_VERSION=2026.8.1 tox -e ha-stable`.
 - Verified: the full suite passes with Home Assistant 2026.8.1 (532 passed, 1 skipped) and 2026.10.4 with harness 0.13.375 (533 passed).
 
 ## Selection rules

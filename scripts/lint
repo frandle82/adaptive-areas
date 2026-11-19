@@ -4,10 +4,5 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-# Fetch latest HA stable + beta versions from PyPI
-VERSIONS=$(curl -s https://pypi.org/pypi/homeassistant/json | jq -r '.releases | keys | .[]')
-
-HA_STABLE_VERSION=$(echo "$VERSIONS" | grep -Ev '[a-zA-Z]' | sort -Vr | head -n1)
-export HA_STABLE_VERSION
-
+# Linting does not need Home Assistant; the lint environment only installs pre-commit.
 tox -e lint
