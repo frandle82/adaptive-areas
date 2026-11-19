@@ -12,6 +12,9 @@
 - The repository contains a shared Codex/Claude/Gemini workflow baseline.
 - No application behavior is changed by this documentation setup.
 - Dashboard behavior should be treated as configuration-capable for administrators until the README discrepancy in `CURRENT_STATE.md` is resolved by a separately approved task.
+- Dashboard 2.0 Phase E: panel regressions fixed (Settings renderer, Area editor, light-group helpers), save rules verified with backend round-trip tests. Next: real Home Assistant visual review of all tabs, and decisions listed in [ROADMAP.md](ROADMAP.md) (open decisions).
+- Checks run for this change: dashboard and area CRUD tests, global options tests, full suites on Home Assistant 2026.10.4 and 2026.8.1, pre-commit, `git diff --check`, local browser harness (40 checks).
+- Not run: visual review in a real Home Assistant instance; Beta harness; Home Assistant 2026.11.x.
 
 ## Before handing over substantial work
 
