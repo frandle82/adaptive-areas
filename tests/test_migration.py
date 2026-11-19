@@ -42,6 +42,7 @@ def _entry(area: MockAreaIds) -> MockConfigEntry:
 
 
 def test_precheck_prepares_lossless_multi_area_model() -> None:
+    """Prepare a multi-Area model without losing per-Area options."""
     kitchen, living, global_meta = (
         MockConfigEntry(
             domain=DOMAIN,
@@ -60,6 +61,7 @@ def test_precheck_prepares_lossless_multi_area_model() -> None:
 
 
 def test_precheck_blocks_duplicate_and_partial_state() -> None:
+    """Reject duplicate Areas and a partially migrated state."""
     first = _entry(MockAreaIds.KITCHEN)
     duplicate = _entry(MockAreaIds.KITCHEN)
     with pytest.raises(MigrationPrecheckError, match="duplicate"):
@@ -74,6 +76,7 @@ def test_precheck_blocks_duplicate_and_partial_state() -> None:
 
 
 def test_migration_state_round_trip() -> None:
+    """Serialize and restore the migration state unchanged."""
     state = MigrationState(
         1, MigrationPhase.TRANSFER_CONFIG, ["old"], "new", ["kitchen"]
     )
@@ -108,6 +111,7 @@ def _verified() -> MigrationVerifyResult:
 
 
 async def test_remove_keeps_transferred_entity_and_device_identity(hass) -> None:
+    """Keep transferred entity and device identity when the source is removed."""
     target, (source,), state = _removal_fixture(hass)
     entity_registry = async_get_entity_registry(hass)
     device_registry = async_get_device_registry(hass)
@@ -142,6 +146,7 @@ async def test_remove_keeps_transferred_entity_and_device_identity(hass) -> None
 
 
 async def test_remove_rejects_failed_verify_gate(hass) -> None:
+    """Refuse removal when verification failed."""
     _target, _sources, state = _removal_fixture(hass)
     with pytest.raises(MigrationRemoveError, match="verification"):
         await async_remove_legacy_entries(
@@ -150,6 +155,7 @@ async def test_remove_rejects_failed_verify_gate(hass) -> None:
 
 
 async def test_remove_rejects_target_in_source_list(hass) -> None:
+    """Refuse removal when the target is also listed as a source."""
     target, _sources, state = _removal_fixture(hass)
     unsafe = MigrationState(
         1, MigrationPhase.REMOVE_OLD, [target.entry_id], target.entry_id, []
@@ -159,6 +165,7 @@ async def test_remove_rejects_target_in_source_list(hass) -> None:
 
 
 async def test_remove_rejects_remaining_entity_ownership(hass) -> None:
+    """Refuse removal while a source still owns a legacy entity."""
     _target, (source,), state = _removal_fixture(hass)
     async_get_entity_registry(hass).async_get_or_create(
         "sensor", DOMAIN, "legacy_kitchen", config_entry=source
@@ -168,6 +175,7 @@ async def test_remove_rejects_remaining_entity_ownership(hass) -> None:
 
 
 async def test_remove_rejects_remaining_device_ownership(hass) -> None:
+    """Refuse removal while a source still owns a legacy device."""
     _target, (source,), state = _removal_fixture(hass)
     async_get_device_registry(hass).async_get_or_create(
         config_entry_id=source.entry_id,
@@ -180,6 +188,7 @@ async def test_remove_rejects_remaining_device_ownership(hass) -> None:
 async def test_partial_remove_persists_forward_recovery_and_retries(
     hass, monkeypatch
 ) -> None:
+    """Persist the removal checkpoint after a partial failure and retry."""
     target, sources, state = _removal_fixture(hass, 2)
     original_remove = hass.config_entries.async_remove
     calls: list[str] = []
@@ -206,6 +215,7 @@ async def test_partial_remove_persists_forward_recovery_and_retries(
 
 
 async def test_remove_rejects_unexpected_missing_source(hass) -> None:
+    """Refuse removal when an expected source is already missing."""
     _target, (source,), state = _removal_fixture(hass)
     await hass.config_entries.async_remove(source.entry_id)
     with pytest.raises(MigrationRemoveError, match="unexpectedly missing"):
@@ -213,6 +223,7 @@ async def test_remove_rejects_unexpected_missing_source(hass) -> None:
 
 
 async def test_cleanup_completes_only_after_every_source_is_removed(hass) -> None:
+    """Complete cleanup only after every source entry is removed."""
     target, (source,), state = _removal_fixture(hass)
     with pytest.raises(MigrationCleanupError, match="remain"):
         await async_cleanup_migration(hass, state)
@@ -236,6 +247,7 @@ async def test_cleanup_completes_only_after_every_source_is_removed(hass) -> Non
 
 
 async def test_complete_retry_is_a_noop(hass) -> None:
+    """Return the completed state unchanged on retry."""
     _target, _sources, state = _removal_fixture(hass)
     complete = MigrationState(
         1,
@@ -257,6 +269,7 @@ async def test_complete_retry_is_a_noop(hass) -> None:
 async def test_cleanup_failure_keeps_recoverable_cleanup_checkpoint(
     hass, monkeypatch
 ) -> None:
+    """Keep a recoverable cleanup checkpoint when persisting completion fails."""
     target, (source,), state = _removal_fixture(hass)
     await hass.config_entries.async_remove(source.entry_id)
     removed = MigrationState(
@@ -287,6 +300,7 @@ async def test_cleanup_failure_keeps_recoverable_cleanup_checkpoint(
 
 
 async def test_restart_partial_remove_only_restores_checkpoint(hass) -> None:
+    """Restore only the stored partial-removal checkpoint after a restart."""
     target, (_source,), state = _removal_fixture(hass)
     partial = MigrationState(
         1,
@@ -305,6 +319,7 @@ async def test_restart_partial_remove_only_restores_checkpoint(hass) -> None:
 
 
 async def test_restart_during_cleanup_can_resume_cleanup(hass) -> None:
+    """Resume cleanup from the stored checkpoint after a restart."""
     target, (source,), state = _removal_fixture(hass)
     await hass.config_entries.async_remove(source.entry_id)
     cleanup = MigrationState(

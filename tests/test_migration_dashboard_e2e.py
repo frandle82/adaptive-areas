@@ -98,7 +98,7 @@ def _source_ids(snapshot: dict, area_id: str) -> set[str]:
 
 
 def _assert_kitchen_subscription(events: list[dict]) -> None:
-    """A Kitchen source may update its Meta parents, never sibling Areas."""
+    """Assert a Kitchen source updates only Meta parents, not sibling Areas."""
     area_ids = [event["area"]["id"] for event in events]
     assert MockAreaIds.KITCHEN.value in area_ids
     assert set(area_ids) <= {
