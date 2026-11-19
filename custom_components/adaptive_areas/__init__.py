@@ -416,7 +416,7 @@ async def async_setup_entry(  # noqa: C901
             reloading = True
             _LOGGER.debug(
                 "Adaptive Areas [%s]: scheduled config entry reload after registry burst",
-                config_entry.data[ATTR_NAME],
+                config_entry.title,
             )
             hass.config_entries.async_schedule_reload(config_entry.entry_id)
 
@@ -482,13 +482,13 @@ async def async_setup_entry(  # noqa: C901
         ):
             _LOGGER.debug(
                 "%s: Auto-Reloading disabled for this area skipping...",
-                config_entry.data[ATTR_NAME],
+                config_entry.title,
             )
             return
 
         _LOGGER.debug(
             "%s: Reloading entry due entity registry change",
-            config_entry.data[ATTR_NAME],
+            config_entry.title,
         )
 
         _async_reload_entry()
