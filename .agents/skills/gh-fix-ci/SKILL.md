@@ -19,13 +19,20 @@ The repository uses the following GitHub Actions workflows:
 
 | Workflow File | Job Name | Primary Tool / Command | Purpose |
 |---|---|---|---|
-| `.github/workflows/pytest.yml` | `test-stable` | `tox -e ha-stable` | Integration tests with latest Home Assistant stable release on Python 3.14 |
+| `.github/workflows/pytest.yml` | `test-stable` | `tox -e ha-stable` | Integration tests with the supported Home Assistant stable release (pinned, 2026.10.4) on Python 3.14 |
 | `.github/workflows/pytest.yml` | `test-beta` | `tox -e ha-beta` | Integration tests with Home Assistant beta release |
 | `.github/workflows/lint.yml` | `ruff` | `tox -e lint` | Code style, ruff, black, pylint, validate_json |
 | `.github/workflows/commitlint.yml` | `commitlint` | `commitlint` | Conventional commit message compliance |
 | `.github/workflows/validation.yaml` | `hassfest`, `hacs` | Hassfest & HACS action | Manifest, brand, and JSON schema validation |
 
 ## Workflow & Diagnosis Steps
+
+### 0. Verify the repository context
+`gh` may resolve a different repository than this clone (it has resolved an upstream project before). Verify it first:
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner   # must print frandle82/adaptive-areas
+```
+If it does not, run `gh repo set-default frandle82/adaptive-areas` or add `-R frandle82/adaptive-areas` to every command. Never analyse runs or commit SHAs from another repository.
 
 ### 1. Identify Failed Runs
 List the most recent runs for the current branch:
@@ -78,7 +85,6 @@ gh run view <run_id> --job <job_id> --log
     ```bash
     scripts/lint
     ```
-    `scripts/lint` requires `curl`, `jq` and network access (it resolves the latest Home Assistant version from PyPI).
   - Fix any syntax errors in translation files (`custom_components/adaptive_areas/translations/*.json`).
 
 #### Category C: Hassfest / HACS Validation (`validation.yaml`)

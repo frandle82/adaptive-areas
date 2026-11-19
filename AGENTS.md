@@ -9,6 +9,7 @@ This is the shared baseline for Codex, Claude Code, Gemini, and human contributo
 - Restrict a change to its assigned task. Do not add unrelated refactors, dependencies, options, or application features.
 - Do not commit, push, tag, release, open a pull request, create a branch, or modify `AGENTS.override.md` without explicit approval.
 - Never put credentials, tokens, headers, personal data, or Home Assistant configuration in tracked files, logs, diagnostics, or documentation.
+- Before inspecting GitHub Actions runs or commits with `gh`, verify the repository with `gh repo view --json nameWithOwner`. It must print `frandle82/adaptive-areas`.
 - Concurrent work uses separate Git branches and worktrees. One agent owns a file at a time; coordinate before editing a shared file.
 
 ## Project rules
