@@ -72,7 +72,12 @@ def _verify_fixture(hass):
     )
     entities = async_get_entity_registry(hass)
     entity = entities.async_get_or_create(
-        "sensor", DOMAIN, "verify_kitchen", config_entry=target, device_id=device.id
+        "sensor",
+        DOMAIN,
+        "verify_kitchen",
+        config_entry=target,
+        device_id=device.id,
+        original_name="Verify kitchen",
     )
     snapshot = MigrationSnapshot(
         [
@@ -695,6 +700,53 @@ async def test_orchestrated_verify_failure_never_reaches_remove_or_cleanup(
         restored_device = async_get_device_registry(hass).async_get(device.id)
         assert restored_device is not None
         assert restored_device.config_entry_id == source.entry_id
+
+
+async def test_verify_accepts_late_area_assignment_to_the_entitys_own_area(
+    hass,
+) -> None:
+    """A generated entity may receive its own Area after the snapshot was taken."""
+    target, entity, _device, snapshot = _verify_fixture(hass)
+    hass.config_entries.async_update_entry(
+        target,
+        options={**target.options, CONF_AREAS: {"kitchen": {"name": "Kitchen"}}},
+    )
+    async_get_entity_registry(hass).async_update_entity(
+        entity.entity_id, area_id="kitchen"
+    )
+    result = verify_global_entry(hass, target, snapshot)
+    assert f"entity identity mismatch: {entity.entity_id}" not in result.errors
+
+
+async def test_verify_blocks_late_area_assignment_to_a_different_area(hass) -> None:
+    """Only the entity's own Area is accepted as a late assignment."""
+    target, entity, _device, snapshot = _verify_fixture(hass)
+    hass.config_entries.async_update_entry(
+        target,
+        options={
+            **target.options,
+            CONF_AREAS: {
+                "kitchen": {"name": "Kitchen"},
+                "living_room": {"name": "Living Room"},
+            },
+        },
+    )
+    async_get_entity_registry(hass).async_update_entity(
+        entity.entity_id, area_id="living_room"
+    )
+    result = verify_global_entry(hass, target, snapshot)
+    assert f"entity identity mismatch: {entity.entity_id}" in result.errors
+
+
+async def test_verify_blocks_changing_an_area_that_was_already_assigned(hass) -> None:
+    """An Area present in the snapshot must remain unchanged."""
+    target, entity, _device, snapshot = _verify_fixture(hass)
+    snapshot.entities[0]["area_id"] = "kitchen"
+    async_get_entity_registry(hass).async_update_entity(
+        entity.entity_id, area_id="living_room"
+    )
+    result = verify_global_entry(hass, target, snapshot)
+    assert f"entity identity mismatch: {entity.entity_id}" in result.errors
 
 
 async def test_verify_blocks_stale_original_device_and_replacement_link(hass) -> None:

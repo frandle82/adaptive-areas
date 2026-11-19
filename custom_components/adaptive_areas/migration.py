@@ -13,6 +13,7 @@ from homeassistant.helpers.device_registry import (
 )
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+from homeassistant.util import slugify
 
 from custom_components.adaptive_areas.const import (
     CONF_AREAS,
@@ -543,6 +544,39 @@ async def async_activate_global_entry(hass: HomeAssistant, entry: ConfigEntry) -
         raise MigrationTransferError("global entry activation failed") from err
 
 
+def _generated_area_id(entry: ConfigEntry, unique_id: str) -> str | None:
+    """Return the one configured Area that a generated entity belongs to, if unambiguous.
+
+    Uses the same slug rule as ``entity_belongs_to_area``.
+    """
+    areas = entry.options.get(CONF_AREAS) or {}
+    matches = [
+        area_id
+        for area_id, config in areas.items()
+        if isinstance(config, dict)
+        and f"_{slugify(config.get('name', area_id))}_" in f"_{unique_id}_"
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _area_identity_holds(
+    entry: ConfigEntry, saved: dict[str, Any], current_area_id: str | None
+) -> bool:
+    """Return whether the entity's Area is unchanged or legitimately assigned after the snapshot.
+
+    The target container assigns generated entities to their Area after the legacy
+    snapshot was taken. Only that first assignment, to the Area the entity belongs to,
+    is accepted. Any other change, including a previously assigned Area, is drift.
+    """
+    if current_area_id == saved["area_id"]:
+        return True
+    return (
+        saved["area_id"] is None
+        and current_area_id is not None
+        and current_area_id == _generated_area_id(entry, saved["unique_id"])
+    )
+
+
 def verify_global_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -574,8 +608,8 @@ def verify_global_entry(
             errors.append(f"entity ownership mismatch: {saved['entity_id']}")
         elif any(
             getattr(current, field) != saved[field]
-            for field in ("device_id", "area_id", "name", "disabled_by", "hidden_by")
-        ):
+            for field in ("device_id", "name", "disabled_by", "hidden_by")
+        ) or not _area_identity_holds(entry, saved, current.area_id):
             errors.append(f"entity identity mismatch: {saved['entity_id']}")
     device_registry = async_get_device_registry(hass)
     for saved in snapshot.devices:
