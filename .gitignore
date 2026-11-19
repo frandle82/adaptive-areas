@@ -17,9 +17,9 @@ tmp/*
 temp/*
 
 # Local AI / coding-agent instructions
-AGENTS.md
 AGENTS.override.md
-.agents/
+.claude/settings.local.json
+.claude/*.local.json
 
 # Home Assistant configuration
 config/*
