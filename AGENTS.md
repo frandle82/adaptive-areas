@@ -16,6 +16,7 @@ This is the shared baseline for Codex, Claude Code, Gemini, and human contributo
 
 - `custom_components/adaptive_areas/` and `tests/` are the source of truth. The stable integration domain is `adaptive_areas`.
 - Follow Home Assistant conventions: asynchronous I/O, cleanup of listeners and timers, translations for user-facing text, and safe handling of `unknown` and `unavailable` states.
+- Entities use `_attr_has_entity_name = True` and `translation_key`. Do not hard-code user-facing strings in English or German.
 - Preserve config entries, entity/unique IDs, and stored schemas. A storage change needs an explicit migration and regression tests.
 - Keep Magic Areas attribution and the MIT licence intact.
 - Use English for code and repository documentation unless the existing target uses another language; communicate with Andreas in German.
@@ -47,7 +48,7 @@ Check which of these functional areas a change touches. Behaviour is documented 
 
 ## Workflow
 
-1. Read the affected code, tests, and the project documents in `docs/` before implementation. If present, use the local `.agents/` rules and knowledge as supplementary context; they never override this file.
+1. Read the affected code, tests, and the project documents in `docs/` before implementation. Repository documents are the project context; optional local tooling outside the repository is not required.
 2. For new features, architectural changes, or ambiguous work, clarify scope, non-goals, edge cases, migration impact, and verification before editing.
 3. Reuse established project patterns and make the smallest complete change. Add or update tests for behavior changes.
 4. Run the relevant checks from `docs/TESTING.md`; report executed and skipped checks truthfully.

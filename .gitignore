@@ -17,6 +17,9 @@ tmp/*
 temp/*
 
 # Local AI / coding-agent instructions
+.agents/
+.claude/skills
+.claude/commands/
 AGENTS.override.md
 .claude/settings.local.json
 .claude/*.local.json
