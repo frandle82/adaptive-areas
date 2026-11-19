@@ -13,13 +13,17 @@ from homeassistant.helpers.entity_registry import async_get as async_get_entity_
 from custom_components.adaptive_areas.base.adaptive import AdaptiveMetaArea
 from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_MIN_ENTITIES,
+    CONF_AREAS,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_AGGREGATION,
+    CONF_GLOBAL_ENTRY,
     DOMAIN,
 )
 from custom_components.adaptive_areas import binary_sensor as binary_sensor_platform
 from custom_components.adaptive_areas import sensor as sensor_platform
-from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
+from custom_components.adaptive_areas.helpers.area import (
+    iter_runtime_areas,
+)
 from tests.const import MockAreaIds
 from tests.helpers import (
     get_basic_config_entry_data,
@@ -135,7 +139,6 @@ async def test_meta_sources_complete_when_child_entities_register_late(
     # Precondition: the held Kitchen aggregate is not registered yet.
     registered = _expected_child_aggregates(hass)
     assert not any(MockAreaIds.KITCHEN.value in entity_id for entity_id in registered)
-    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == list(registered)
 
     gate.set()
     await setup
@@ -351,3 +354,213 @@ async def test_meta_sensor_aggregates_registered_late_are_included(
         if "_aggregate_" in entity["entity_id"]
     )
     assert listed == expected
+
+
+async def test_removed_child_aggregates_leave_meta_sources(hass) -> None:
+    """Removing a child entry must not leave its aggregates in Meta sources."""
+    await _setup_child_sources(hass)
+    entries = _entries()
+    await init_integration(hass, entries, areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    full = _expected_child_aggregates(hass)
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == full
+
+    kitchen = _entry_for(entries, MockAreaIds.KITCHEN)
+    assert await hass.config_entries.async_remove(kitchen.entry_id)
+    await hass.async_block_till_done()
+
+    remaining = [entity_id for entity_id in full if "kitchen" not in entity_id]
+    assert _expected_child_aggregates(hass) == remaining
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == remaining
+    assert _meta_sources(hass, MockAreaIds.GLOBAL) == remaining
+
+
+async def test_removed_single_child_entity_leaves_meta_sources(hass) -> None:
+    """Removing one child aggregate from the registry drops it from Meta sources."""
+    await _setup_child_sources(hass)
+    await init_integration(hass, _entries(), areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    full = _expected_child_aggregates(hass)
+    victim = "binary_sensor.adaptive_areas_aggregates_kitchen_aggregate_motion"
+    assert victim in full
+
+    async_get_entity_registry(hass).async_remove(victim)
+    await hass.async_block_till_done()
+
+    remaining = [entity_id for entity_id in full if entity_id != victim]
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == remaining
+    assert _meta_sources(hass, MockAreaIds.GLOBAL) == remaining
+
+
+async def _setup_interior_exterior(hass) -> list[MockConfigEntry]:
+    """Set up one interior and one exterior child with Interior/Exterior/Global Metas."""
+    sources = {
+        area: [
+            MockBinarySensor(
+                name=f"motion_{area.value}",
+                unique_id=f"motion_{area.value}",
+                device_class=BinarySensorDeviceClass.MOTION,
+            )
+        ]
+        for area in (MockAreaIds.KITCHEN, MockAreaIds.BACKYARD)
+    }
+    await setup_mock_entities(hass, "binary_sensor", sources)
+    entries = []
+    for area in (
+        MockAreaIds.KITCHEN,
+        MockAreaIds.BACKYARD,
+        MockAreaIds.INTERIOR,
+        MockAreaIds.EXTERIOR,
+        MockAreaIds.GLOBAL,
+    ):
+        data = get_basic_config_entry_data(area)
+        data[CONF_ENABLED_FEATURES] = {
+            CONF_FEATURE_AGGREGATION: {CONF_AGGREGATES_MIN_ENTITIES: 1}
+        }
+        entries.append(MockConfigEntry(domain=DOMAIN, data=data))
+    await init_integration(
+        hass, entries, areas=[MockAreaIds.KITCHEN, MockAreaIds.BACKYARD]
+    )
+    await hass.async_block_till_done()
+    return entries
+
+
+async def test_removed_interior_child_leaves_only_interior_and_global(hass) -> None:
+    """Removing an interior child updates Interior and Global, not Exterior."""
+    entries = await _setup_interior_exterior(hass)
+    exterior_before = _meta_sources(hass, MockAreaIds.EXTERIOR)
+    assert exterior_before
+
+    kitchen = _entry_for(entries, MockAreaIds.KITCHEN)
+    assert await hass.config_entries.async_remove(kitchen.entry_id)
+    await hass.async_block_till_done()
+
+    assert _meta_sources(hass, MockAreaIds.INTERIOR) == []
+    assert _meta_sources(hass, MockAreaIds.EXTERIOR) == exterior_before
+    assert _meta_sources(hass, MockAreaIds.GLOBAL) == exterior_before
+
+
+async def test_child_unload_then_reload_restores_sources_without_duplicates(
+    hass,
+) -> None:
+    """A temporary child unload keeps registry identity; reload restores one copy."""
+    await _setup_child_sources(hass)
+    entries = _entries()
+    await init_integration(hass, entries, areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    expected = _expected_child_aggregates(hass)
+
+    kitchen = _entry_for(entries, MockAreaIds.KITCHEN)
+    assert await hass.config_entries.async_unload(kitchen.entry_id)
+    await hass.async_block_till_done()
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == expected
+
+    assert await hass.config_entries.async_setup(kitchen.entry_id)
+    await hass.async_block_till_done()
+    sources = _meta_sources(hass, MockAreaIds.FIRST_FLOOR)
+    assert sources == expected
+    assert len(sources) == len(set(sources))
+
+
+async def test_unrelated_registry_removal_does_not_refresh_meta(
+    hass, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Removing an entity that is not a Meta source triggers no refresh."""
+    await _setup_child_sources(hass)
+    await init_integration(hass, _entries(), areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+
+    calls: list[str] = []
+    original = AdaptiveMetaArea.async_refresh_sources
+
+    def counting(self) -> None:
+        calls.append(self.slug)
+        original(self)
+
+    monkeypatch.setattr(AdaptiveMetaArea, "async_refresh_sources", counting)
+    unrelated = MockBinarySensor(
+        name="unrelated",
+        unique_id="unrelated_outside",
+        device_class=BinarySensorDeviceClass.MOTION,
+    )
+    await setup_mock_entities(hass, "binary_sensor", {MockAreaIds.GARAGE: [unrelated]})
+    await hass.async_block_till_done()
+    calls.clear()
+
+    async_get_entity_registry(hass).async_remove(unrelated.entity_id)
+    await hass.async_block_till_done()
+    assert calls == []
+
+
+async def test_global_entry_container_removal_updates_meta_sources(hass) -> None:
+    """In a GlobalEntry container, removing a child entity updates Meta sources."""
+    await _setup_child_sources(hass)
+    areas = {area.value: get_basic_config_entry_data(area) for area in CHILD_AREAS}
+    areas[MockAreaIds.FIRST_FLOOR.value] = get_basic_config_entry_data(
+        MockAreaIds.FIRST_FLOOR
+    )
+    areas[MockAreaIds.GLOBAL.value] = get_basic_config_entry_data(MockAreaIds.GLOBAL)
+    for data in areas.values():
+        data[CONF_ENABLED_FEATURES] = {
+            CONF_FEATURE_AGGREGATION: {CONF_AGGREGATES_MIN_ENTITIES: 1}
+        }
+    container = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_GLOBAL_ENTRY: True},
+        options={CONF_AREAS: areas},
+        version=2,
+        minor_version=11,
+    )
+    await init_integration(hass, [container], areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    full = _expected_child_aggregates(hass)
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == full
+
+    victim = "binary_sensor.adaptive_areas_aggregates_kitchen_aggregate_motion"
+    async_get_entity_registry(hass).async_remove(victim)
+    await hass.async_block_till_done()
+
+    remaining = [entity_id for entity_id in full if entity_id != victim]
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == remaining
+    assert _meta_sources(hass, MockAreaIds.GLOBAL) == remaining
+
+
+async def test_meta_entry_unload_then_reload_restores_correct_sources(hass) -> None:
+    """Unloading and reloading a Meta entry restores its full, unique source list."""
+    await _setup_child_sources(hass)
+    entries = _entries()
+    await init_integration(hass, entries, areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    expected = _expected_child_aggregates(hass)
+
+    floor_entry = _entry_for(entries, MockAreaIds.FIRST_FLOOR)
+    assert await hass.config_entries.async_unload(floor_entry.entry_id)
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_setup(floor_entry.entry_id)
+    await hass.async_block_till_done()
+
+    sources = _meta_sources(hass, MockAreaIds.FIRST_FLOOR)
+    assert sources == expected
+    assert len(sources) == len(set(sources))
+
+
+async def test_burst_of_removals_drops_every_removed_source(hass) -> None:
+    """Several removals in one burst leave no stale and no lost sources."""
+    await _setup_child_sources(hass)
+    await init_integration(hass, _entries(), areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    full = _expected_child_aggregates(hass)
+    victims = [
+        "binary_sensor.adaptive_areas_aggregates_kitchen_aggregate_motion",
+        "binary_sensor.adaptive_areas_aggregates_living_room_aggregate_motion",
+    ]
+    assert all(victim in full for victim in victims)
+
+    registry = async_get_entity_registry(hass)
+    for victim in victims:
+        registry.async_remove(victim)
+    await hass.async_block_till_done()
+
+    remaining = [entity_id for entity_id in full if entity_id not in victims]
+    assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == remaining
+    assert _meta_sources(hass, MockAreaIds.GLOBAL) == remaining

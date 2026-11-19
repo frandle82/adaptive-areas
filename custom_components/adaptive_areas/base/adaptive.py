@@ -16,7 +16,7 @@ from homeassistant.const import (
     STATE_ON,
     EntityCategory,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import (
     EventDeviceRegistryUpdatedData,
     async_entries_for_area,
@@ -28,6 +28,7 @@ from homeassistant.helpers.dispatcher import (
 )
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.entity_registry import (
+    EVENT_ENTITY_REGISTRY_UPDATED,
     EventEntityRegistryUpdatedData,
     RegistryEntry,
     async_get as entityreg_async_get,
@@ -128,6 +129,7 @@ class AdaptiveArea:
         self.reloading: bool = False
         self._remove_load_listener: Callable[[], None] | None = None
         self._remove_dispatcher_listener: Callable[[], None] | None = None
+        self._remove_registry_listener: Callable[[], None] | None = None
         self._remove_reload_timer: Callable[[], None] | None = None
 
         # The container owns the lifecycle; a GlobalEntry supplies one local
@@ -191,6 +193,7 @@ class AdaptiveArea:
         for remove_callback_name in (
             "_remove_load_listener",
             "_remove_dispatcher_listener",
+            "_remove_registry_listener",
             "_remove_reload_timer",
         ):
             remove_callback = getattr(self, remove_callback_name)
@@ -780,6 +783,9 @@ class AdaptiveMetaArea(AdaptiveArea):
 
         entity_registry = entityreg_async_get(self.hass)
         entity_list: list[RegistryEntry] = []
+        # Rebuild from the registry on every load so removed children are dropped.
+        self.entities = {}
+        self._area_entities = []
 
         from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
 
@@ -830,6 +836,20 @@ class AdaptiveMetaArea(AdaptiveArea):
         self._remove_dispatcher_listener = async_dispatcher_connect(
             self.hass, AdaptiveAreasEvents.AREA_LOADED, self._handle_loaded_area
         )
+        self._remove_registry_listener = self.hass.bus.async_listen(
+            EVENT_ENTITY_REGISTRY_UPDATED, self._handle_registry_removed
+        )
+
+    @callback
+    def _handle_registry_removed(
+        self, event: Event[EventEntityRegistryUpdatedData]
+    ) -> None:
+        """Drop a removed child entity from this Meta Area's sources."""
+        if (
+            event.data["action"] == "remove"
+            and event.data["entity_id"] in self._area_entities
+        ):
+            self.async_refresh_sources()
 
     @callback
     def _handle_loaded_area(
