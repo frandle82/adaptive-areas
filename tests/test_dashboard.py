@@ -488,7 +488,72 @@ def test_panel_keeps_vacancy_delay_and_renders_light_runtime_status() -> None:
         "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
     ).read_text(encoding="utf-8")
 
-    assert 'name="vacancy_delay"' in panel
+    assert 'name="${prefix}vacancy_delay"' in panel
     assert 'light.vacancy_delay??""' in panel
     assert "adaptive_areas/get_light_runtime_status" in panel
     assert "Aktueller Status" in panel
+
+
+def test_panel_light_control_configuration_is_area_scoped() -> None:
+    """The Light tab uses existing Area features and the Area update path."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    assert "_lightAreas()" in panel
+    assert "data-light-area" in panel
+    assert "_renderLightAutomationConfiguration" in panel
+    assert "_renderLightGroupsConfiguration" in panel
+    assert '_lightPolicyFields(t,light,"light:")' in panel
+    assert "light_group:${key}" in panel
+    assert "area_id:area.area_id,options:{features}" in panel
+    assert "await this._loadLightRuntime(area.area_id)" in panel
+
+
+def test_panel_light_groups_uses_current_runtime_configuration() -> None:
+    """The Light Groups editor renders current, not legacy, configuration keys."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    assert '["overhead","Deckenleuchten"]' in panel
+    assert '["sleep","Schlaflichter"]' in panel
+    assert '["accent","Akzentlichter"]' in panel
+    assert '["task","Arbeitslichter"]' in panel
+    assert "_lights_activation" in panel
+    assert "_lights_blocking_states" in panel
+    assert "_lights_brightness" in panel
+    assert "light_group:${lights}" in panel
+    assert "_lights_act_on" not in panel
+    assert "_lights_states" not in panel
+
+
+def test_panel_exposes_final_light_control_labels() -> None:
+    """The Light tab keeps user-facing German labels for its current mappings."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    for label in (
+        "Lichtsteuerung",
+        "Bereich",
+        "Lichtautomatik",
+        "Einschalten bei höchstens",
+        "Ausschalten bei mindestens",
+        "Ausschalten nach Abwesenheit",
+        "Sekunden",
+        "Zwischen beiden Werten bleibt der aktuelle Zustand erhalten.",
+        "Aktueller Status",
+        "Lichtgruppen",
+        "Deckenleuchten",
+        "Schlaflichter",
+        "Akzentlichter",
+        "Arbeitslichter",
+        "Zustand beibehalten",
+        "Keine automatische Aktion",
+        "Manuell eingeschaltet",
+        "Manuell ausgeschaltet",
+        "Nicht aktiv",
+        "Bei Belegung",
+    ):
+        assert label in panel

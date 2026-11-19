@@ -173,6 +173,117 @@ async def test_update_area_two_fields_persist_together(hass) -> None:
     assert entry.options[CONF_GLOBAL_OPTIONS] == global_before
 
 
+async def test_update_area_light_groups_preserves_full_feature_configuration(
+    hass,
+) -> None:
+    """A Light Groups update changes one current key without losing other options."""
+    area = async_get_area_registry(hass).async_create("Wohnzimmer")
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    entry = flow["result"]
+    await hass.async_block_till_done()
+    groups = {
+        "overhead_lights": ["light.overhead"],
+        "overhead_lights_activation": "occupied",
+        "overhead_lights_blocking_states": ["sleep"],
+        "overhead_lights_brightness": "require_dark",
+        "sleep_lights": ["light.sleep"],
+        "sleep_lights_activation": "sleep",
+        "sleep_lights_blocking_states": ["extended"],
+        "sleep_lights_brightness": "ignore",
+        "accent_lights": ["light.accent"],
+        "accent_lights_activation": "accented",
+        "accent_lights_blocking_states": ["sleep"],
+        "accent_lights_brightness": "turn_off",
+        "task_lights": ["light.task"],
+        "task_lights_activation": "extended",
+        "task_lights_blocking_states": ["accented"],
+        "task_lights_brightness": "dark_on_bright_off",
+    }
+    options = {
+        "include_entities": [],
+        "exclude_entities": [],
+        "presence_control_entities": ["binary_sensor.gate"],
+        "presence_device_platforms": [],
+        "presence_sensor_device_class": [],
+        "keep_only_entities": [],
+        "clear_timeout": 5,
+        "secondary_states": {"dark_entity": "binary_sensor.dark"},
+        "features": {
+            CONF_FEATURE_LIGHT: {
+                "turn_on_below": 75.5,
+                "turn_off_above": 150.25,
+                "vacancy_delay": 30,
+            },
+            CONF_FEATURE_LIGHT_GROUPS: groups,
+            "climate_control": {
+                "entity_id": "climate.mock_climate",
+                "occupancy_threshold": 0,
+                "preset_occupied": "none",
+                "preset_clear": "away",
+            },
+        },
+    }
+    with patch.object(
+        hass.config_entries, "async_reload", wraps=hass.config_entries.async_reload
+    ) as reload:
+        result = await _call(
+            hass, "adaptive_areas/create_area", area_id=area.id, options=options
+        )
+        assert result["ok"], result
+        before = deepcopy(entry.options[CONF_AREAS][area.id])
+        reload.reset_mock()
+        changed_groups = {
+            **before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS],
+            "overhead_lights_brightness": "dark_on_bright_off",
+        }
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=area.id,
+                options={
+                    CONF_ENABLED_FEATURES: {
+                        **before[CONF_ENABLED_FEATURES],
+                        CONF_FEATURE_LIGHT_GROUPS: changed_groups,
+                    }
+                },
+            )
+        )["ok"]
+        assert reload.await_count == 1
+
+    after = entry.options[CONF_AREAS][area.id]
+    after_groups = after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
+    assert after_groups["overhead_lights_brightness"] == "dark_on_bright_off"
+    for key, value in before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS].items():
+        if key != "overhead_lights_brightness":
+            assert after_groups[key] == value
+    assert (
+        after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT]
+        == before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT]
+    )
+    assert (
+        after[CONF_ENABLED_FEATURES]["climate_control"]
+        == before[CONF_ENABLED_FEATURES]["climate_control"]
+    )
+    assert after["presence_control_entities"] == before["presence_control_entities"]
+    assert after["secondary_states"] == before["secondary_states"]
+    assert not any(
+        key in after_groups
+        for key in (
+            "overhead_lights_act_on",
+            "overhead_lights_states",
+            "sleep_lights_act_on",
+            "sleep_lights_states",
+            "accent_lights_act_on",
+            "accent_lights_states",
+            "task_lights_act_on",
+            "task_lights_states",
+        )
+    )
+
+
 async def test_global_entry_area_crud_websocket_lifecycle(hass, monkeypatch) -> None:
     """Create, update, and remove Areas without creating ConfigEntries."""
     area_registry = async_get_area_registry(hass)
