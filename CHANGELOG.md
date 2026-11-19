@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.6.19-rc.11 - 2026-11-19
+
+### Added
+
+- Dashboard 2.0: the area overview shows occupancy, configured light and climate activation, and sleep and extended state, using backend values only.
+- Dashboard 2.0: light and climate runtime status, with dedicated light (policy and light groups) and climate configuration tabs. These tabs are administrator-only.
+
+### Changed
+
+- Dashboard 2.0: the thermostat selection shows friendly names; the entity id stays as fallback.
+- Dashboard 2.0: visible panel texts are localized in English and German; empty states for light and climate control point to Areas → Features.
+- Coalesce meta-area source refreshes to reduce repeated work.
+
+### Fixed
+
+- Dashboard 2.0: the global settings tab and the area editor were missing after an unreleased Dashboard 2.0 change. Both are restored.
+- Saving an Area keeps its light, light group and climate configuration.
+- Global settings: an unchanged, currently unavailable entity reference no longer blocks saving the other setting. Explicit removal still works.
+- Avoid missing-name errors in config entry and registry listener logging.
+- Refresh and remove meta-area sources after child entity registration and removal.
+- Handle delayed area assignment during migration verification.
+- Update device registry usage for Home Assistant 2026.10.
+- Declare the `http` dependency for hassfest validation.
+
+### Validation
+
+- 563 tests passed against Home Assistant 2026.10.4.
+- 562 tests passed and 1 skipped against Home Assistant 2026.8.1.
+- Repository pre-commit hooks passed.
+
+### Known limitations
+
+- Visual acceptance in a real Home Assistant installation is pending.
+- Dashboard localization currently supports English and German.
+- Configuration tabs require administrator privileges.
+- Pre-release for testing and feedback.
+
 ## 1.6.19-rc.6 - 2026-11-15
 
 ### Changed
