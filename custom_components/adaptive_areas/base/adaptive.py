@@ -1,5 +1,6 @@
 """Classes for Adaptive Areas and Meta Areas."""
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 import logging
@@ -130,6 +131,7 @@ class AdaptiveArea:
         self._remove_load_listener: Callable[[], None] | None = None
         self._remove_dispatcher_listener: Callable[[], None] | None = None
         self._remove_registry_listener: Callable[[], None] | None = None
+        self._refresh_task: asyncio.Task[None] | None = None
         self._remove_reload_timer: Callable[[], None] | None = None
 
         # The container owns the lifecycle; a GlobalEntry supplies one local
@@ -190,6 +192,9 @@ class AdaptiveArea:
 
     def unload(self) -> None:
         """Remove listeners and scheduled work owned by the area."""
+        if self._refresh_task is not None:
+            self._refresh_task.cancel()
+            self._refresh_task = None
         for remove_callback_name in (
             "_remove_load_listener",
             "_remove_dispatcher_listener",
@@ -765,18 +770,29 @@ class AdaptiveMetaArea(AdaptiveArea):
 
     @callback
     def async_refresh_sources(self) -> None:
-        """Re-resolve child Areas and reload sources after a child entity registered.
+        """Coalesce source refreshes of one event burst into a single load.
 
-        Child entities register at different times, so the source list must be
-        reconciled whenever one is added. Before initialize() the first load is
-        still pending and runs there, so this is a no-op.
+        Child entities register or disappear in bursts. One task is started
+        lazily (no eager start) and reads the registry when it runs, so every
+        change made before it runs is included. Home Assistant tracks the task,
+        so async_block_till_done() waits for it. Before initialize() the first
+        load runs there, so this is a no-op.
         """
+        if not self.initialized or self._refresh_task is not None:
+            return
+        self._refresh_task = self.hass.async_create_task(
+            self._async_run_refresh(),
+            f"adaptive_areas refresh sources {self.slug}",
+            eager_start=False,
+        )
+
+    async def _async_run_refresh(self) -> None:
+        """Run one coalesced refresh of the child Areas and the source list."""
+        self._refresh_task = None
         if not self.initialized:
             return
         self.child_areas = self.get_child_areas()
-        self.hass.async_create_task(
-            self.load_entities(), f"adaptive_areas refresh sources {self.slug}"
-        )
+        await self.load_entities()
 
     async def load_entities(self) -> None:
         """Load entities into entity list."""

@@ -23,6 +23,7 @@ from custom_components.adaptive_areas import binary_sensor as binary_sensor_plat
 from custom_components.adaptive_areas import sensor as sensor_platform
 from custom_components.adaptive_areas.helpers.area import (
     iter_runtime_areas,
+    refresh_meta_area_sources,
 )
 from tests.const import MockAreaIds
 from tests.helpers import (
@@ -492,6 +493,74 @@ async def test_unrelated_registry_removal_does_not_refresh_meta(
     assert calls == []
 
 
+async def test_refresh_is_idempotent(hass) -> None:
+    """Repeated refreshes without changes keep sources identical and unique."""
+    await _setup_child_sources(hass)
+    await init_integration(hass, _entries(), areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+    expected = _expected_child_aggregates(hass)
+
+    for _ in range(3):
+        refresh_meta_area_sources(hass)
+        await hass.async_block_till_done()
+        sources = _meta_sources(hass, MockAreaIds.FIRST_FLOOR)
+        assert sources == expected
+        assert len(sources) == len(set(sources))
+
+
+async def test_refresh_burst_runs_one_load_per_meta(
+    hass, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Many refresh requests in one burst produce exactly one load per Meta Area."""
+    await _setup_child_sources(hass)
+    await init_integration(hass, _entries(), areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+
+    loads: list[str] = []
+    original = AdaptiveMetaArea.load_entities
+
+    async def counting(self) -> None:
+        loads.append(self.slug)
+        await original(self)
+
+    monkeypatch.setattr(AdaptiveMetaArea, "load_entities", counting)
+    for _ in range(50):
+        refresh_meta_area_sources(hass)
+    await hass.async_block_till_done()
+
+    assert sorted(loads) == [MockAreaIds.FIRST_FLOOR.value, MockAreaIds.GLOBAL.value]
+
+
+async def test_pending_refresh_is_cancelled_when_meta_unloads(
+    hass, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Meta Area unloaded before its pending refresh runs never loads again."""
+    await _setup_child_sources(hass)
+    await init_integration(hass, _entries(), areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+
+    loads: list[str] = []
+    original = AdaptiveMetaArea.load_entities
+
+    async def counting(self) -> None:
+        loads.append(self.slug)
+        await original(self)
+
+    monkeypatch.setattr(AdaptiveMetaArea, "load_entities", counting)
+    (floor,) = [
+        a for a in iter_runtime_areas(hass) if a.slug == MockAreaIds.FIRST_FLOOR.value
+    ]
+    refresh_meta_area_sources(hass)
+    assert floor._refresh_task is not None
+
+    floor.unload()
+    assert floor._refresh_task is None
+    await hass.async_block_till_done()
+
+    assert MockAreaIds.FIRST_FLOOR.value not in loads
+    assert MockAreaIds.GLOBAL.value in loads
+
+
 async def test_global_entry_container_removal_updates_meta_sources(hass) -> None:
     """In a GlobalEntry container, removing a child entity updates Meta sources."""
     await _setup_child_sources(hass)
@@ -523,6 +592,43 @@ async def test_global_entry_container_removal_updates_meta_sources(hass) -> None
     remaining = [entity_id for entity_id in full if entity_id != victim]
     assert _meta_sources(hass, MockAreaIds.FIRST_FLOOR) == remaining
     assert _meta_sources(hass, MockAreaIds.GLOBAL) == remaining
+
+
+async def test_pending_refresh_during_meta_entry_unload_never_loads_afterwards(
+    hass, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A full config-entry unload with a pending refresh never loads the unloaded Meta."""
+    await _setup_child_sources(hass)
+    entries = _entries()
+    await init_integration(hass, entries, areas=list(CHILD_AREAS))
+    await hass.async_block_till_done()
+
+    unloaded = {"done": False}
+    late_loads: list[str] = []
+    original = AdaptiveMetaArea.load_entities
+
+    async def watching(self) -> None:
+        if unloaded["done"] and self.slug == MockAreaIds.FIRST_FLOOR.value:
+            late_loads.append(self.slug)
+        await original(self)
+
+    monkeypatch.setattr(AdaptiveMetaArea, "load_entities", watching)
+    floor_entry = _entry_for(entries, MockAreaIds.FIRST_FLOOR)
+    (floor_area,) = [
+        a for a in iter_runtime_areas(hass) if a.slug == MockAreaIds.FIRST_FLOOR.value
+    ]
+    refresh_meta_area_sources(hass)
+    assert floor_area._refresh_task is not None  # precondition: refresh is pending
+    assert await hass.config_entries.async_unload(floor_entry.entry_id)
+    assert floor_area._refresh_task is None
+    unloaded["done"] = True
+    await hass.async_block_till_done()
+
+    assert late_loads == []
+    assert all(
+        area.slug != MockAreaIds.FIRST_FLOOR.value for area in iter_runtime_areas(hass)
+    )
+    assert _meta_sources(hass, MockAreaIds.GLOBAL) == _expected_child_aggregates(hass)
 
 
 async def test_meta_entry_unload_then_reload_restores_correct_sources(hass) -> None:
