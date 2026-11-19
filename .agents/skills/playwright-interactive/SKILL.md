@@ -26,7 +26,9 @@ The `playwright-interactive` skill empowers the agent to interact directly with 
 
 ## Interaction Tooling
 
-In this environment, interactive browser automation is performed via the `browser_subagent` tool:
+Tool names differ per agent. Use the browser automation tool your agent provides. Antigravity uses `browser_subagent`; Claude Code uses its available browser tools (for example a Chrome or built-in browser integration). If no browser tool is available, state explicitly which checks were not run. Do not claim a UI check passed.
+
+Antigravity (`browser_subagent`) works as follows:
 * The subagent opens a live Chromium browser session.
 * It navigates, clicks, types, inspects the DOM, and captures screenshots.
 * All browser interactions are automatically recorded and saved as WebP video artifacts.

@@ -74,11 +74,11 @@ gh run view <run_id> --job <job_id> --log
   python3 scripts/validate_json.py
   ```
 * **Resolution Strategy:**
-  - Run ruff / black auto-formatting if configured:
+  - Run ruff / black through the lint environment. `.tox/lint/bin/ruff` does not exist in this repository, so use the tox run and fix the reported findings:
     ```bash
-    .tox/lint/bin/ruff format custom_components/ tests/
-    .tox/lint/bin/ruff check --fix custom_components/ tests/
+    scripts/lint
     ```
+    `scripts/lint` requires `curl`, `jq` and network access (it resolves the latest Home Assistant version from PyPI).
   - Fix any syntax errors in translation files (`custom_components/adaptive_areas/translations/*.json`).
 
 #### Category C: Hassfest / HACS Validation (`validation.yaml`)

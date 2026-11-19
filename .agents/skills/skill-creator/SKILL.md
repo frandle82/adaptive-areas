@@ -75,7 +75,7 @@ description: >-
 
 ### 5. Validate & Register
 * Check syntax and formatting.
-* Add the new skill to the list of available skills in [`AGENTS.md`](AGENTS.md).
+* No manual registration is needed: every directory under `.agents/skills/` is discovered automatically (Claude Code via the `.claude/skills` symlink, other agents via their own skill discovery). Keep `name` in the frontmatter equal to the directory name.
 * Add any related workflows to `.agents/workflows/` if a user-facing action sequence is needed.
 
 ## Skill Quality Checklist
