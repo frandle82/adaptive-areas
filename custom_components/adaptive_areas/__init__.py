@@ -392,7 +392,7 @@ async def async_setup_entry(  # noqa: C901
     if options_changed:
         _LOGGER.info(
             "%s: Removing persisted switch groups settings from config entry options.",
-            config_entry.data[ATTR_NAME],
+            config_entry.title,
         )
         hass.config_entries.async_update_entry(config_entry, options=cleaned_options)
 
@@ -748,7 +748,7 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
 
     _LOGGER.info(
         "%s: Migrating configuration from version %s.%s, current config: %s",
-        config_entry.data[ATTR_NAME],
+        config_entry.title,
         config_entry.version,
         config_entry.minor_version,
         str(config_entry.data),
