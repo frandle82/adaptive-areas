@@ -1,4 +1,4 @@
-name: Run tests with latest stable Home Assistant
+name: Run tests with pinned stable Home Assistant
 
 on:
   push:
@@ -29,11 +29,11 @@ jobs:
           pip install -r requirements-test.txt
           sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Get latest HA stable version from PyPI
-        run: |
-          VERSIONS=$(curl -s https://pypi.org/pypi/homeassistant/json | jq -r '.releases | keys | .[]')
-          STABLE=$(echo "$VERSIONS" | grep -Ev '[a-zA-Z]' | sort -Vr | head -n1)
-          echo "HA_STABLE_VERSION=$STABLE" >> $GITHUB_ENV
+      # Pinned to the newest Home Assistant release that pytest-homeassistant-custom-component
+      # 0.13.375 supports. The harness pins HA exactly, so it resolves to 0.13.375 here.
+      # Move this pin forward only when a harness release supports the next HA version.
+      - name: Use pinned Home Assistant stable version
+        run: echo "HA_STABLE_VERSION=2026.10.4" >> $GITHUB_ENV
 
       - name: Run tox for stable
         run: tox -e ha-stable

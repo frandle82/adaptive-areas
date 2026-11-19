@@ -3,7 +3,7 @@
 ## Stable facts
 
 - Integration version: read `custom_components/adaptive_areas/manifest.json`; do not copy it here.
-- Test baseline: the full suite in the project's `ha-stable` tox environment passes with Home Assistant 2026.8.1 (see [TESTING.md](TESTING.md)).
+- Test baseline: the full suite passes with Home Assistant 2026.8.1 and with the CI-pinned Home Assistant 2026.10.4 (see [TESTING.md](TESTING.md)).
 
 ## Implementation direction
 
@@ -11,7 +11,7 @@ The Dashboard 2.0 panel covers area configuration, light control (policy and run
 
 ## Known risks
 
-- Installing the latest Home Assistant stable release (2026.11.2 on 2026-11-19) breaks test collection in the tox environment through the `pytest-timeout` plugin (`ast.Str`, `distutils`). CI has no fixed Home Assistant pin, so this may affect CI as well. Status unverified.
+- Home Assistant 2026.11.x has no matching test harness release. Without a compatible harness, pip falls back to an outdated harness, and test collection fails. CI therefore pins 2026.10.4 until a harness supports 2026.11.x.
 - Browser-based visual review of the dashboard has not been run as part of the automated suite.
 - Unsaved climate drafts are discarded when the selected area changes (accepted).
 
