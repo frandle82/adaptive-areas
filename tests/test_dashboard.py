@@ -2,11 +2,13 @@
 
 import json
 from pathlib import Path
+from time import monotonic
 from types import SimpleNamespace
 
 import pytest
 
 from homeassistant.core import HomeAssistant
+from homeassistant.components.climate.const import ATTR_PRESET_MODE
 from homeassistant.exceptions import HomeAssistantError
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -15,17 +17,25 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_DARK,
     CONF_DARK_ENTITY,
     CONF_ENABLED_FEATURES,
+    CONF_FEATURE_CLIMATE_CONTROL,
     CONF_FEATURE_LIGHT,
+    CONF_CLIMATE_CONTROL_ENTITY_ID,
+    CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+    CONF_CLIMATE_CONTROL_PRESET_CLEAR,
+    CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
     CONF_OVERHEAD_LIGHTS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
+    AreaStates,
 )
 from custom_components.adaptive_areas.dashboard import (
     build_area_detail,
+    build_climate_runtime_status,
     build_diagnostics,
     build_light_runtime_status,
     build_overview,
 )
+from custom_components.adaptive_areas.switch.climate_control import ClimateControlSwitch
 from custom_components.adaptive_areas.helpers.light_override import (
     LightManualOverrideMode,
     LightManualOverrideState,
@@ -86,6 +96,7 @@ async def test_dashboard_detail_handles_minimal_area(
         "adaptive_areas/subscribe_updates",
         "adaptive_areas/get_area_configuration",
         "adaptive_areas/get_light_runtime_status",
+        "adaptive_areas/get_climate_runtime_status",
         "adaptive_areas/create_area",
         "adaptive_areas/update_area",
         "adaptive_areas/delete_area",
@@ -104,6 +115,109 @@ def test_light_runtime_status_is_read_only_and_handles_disabled_and_partial_poli
         "area_id": "disabled",
         "light": {"enabled": False},
     }
+
+
+def test_climate_runtime_status_reports_effective_runtime_state(
+    hass: HomeAssistant,
+) -> None:
+    """Climate status exposes only effective, read-only control data."""
+    states = [AreaStates.OCCUPIED]
+    config = {
+        CONF_CLIMATE_CONTROL_ENTITY_ID: "climate.test",
+        CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD: 10,
+        CONF_CLIMATE_CONTROL_PRESET_CLEAR: "away",
+        CONF_CLIMATE_CONTROL_PRESET_OCCUPIED: "comfort",
+    }
+    area = SimpleNamespace(
+        id="living",
+        states=states,
+        has_feature=lambda feature: feature == CONF_FEATURE_CLIMATE_CONTROL,
+        feature_config=lambda _feature: config,
+        has_state=lambda state: state in states,
+    )
+    controller = object.__new__(ClimateControlSwitch)
+    controller.area = area
+    controller._attr_is_on = True
+    controller.preset_map = {
+        AreaStates.CLEAR: "away",
+        AreaStates.OCCUPIED: "comfort",
+        AreaStates.SLEEP: "",
+        AreaStates.EXTENDED: "",
+    }
+    controller.occupancy_threshold_minutes = 10
+    controller._occupied_since = monotonic()
+    area.climate_control_switch = controller
+    hass.states.async_set("climate.test", "heat", {ATTR_PRESET_MODE: "comfort"})
+
+    pending = build_climate_runtime_status(hass, area)
+
+    assert pending == {
+        "area_id": "living",
+        "enabled": True,
+        "controller_on": True,
+        "target_entity": "climate.test",
+        "target_available": True,
+        "area_states": ["occupied"],
+        "current_preset": "comfort",
+        "occupancy_threshold": 10,
+        "occupancy_pending": True,
+        "decision": "no_action",
+        "configured_preset": None,
+    }
+
+    controller._occupied_since = monotonic() - 601
+    active = build_climate_runtime_status(hass, area)
+    assert active["occupancy_pending"] is False
+    assert active["decision"] == "occupied"
+    assert active["configured_preset"] == "comfort"
+
+    states[:] = [AreaStates.CLEAR]
+    assert build_climate_runtime_status(hass, area)["decision"] == "clear"
+    assert build_climate_runtime_status(hass, area)["configured_preset"] == "away"
+
+    states[:] = [AreaStates.SLEEP]
+    assert build_climate_runtime_status(hass, area)["decision"] == "no_action"
+    assert build_climate_runtime_status(hass, area)["configured_preset"] is None
+
+    controller._attr_is_on = False
+    assert build_climate_runtime_status(hass, area)["controller_on"] is False
+    assert build_climate_runtime_status(hass, area)["decision"] == "no_action"
+
+    hass.states.async_set("climate.test", "unavailable")
+    unavailable = build_climate_runtime_status(hass, area)
+    assert unavailable["target_available"] is False
+    assert unavailable["current_preset"] is None
+
+    disabled = SimpleNamespace(
+        id="disabled",
+        states=[],
+        has_feature=lambda _feature: False,
+    )
+    assert build_climate_runtime_status(hass, disabled) == {
+        "area_id": "disabled",
+        "enabled": False,
+        "controller_on": False,
+        "target_entity": None,
+        "target_available": False,
+        "area_states": [],
+        "current_preset": None,
+        "occupancy_threshold": None,
+        "occupancy_pending": False,
+        "decision": "no_action",
+        "configured_preset": None,
+    }
+
+    empty = SimpleNamespace(
+        id="empty",
+        states=[],
+        has_feature=lambda feature: feature == CONF_FEATURE_CLIMATE_CONTROL,
+        feature_config=lambda _feature: {},
+    )
+    empty_status = build_climate_runtime_status(hass, empty)
+    assert empty_status["enabled"] is True
+    assert empty_status["target_entity"] is None
+    assert empty_status["target_available"] is False
+    assert empty_status["controller_on"] is False
 
     area = SimpleNamespace(
         id="living",
@@ -365,11 +479,11 @@ class _DashboardConnection:
 
 
 async def _call_dashboard_command(
-    hass: HomeAssistant, connection: _DashboardConnection, command: str
+    hass: HomeAssistant, connection: _DashboardConnection, command: str, **data
 ) -> None:
     """Call a command through HA's registered handler and schema."""
     handler, schema = hass.data["websocket_api"][command]
-    message = {"id": 1, "type": command}
+    message = {"id": 1, "type": command, **data}
     handler(hass, connection, message if schema is False else schema(message))
     await hass.async_block_till_done()
 
@@ -385,6 +499,47 @@ async def test_dashboard_overview_websocket_command_returns_payload(
 
     assert connection.result is not None
     assert set(connection.result) == {"areas", "counts", "enabled_feature_tabs"}
+
+
+async def test_climate_runtime_status_websocket_handles_disabled_feature(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """The Climate endpoint is safe for Areas without Climate Control."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    connection = _DashboardConnection()
+
+    await _call_dashboard_command(
+        hass,
+        connection,
+        "adaptive_areas/get_climate_runtime_status",
+        area_id=str(area.id),
+    )
+
+    assert connection.result["area_id"] == str(area.id)
+    assert connection.result["enabled"] is False
+    assert connection.result["controller_on"] is False
+    assert connection.result["target_entity"] is None
+    assert connection.result["target_available"] is False
+
+    area.config[CONF_ENABLED_FEATURES] = {
+        CONF_FEATURE_CLIMATE_CONTROL: {
+            CONF_CLIMATE_CONTROL_ENTITY_ID: "climate.test",
+            CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD: 10,
+        }
+    }
+    hass.states.async_set("climate.test", "heat", {ATTR_PRESET_MODE: "comfort"})
+    await _call_dashboard_command(
+        hass,
+        connection,
+        "adaptive_areas/get_climate_runtime_status",
+        area_id=str(area.id),
+    )
+
+    assert connection.result["enabled"] is True
+    assert connection.result["target_entity"] == "climate.test"
+    assert connection.result["target_available"] is True
+    assert connection.result["current_preset"] == "comfort"
+    assert connection.result["occupancy_threshold"] == 10
 
 
 async def test_dashboard_diagnostics_websocket_command_returns_payload(
@@ -508,6 +663,71 @@ def test_panel_light_control_configuration_is_area_scoped() -> None:
     assert "light_group:${key}" in panel
     assert "area_id:area.area_id,options:{features}" in panel
     assert "await this._loadLightRuntime(area.area_id)" in panel
+
+
+def test_panel_climate_control_configuration_is_area_scoped() -> None:
+    """The Climate tab exposes only real Climate Control configuration."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    assert "_climateAreas()" in panel
+    assert '"climate_control" in (area.options?.features||{})' in panel
+    assert "data-climate-area" in panel
+    assert "_climateControlTab(t)" in panel
+    assert "_saveClimateConfiguration(event)" in panel
+    assert "_loadClimateRuntime(areaId)" in panel
+    assert 'type:"adaptive_areas/get_climate_runtime_status",area_id:areaId' in panel
+    assert "await this._loadClimateRuntime(area.area_id)" in panel
+    assert 'entityId.startsWith("climate.")' in panel
+    assert "climate:entity_id" in panel
+    for key in (
+        "preset_clear",
+        "preset_occupied",
+        "preset_sleep",
+        "preset_extended",
+        "climate_occupancy_threshold",
+    ):
+        assert f"climate:{key}" in panel
+    for label in (
+        "Klimasteuerung",
+        "Thermostat",
+        "Presets",
+        "Preset bei freiem Bereich",
+        "Preset bei Belegung",
+        "Preset im Schlafzustand",
+        "Preset im erweiterten Zustand",
+        "Belegung nach",
+        "Minuten",
+        "Trage die Preset-Namen so ein, wie sie dein Thermostat bereitstellt.",
+        "Aktueller Status",
+        "Automatik",
+        "Verfügbarkeit",
+        "Bereichszustand",
+        "Aktuelles Preset",
+        "Gewähltes Preset",
+        "Belegungsverzögerung",
+        "Entscheidung",
+        "Aktiv",
+        "Inaktiv",
+        "Verfügbar",
+        "Nicht verfügbar",
+        "Nicht konfiguriert",
+        "wartet auf Belegungsschwelle",
+        "Aktueller Status derzeit nicht verfügbar.",
+    ):
+        assert label in panel
+    for value in (
+        'clear:"Frei"',
+        'sleep:"Schlafzustand"',
+        'extended:"Erweiterter Zustand"',
+        'occupied:"Belegt"',
+        'clear:"Freier Bereich"',
+        'occupied:"Belegung"',
+        'no_action:"Keine automatische Aktion"',
+    ):
+        assert value in panel
+    assert "adaptive_areas/update_area" in panel
 
 
 def test_panel_light_groups_uses_current_runtime_configuration() -> None:

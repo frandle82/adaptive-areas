@@ -284,6 +284,145 @@ async def test_update_area_light_groups_preserves_full_feature_configuration(
     )
 
 
+async def test_update_area_climate_control_preserves_area_configuration(hass) -> None:
+    """A Climate update changes one key without losing the Area configuration."""
+    area_registry = async_get_area_registry(hass)
+    living = area_registry.async_create("Wohnzimmer")
+    kitchen = area_registry.async_create("Küche")
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    entry = flow["result"]
+    await hass.async_block_till_done()
+    hass.states.async_set("weather.home", "sunny")
+    hass.states.async_set(
+        "sensor.outdoor_lux",
+        "unavailable",
+        {"device_class": SensorDeviceClass.ILLUMINANCE},
+    )
+    update_global_options(
+        hass,
+        entry,
+        {"weather_entity": "weather.home", "global_light_sensor": "sensor.outdoor_lux"},
+    )
+    groups = {
+        "overhead_lights": ["light.overhead"],
+        "overhead_lights_activation": "occupied",
+        "overhead_lights_blocking_states": ["sleep"],
+        "overhead_lights_brightness": "require_dark",
+    }
+    options = {
+        "include_entities": ["sensor.living"],
+        "exclude_entities": ["sensor.excluded"],
+        "presence_control_entities": ["binary_sensor.gate"],
+        "presence_device_platforms": ["binary_sensor"],
+        "presence_sensor_device_class": ["motion"],
+        "keep_only_entities": ["binary_sensor.confirm"],
+        "clear_timeout": 5,
+        "secondary_states": {"dark_entity": "binary_sensor.dark"},
+        "features": {
+            CONF_FEATURE_LIGHT: {
+                "turn_on_below": 75.5,
+                "turn_off_above": 150.25,
+                "vacancy_delay": 30,
+            },
+            CONF_FEATURE_LIGHT_GROUPS: groups,
+            "climate_control": {
+                "entity_id": "climate.living_room",
+                "preset_clear": "away",
+                "preset_occupied": "comfort",
+                "preset_sleep": "sleep",
+                "preset_extended": "eco",
+                "climate_occupancy_threshold": 10,
+            },
+            CONF_FEATURE_PRESENCE_HOLD: {},
+        },
+    }
+    with patch.object(
+        hass.config_entries, "async_reload", wraps=hass.config_entries.async_reload
+    ) as reload:
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/create_area",
+                area_id=kitchen.id,
+                options={
+                    "clear_timeout": 3,
+                    "features": {CONF_FEATURE_PRESENCE_HOLD: {}},
+                },
+            )
+        )["ok"]
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/create_area",
+                area_id=living.id,
+                options=options,
+            )
+        )["ok"]
+        before = deepcopy(entry.options[CONF_AREAS][living.id])
+        kitchen_before = deepcopy(entry.options[CONF_AREAS][kitchen.id])
+        global_before = deepcopy(entry.options[CONF_GLOBAL_OPTIONS])
+        reload.reset_mock()
+        climate = {
+            **before[CONF_ENABLED_FEATURES]["climate_control"],
+            "climate_occupancy_threshold": 15,
+        }
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={
+                    CONF_ENABLED_FEATURES: {
+                        **before[CONF_ENABLED_FEATURES],
+                        "climate_control": climate,
+                    }
+                },
+            )
+        )["ok"]
+        assert reload.await_count == 1
+
+    after = entry.options[CONF_AREAS][living.id]
+    after_climate = after[CONF_ENABLED_FEATURES]["climate_control"]
+    for key in (
+        "entity_id",
+        "preset_clear",
+        "preset_occupied",
+        "preset_sleep",
+        "preset_extended",
+    ):
+        assert (
+            after_climate[key] == before[CONF_ENABLED_FEATURES]["climate_control"][key]
+        )
+    assert after_climate["climate_occupancy_threshold"] == 15
+    assert (
+        after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT]
+        == before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT]
+    )
+    assert (
+        after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
+        == before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
+    )
+    assert (
+        after[CONF_ENABLED_FEATURES][CONF_FEATURE_PRESENCE_HOLD]
+        == before[CONF_ENABLED_FEATURES][CONF_FEATURE_PRESENCE_HOLD]
+    )
+    for key in (
+        "include_entities",
+        "exclude_entities",
+        "presence_control_entities",
+        "presence_device_platforms",
+        "presence_sensor_device_class",
+        "keep_only_entities",
+        "clear_timeout",
+        "secondary_states",
+    ):
+        assert after[key] == before[key]
+    assert entry.options[CONF_AREAS][kitchen.id] == kitchen_before
+    assert entry.options[CONF_GLOBAL_OPTIONS] == global_before
+
+
 async def test_global_entry_area_crud_websocket_lifecycle(hass, monkeypatch) -> None:
     """Create, update, and remove Areas without creating ConfigEntries."""
     area_registry = async_get_area_registry(hass)

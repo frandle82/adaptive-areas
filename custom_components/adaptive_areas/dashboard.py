@@ -13,6 +13,7 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
+from homeassistant.components.climate.const import ATTR_PRESET_MODE
 from homeassistant.core import HomeAssistant, State
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
@@ -26,6 +27,11 @@ from custom_components.adaptive_areas.const import (
     CONF_SLEEP_LIGHTS,
     CONF_TASK_LIGHTS,
     CONF_FEATURE_LIGHT,
+    CONF_FEATURE_CLIMATE_CONTROL,
+    CONF_CLIMATE_CONTROL_ENTITY_ID,
+    CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+    DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+    AreaStates,
 )
 from custom_components.adaptive_areas.helpers.area import (
     generated_entities_for_area,
@@ -414,6 +420,58 @@ def build_light_runtime_status(
                 "available": sum(target.available for target in snapshot.targets),
             },
         },
+    }
+
+
+def build_climate_runtime_status(
+    hass: HomeAssistant, area: AdaptiveArea
+) -> dict[str, Any]:
+    """Build a read-only Climate Control runtime snapshot for one Area."""
+    enabled = area.has_feature(CONF_FEATURE_CLIMATE_CONTROL)
+    config = area.feature_config(CONF_FEATURE_CLIMATE_CONTROL) if enabled else {}
+    target_entity = config.get(CONF_CLIMATE_CONTROL_ENTITY_ID)
+    target_state = hass.states.get(target_entity) if target_entity else None
+    target_available = target_state is not None and target_state.state not in (
+        STATE_UNAVAILABLE,
+        STATE_UNKNOWN,
+    )
+    relevant_states = [
+        str(state)
+        for state in area.states
+        if state
+        in {
+            AreaStates.CLEAR,
+            AreaStates.SLEEP,
+            AreaStates.EXTENDED,
+            AreaStates.OCCUPIED,
+        }
+    ]
+    controller = getattr(area, "climate_control_switch", None) if enabled else None
+    controller_on = bool(controller and controller.is_on)
+    decision, configured_preset = (
+        controller.runtime_decision() if controller else ("no_action", None)
+    )
+    return {
+        "area_id": str(area.id),
+        "enabled": enabled,
+        "controller_on": controller_on,
+        "target_entity": target_entity,
+        "target_available": target_available,
+        "area_states": relevant_states,
+        "current_preset": (
+            target_state.attributes.get(ATTR_PRESET_MODE) if target_available else None
+        ),
+        "occupancy_threshold": (
+            config.get(
+                CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+                DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+            )
+            if enabled
+            else None
+        ),
+        "occupancy_pending": bool(controller and controller.occupancy_pending),
+        "decision": decision,
+        "configured_preset": configured_preset,
     }
 
 

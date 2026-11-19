@@ -80,6 +80,7 @@ class ClimateControlSwitch(SwitchBase):
         )
         self._occupied_since: float | None = None
         self._occupancy_threshold_callback: CALLBACK_TYPE | None = None
+        self.area.climate_control_switch = self
 
     async def async_added_to_hass(self) -> None:
         """Call when entity about to be added to hass."""
@@ -93,6 +94,12 @@ class ClimateControlSwitch(SwitchBase):
             )
         )
         self.async_on_remove(self._clear_occupancy_threshold_timer)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Drop the transient Area reference when the controller unloads."""
+        if getattr(self.area, "climate_control_switch", None) is self:
+            del self.area.climate_control_switch
+        await super().async_will_remove_from_hass()
 
     async def area_state_changed(self, area_id, states_tuple):
         """Handle area state change event."""
@@ -166,6 +173,34 @@ class ClimateControlSwitch(SwitchBase):
 
         occupied_duration = (monotonic() - self._occupied_since) / 60
         return occupied_duration >= self.occupancy_threshold_minutes
+
+    @property
+    def occupancy_pending(self) -> bool:
+        """Return whether the occupied preset is still waiting for its threshold."""
+        return (
+            self.is_on
+            and self.area.has_state(AreaStates.OCCUPIED)
+            and not self._occupancy_threshold_met()
+        )
+
+    def runtime_decision(self) -> tuple[str, str | None]:
+        """Return the current actionable Climate decision and configured preset."""
+        if not self.is_on:
+            return "no_action", None
+        if self.area.has_state(AreaStates.CLEAR):
+            state = AreaStates.CLEAR
+        elif self.area.has_state(AreaStates.SLEEP):
+            state = AreaStates.SLEEP
+        elif self.area.has_state(AreaStates.EXTENDED):
+            state = AreaStates.EXTENDED
+        elif (
+            self.area.has_state(AreaStates.OCCUPIED) and self._occupancy_threshold_met()
+        ):
+            state = AreaStates.OCCUPIED
+        else:
+            return "no_action", None
+        preset = self.preset_map[state]
+        return (str(state), preset) if preset else ("no_action", None)
 
     def _set_occupancy_threshold_timer(self) -> None:
         """Schedule a local re-check when the occupancy threshold expires."""
