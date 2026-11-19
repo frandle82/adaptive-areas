@@ -803,3 +803,155 @@ async def test_crud_rejects_zero_or_multiple_global_entries(hass, monkeypatch) -
         reload.assert_not_awaited()
     assert [dict(entry.options) for entry in entries] == before
     migration_spy.assert_not_awaited()
+
+
+def _full_living_snapshot() -> dict:
+    """Return a complete Area snapshot in the shape the panel sends."""
+    return {
+        "type": "interior",
+        "include_entities": ["sensor.living"],
+        "exclude_entities": ["sensor.excluded"],
+        "presence_control_entities": ["binary_sensor.gate"],
+        "presence_device_platforms": ["binary_sensor"],
+        "presence_sensor_device_class": ["motion"],
+        "keep_only_entities": ["binary_sensor.confirm"],
+        "clear_timeout": 5,
+        "reload_on_registry_change": True,
+        "ignore_diagnostic_entities": True,
+        "secondary_states": {"dark_entity": "binary_sensor.dark"},
+        "features": {
+            CONF_FEATURE_LIGHT: {
+                "turn_on_below": 75.5,
+                "turn_off_above": 150.25,
+                "vacancy_delay": 30,
+            },
+            CONF_FEATURE_LIGHT_GROUPS: {
+                "overhead_lights": ["light.overhead"],
+                "overhead_lights_activation": "occupied",
+                "overhead_lights_blocking_states": ["sleep"],
+                "overhead_lights_brightness": "require_dark",
+            },
+            "climate_control": {
+                "entity_id": "climate.living_room",
+                "preset_clear": "away",
+                "preset_occupied": "comfort",
+                "preset_sleep": "sleep",
+                "preset_extended": "eco",
+                "climate_occupancy_threshold": 10,
+            },
+            CONF_FEATURE_PRESENCE_HOLD: {},
+        },
+    }
+
+
+async def _setup_two_areas_with_full_config(hass):
+    area_registry = async_get_area_registry(hass)
+    living = area_registry.async_create("Wohnzimmer")
+    kitchen = area_registry.async_create("Küche")
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    entry = flow["result"]
+    await hass.async_block_till_done()
+    hass.states.async_set("weather.home", "sunny")
+    update_global_options(
+        hass,
+        entry,
+        {"weather_entity": "weather.home", "global_light_sensor": "sensor.gone"},
+    )
+    assert (
+        await _call(
+            hass,
+            "adaptive_areas/create_area",
+            area_id=living.id,
+            options=_full_living_snapshot(),
+        )
+    )["ok"]
+    assert (
+        await _call(
+            hass,
+            "adaptive_areas/create_area",
+            area_id=kitchen.id,
+            options={"type": "interior", "features": {CONF_FEATURE_LIGHT: {}}},
+        )
+    )["ok"]
+    return living, kitchen, entry
+
+
+async def test_light_policy_save_payload_keeps_climate_presence_and_other_areas(
+    hass,
+) -> None:
+    """The Light tab sends the full feature map; only the light policy changes."""
+    living, kitchen, entry = await _setup_two_areas_with_full_config(hass)
+    before = deepcopy(entry.options[CONF_AREAS][living.id])
+    kitchen_before = deepcopy(entry.options[CONF_AREAS][kitchen.id])
+    global_before = deepcopy(entry.options[CONF_GLOBAL_OPTIONS])
+
+    features = deepcopy(before[CONF_ENABLED_FEATURES])
+    features[CONF_FEATURE_LIGHT]["turn_on_below"] = 50
+    with patch.object(
+        hass.config_entries, "async_reload", wraps=hass.config_entries.async_reload
+    ):
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options={"features": features},
+            )
+        )["ok"]
+
+    after = entry.options[CONF_AREAS][living.id]
+    assert after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT]["turn_on_below"] == 50
+    assert after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT] == {
+        **before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT],
+        "turn_on_below": 50,
+    }
+    assert (
+        after[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
+        == before[CONF_ENABLED_FEATURES][CONF_FEATURE_LIGHT_GROUPS]
+    )
+    assert (
+        after[CONF_ENABLED_FEATURES]["climate_control"]
+        == before[CONF_ENABLED_FEATURES]["climate_control"]
+    )
+    assert CONF_FEATURE_PRESENCE_HOLD in after[CONF_ENABLED_FEATURES]
+    for key in (
+        "presence_control_entities",
+        "keep_only_entities",
+        "clear_timeout",
+        "secondary_states",
+    ):
+        assert after[key] == before[key]
+    assert entry.options[CONF_AREAS][kitchen.id] == kitchen_before
+    assert entry.options[CONF_GLOBAL_OPTIONS] == global_before
+
+
+async def test_area_form_save_payload_keeps_light_and_climate_configuration(
+    hass,
+) -> None:
+    """The Area form sends a full snapshot; light and climate must survive it."""
+    living, kitchen, entry = await _setup_two_areas_with_full_config(hass)
+    before = deepcopy(entry.options[CONF_AREAS][living.id])
+    kitchen_before = deepcopy(entry.options[CONF_AREAS][kitchen.id])
+
+    # Mirrors the panel _save(): checked features keep their existing config.
+    snapshot = _full_living_snapshot()
+    snapshot["clear_timeout"] = 7
+    snapshot["features"] = deepcopy(before[CONF_ENABLED_FEATURES])
+    with patch.object(
+        hass.config_entries, "async_reload", wraps=hass.config_entries.async_reload
+    ):
+        assert (
+            await _call(
+                hass,
+                "adaptive_areas/update_area",
+                area_id=living.id,
+                options=snapshot,
+            )
+        )["ok"]
+
+    after = entry.options[CONF_AREAS][living.id]
+    assert after["clear_timeout"] == 7
+    assert after[CONF_ENABLED_FEATURES] == before[CONF_ENABLED_FEATURES]
+    assert entry.options[CONF_AREAS][kitchen.id] == kitchen_before

@@ -660,9 +660,11 @@ def test_panel_light_control_configuration_is_area_scoped() -> None:
     assert "_renderLightAutomationConfiguration" in panel
     assert "_renderLightGroupsConfiguration" in panel
     assert '_lightPolicyFields(t,light,"light:")' in panel
-    assert "light_group:${key}" in panel
     assert "area_id:area.area_id,options:{features}" in panel
     assert "await this._loadLightRuntime(area.area_id)" in panel
+    # Light group values are written by the Light tab only, never by the Area form save.
+    assert "light_group:${key}" not in panel
+    assert 'this._value(form,"turn_on_below")' not in panel
 
 
 def test_panel_climate_control_configuration_is_area_scoped() -> None:
@@ -777,3 +779,53 @@ def test_panel_exposes_final_light_control_labels() -> None:
         "Bei Belegung",
     ):
         assert label in panel
+
+
+def test_panel_settings_renderer_is_defined_and_uses_global_websocket_api() -> None:
+    """The Settings tab renders and saves through the existing global WebSocket API."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    for method in (
+        "_renderSettings(t){",
+        "_renderGlobalSettings(){",
+        "_entityOptions(value,domain,deviceClass){",
+        "_isGlobalSettingsDirty(){",
+        "async _saveGlobalSettings(){",
+    ):
+        assert method in panel, f"missing panel method {method}"
+
+    assert 'name="weather_entity"' in panel
+    assert 'name="global_light_sensor"' in panel
+    assert 'type:"adaptive_areas/get_global_configuration"' in panel
+    assert 'type:"adaptive_areas/update_global_configuration"' in panel
+    assert "friendly_name||entityId" in panel
+    assert "_saveGlobalSettings(){" in panel and "t.saveFailed" in panel
+
+
+def test_panel_climate_target_shows_friendly_name_with_entity_id_fallback() -> None:
+    """The thermostat select shows friendly names and keeps the entity id as fallback."""
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "escape(this._hass?.states?.[entityId]?.attributes?.friendly_name||entityId)"
+        in panel
+    )
+    assert "if(selected&&!targets.includes(selected))targets.push(selected)" in panel
+
+
+def test_panel_calls_only_defined_methods() -> None:
+    """Every `this._method(` call in the panel has a matching method definition."""
+    import re
+
+    panel = Path(
+        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
+    ).read_text(encoding="utf-8")
+
+    called = set(re.findall(r"this\.(_\w+)\(", panel))
+    defined = set(re.findall(r"(?:async\s+)?(_\w+)\([^)]*\)\{", panel))
+
+    assert sorted(called - defined) == []
