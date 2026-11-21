@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.6.19-rc.12 - 2026-11-21
+
+### Added
+
+- Dashboard 2.0 Intelligence Center: the overview groups areas by floor, shows presence as occupied, not occupied or unknown, and marks technical issues, notices and unknown data separately. Meta-areas are aggregated and not counted in the physical figures.
+- Native Home Assistant translations: all dashboard texts (English and German) are loaded through `frontend/get_translations` from `translations/en.json` and `translations/de.json`, with English as the fallback.
+- Collapsible navigation on narrow containers, with keyboard and touch support.
+- Central area editor with progressive disclosure: basic, function and advanced settings are grouped; validation errors open the section that contains the field.
+- Decision trace and diagnostics with a clearer structure: each entry shows its decision, outcome and reason; diagnostics group technical issues, data availability and details.
+- Backend diagnostics and overview data: explicit `presence.state` (`unknown` when no source is available), physical presence counts, floor metadata and Meta-area membership. Existing fields keep their meaning.
+
+### Changed
+
+- The area editor warns before a view switch or another area discards unsaved changes; a cancelled switch keeps the draft.
+- Empty feature entries (a feature enabled without settings) count as changes of the editor draft.
+- Language changes re-render the dashboard without losing an open draft, focus or section state.
+- Area cards, trace entries and diagnostics wrap long values on small screens.
+
+### Fixed
+
+- Unsaved area changes were lost silently when the view was switched.
+- A feature enabled without settings was not detected as a change.
+- Areas without an available presence source were shown as not occupied; they are now shown as unknown.
+- Environment values without notices were hidden on the dashboard.
+- Area cards overflowed their track by a few pixels at 320 px width.
+- Two text colours on the light theme did not reach the WCAG 2.2 AA contrast ratio of 4.5:1.
+
+### Validation
+
+- 635 Python tests passed (pytest-homeassistant-custom-component, Home Assistant 2026.10.4 test framework).
+- 294 browser harness checks passed (Chromium with a simulated Home Assistant `hass` object and backend-generated fixtures).
+- Repository pre-commit hooks passed.
+
+### Known limitations
+
+- Not yet run in a real Home Assistant installation: panel registration, the translation request in a live instance, language switching, WebSocket reconnect, real theme contrast and browser zoom at 200 %.
+- Home Assistant 2026.8.0 compatibility is not verified at runtime.
+- The three persisted fan lists stay excluded from the dashboard.
+- Pre-release for testing and feedback.
+
 ## 1.6.19-rc.11 - 2026-11-19
 
 ### Added

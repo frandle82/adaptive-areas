@@ -4,7 +4,15 @@ Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchi
 
 ## Fortsetzungspunkt
 
-Stand 2026-11-20 (Review-Korrekturen nach Abnahme von Schritt 6):
+**Git-Stand (2026-11-21):** Lokaler Entwicklungscommit `222036a` auf `main`: `feat(dashboard): implement intelligence center and native translations` (60 Dateien: Dashboard-Panel, Backend-DTOs, Übersetzungen, Tests, Harness mit Fixtures, Spezifikation, Entscheidungen, Prüfanleitung, Prototyp). Der Commit ist **nicht gepusht**. Sicherungsbranch `backup/pre-push-222036a` zeigt auf denselben Commit. `origin/main` enthält den Release-Bot-Commit `b78964f chore(release): 1.6.19-rc.11` (nur `manifest.json`, Version); `main` und `origin/main` sind **nicht abgeglichen** (`[ahead 1, behind 1]`). Kein Release, kein Tag, keine Versionsänderung.
+
+**Zuletzt erfolgreich ausgeführt (vor dem Commit, auf dem committeten Stand):** Browser-Suite 294/294, Python-Suite 635 bestanden, ruff und black im Prüfmodus sauber, `pre-commit` alle Hooks bestanden. Die nachträgliche Dokumentationsaktualisierung enthält keinen Code und wurde nicht erneut getestet.
+
+**Lokal bewusst uncommittet (nicht Teil des Commits, unverändert erhalten):** `m68-tests.cjs` (einmaliges Patch-Skript mit einem festen lokalen Pfad) und `tests/frontend/measure-after-step2.json`, `measure-phaseE.json`, `measure-step2.json`, `measure-step3.json` (Messausgaben früherer Schritte, nicht referenziert).
+
+**Noch offen, nicht als bestanden ausgewiesen:** reale Integrationstests gemäß `docs/specifications/real-integration-test-plan.md`: Laufzeit in Home Assistant 2026.8.0 und einer aktuellen Version, Panel-Registrierung, natives `frontend/get_translations` und DE/EN-Fallback, Sprachwechsel, Admin-/Non-Admin-Berechtigungen im echten Frontend, WebSocket-Reconnect und Subscriptions, echter Browser-Zoom bei 200 %, reale Theme-Kontraste, Beta-Suite (eine lokale Umgebung `.tox/ha-beta` ist vorhanden, die Suite ist nicht ausgeführt), reale Leistungsmessungen.
+
+Stand 2026-11-20 (Review-Korrekturen nach Abnahme von Schritt 6, historisch):
 
 - **V01 (Übersetzungen):** Die festen deutschen Bezeichnungen im englischen Bereichseditor sind durch EN/DE-Schlüssel ersetzt (`fLabel*`, `areaEditTitle`). Offen: Dashboard-, Trace- und Diagnosetexte außerhalb des Editors; Prüfung der nativen Home-Assistant-Übersetzungsintegration (V10) noch nicht erfolgt.
 - **V02 (Entitätskennzeichnung):** erledigt. Gespeicherte Werte werden nach ihrem Zustand gekennzeichnet: nicht gefunden (fehlt in den Zuständen, bleibt ausgewählt), außerhalb dieses Bereichs und bereichsübergreifend zulässig, nicht verfügbar. Die falsche Bereichswarnung beim Thermostat ist entfernt (Prüfungen V02a/V02b, G2 angepasst). Nicht umgesetzt: getrennte Kennzeichnung „vorhanden“ und „fehlende Registry“ als eigener Text (fehlende Registry wird weiter über `fxRegistryMissing` gemeldet).
@@ -51,7 +59,7 @@ Stand 2026-11-20 (Review-Korrekturen nach Abnahme von Schritt 6):
 
 **Nächster Schritt: Die Prüfanleitung `docs/specifications/real-integration-test-plan.md` in einer Home-Assistant-Instanz 2026.8.0 und einer aktuellen Version ausführen und die Ergebnistabelle füllen; danach echter Browser-Zoom und reale Theme-Kontraste.**
 
-Keine Commits, Pushes, Tags, Releases oder Versionsänderungen. Approval Gate 3 bleibt geschlossen. Die nicht atomare Schreiblücke zwischen Serverprüfung und Schreibvorgang bleibt dokumentiert; die drei Lüfterlisten bleiben ausgeschlossen.
+Historische Aussage zum Stand 2026-11-20 (vor dem Commit `222036a`). Approval Gate 3 bleibt für weitere Git- und Release-Aktionen geschlossen. Die nicht atomare Schreiblücke zwischen Serverprüfung und Schreibvorgang bleibt dokumentiert; die drei Lüfterlisten bleiben ausgeschlossen.
 
 ### Vorheriger Stand (Referenz)
 
