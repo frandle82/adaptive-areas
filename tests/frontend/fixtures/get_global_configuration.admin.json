@@ -1,0 +1,8 @@
+{
+  "errors": {},
+  "ok": true,
+  "options": {
+    "global_light_sensor": "sensor.outdoor_lux",
+    "weather_entity": "weather.home"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "active_states": [
+    "dark",
+    "occupied"
+  ],
+  "aggregates": [],
+  "brightness": {
+    "illuminance": null,
+    "state": "dark",
+    "unit": null
+  },
+  "brightness_detail": {
+    "state": {
+      "illuminance": null,
+      "state": "dark",
+      "unit": null
+    }
+  },
+  "cleaning": null,
+  "enabled_features": [],
+  "environment": null,
+  "floor_id": "first_floor",
+  "floor_name": "first_floor",
+  "id": "kitchen",
+  "lights": null,
+  "name": "kitchen",
+  "occupied": true,
+  "presence": {
+    "occupied": true,
+    "sources": {
+      "available": 1,
+      "total": 1
+    },
+    "state": "occupied"
+  },
+  "room_usage": null,
+  "sources": {
+    "available": 1,
+    "total": 1
+  },
+  "type": "area",
+  "warning_count": 0,
+  "warning_details": {
+    "aggregates": 0,
+    "secondary_states": 0
+  }
+}

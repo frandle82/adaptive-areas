@@ -48,6 +48,8 @@ EMPTY_STRING = ""
 
 DOMAIN = "adaptive_areas"
 MODULE_DATA = f"{DOMAIN}_data"
+# Internal dispatcher signal: the set of loaded Areas changed (entry set up or unloaded).
+SIGNAL_AREAS_CHANGED = f"{DOMAIN}_areas_changed"
 
 # Single-entry storage introduced by the GlobalEntry migration.  Area IDs remain
 # the stable keys; the ConfigEntry ID only identifies the integration container.

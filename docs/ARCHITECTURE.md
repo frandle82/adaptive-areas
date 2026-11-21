@@ -24,7 +24,7 @@ The JavaScript panel is presentation and configuration UI. Python runtime object
 - Config Flow and Options Flow in `config_flow.py`.
 - Integration services in `services.py`.
 - Diagnostics, repairs, and system health in their respective modules.
-- WebSocket commands registered by `websocket.py`, including overview/detail retrieval, runtime status, area/global configuration updates, area CRUD, and subscriptions.
+- WebSocket commands registered by `websocket.py`, including overview/detail retrieval, runtime status, area/global configuration updates, area CRUD, and subscriptions. `subscribe_updates` pushes area summaries for tracked entities and rebuilds its entity index on the internal dispatcher signal `SIGNAL_AREAS_CHANGED`, which `__init__.py` sends after an entry is set up or unloaded; the client then receives a data-free `{"areas_changed": true}` event. The role (administrator or not) is read for every pushed event, because Home Assistant changes `connection.user` in place when groups change and keeps the connection open. In the panel, each subscription has its own generation: callbacks of a replaced, closed or role-changed subscription process nothing.
 - The administrator-only custom panel is registered by `panel.py` and serves `frontend/adaptive-areas-panel.js`.
 
 ## Compatibility boundaries

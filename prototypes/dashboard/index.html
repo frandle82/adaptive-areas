@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive Areas – Prototyp (Mock-Daten)</title>
+<style>
+/* Designreferenz. Keine externen Ressourcen. Farben nur über Variablen (HA-Theme-Namen). */
+:root {
+  --primary-color: #039BC3;
+  --primary-strong: #02708A;
+  --primary-text: #02708A;
+  --success-color: #16A085;
+  --success-text: #0F7A64;
+  --neutral-color: #9CA3AF;
+  --warning-color: #D97706;
+  --warning-text: #92400E;
+  --error-color: #DC2626;
+  --error-text: #B91C1C;
+  --sleep-color: #8B5CF6;
+  --primary-text-color: #1F2937;
+  --secondary-text-color: #5B6472;
+  --card-background-color: #FFFFFF;
+  --page-background-color: #F3F5F7;
+  --divider-color: #D8DDE3;
+  --focus-color: #039BC3;
+  --radius: 12px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px;
+}
+:root[data-theme="dark"] {
+  --primary-color: #39B6D9;
+  --primary-strong: #0E7C98;
+  --primary-text: #7DD3EA;
+  --success-color: #34C3A6;
+  --success-text: #34C3A6;
+  --neutral-color: #9CA3AF;
+  --warning-color: #F5A524;
+  --warning-text: #F5C26B;
+  --error-color: #F87171;
+  --error-text: #FCA5A5;
+  --sleep-color: #A78BFA;
+  --primary-text-color: #E5E7EB;
+  --secondary-text-color: #9CA3AF;
+  --card-background-color: #1F2933;
+  --page-background-color: #111820;
+  --divider-color: #334155;
+  --focus-color: #39B6D9;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--page-background-color); color: var(--primary-text-color); font-size: 15px; line-height: 1.45; }
+button, select, input { font: inherit; color: inherit; }
+button { min-height: 44px; min-width: 44px; padding: 0 var(--space-3); border: 1px solid var(--divider-color); border-radius: 10px; background: var(--card-background-color); cursor: pointer; }
+button[aria-pressed="true"], button[aria-current="true"], button.primary { border-color: var(--primary-color); color: var(--primary-text); font-weight: 600; }
+button.primary { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+button.danger { border-color: var(--error-color); color: var(--error-text); }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid var(--focus-color); outline-offset: 2px; }
+input, select { min-height: 44px; padding: 0 var(--space-3); width: 100%; border: 1px solid var(--divider-color); border-radius: 10px; background: var(--card-background-color); }
+label { display: block; font-size: 13px; color: var(--secondary-text-color); margin-bottom: var(--space-1); }
+label.check { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; font-size: 15px; color: var(--primary-text-color); margin: 0; }
+label.check input { width: 24px; height: 24px; min-height: 24px; padding: 0; flex: 0 0 auto; accent-color: var(--primary-strong); }
+.kpi.active { border-color: var(--primary-color); box-shadow: inset 0 0 0 1px var(--primary-color); }
+.kpi-static { cursor: default; }
+.res svg.i { width: 14px; height: 14px; vertical-align: -2px; }
+svg.i { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ok { color: var(--success-text); } .warn { color: var(--warning-text); } .err { color: var(--error-text); } .muted { color: var(--secondary-text-color); }
+.stale { font-style: italic; font-weight: 400; }
+
+.mock-banner { background: var(--warning-color); color: #111; font-weight: 600; padding: var(--space-2) var(--space-4); text-align: center; font-size: 13px; }
+#app { max-width: var(--frame, 1280px); margin: 0 auto; padding: var(--space-4); container-type: inline-size; background: var(--page-background-color); min-height: 100vh; }
+
+/* Kopfzeile */
+.top { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; }
+.brand { display: flex; gap: var(--space-3); align-items: center; min-width: 0; }
+.logo { width: 40px; height: 40px; border-radius: 12px; background: var(--primary-strong); color: #fff; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.brand h1 { font-size: 20px; margin: 0; font-weight: 600; }
+.brand p { margin: 0; color: var(--secondary-text-color); font-size: 13px; }
+.conn { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; font-size: 13px; color: var(--secondary-text-color); }
+.pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--divider-color); color: var(--secondary-text-color); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+
+details.controls { margin: var(--space-3) 0; }
+details.controls summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--secondary-text-color); font-size: 13px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-2) 0; }
+.toolbar .group { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+
+/* Navigation: drei Gruppen, Unteransichten darunter; umbrechend, ohne horizontales Scrollen */
+.groups { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0 var(--space-2); }
+.groups button { border: none; background: transparent; padding: 0 var(--space-2); font-weight: 600; }
+.groups button[aria-current="true"] { color: var(--primary-text); border-bottom: 3px solid var(--primary-color); border-radius: 0; }
+.subnav { display: flex; flex-wrap: wrap; gap: var(--space-1); padding-bottom: var(--space-3); border-bottom: 1px solid var(--divider-color); margin-bottom: var(--space-4); }
+.subnav button { min-height: 44px; border-radius: 999px; font-size: 14px; padding: 0 var(--space-3); }
+.subnav button[aria-current="true"] { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+.grp-label { font-weight: 600; padding: 8px 0; }
+
+.notice { border: 1px solid var(--divider-color); border-left: 4px solid var(--primary-color); border-radius: var(--radius); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); background: var(--card-background-color); font-size: 14px; }
+.banner { border: 1px solid var(--warning-color); border-left: 4px solid var(--warning-color); border-radius: var(--radius); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); background: var(--card-background-color); }
+.banner.error { border-color: var(--error-color); border-left-color: var(--error-color); }
+.sim { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px dashed var(--warning-text); color: var(--warning-text); margin-bottom: var(--space-3); }
+.lead { color: var(--secondary-text-color); font-size: 14px; margin: 0 0 var(--space-4); }
+.h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--space-1); }
+
+/* Kennzahlen */
+.kpis { display: grid; gap: var(--space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--space-4); }
+@container (min-width: 900px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.kpi { text-align: left; background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--radius); padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: 4px; min-height: 44px; min-width: 0; font-weight: 400; }
+.kpi .top2 { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--secondary-text-color); font-size: 13px; }
+.kpi .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 14px; font-weight: 400; color: var(--secondary-text-color); }
+.kpi .s { font-size: 13px; color: var(--secondary-text-color); }
+.kpi-row { display: grid; gap: var(--space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--space-4); }
+@container (min-width: 900px) { .kpi-row { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.kpi-row .kpi { min-height: 0; }
+
+/* Filter */
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: end; margin-bottom: var(--space-4); }
+.filters .search { flex: 1 1 220px; min-width: 0; }
+.chips { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.chips button { min-height: 44px; border-radius: 999px; font-size: 14px; }
+
+/* Bereichskarten */
+.floor { margin: var(--space-6) 0 var(--space-3); font-size: 13px; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.grid { display: grid; gap: var(--space-3); grid-template-columns: 1fr; align-items: stretch; }
+@container (min-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1000px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (min-width: 1200px) { .grid.wide { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.card-link { text-align: left; width: 100%; min-height: 44px; border: 1px solid var(--divider-color); background: var(--card-background-color); border-radius: var(--radius); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; font-weight: 400; }
+.card-link:hover { border-color: var(--primary-color); }
+.card-head { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 20px; gap: var(--space-2); align-items: center; }
+.tile { width: 40px; height: 40px; border-radius: 12px; background: var(--page-background-color); border: 1px solid var(--divider-color); display: inline-flex; align-items: center; justify-content: center; color: var(--primary-text); }
+.name { font-weight: 600; font-size: 16px; overflow-wrap: anywhere; min-width: 0; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.chev { color: var(--secondary-text-color); display: inline-flex; }
+/* Schmale Karten: Status unter dem Namen statt Überlagerung; kein Schrumpfen der Icons */
+.tile, .chev { flex: 0 0 auto; }
+@container (max-width: 520px) { .card-head { grid-template-columns: 40px minmax(0, 1fr) 20px; } .card-head .status { grid-column: 2; } }
+.name { hyphens: auto; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+.metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.metric .lbl { font-size: 12px; color: var(--secondary-text-color); display: flex; gap: 4px; align-items: center; }
+.metric .val { font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 600; overflow-wrap: anywhere; }
+.metric .val.none { font-weight: 400; color: var(--secondary-text-color); font-size: 13px; }
+.chips-line { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--divider-color); color: var(--secondary-text-color); }
+.ctx { display: flex; flex-direction: column; gap: 4px; border-top: 1px dashed var(--divider-color); padding-top: var(--space-2); font-size: 13px; }
+.ctx div { display: flex; gap: 6px; align-items: flex-start; }
+.ctx .warnline { font-weight: 600; color: var(--warning-text); }
+.ctx .techline { font-weight: 600; color: var(--error-text); }
+
+/* Meta-Areas */
+.meta-row { display: grid; gap: var(--space-2); grid-template-columns: 1fr; margin-bottom: var(--space-4); }
+@container (min-width: 600px) { .meta-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.meta-card { border: 1px dashed var(--divider-color); border-radius: var(--radius); padding: var(--space-2) var(--space-3); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* Abschnitte */
+.section { background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-4); min-width: 0; }
+.section h2 { font-size: 15px; margin: 0 0 var(--space-3); font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.kv { display: grid; grid-template-columns: minmax(110px, 40%) minmax(0, 1fr); gap: var(--space-2) var(--space-3); font-size: 14px; margin: 0; }
+.kv dt { color: var(--secondary-text-color); }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.two { display: grid; gap: var(--space-4); grid-template-columns: 1fr; }
+@container (min-width: 900px) { .two { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); } }
+.placeholder { border: 1px dashed var(--divider-color); border-radius: var(--radius); padding: var(--space-4); color: var(--secondary-text-color); margin-bottom: var(--space-4); }
+
+/* Balken mit Skala */
+.bars { display: flex; flex-direction: column; gap: var(--space-3); }
+.bar-row .row { display: flex; justify-content: space-between; gap: var(--space-2); font-size: 14px; }
+.bar { height: 10px; background: var(--divider-color); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.bar > span { display: block; height: 100%; background: var(--primary-color); border-radius: 999px; }
+.skeleton { height: 10px; border-radius: 999px; margin-top: 4px; border: 1px dashed var(--divider-color); }
+.axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--secondary-text-color); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.legend { font-size: 12px; color: var(--secondary-text-color); margin: var(--space-2) 0 0; }
+
+/* Listen (Reinigung) */
+.item { display: flex; justify-content: space-between; gap: var(--space-2); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--divider-color); min-height: 44px; }
+.item:last-child { border-bottom: 0; }
+.item .t { font-weight: 600; overflow-wrap: anywhere; }
+.item .m { font-size: 13px; color: var(--secondary-text-color); text-align: right; }
+
+/* Decision Trace */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.tl { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: var(--space-2); padding-bottom: var(--space-4); position: relative; }
+.tl::before { content: ""; position: absolute; left: 12px; top: 26px; bottom: 0; width: 2px; background: var(--divider-color); }
+.tl:last-child::before { display: none; }
+.tl .fi { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text); display: inline-flex; align-items: center; justify-content: center; }
+.tl .ts { font-variant-numeric: tabular-nums; color: var(--secondary-text-color); font-size: 13px; }
+.tl .dec { font-weight: 600; overflow-wrap: anywhere; }
+.tl .meta { font-size: 13px; color: var(--secondary-text-color); }
+.res { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--divider-color); margin-left: 6px; white-space: nowrap; font-weight: 400; }
+.tl .why { font-size: 13px; margin-top: 4px; }
+.tl .why.none { color: var(--secondary-text-color); font-style: italic; }
+
+/* Tabellen (ergänzend) */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--divider-color); vertical-align: top; }
+th { color: var(--secondary-text-color); font-weight: 600; font-size: 13px; }
+details.more { margin-top: var(--space-3); }
+details.more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--primary-text); font-weight: 600; }
+
+/* Formulare */
+.form-grid { display: grid; gap: var(--space-3); grid-template-columns: 1fr; }
+@container (min-width: 700px) { .form-grid { grid-template-columns: 1fr 1fr; } }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); justify-content: flex-end; }
+.actions.start { justify-content: flex-start; }
+.status-line { display: block; min-height: 24px; font-size: 14px; margin-top: var(--space-2); }
+
+dialog { border: 1px solid var(--divider-color); border-radius: var(--radius); background: var(--card-background-color); color: var(--primary-text-color); padding: var(--space-6); max-width: min(480px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="mock-banner" role="note">PROTOTYP – nur Mock-Daten. Keine Verbindung zu Home Assistant. Keine Schreibvorgänge.</div>
+<div id="app" style="--frame:1280px">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></span>
+      <div><h1>Adaptive Areas</h1><p>Intelligence Center</p></div>
+    </div>
+    <div class="conn" id="conn" role="status" aria-live="polite"></div>
+  </header>
+
+  <details class="controls" id="controls"><summary>Prototyp-Steuerung (nicht Teil der Produktoberfläche)</summary>
+    <div class="toolbar" aria-label="Prototyp-Steuerung">
+      <div class="group" role="group" aria-label="Rolle">
+        <button type="button" data-role="admin" aria-pressed="true">Administrator</button>
+        <button type="button" data-role="user" aria-pressed="false">Nicht-Admin</button>
+      </div>
+      <div class="group" role="group" aria-label="Theme">
+        <button type="button" data-theme-btn="light" aria-pressed="true">Hell</button>
+        <button type="button" data-theme-btn="dark" aria-pressed="false">Dunkel</button>
+      </div>
+      <div class="group" role="group" aria-label="Breite">
+        <button type="button" data-width="320" aria-pressed="false">320</button>
+        <button type="button" data-width="390" aria-pressed="false">390</button>
+        <button type="button" data-width="430" aria-pressed="false">430</button>
+        <button type="button" data-width="768" aria-pressed="false">768</button>
+        <button type="button" data-width="1024" aria-pressed="false">1024</button>
+        <button type="button" data-width="1280" aria-pressed="true">1280</button>
+        <button type="button" data-width="1440" aria-pressed="false">1440</button>
+      </div>
+      <div class="group" role="group" aria-label="Zustände simulieren">
+        <button type="button" id="toggle-loss" aria-pressed="false">Verbindung unterbrochen</button>
+        <button type="button" id="toggle-unknown" aria-pressed="false">Unbekannte Daten</button>
+        <button type="button" id="toggle-feat-env" aria-pressed="false">Raumklima aus</button>
+        <button type="button" id="toggle-feat-clean" aria-pressed="false">Reinigung aus</button>
+        <button type="button" id="toggle-feat-usage" aria-pressed="false">Raumnutzung aus</button>
+        <button type="button" id="toggle-feat-light" aria-pressed="false">Lichtautomatik aus</button>
+        <button type="button" id="toggle-feat-climate" aria-pressed="false">Klimaautomatik aus</button>
+        <button type="button" id="toggle-savefail" aria-pressed="false">Speichern schlägt fehl</button>
+      </div>
+    </div>
+  </details>
+
+  <nav class="groups" id="groups" aria-label="Bereiche der Navigation"></nav>
+  <nav class="subnav" id="subnav" aria-label="Unteransichten"></nav>
+  <div id="notice"></div>
+  <main id="view" tabindex="-1"></main>
+</div>
+
+<script>
+"use strict";
+/* ================= MOCK-DATEN (ausschließlich Prototyp, keine Integrationsdaten) ================= */
+const MOCK = {
+  lastUpdate: "12:04",
+  areas: [
+    { id: "wohnzimmer", name: "Wohnzimmer", floor: "Erdgeschoss", type: "area", presence: "occupied", since: "12:01",
+      states: ["bright", "extended"], temp: 22.4, hum: 48, co2: 620, cleanState: "due_soon", cleanLabel: "in 2 h", cleanScore: 62,
+      lights: { on: 3, total: 5 }, sources: { total: 3, active: 2, unavailable: 0 }, warn: 0, envWarn: 0, usage: "3 h 12 min", usageMin: 192,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: true, light_decision: "Zustand beibehalten", override: "Keiner" },
+    { id: "kueche", name: "Küche", floor: "Erdgeschoss", type: "area", presence: "clear", since: "11:42",
+      states: ["bright"], temp: 21.0, hum: 52, co2: 540, cleanState: "overdue", cleanLabel: "seit 2 h", cleanScore: 18,
+      lights: { on: 0, total: 3 }, sources: { total: 2, active: 0, unavailable: 0 }, warn: 1, envWarn: 0, usage: "1 h 40 min", usageMin: 100,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: true, light_decision: "Ausschalten", override: "Keiner" },
+    { id: "flur", name: "Flur", floor: "Erdgeschoss", type: "area", presence: "unknown", since: null,
+      states: [], temp: null, hum: null, co2: null, cleanState: "none", cleanLabel: "keine Daten", cleanScore: null,
+      lights: null, sources: { total: 2, active: 0, unavailable: 2 }, warn: 0, envWarn: 0, usage: null, usageMin: null,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: false, light_decision: null, override: null },
+    { id: "gaeste-wc-mit-sehr-langem-namen", name: "Gäste-WC mit sehr langem Namen für Zeilenumbruchtests", floor: "Erdgeschoss", type: "area",
+      presence: "clear", since: "09:15", states: [], temp: 19.8, hum: 61, co2: null, cleanState: "not_due", cleanLabel: "in 2 Tagen", cleanScore: 90,
+      lights: { on: 0, total: 1 }, sources: { total: 1, active: 0, unavailable: 0 }, warn: 0, envWarn: 0, usage: "12 min", usageMin: 12,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: false, light_decision: "Keine automatische Aktion", override: "Keiner" },
+    { id: "schlafzimmer", name: "Schlafzimmer", floor: "Obergeschoss", type: "area", presence: "clear", since: "07:30",
+      states: ["sleep"], temp: 19.2, hum: 45, co2: 480, cleanState: "due_today", cleanLabel: "heute", cleanScore: 41,
+      lights: { on: 0, total: 2 }, sources: { total: 3, active: 0, unavailable: 0 }, warn: 0, envWarn: 0, usage: "6 h 05 min", usageMin: 365,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: true, light_decision: "Keine automatische Aktion", override: "Keiner" },
+    { id: "buero", name: "Büro", floor: "Obergeschoss", type: "area", presence: "occupied", since: "11:58",
+      states: ["accent"], temp: 23.1, hum: 41, co2: 910, cleanState: "not_due", cleanLabel: "in 3 h", cleanScore: 77,
+      lights: { on: 1, total: 2 }, sources: { total: 2, active: 1, unavailable: 0 }, warn: 1, envWarn: 1, usage: "2 h 20 min", usageMin: 140,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: true, light_decision: "Zustand beibehalten", override: "Keiner" },
+    { id: "bad", name: "Bad", floor: "Obergeschoss", type: "area", presence: "clear", since: "10:20",
+      states: [], temp: 24.0, hum: 78, co2: null, cleanState: "not_due", cleanLabel: "in 4 Tagen", cleanScore: 85,
+      lights: { on: 0, total: 1 }, sources: { total: 2, active: 0, unavailable: 0 }, warn: 1, envWarn: 1, usage: "8 min", usageMin: 8,
+      envOn: true, cleanOn: true, usageOn: true, light: true, climate: false, light_decision: "Keine automatische Aktion", override: "Keiner" },
+    { id: "keller", name: "Keller (Außenreferenz)", floor: "Außen", type: "exterior", presence: "unavailable", since: null,
+      states: [], temp: 14.2, hum: 82, co2: null, cleanState: "disabled", cleanLabel: "für diesen Bereich deaktiviert", cleanScore: null,
+      lights: null, sources: { total: 1, active: 0, unavailable: 1 }, warn: 0, envWarn: 0, usage: null, usageMin: null,
+      envOn: true, cleanOn: false, usageOn: false, light: false, climate: false, light_decision: null, override: null }
+  ],
+  meta: [
+    { id: "erdgeschoss", name: "Erdgeschoss", kind: "Floor", members: ["wohnzimmer", "kueche", "flur", "gaeste-wc-mit-sehr-langem-namen"] },
+    { id: "obergeschoss", name: "Obergeschoss", kind: "Floor", members: ["schlafzimmer", "buero", "bad"] },
+    { id: "innen", name: "Innen", kind: "Interior", members: ["wohnzimmer", "kueche", "flur", "gaeste-wc-mit-sehr-langem-namen", "schlafzimmer", "buero", "bad"] },
+    { id: "global", name: "Global", kind: "Global", members: ["wohnzimmer", "kueche", "flur", "gaeste-wc-mit-sehr-langem-namen", "schlafzimmer", "buero", "bad", "keller"] }
+  ],
+  trace: [
+    { t: "12:01:12", area: "wohnzimmer", feature: "presence", trigger: "Neuberechnung", decision: "Belegt", result: "beobachtet", reasons: ["Bewegung erkannt"] },
+    { t: "12:01:14", area: "wohnzimmer", feature: "light", trigger: "Zustandsänderung", decision: "Einschalten", result: "ausgeführt", reasons: ["Bereichszustand erfüllt", "Aktion ausgeführt"] },
+    { t: "11:58:40", area: "buero", feature: "presence", trigger: "Neuberechnung", decision: "Belegt", result: "beobachtet", reasons: ["BLE-Präsenz erkannt"] },
+    { t: "11:42:10", area: "kueche", feature: "presence", trigger: "Neuberechnung", decision: "Frei", result: "beobachtet", reasons: ["Zeitgeber abgelaufen"] },
+    { t: "11:30:05", area: "kueche", feature: "light", trigger: "Präsenz", decision: "Keine Aktion", result: "übersprungen", reasons: [] },
+    { t: "10:20:44", area: "bad", feature: "fan", trigger: "Luftfeuchte", decision: "Lüften", result: "ausgeführt", reasons: ["Schwellwert überschritten"] }
+  ],
+  diagnostics: { security: 0, technical: 0, missing: 3, normal: 5 }
+};
+const TRACE_LIMIT = 20;
+const PHYSICAL = (a) => a.type === "area" || a.type === "exterior";
+
+/* ================= Icons (lokale Strich-Symbole, kein CDN) ================= */
+const ICON = {
+  sofa: "M4 11V9a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v2M3 11h18v5H3zM5 16v3M19 16v3",
+  kitchen: "M8 3v18M5 3v5a3 3 0 0 0 6 0V3M16 21V3c-2 1-3 3-3 6s1 4 3 4",
+  door: "M6 3h12v18H6zM15 12h.01",
+  shower: "M8 3v4M5 7h6M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2M9 13v-1M12 13v-1M15 13v-1",
+  bed: "M3 18V7M3 14h18v4M21 14v-3a3 3 0 0 0-3-3h-7v6M7 11.5a1.5 1.5 0 1 0 0-.01",
+  desk: "M3 4h18v12H3zM8 20h8M12 16v4",
+  tree: "M12 3l6 9h-3l4 6H5l4-6H6zM12 18v3",
+  room: "M4 4h16v16H4z",
+  temp: "M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z",
+  drop: "M12 3c3 4 6 7 6 10a6 6 0 0 1-12 0c0-3 3-6 6-10z",
+  co2: "M4 14a4 4 0 0 1 3-7 5 5 0 0 1 9 1 4 4 0 0 1 2 6H4z",
+  motion: "M12 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM9 21l1-6-2-3 2-2 3 2 2 3 2 1",
+  bulb: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3 11v2h6v-2a6 6 0 0 0-3-11z",
+  fan: "M12 12c-3-2-3-6 0-8 2 0 3 3 0 8zM12 12c2 3 6 3 8 0 0-2-3-3-8 0zM12 12c-3 2-6 1-7-1 0-2 3-3 7 1zM12 12c1 3 0 7-3 8-1-2 0-5 3-8z",
+  clean: "M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z",
+  users: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0M17 11a3 3 0 1 0 0-6M21 20a5 5 0 0 0-4-5",
+  alert: "M12 3l10 18H2zM12 10v5M12 18h.01",
+  check: "M5 12l4 4 10-10",
+  wifi: "M2 9a15 15 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M12 20h.01",
+  chev: "M9 6l6 6-6 6",
+  home: "M3 11l9-7 9 7M5 10v10h14V10M9 20v-6h6v6",
+  list: "M4 6h16M4 12h16M4 18h16",
+  gauge: "M4 16a8 8 0 1 1 16 0M12 16l4-4",
+  shield: "M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z",
+  edit: "M4 20h4L19 9l-4-4L4 16z",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+  info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7h.01",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2"
+};
+function svg(name) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("viewBox", "0 0 24 24");
+  s.setAttribute("class", "i");
+  s.setAttribute("aria-hidden", "true");
+  s.setAttribute("focusable", "false");
+  const p = document.createElementNS(s.namespaceURI, "path");
+  p.setAttribute("d", ICON[name] || ICON.room);
+  s.append(p);
+  return s;
+}
+const AREA_ICON = { wohnzimmer: "sofa", kueche: "kitchen", flur: "door", "gaeste-wc-mit-sehr-langem-namen": "shower", schlafzimmer: "bed", buero: "desk", bad: "shower", keller: "tree" };
+const FEATURE_ICON = { presence: "motion", light: "bulb", climate: "temp", fan: "fan" };
+const FEATURE_LABEL = { presence: "Präsenz", light: "Lichtautomatik", climate: "Klimaautomatik", fan: "Lüftung" };
+const RESULT_LABEL = { beobachtet: "Beobachtet", ausgeführt: "Ausgeführt", übersprungen: "Übersprungen" };
+const PRESENCE_LABEL = { occupied: "Belegt", clear: "Frei", unknown: "Unbekannt", unavailable: "Nicht verfügbar" };
+const PRESENCE_CLS = { occupied: "ok", clear: "muted", unknown: "warn", unavailable: "warn" };
+const PRESENCE_DOT = { occupied: "var(--success-color)", clear: "var(--neutral-color)", unknown: "var(--warning-color)", unavailable: "var(--warning-color)" };
+const STATE_LABEL = { bright: "Hell", dark: "Dunkel", sleep: "Schlaf", extended: "Erweitert", accent: "Akzent" };
+const CLEAN = {
+  overdue: { label: "Überfällig", cls: "err", order: 0 },
+  due_today: { label: "Heute fällig", cls: "warn", order: 1 },
+  due_soon: { label: "Bald fällig", cls: "warn", order: 2 },
+  not_due: { label: "Nicht fällig", cls: "muted", order: 3 },
+  none: { label: "Keine Daten", cls: "muted", order: 4 },
+  disabled: { label: "Deaktiviert", cls: "muted", order: 5 }
+};
+
+/* ================= Zustand (lokal, folgenlos) ================= */
+const S = {
+  role: "admin", theme: "light", width: 1280,
+  view: "overview", areaId: null, filter: "all", search: "",
+  traceArea: "wohnzimmer", traceFeature: "all", traceResult: "all",
+  conn: "connected", unknownMode: false, saveFail: false, loading: false, empty: false,
+  off: { env: false, clean: false, usage: false, light: false, climate: false },
+  forms: {}, saving: false, savingKey: null, confirmDelete: false, confirmLeave: false, pendingNav: null,
+  notice: null, restoreFocus: null
+};
+
+/* ================= Hilfen (textContent statt innerHTML) ================= */
+const $ = (sel) => document.querySelector(sel);
+function el(tag, attrs, ...children) {
+  const n = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    n.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return n;
+}
+const num = (v, unit) => (v === null || v === undefined) ? null : `${String(v).replace(".", ",")}${unit || ""}`;
+const minutesOf = (s) => { if (!s) return null; const h = /(\d+) h/.exec(s); const m = /(\d+) min/.exec(s); return (h ? +h[1] * 60 : 0) + (m ? +m[1] : 0); };
+
+/* Präsenz: Bei Verbindungsverlust bleibt der letzte bekannte Wert erhalten, nur als veraltet gekennzeichnet. */
+function presenceOf(a) {
+  if (S.unknownMode && a.id === "buero") return "unknown";
+  return a.presence;
+}
+const isStale = () => S.conn === "lost";
+function visibleAreas() {
+  return MOCK.areas.filter(a => {
+    const p = presenceOf(a);
+    switch (S.filter) {
+      case "occupied": return p === "occupied";
+      case "clear": return p === "clear";
+      case "unknown": return p === "unknown";
+      case "unavailable": return p === "unavailable";
+      case "env": return a.envWarn > 0 && a.envOn && !S.off.env;
+      case "tech": return a.sources.unavailable > 0;
+      case "warn": return a.warn > 0 || a.cleanState === "overdue";
+      default: return true;
+    }
+  }).filter(a => !S.search || a.name.toLowerCase().includes(S.search.toLowerCase()));
+}
+
+/* ================= Navigation ================= */
+const GROUPS = [
+  { key: "monitoring", label: "Monitoring", items: [["overview", "Überblick"], ["areas", "Bereiche"], ["environment", "Raumklima"], ["cleaning", "Reinigung"], ["usage", "Raumnutzung"]] },
+  { key: "analysis", label: "Analyse", admin: true, items: [["lighting", "Lichtautomatik"], ["climate", "Klimaautomatik"], ["trace", "Decision Trace"], ["diagnostics", "Diagnose"]] },
+  { key: "admin", label: "Verwaltung", admin: true, items: [["settings", "Globale Einstellungen"], ["manage", "Bereichsverwaltung"]] }
+];
+const ADMIN_VIEWS = ["lighting", "climate", "trace", "diagnostics", "settings", "manage", "editor"];
+const FEATURE_VIEWS = { environment: "envOn", cleaning: "cleanOn", usage: "usageOn" };
+const groupOf = (view) => {
+  if (view === "area") return "monitoring";
+  if (view === "editor") return "admin";
+  return (GROUPS.find(g => g.items.some(([k]) => k === view)) || GROUPS[0]).key;
+};
+function visibleGroups() { return GROUPS.filter(g => !g.admin || S.role === "admin"); }
+/* Feature-Zustand: unabhängig pro Feature. Global aus, für Bereich aus, aktiv (Daten vorhanden oder nicht). */
+const FEAT = { env: { flag: "envOn" }, clean: { flag: "cleanOn" }, usage: { flag: "usageOn" }, light: { flag: "light" }, climate: { flag: "climate" } };
+const VIEW_FEATURE = { environment: "env", cleaning: "clean", usage: "usage", lighting: "light", climate: "climate" };
+function featureState(key, a) {
+  if (S.off[key]) return "global-off";
+  if (a && a[FEAT[key].flag] === false) return "area-off";
+  return "on";
+}
+/* Formularmodell: je Formular Basis (letzter Stand), Entwurf und Ergebnis des letzten Speicherns. */
+function formKeyOf(view, areaId) {
+  if (view === "settings") return "settings";
+  if (view === "editor") return "editor:" + (areaId || MOCK.areas[0].id);
+  return null;
+}
+function currentFormKey() { return formKeyOf(S.view, S.areaId); }
+function formBase(key) {
+  if (key === "settings") return { wx: "w2", lx: "l1" };
+  const a = MOCK.areas.find(x => x.id === key.split(":")[1]) || MOCK.areas[0];
+  return { en: a.name, ef: a.floor, eto: "300", "fx-light": !!a.light, "fx-climate": !!a.climate };
+}
+function formOf(key) {
+  if (!S.forms[key]) { const b = formBase(key); S.forms[key] = { base: { ...b }, draft: { ...b }, result: null }; }
+  return S.forms[key];
+}
+function isDirtyKey(key) { const f = S.forms[key]; return !!f && JSON.stringify(f.draft) !== JSON.stringify(f.base); }
+function anyDirty(exceptKey) { return Object.keys(S.forms).some(k => k !== exceptKey && isDirtyKey(k)); }
+function discardKey(key) { return () => { const f = formOf(key); f.draft = { ...f.base }; f.result = null; render(); }; }
+function discardAll() { Object.keys(S.forms).forEach(k => { if (isDirtyKey(k)) { S.forms[k].draft = { ...S.forms[k].base }; S.forms[k].result = null; } }); }
+function updateSaveButtons(key) {
+  const can = !!key && isDirtyKey(key) && !S.saving && S.conn !== "lost";
+  document.querySelectorAll("#view button.primary").forEach(b => { b.disabled = !can; });
+}
+function setFilter(f) { S.filter = S.filter === f ? "all" : f; render(); }
+
+function renderNav() {
+  const groups = $("#groups"), sub = $("#subnav");
+  groups.replaceChildren(); sub.replaceChildren();
+  const current = groupOf(S.view);
+  const vg = visibleGroups();
+  if (vg.length > 1) for (const g of vg) {
+    groups.append(el("button", { type: "button", "data-fk": "grp-" + g.key, "aria-current": current === g.key ? "true" : null, onclick: () => go(g.items[0][0]) }, g.label));
+  } else {
+    groups.append(el("span", { class: "grp-label muted" }, "Monitoring"));
+  }
+  const g = GROUPS.find(x => x.key === current);
+  for (const [key, label] of g.items) {
+    if (S.role !== "admin" && ADMIN_VIEWS.includes(key)) continue;
+    const f = VIEW_FEATURE[key];
+    if (f && S.off[f]) continue;
+    sub.append(el("button", { type: "button", "data-fk": "nav-" + key, "aria-current": S.view === key ? "true" : null, onclick: () => go(key) }, label));
+  }
+}
+/* Navigation: Bei ungespeicherten Änderungen erst Bestätigung, während eines Speicherns gesperrt. */
+function go(view, areaId) {
+  if (S.saving) { S.notice = "Speichern läuft. Bitte warte, bis es abgeschlossen ist."; render(); return; }
+  if (ADMIN_VIEWS.includes(view) && S.role !== "admin") view = "overview";
+  const targetKey = formKeyOf(view, areaId !== undefined ? areaId : S.areaId);
+  if (anyDirty(targetKey)) { S.pendingNav = { kind: "go", view, areaId }; S.confirmLeave = true; render(); return; }
+  applyGo(view, areaId);
+}
+function applyGo(view, areaId) {
+  if (areaId !== undefined) S.areaId = areaId;
+  S.view = view; S.confirmDelete = false; S.confirmLeave = false; S.pendingNav = null; S.notice = null;
+  render();
+  $("#view").focus();
+}
+function confirmLeaveYes() {
+  const p = S.pendingNav;
+  discardAll();
+  S.confirmLeave = false; S.pendingNav = null; S.notice = "Ungespeicherte Änderungen wurden verworfen.";
+  if (p && p.kind === "role") {
+    S.role = p.role; if (S.role !== "admin" && ADMIN_VIEWS.includes(S.view)) S.view = "overview";
+    render();
+  } else if (p) {
+    if (p.areaId !== undefined) S.areaId = p.areaId;
+    S.view = p.view; S.confirmDelete = false; render(); $("#view").focus();
+  } else render();
+}
+function leaveDialogNode() {
+  return el("dialog", { id: "leave-dialog", "aria-labelledby": "leave-title" },
+    el("h2", { id: "leave-title", style: "font-size:16px;margin:0 0 12px" }, "Ungespeicherte Änderungen verwerfen?"),
+    el("p", null, "Die Eingaben sind noch nicht gespeichert. Beim Verlassen gehen sie verloren."),
+    el("div", { class: "actions" },
+      el("button", { type: "button", onclick: () => { S.confirmLeave = false; S.pendingNav = null; S.restoreFocus = "nav-" + S.view; render(); } }, "Bleiben"),
+      el("button", { type: "button", class: "danger", onclick: confirmLeaveYes }, "Verwerfen")));
+}window.AA = { go, state: S, setConn: (c) => { S.conn = c; render(); } };
+
+/* ================= Kopfzeile: Verbindungsstatus und letzte Aktualisierung ================= */
+function renderConn() {
+  const c = $("#conn"); c.replaceChildren();
+  const map = {
+    connected: ["ok", "var(--success-color)", "Verbunden"],
+    lost: ["err", "var(--error-color)", "Verbindung unterbrochen"],
+    loading: ["muted", "var(--neutral-color)", "Lädt …"]
+  };
+  const [cls, color, label] = map[S.conn];
+  c.append(el("span", { class: `pill ${cls}` }, el("span", { class: "dot", style: `background:${color}`, "aria-hidden": "true" }), label));
+  c.append(el("span", null, `Letzte erfolgreiche Aktualisierung: ${MOCK.lastUpdate}${isStale() ? " (veraltet)" : ""}`));
+}
+
+/* ================= Bausteine ================= */
+function bannerLost() {
+  if (!isStale()) return null;
+  return el("div", { class: "banner error", role: "alert" },
+    el("strong", null, "Verbindung unterbrochen. "),
+    `Die Daten sind veraltet (Stand ${MOCK.lastUpdate}). Werte sind als „zuletzt bekannt“ gekennzeichnet; neue Zustände werden nicht angenommen.`);
+}
+function kpi(icon, label, value, unit, sub, onclick, active, fk) {
+  const label2 = `${label}: ${value}${unit ? " " + unit : ""}. ${sub}`;
+  const body = [el("span", { class: "top2" }, el("span", null, label), svg(icon)),
+    el("span", { class: "v" }, value, unit ? el("small", null, " " + unit) : null),
+    el("span", { class: "s" }, sub)];
+  if (!onclick) return el("div", { class: "kpi kpi-static", "aria-label": label2 }, body);
+  return el("button", { type: "button", class: "kpi" + (active ? " active" : ""), "aria-pressed": active ? "true" : "false", "data-fk": fk, "aria-label": label2, onclick }, body);
+}
+/* ================= Übersicht ================= */
+function areaCard(a) {
+  const p = presenceOf(a);
+  const ctx = [];
+  if (featureState("env", a) === "on" && a.envWarn > 0) ctx.push(el("div", { class: "warnline" }, svg("alert"), `Umwelt: ${a.envWarn} ${a.envWarn === 1 ? "Hinweis" : "Hinweise"}`));
+  if (featureState("clean", a) === "on" && (a.cleanState === "overdue" || a.cleanState === "due_today")) ctx.push(el("div", { class: a.cleanState === "overdue" ? "techline" : "warnline" }, svg("clean"), `Reinigung ${CLEAN[a.cleanState].label.toLowerCase()}`));
+  if (S.role === "admin" && featureState("light", a) === "on" && a.lights && a.lights.on > 0) ctx.push(el("div", { class: "muted" }, svg("bulb"), `${a.lights.on} von ${a.lights.total} Leuchten an`));
+  if (a.sources.unavailable > 0) ctx.push(el("div", { class: "techline" }, svg("wifi"), `Technisch: ${a.sources.unavailable} ${a.sources.unavailable === 1 ? "Quelle" : "Quellen"} nicht verfügbar`));
+  const metric = (icon, label, value, key) => {
+    const s = featureState(key, a);
+    const lbl = el("span", { class: "lbl" }, svg(icon), label);
+    if (s === "global-off") return el("div", { class: "metric" }, lbl, el("span", { class: "val none" }, "Deaktiviert (global)"));
+    if (s === "area-off") return el("div", { class: "metric" }, lbl, el("span", { class: "val none" }, "Für Bereich aus"));
+    if (value === null) return el("div", { class: "metric" }, lbl, el("span", { class: "val none" }, "Keine Daten"));
+    return el("div", { class: "metric" }, lbl, el("span", { class: "val" }, value));
+  };
+  const states = a.states.map(s => el("span", { class: "pill" }, STATE_LABEL[s]));
+  return el("button", { type: "button", class: "card-link", "data-fk": "card-" + a.id, "aria-label": `${a.name}, ${PRESENCE_LABEL[p]}${isStale() ? ", zuletzt bekannt" : ""}`, onclick: () => go("area", a.id) },
+    el("span", { class: "card-head" },
+      el("span", { class: "tile" }, svg(AREA_ICON[a.id] || "room")),
+      el("span", { class: "name" }, a.name),
+      el("span", { class: `status ${PRESENCE_CLS[p]}` }, el("span", { class: "dot", style: `background:${PRESENCE_DOT[p]}`, "aria-hidden": "true" }), PRESENCE_LABEL[p]),
+      el("span", { class: "chev" }, svg("chev"))),
+    isStale() ? el("span", { class: "muted stale" }, `zuletzt bekannt · Stand ${MOCK.lastUpdate}`) : null,
+    el("span", { class: "metrics" },
+      metric("temp", "Temperatur", num(a.temp, " °C"), "env"),
+      metric("drop", "Feuchte", num(a.hum, " %"), "env"),
+      metric("co2", "CO₂", num(a.co2, " ppm"), "env")),
+    states.length ? el("span", { class: "chips-line" }, states) : null,
+    ctx.length ? el("span", { class: "ctx" }, ctx) : null);
+}
+function metaRow() {
+  const stale = isStale();
+  return el("div", { class: "meta-row", "aria-label": "Aggregierte Meta-Areas (nicht in den Kennzahlen gezählt)" },
+    MOCK.meta.map(m => {
+      const occ = m.members.map(id => MOCK.areas.find(a => a.id === id)).filter(a => presenceOf(a) === "occupied").length;
+      return el("div", { class: "meta-card" },
+        el("span", { class: "muted", style: "font-size:12px" }, `Meta-Area · ${m.kind}`),
+        el("span", { class: "name", style: "font-size:14px" }, m.name),
+        el("span", { class: "muted" }, `${m.members.length} Bereiche`),
+        stale
+          ? el("span", { class: "muted stale" }, `Zuletzt bekannt: ${occ} belegt (Stand ${MOCK.lastUpdate})`)
+          : el("span", { class: "muted" }, `${occ} belegt`));
+    }));
+}
+function viewOverview() {
+  if (S.empty) return { node: el("div", { class: "section" },
+    el("h2", null, "Noch keine Bereiche konfiguriert"),
+    el("p", { class: "lead" }, "Lege Bereiche in der Integration an. Danach erscheinen Status, Umwelt und Entscheidungen hier."),
+    el("p", { class: "muted" }, "Prototyp-Zustand „Leer“ (URL-Parameter empty=1).")) };
+  const physical = MOCK.areas.filter(PHYSICAL);
+  const known = physical.filter(a => ["occupied", "clear"].includes(presenceOf(a)));
+  const occupied = known.filter(a => presenceOf(a) === "occupied").length;
+  const unknownN = physical.filter(a => presenceOf(a) === "unknown").length;
+  const unavailableN = physical.filter(a => presenceOf(a) === "unavailable").length;
+  const envHints = MOCK.areas.filter(a => a.envOn && !S.off.env).reduce((n, a) => n + a.envWarn, 0);
+  const techN = MOCK.areas.reduce((n, a) => n + a.sources.unavailable, 0);
+  const wrap = el("div");
+  const lost = bannerLost(); if (lost) wrap.append(lost);
+  wrap.append(el("p", { class: "lead" }, "Monitoring und Verwaltung · Nur Anzeige, Änderungen nur für Administratoren"));
+  const belegt = isStale()
+    ? kpi("eye", "Belegt", "—", "", `Zuletzt bekannt: ${occupied} von ${known.length} (Stand ${MOCK.lastUpdate})`, null)
+    : kpi("users", "Belegt", String(occupied), `von ${known.length}`, `${unknownN ? unknownN + " unbekannt" : "alle Werte bekannt"}${unavailableN ? " · " + unavailableN + " nicht verfügbar" : ""}`, () => setFilter("occupied"), S.filter === "occupied", "kpi-occupied");
+  const env = S.off.env
+    ? kpi("info", "Umwelthinweise", "—", "", "Feature global deaktiviert", null)
+    : kpi("gauge", "Umwelthinweise", String(envHints), "", envHints ? "Fachliche Hinweise" : "Keine Hinweise", () => setFilter("env"), S.filter === "env", "kpi-env");
+  const tech = kpi(techN ? "alert" : "check", "Technische Auffälligkeiten", String(techN), "", techN ? `${techN} Quellen nicht verfügbar` : "Keine Auffälligkeiten", () => setFilter("tech"), S.filter === "tech", "kpi-tech");
+  wrap.append(el("div", { class: "kpis" },
+    kpi("home", "Physische Bereiche", String(physical.length), "", `Innen ${physical.filter(a => a.type === "area").length} · Außen ${physical.filter(a => a.type === "exterior").length}`, null),
+    belegt, env, tech));
+  wrap.append(metaRow());
+  wrap.append(el("div", { class: "filters" },
+    el("div", { class: "search" }, el("label", { for: "search" }, "Bereich suchen"),
+      el("input", { id: "search", type: "search", value: S.search, placeholder: "Bereichsname", oninput: (e) => { S.search = e.target.value; renderOverviewGrid(); } })),
+    el("div", { class: "chips", role: "group", "aria-label": "Filter" }, [
+      ["all", "Alle"], ["occupied", "Belegt"], ["clear", "Frei"], ["unknown", "Unbekannt"], ["unavailable", "Nicht verfügbar"], ["env", "Umwelthinweise"], ["tech", "Technisch"], ["warn", "Auffälligkeiten"]
+    ].map(([k, label]) => el("button", { type: "button", "data-fk": "chip-" + k, "aria-pressed": S.filter === k ? "true" : "false", onclick: () => { S.filter = k; render(); } }, label)))));
+  wrap.append(el("div", { id: "grid-host" }));
+  return { node: wrap, after: renderOverviewGrid };
+}
+function renderOverviewGrid() {
+  const host = $("#grid-host"); if (!host) return;
+  const list = visibleAreas();
+  const frag = el("div");
+  if (!list.length) frag.append(el("div", { class: "placeholder" }, "Keine Bereiche für diesen Filter. Filter oder Suche zurücksetzen."));
+  for (const f of [...new Set(list.map(a => a.floor))]) {
+    frag.append(el("div", { class: "floor" }, f));
+    frag.append(el("div", { class: S.width >= 1200 ? "grid wide" : "grid" }, list.filter(a => a.floor === f).map(areaCard)));
+  }
+  host.replaceChildren(frag);
+}
+
+/* ================= Bereiche und Verwaltung ================= */
+function viewAreas() {
+  return { node: el("div", null,
+    isStale() ? bannerLost() : null,
+    el("h2", { class: "h1" }, "Bereiche"),
+    el("p", { class: "lead" }, "Wähle einen Bereich für Details."),
+    el("div", { class: "grid" }, MOCK.areas.map(a => el("button", { type: "button", class: "card-link", onclick: () => go("area", a.id) },
+      el("span", { class: "card-head" }, el("span", { class: "tile" }, svg(AREA_ICON[a.id] || "room")), el("span", { class: "name" }, a.name), el("span", { class: "muted", style: "grid-column:2;overflow-wrap:anywhere" }, a.floor), el("span", { class: "chev" }, svg("chev"))),
+      el("span", { class: `status ${PRESENCE_CLS[presenceOf(a)]}` }, PRESENCE_LABEL[presenceOf(a)]))))) };
+}
+function viewManage() {
+  return { node: el("div", null,
+    el("h2", { class: "h1" }, "Bereichsverwaltung"),
+    el("p", { class: "lead" }, "Bereiche bearbeiten. Änderungen werden erst nach Bestätigung durch das Backend wirksam (hier nur simuliert)."),
+    el("div", { class: "section" }, MOCK.areas.map(a => el("div", { class: "item" },
+      el("span", null, el("span", { class: "t" }, a.name), el("div", { class: "m", style: "text-align:left" }, `${a.floor} · ${a.type === "exterior" ? "Außen" : "Innen"}`)),
+      el("button", { type: "button", onclick: () => go("editor", a.id) }, svg("edit"), " Bearbeiten"))))) };
+}
+
+/* ================= Bereichsdetail ================= */
+function viewArea() {
+  const a = MOCK.areas.find(x => x.id === S.areaId) || MOCK.areas[0];
+  const p = presenceOf(a);
+  const admin = S.role === "admin";
+  const stale = isStale();
+  const note = (k) => { const s = featureState(k, a); return s === "global-off" ? "Global deaktiviert. Es werden keine Werte angezeigt." : s === "area-off" ? "Für diesen Bereich deaktiviert." : null; };
+  const wrap = el("div");
+  wrap.append(el("button", { type: "button", onclick: () => go("areas") }, "← Bereiche"));
+  wrap.append(el("div", { class: "card-head", style: "margin:16px 0 4px;grid-template-columns:40px minmax(0,1fr)" },
+    el("span", { class: "tile" }, svg(AREA_ICON[a.id] || "room")),
+    el("span", null, el("div", { class: "h1", style: "margin:0;overflow-wrap:anywhere" }, a.name), el("div", { class: "muted", style: "font-size:13px" }, `${a.floor} · ${a.type === "exterior" ? "Außenbereich" : "Innenbereich"}`))));
+  const lost = bannerLost(); if (lost) wrap.append(lost);
+  const presence = el("section", { class: "section" }, el("h2", null, svg("motion"), "Präsenz"),
+    el("dl", { class: "kv" },
+      el("dt", null, "Zustand"), el("dd", { class: `status ${PRESENCE_CLS[p]}` }, PRESENCE_LABEL[p], stale ? el("span", { class: "muted stale" }, " · zuletzt bekannt") : null),
+      el("dt", null, "Seit"), el("dd", null, a.since || "Keine Daten"),
+      el("dt", null, "Präsenzquellen"), el("dd", null, `${a.sources.active} von ${a.sources.total} aktiv`),
+      el("dt", null, "Zusatzzustände"), el("dd", null, a.states.length ? a.states.map(s => STATE_LABEL[s]).join(" · ") : "Keine")));
+  const envBody = note("env") ? el("p", { class: "muted" }, note("env")) :
+    (a.temp === null && a.hum === null && a.co2 === null ? el("p", { class: "muted" }, "Aktiv, keine Messwerte vorhanden.") :
+      el("dl", { class: "kv" },
+        el("dt", null, "Temperatur"), el("dd", null, num(a.temp, " °C") || "Keine Daten"),
+        el("dt", null, "Luftfeuchte"), el("dd", null, num(a.hum, " %") || "Keine Daten"),
+        el("dt", null, "CO₂"), el("dd", null, num(a.co2, " ppm") || "Keine Daten")));
+  const env = el("section", { class: "section" }, el("h2", null, svg("gauge"), "Raumklima"), envBody,
+    stale && !note("env") ? el("p", { class: "muted stale", style: "margin:8px 0 0" }, `Zuletzt bekannte Werte vom ${MOCK.lastUpdate}.`) : null);
+  const clean = note("clean") ? el("section", { class: "section" }, el("h2", null, svg("clean"), "Reinigung"), el("p", { class: "muted" }, note("clean")))
+    : el("section", { class: "section" }, el("h2", null, svg("clean"), "Reinigung"),
+        el("dl", { class: "kv" },
+          el("dt", null, "Fälligkeit"), el("dd", { class: CLEAN[a.cleanState].cls }, CLEAN[a.cleanState].label, a.cleanLabel ? ` · ${a.cleanLabel}` : ""),
+          el("dt", null, "Score"), el("dd", null, a.cleanScore === null ? "Keine Daten" : `${a.cleanScore} von 100`)));
+  const usage = note("usage") ? el("section", { class: "section" }, el("h2", null, svg("clock"), "Raumnutzung"), el("p", { class: "muted" }, note("usage")))
+    : el("section", { class: "section" }, el("h2", null, svg("clock"), "Raumnutzung heute"), el("p", null, a.usage ? a.usage : "Keine Daten"));
+  const health = el("section", { class: "section" }, el("h2", null, svg("shield"), "Zustand"),
+    el("p", null, a.warn + a.envWarn > 0 ? `${a.warn + a.envWarn} fachliche Hinweise` : "Keine fachlichen Hinweise"),
+    a.sources.unavailable ? el("p", { class: "techline" }, `Technisch: ${a.sources.unavailable} Quelle(n) nicht verfügbar`) : null);
+  const light = admin ? (note("light") ? el("section", { class: "section" }, el("h2", null, svg("bulb"), "Lichtautomatik"), el("p", { class: "muted" }, note("light") || "Nicht für diesen Bereich aktiviert."))
+    : el("section", { class: "section" }, el("h2", null, svg("bulb"), "Lichtautomatik"),
+        a.lights ? el("p", null, `${a.lights.on} von ${a.lights.total} Leuchten an`) : el("p", { class: "muted" }, "Aktiv, keine Leuchtendaten."),
+        el("button", { type: "button", onclick: () => go("lighting") }, "Zur Lichtautomatik"))) : null;
+  const items = MOCK.trace.filter(t => t.area === a.id).sort((x, y) => y.t.localeCompare(x.t));
+  const trace = admin ? el("section", { class: "section" }, el("h2", null, svg("list"), "Letzte Entscheidungen"),
+    stale ? el("p", { class: "muted stale", style: "margin:0 0 8px" }, `Liste zuletzt aktualisiert: Stand ${MOCK.lastUpdate} (veraltet). Die Einträge sind historische Fakten.`) : null,
+    items.length ? el("ul", { class: "timeline" }, items.slice(0, 3).map(traceItem)) : el("p", { class: "muted" }, "Keine Entscheidungen aufgezeichnet."),
+    el("button", { type: "button", onclick: () => { S.traceArea = a.id; go("trace"); } }, "Alle Entscheidungen")) : null;
+  const manage = admin ? el("div", { class: "actions start" }, el("button", { type: "button", onclick: () => go("editor", a.id) }, svg("edit"), " Bereich bearbeiten")) : null;
+  wrap.append(el("div", { class: "two" },
+    el("div", null, presence, env, health),
+    el("div", null, clean, usage, light, trace, manage)));
+  return { node: wrap };
+}
+/* ================= Raumklima ================= */
+function barChart(title, unit, scale, key, icon) {
+  const rows = MOCK.areas.filter(a => a.envOn).map(a => {
+    const v = a[key];
+    const label = v === null ? "Keine Daten" : num(v, " " + unit);
+    if (v === null) return el("div", { class: "bar-row" }, el("div", { class: "row" }, el("span", null, a.name), el("span", { class: "muted" }, label)), el("div", { class: "skeleton", "aria-label": `${a.name}: keine Daten` }));
+    const pct = Math.max(0, Math.min(100, (v - scale[0]) / (scale[1] - scale[0]) * 100));
+    return el("div", { class: "bar-row" },
+      el("div", { class: "row" }, el("span", null, a.name), el("span", null, label)),
+      el("div", { class: "bar", role: "img", "aria-label": `${a.name}: ${label}` }, el("span", { style: `width:${pct.toFixed(1)}%` })));
+  });
+  return el("section", { class: "section" }, el("h2", null, svg(icon), title),
+    el("div", { class: "bars" }, rows),
+    el("div", { class: "axis", "aria-hidden": "true" }, el("span", null, `${scale[0]} ${unit}`), el("span", null, `${scale[1]} ${unit}`)),
+    el("p", { class: "legend" }, `Skala nur zur Darstellung (${scale[0]}–${scale[1]} ${unit}). Keine Bewertung, keine Grenzwerte.`));
+}
+function viewEnvironment() {
+  if (S.off.env) return { node: el("div", { class: "placeholder" }, el("strong", null, "Raumklima ist global deaktiviert."), el("p", null, "Aktivierung unter Einstellungen → Funktionen. Es werden keine Werte angezeigt.")) };
+  const areaOff = MOCK.areas.filter(a => !a.envOn);
+  return { node: el("div", null,
+    isStale() ? bannerLost() : null,
+    el("h2", { class: "h1" }, "Raumklima"),
+    el("p", { class: "lead" }, "Vergleich vorhandener Messwerte. Fehlende Werte sind „Keine Daten“, nicht 0. Außenbereiche dienen nur als Referenz."),
+    areaOff.length ? el("p", { class: "muted" }, "Für diese Bereiche deaktiviert: " + areaOff.map(a => a.name).join(", ")) : null,
+    el("div", { class: "two" },
+      el("div", null, barChart("Temperatur", "°C", [10, 30], "temp", "temp"), barChart("Luftfeuchte", "%", [0, 100], "hum", "drop")),
+      el("div", null, barChart("CO₂", "ppm", [400, 1500], "co2", "co2"),
+        el("section", { class: "section" }, el("h2", null, svg("info"), "Einordnung"),
+          el("p", { class: "muted" }, "Klassifikationen und Hinweise kommen aus der Integration. Dieser Prototyp erfindet keine Einordnung."),
+          el("p", { class: "muted" }, `Umwelthinweise im Prototyp: ${MOCK.areas.reduce((n, a) => n + a.envWarn, 0)} (Büro CO₂, Bad Feuchte).`)))),
+    el("details", { class: "more" }, el("summary", null, "Tabellenansicht"),
+      el("div", { class: "section table-wrap" }, el("table", null,
+        el("thead", null, el("tr", null, el("th", { scope: "col" }, "Bereich"), el("th", { scope: "col" }, "Temperatur"), el("th", { scope: "col" }, "Feuchte"), el("th", { scope: "col" }, "CO₂"))),
+        el("tbody", null, MOCK.areas.filter(a => a.envOn).map(a => el("tr", null, el("th", { scope: "row" }, a.name), el("td", null, num(a.temp, " °C") || "Keine Daten"), el("td", null, num(a.hum, " %") || "Keine Daten"), el("td", null, num(a.co2, " ppm") || "Keine Daten")))))))) };
+}
+/* ================= Reinigung ================= */
+function viewCleaning() {
+  if (S.off.clean) return { node: el("div", { class: "placeholder" }, el("strong", null, "Reinigung ist global deaktiviert."), el("p", null, "Es werden keine Fälligkeiten angezeigt.")) };
+  const groups = ["overdue", "due_today", "due_soon", "not_due", "none", "disabled"];
+  const stateOf = (a) => (a.cleanOn ? a.cleanState : "disabled");
+  const count = (k) => MOCK.areas.filter(a => stateOf(a) === k).length;
+  return { node: el("div", null,
+    isStale() ? bannerLost() : null,
+    el("h2", { class: "h1" }, "Reinigung"),
+    el("p", { class: "lead" }, "Nach Fälligkeit priorisiert. Nur Anzeige, keine Steuerung."),
+    el("div", { class: "kpi-row" }, groups.map(k => el("div", { class: "kpi kpi-static" },
+      el("span", { class: "top2" }, el("span", null, CLEAN[k].label), svg("clean")),
+      el("span", { class: "v" }, String(count(k))),
+      el("span", { class: "s" }, k === "disabled" ? "für Bereiche deaktiviert" : k === "none" ? "nicht als fällig gezählt" : "Bereiche")))),
+    el("div", { class: "two" }, groups.map(k => {
+      const list = MOCK.areas.filter(a => stateOf(a) === k);
+      return el("section", { class: "section" }, el("h2", null, el("span", { class: CLEAN[k].cls }, CLEAN[k].label), el("span", { class: "muted", style: "font-weight:400" }, ` · ${list.length}`)),
+        list.length ? list.map(a => el("div", { class: "item" }, el("span", { class: "t" }, a.name), el("span", { class: "m" }, a.cleanOn ? (a.cleanLabel || "") : "Für Bereich aus")))
+          : el("p", { class: "muted" }, "Keine Bereiche in dieser Gruppe."));
+    }))) };
+}
+/* ================= Raumnutzung ================= */
+function viewUsage() {
+  if (S.off.usage) return { node: el("div", { class: "placeholder" }, el("strong", null, "Raumnutzung ist global deaktiviert."), el("p", null, "Es werden keine Nutzungsdaten angezeigt.")) };
+  const withData = MOCK.areas.filter(a => a.usageOn && a.usageMin !== null).sort((x, y) => y.usageMin - x.usageMin);
+  const without = MOCK.areas.filter(a => a.usageOn && a.usageMin === null);
+  const off = MOCK.areas.filter(a => !a.usageOn);
+  const maxMin = Math.max(480, ...withData.map(a => a.usageMin));
+  const scaleMax = Math.ceil(maxMin / 120) * 120;
+  const ticks = []; for (let m = 0; m <= scaleMax; m += 120) ticks.push(m);
+  return { node: el("div", null,
+    isStale() ? bannerLost() : null,
+    el("h2", { class: "h1" }, "Raumnutzung heute"),
+    el("p", { class: "lead" }, "Vergleich vorhandener Nutzungsdaten, längste Nutzung zuerst. Keine Historie, keine Persistenz. Fehlende Daten sind keine 0 Minuten."),
+    el("section", { class: "section" }, el("h2", null, svg("clock"), "Nutzung"),
+      withData.length ? el("div", { class: "bars" }, withData.map(a => el("div", { class: "bar-row" },
+        el("div", { class: "row" }, el("span", null, a.name), el("span", null, a.usage)),
+        el("div", { class: "bar", role: "img", "aria-label": `${a.name}: ${a.usage}` }, el("span", { style: `width:${(a.usageMin / scaleMax * 100).toFixed(1)}%` }))))) : el("p", { class: "muted" }, "Keine Nutzungsdaten vorhanden."),
+      el("div", { class: "axis", "aria-hidden": "true" }, ticks.map(m => el("span", null, `${m / 60} h`))),
+      el("p", { class: "legend" }, `Zeitskala 0–${scaleMax / 60} Stunden, nur Darstellung.`)),
+    without.length ? el("section", { class: "section" }, el("h2", null, "Keine Daten"), el("p", { class: "muted" }, without.map(a => a.name).join(", "))) : null,
+    off.length ? el("section", { class: "section" }, el("h2", null, "Für diese Bereiche deaktiviert"), el("p", { class: "muted" }, off.map(a => a.name).join(", "))) : null) };
+}
+/* ================= Analyse (Laufzeitdaten sind simuliert und entsprechend gekennzeichnet) ================= */
+function simTag() { return el("span", { class: "sim" }, "Simulierte Laufzeitdaten (Prototyp)"); }
+function viewLighting() {
+  const list = MOCK.areas.filter(a => a.light);
+  const off = MOCK.areas.filter(a => !a.light);
+  return { node: el("div", null,
+    el("h2", { class: "h1" }, "Lichtautomatik"),
+    el("p", { class: "lead" }, "Laufzeitstatus nur zur Anzeige. Änderungen erfolgen über die Bereichskonfiguration."), simTag(),
+    isStale() ? el("p", { class: "banner error" }, `Laufzeitstatus veraltet (Stand ${MOCK.lastUpdate}). Entscheidungen sind nicht aktuell.`) : null,
+    S.off.light ? el("div", { class: "placeholder" }, "Lichtautomatik ist global deaktiviert. Keine Laufzeitwerte.") : null,
+    !S.off.light && list.length ? el("div", { class: "two" }, list.map(a => el("section", { class: "section" }, el("h2", null, svg(AREA_ICON[a.id] || "room"), a.name),
+      el("dl", { class: "kv" },
+        el("dt", null, "Entscheidung"), el("dd", null, a.light_decision || "Keine Angabe"),
+        el("dt", null, "Manueller Eingriff"), el("dd", null, a.override || "Keiner"),
+        el("dt", null, "Präsenz"), el("dd", null, PRESENCE_LABEL[presenceOf(a)]),
+        el("dt", null, "Leuchten"), el("dd", null, a.lights ? `${a.lights.on} von ${a.lights.total} an` : "Keine Leuchtendaten"))))) : null,
+    !S.off.light && off.length ? el("p", { class: "muted" }, "Für diese Bereiche nicht aktiviert: " + off.map(a => a.name).join(", ")) : null) };
+}
+function viewClimate() {
+  const list = MOCK.areas.filter(a => a.climate);
+  return { node: el("div", null,
+    el("h2", { class: "h1" }, "Klimaautomatik"),
+    el("p", { class: "lead" }, "Nur Anzeige. Keine Solltemperatur, kein Modus, keine Hysterese."), simTag(),
+    isStale() ? el("p", { class: "banner error" }, `Laufzeitstatus veraltet (Stand ${MOCK.lastUpdate}).`) : null,
+    S.off.climate ? el("div", { class: "placeholder" }, "Klimaautomatik ist global deaktiviert. Keine Laufzeitwerte.") : null,
+    !S.off.climate && list.length ? el("div", { class: "two" }, list.map(a => el("section", { class: "section" }, el("h2", null, svg(AREA_ICON[a.id] || "room"), a.name),
+      el("dl", { class: "kv" },
+        el("dt", null, "Automatik"), el("dd", null, "Aktiv"),
+        el("dt", null, "Bereichszustand"), el("dd", null, PRESENCE_LABEL[presenceOf(a)]),
+        el("dt", null, "Aktuelles Preset"), el("dd", null, a.presence === "occupied" ? "Komfort" : "Sparmodus"),
+        el("dt", null, "Gewähltes Preset"), el("dd", null, a.presence === "occupied" ? "Komfort" : "Sparmodus"))))) : (!S.off.climate ? el("div", { class: "placeholder" }, "Keine Bereiche mit aktivierter Klimaautomatik.") : null)) };
+}
+function traceItem(t) {
+  const areaName = MOCK.areas.find(a => a.id === t.area)?.name || t.area;
+  const has = t.reasons.length > 0;
+  const resIcon = { ausgeführt: "check", beobachtet: "eye", übersprungen: "chev" }[t.result] || "info";
+  return el("li", { class: "tl" },
+    el("span", { class: "fi", "aria-hidden": "true" }, svg(FEATURE_ICON[t.feature] || "info")),
+    el("span", null,
+      el("div", { class: "ts" }, `${t.t} · ${areaName}`),
+      el("div", { class: "dec" }, `Entscheidung: ${t.decision}`, el("span", { class: "res" }, svg(resIcon), " " + (RESULT_LABEL[t.result] || t.result))),
+      el("div", { class: "meta" }, `${FEATURE_LABEL[t.feature] || t.feature} · Auslöser: ${t.trigger}`),
+      el("div", { class: has ? "why" : "why none" }, has ? "Begründung: " + t.reasons.join(" · ") : "Keine Begründung aufgezeichnet.")));
+}
+function viewTrace() {
+  const areaOpts = MOCK.areas.map(a => el("option", { value: a.id, selected: a.id === S.traceArea ? true : null }, a.name));
+  const feats = [...new Set(MOCK.trace.map(t => t.feature))];
+  const results = [...new Set(MOCK.trace.map(t => t.result))];
+  const total = MOCK.trace.filter(t => t.area === S.traceArea).length;
+  let list = MOCK.trace.filter(t => t.area === S.traceArea);
+  if (S.traceFeature !== "all") list = list.filter(t => t.feature === S.traceFeature);
+  if (S.traceResult !== "all") list = list.filter(t => t.result === S.traceResult);
+  list = [...list].sort((a, b) => b.t.localeCompare(a.t));
+  return { node: el("div", null,
+    el("h2", { class: "h1" }, "Decision Trace"),
+    el("p", { class: "lead" }, `Die letzten Entscheidungen je Bereich, neueste zuerst. Höchstens ${TRACE_LIMIT} Einträge je Bereich, nur im Speicher, keine Persistenz.`),
+    isStale() ? el("p", { class: "banner error" }, `Liste zuletzt aktualisiert: Stand ${MOCK.lastUpdate} (veraltet). Die Einträge sind historische Fakten und werden nicht als ungültig gekennzeichnet.`) : null,
+    el("div", { class: "filters" },
+      el("div", { class: "search" }, el("label", { for: "t-area" }, "Bereich"),
+        el("select", { id: "t-area", onchange: (e) => { S.traceArea = e.target.value; render(); } }, areaOpts)),
+      el("div", { class: "search" }, el("label", { for: "t-feat" }, "Feature"),
+        el("select", { id: "t-feat", onchange: (e) => { S.traceFeature = e.target.value; render(); } },
+          el("option", { value: "all" }, "Alle Features"), feats.map(f => el("option", { value: f, selected: f === S.traceFeature ? true : null }, FEATURE_LABEL[f] || f)))),
+      el("div", { class: "search" }, el("label", { for: "t-out" }, "Ergebnis"),
+        el("select", { id: "t-out", onchange: (e) => { S.traceResult = e.target.value; render(); } },
+          el("option", { value: "all" }, "Alle Ergebnisse"), results.map(o => el("option", { value: o, selected: o === S.traceResult ? true : null }, RESULT_LABEL[o] || o))))),
+    el("p", { class: "muted", style: "font-size:13px" }, `Angezeigt: ${list.length} von ${total} aufgezeichneten Einträgen dieses Bereichs (Limit ${TRACE_LIMIT}).`),
+    el("div", { class: "section", style: "margin-top:12px" }, list.length
+      ? el("ul", { class: "timeline" }, list.map(traceItem))
+      : el("div", { class: "placeholder", style: "margin:0" }, total ? "Keine Einträge für diese Filter." : "Für diesen Bereich wurden keine Entscheidungen aufgezeichnet."))) };
+}
+function viewDiagnostics() {
+  const d = MOCK.diagnostics;
+  const tile = (icon, cls, label, value, note) => el("section", { class: "section" }, el("h2", null, svg(icon), label),
+    el("p", { class: cls, style: "font-size:24px;font-weight:600;margin:0" }, value), el("p", { class: "muted", style: "margin:4px 0 0" }, note));
+  return { node: el("div", null,
+    el("h2", { class: "h1" }, "Diagnose"),
+    el("p", { class: "lead" }, "Technische Übersicht. Vollständige Daten stehen in der nativen Integrationsdiagnose von Home Assistant."), simTag(),
+    isStale() ? el("p", { class: "banner error" }, `Diagnosewerte veraltet (Stand ${MOCK.lastUpdate}). Aktuelle Fehler sind nicht bestimmbar.`) : null,
+    el("div", { class: "two" },
+      tile("shield", "ok", "Sicherheitswarnungen", isStale() ? "—" : String(d.security), isStale() ? "Veraltet" : "Keine offenen Warnungen"),
+      tile("alert", "err", "Technische Fehler", isStale() ? "—" : String(d.technical), isStale() ? "Veraltet" : "Keine Laufzeitfehler")),
+    el("div", { class: "two" },
+      tile("wifi", "warn", "Fehlende Daten", isStale() ? "—" : `${d.missing} Quellen`, "Nicht verfügbar, kein Fehler im Betrieb"),
+      tile("check", "ok", "Normalbetrieb", isStale() ? "—" : `${d.normal} Bereiche`, "Ohne Auffälligkeiten")),
+    el("p", { class: "muted", style: "font-size:13px" }, "Prototyp-Hinweis: Im Produkt ist dies ein Verweis auf die native Diagnose, keine Duplizierung.")) };
+}
+/* ================= Einstellungen und Bereichsbearbeitung (Formularmodell) ================= */
+function statusText(key) {
+  const f = key ? S.forms[key] : null;
+  if (S.saving && S.savingKey === key) return "Wird gespeichert (simuliert) …";
+  if (!f) return "";
+  if (f.result) return f.result.text;
+  if (isDirtyKey(key)) return S.conn === "lost" ? "Ungespeicherte Änderungen. Keine Verbindung: Speichern ist nicht möglich." : "Änderungen noch nicht gespeichert.";
+  return "";
+}
+function statusNode(key) {
+  const f = S.forms[key];
+  const failed = !!(f && f.result && f.result.fail);
+  return el("p", { role: "status", "aria-live": "polite", class: "status-line" + (failed ? " banner error" : "") }, statusText(key));
+}
+function discard() { discardKey(currentFormKey())(); }
+function markDirty(e) {
+  const key = currentFormKey();
+  const f = formOf(key);
+  if (e && e.target && e.target.id) f.draft[e.target.id] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+  if (!S.saving) f.result = null;
+  const st = document.querySelector('#view [role="status"]');
+  if (st) { st.className = "status-line"; st.textContent = statusText(key); }
+  updateSaveButtons(key);
+}
+function simulateSave() {
+  const key = currentFormKey();
+  if (!key || S.saving) return;
+  const f = formOf(key);
+  if (!isDirtyKey(key)) return;
+  if (S.conn === "lost") { f.result = { text: "Keine Verbindung. Es wurde nichts gespeichert.", fail: true }; render(); return; }
+  const snapshot = { ...f.draft };
+  S.saving = true; S.savingKey = key; render();
+  setTimeout(() => {
+    S.saving = false; S.savingKey = null;
+    const g = formOf(key);
+    if (S.saveFail || S.conn === "lost") g.result = { text: "Speichern fehlgeschlagen. Ihre Eingaben bleiben erhalten.", fail: true };
+    else { g.base = { ...snapshot }; g.result = { text: "Gespeichert (simuliert). Nur im Prototyp.", fail: false }; }
+    render();
+  }, 600);
+}
+function viewSettings() {
+  const key = "settings"; const d = formOf(key).draft; const off = S.saving || null;
+  return { node: el("div", null,
+    el("h2", { class: "h1" }, "Globale Einstellungen"),
+    el("p", { class: "lead" }, "Gilt für alle Bereiche. Gespeichert werden nur geänderte Felder."),
+    el("section", { class: "section" }, el("div", { class: "form-grid" },
+      el("div", null, el("label", { for: "wx" }, "Wetter-Entity"), el("select", { id: "wx", disabled: off, onchange: markDirty },
+        el("option", { value: "", selected: d.wx === "" ? true : null }, "Keine"),
+        el("option", { value: "w1", selected: d.wx === "w1" ? true : null }, "Wetter Zuhause"),
+        el("option", { value: "w2", selected: d.wx === "w2" ? true : null }, "Wetterstation Garten (veraltet)"))),
+      el("div", null, el("label", { for: "lx" }, "Helligkeitssensor"), el("select", { id: "lx", disabled: off, onchange: markDirty },
+        el("option", { value: "", selected: d.lx === "" ? true : null }, "Keiner"),
+        el("option", { value: "l1", selected: d.lx === "l1" ? true : null }, "Außenhelligkeit")))) ),
+    el("p", { class: "muted", style: "font-size:13px" }, "Veraltete Einträge bleiben sichtbar und werden nicht still entfernt."),
+    statusNode(key),
+    el("div", { class: "actions" },
+      el("button", { type: "button", disabled: off, onclick: discardKey(key) }, "Abbrechen"),
+      el("button", { type: "button", class: "primary", "data-fk": "save", onclick: simulateSave }, S.saving ? "Speichern …" : "Speichern"))) };
+}
+function viewEditor() {
+  const a = MOCK.areas.find(x => x.id === S.areaId) || MOCK.areas[0];
+  const key = "editor:" + a.id;
+  const d = formOf(key).draft; const off = S.saving || null;
+  const wrap = el("div");
+  wrap.append(el("button", { type: "button", onclick: () => go("manage") }, "← Bereichsverwaltung"));
+  wrap.append(el("h2", { class: "h1", style: "margin-top:12px" }, `Bereich bearbeiten: ${a.name}`));
+  wrap.append(el("section", { class: "section" }, el("h2", null, "Allgemein"), el("div", { class: "form-grid" },
+    el("div", null, el("label", { for: "en" }, "Name"), el("input", { id: "en", value: d.en, disabled: off, oninput: markDirty })),
+    el("div", null, el("label", { for: "ef" }, "Etage"), el("select", { id: "ef", disabled: off, onchange: markDirty },
+      ["Erdgeschoss", "Obergeschoss", "Außen"].map(v => el("option", { value: v, selected: d.ef === v ? true : null }, v)))))));
+  wrap.append(el("section", { class: "section" }, el("h2", null, "Anwesenheit"), el("div", { class: "form-grid" },
+    el("div", null, el("label", { for: "eto" }, "Ausschalten nach Abwesenheit (Sekunden)"), el("input", { id: "eto", type: "number", min: "0", value: d.eto, disabled: off, oninput: markDirty })))));
+  wrap.append(el("section", { class: "section" }, el("h2", null, "Funktionen"),
+    el("label", { class: "check" }, el("input", { id: "fx-light", type: "checkbox", checked: d["fx-light"] ? true : null, disabled: off, onchange: markDirty }), "Lichtautomatik"),
+    el("label", { class: "check" }, el("input", { id: "fx-climate", type: "checkbox", checked: d["fx-climate"] ? true : null, disabled: off, onchange: markDirty }), "Klimaautomatik")));
+  wrap.append(statusNode(key));
+  wrap.append(el("div", { class: "actions" },
+    el("button", { type: "button", class: "danger", id: "btn-delete", disabled: off, onclick: () => { S.confirmDelete = true; render(); } }, "Bereich löschen"),
+    el("button", { type: "button", disabled: off, onclick: discardKey(key) }, "Abbrechen"),
+    el("button", { type: "button", class: "primary", "data-fk": "save", onclick: simulateSave }, S.saving ? "Speichern …" : "Speichern")));
+  if (S.confirmDelete) wrap.append(el("dialog", { id: "confirm-dialog", "aria-labelledby": "confirm-title" },
+    el("h2", { id: "confirm-title", style: "font-size:16px;margin:0 0 12px" }, "Bereich löschen?"),
+    el("p", null, `„${a.name}“ wirklich löschen? Dies ist eine Simulation und wirkt nicht auf Home Assistant.`),
+    el("div", { class: "actions" },
+      el("button", { type: "button", onclick: () => { S.confirmDelete = false; S.restoreFocus = "btn-delete"; render(); } }, "Abbrechen"),
+      el("button", { type: "button", class: "danger", onclick: () => { S.confirmDelete = false; S.restoreFocus = "btn-delete"; S.notice = "Löschen simuliert, keine Änderung."; render(); } }, "Endgültig löschen (simuliert)"))));
+  return { node: wrap };
+}
+function viewLocked() {
+  return { node: el("div", { class: "placeholder" }, el("strong", null, "Nur für Administratoren"), el("p", null, "Diese Ansicht ist Administratoren vorbehalten. Die Berechtigung wird serverseitig geprüft.")) };
+}
+function viewLoading() {
+  return { node: el("div", { class: "section", role: "status", "aria-live": "polite" }, el("p", null, "Daten werden geladen …"),
+    el("div", { class: "skeleton", style: "width:60%" }), el("div", { class: "skeleton", style: "width:85%" }), el("div", { class: "skeleton", style: "width:40%" }),
+    el("p", { class: "muted", style: "font-size:13px" }, "Dieser Zustand gilt nur beim ersten Laden. Bei Aktualisierungen bleiben vorhandene Daten sichtbar.")) };
+}
+
+/* ================= Render ================= */
+const VIEWS = { overview: viewOverview, areas: viewAreas, area: viewArea, environment: viewEnvironment, cleaning: viewCleaning, usage: viewUsage,
+  lighting: viewLighting, climate: viewClimate, trace: viewTrace, diagnostics: viewDiagnostics, settings: viewSettings, editor: viewEditor, manage: viewManage };
+function render() {
+  const act = document.activeElement;
+  const focusKey = act && (act.id || act.dataset.fk) || null;
+  renderConn();
+  renderNav();
+  const notice = $("#notice");
+  notice.replaceChildren();
+  if (S.notice) notice.append(el("div", { class: "notice", role: "status" }, S.notice));
+  const view = $("#view");
+  let out;
+  if (S.loading) out = viewLoading();
+  else if (ADMIN_VIEWS.includes(S.view) && S.role !== "admin") out = viewLocked();
+  else out = (VIEWS[S.view] || viewOverview)();
+  view.replaceChildren(out.node);
+  if (out.after) out.after();
+  updateSaveButtons(currentFormKey());
+  document.getElementById("leave-dialog")?.remove();
+  if (S.confirmLeave) { const ld = leaveDialogNode(); document.body.append(ld); ld.showModal(); ld.querySelector("button").focus(); }
+  const dlg = document.getElementById("confirm-dialog");
+  if (dlg && !dlg.open) { dlg.addEventListener("close", () => { if (S.confirmDelete) { S.confirmDelete = false; S.restoreFocus = "btn-delete"; render(); } }); dlg.showModal(); dlg.querySelector("button").focus(); }
+  const target = S.restoreFocus || focusKey;
+  S.restoreFocus = null;
+  if (target && !S.confirmLeave && !S.confirmDelete) {
+    const n = document.getElementById(target) || document.querySelector('[data-fk="' + target + '"]');
+    if (n && typeof n.focus === "function") n.focus({ preventScroll: true });
+  }
+  document.querySelectorAll("[data-role]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.role === S.role)));
+  document.querySelectorAll("[data-theme-btn]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeBtn === S.theme)));
+  document.querySelectorAll("[data-width]").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.width) === S.width)));
+  $("#toggle-loss").setAttribute("aria-pressed", String(S.conn === "lost"));
+  $("#toggle-unknown").setAttribute("aria-pressed", String(S.unknownMode));
+  for (const k of Object.keys(S.off)) $("#toggle-feat-" + k).setAttribute("aria-pressed", String(S.off[k]));
+  $("#toggle-savefail").setAttribute("aria-pressed", String(S.saveFail));
+  $("#app").style.setProperty("--frame", S.width + "px");
+}
+/* ================= Steuerung (nur Prototyp) ================= */
+document.querySelectorAll("[data-role]").forEach(b => b.addEventListener("click", () => {
+  if (S.saving) { S.notice = "Speichern läuft. Der Rollenwechsel ist danach möglich."; render(); return; }
+  if (anyDirty(null)) { S.pendingNav = { kind: "role", role: b.dataset.role }; S.confirmLeave = true; render(); return; }
+  S.role = b.dataset.role; if (S.role !== "admin" && ADMIN_VIEWS.includes(S.view)) S.view = "overview"; render();
+}));
+document.querySelectorAll("[data-theme-btn]").forEach(b => b.addEventListener("click", () => { S.theme = b.dataset.themeBtn; document.documentElement.setAttribute("data-theme", S.theme); render(); }));
+document.querySelectorAll("[data-width]").forEach(b => b.addEventListener("click", () => { S.width = Number(b.dataset.width); render(); }));
+$("#toggle-loss").addEventListener("click", () => { S.conn = S.conn === "lost" ? "connected" : "lost"; render(); });
+$("#toggle-unknown").addEventListener("click", () => { S.unknownMode = !S.unknownMode; render(); });
+for (const k of Object.keys(S.off)) $("#toggle-feat-" + k).addEventListener("click", () => { S.off[k] = !S.off[k]; render(); });
+$("#toggle-savefail").addEventListener("click", () => { S.saveFail = !S.saveFail; render(); });
+
+/* Startzustand per URL, z. B. ?role=user&theme=dark&width=390&view=area&area=buero */
+(function applyParams() {
+  const p = new URLSearchParams(location.search);
+  if (p.get("role") === "user" || p.get("role") === "admin") S.role = p.get("role");
+  if (p.get("theme") === "dark" || p.get("theme") === "light") S.theme = p.get("theme");
+  if (["320", "390", "430", "768", "1024", "1280", "1440"].includes(p.get("width"))) S.width = Number(p.get("width"));
+  if (p.get("view")) S.view = p.get("view");
+  if (p.get("area")) S.areaId = p.get("area");
+  if (p.get("loss") === "1") S.conn = "lost";
+  if (p.get("unknown") === "1") S.unknownMode = true;
+  if (p.get("disabled") === "1") Object.keys(S.off).forEach(k => { S.off[k] = true; });
+  if (p.get("savefail") === "1") S.saveFail = true;
+  if (p.get("loading") === "1") S.loading = true;
+  if (p.get("empty") === "1") S.empty = true;
+  if (p.get("trace")) S.traceArea = p.get("trace");
+  if (p.get("controls") === "1") document.getElementById("controls").open = true;
+})();
+document.documentElement.setAttribute("data-theme", S.theme);
+render();
+</script>
+</body>
+</html>

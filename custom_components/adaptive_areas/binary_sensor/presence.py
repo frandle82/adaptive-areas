@@ -654,6 +654,14 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         }
         for state in sorted(new_states):
             from_state, reason = transitions.get(state, (None, "area_state_changed"))
+            if state in (AreaStates.OCCUPIED, AreaStates.CLEAR):
+                # Trace only: reuse the source reason already computed for last_reason.
+                # last_reason itself is not changed.
+                reason = self._pending_reason or (
+                    "presence_source_on"
+                    if state == AreaStates.OCCUPIED
+                    else "clear_timeout_expired"
+                )
             self.area.trace_decision(
                 feature="presence",
                 trigger="state_recalculated",

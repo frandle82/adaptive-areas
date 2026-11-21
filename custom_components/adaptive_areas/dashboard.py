@@ -1,7 +1,9 @@
 """Read-only presentation data for the Adaptive Areas dashboard."""
 
 from collections.abc import Iterable
+from datetime import datetime
 import logging
+import re
 from typing import Any
 
 from homeassistant.const import (
@@ -15,6 +17,7 @@ from homeassistant.const import (
 )
 from homeassistant.components.climate.const import ATTR_PRESET_MODE
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers.floor_registry import async_get as async_get_floor_registry
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
@@ -52,11 +55,40 @@ _LIGHT_GROUPS = {
 _LOGGER = logging.getLogger(__name__)
 
 
-def _state_data(state: State | None, entity_id: str) -> dict[str, Any]:
-    """Return an explicit, JSON-safe view of one entity state."""
+def _source_status(state: State | None) -> str:
+    """Classify one source: missing, unavailable, unknown or available."""
     if state is None:
-        return {"entity_id": entity_id, "state": None, "available": False}
+        return "missing"
+    if state.state == STATE_UNAVAILABLE:
+        return "unavailable"
+    if state.state == STATE_UNKNOWN:
+        return "unknown"
+    return "available"
+
+
+def _status_of(source: dict[str, Any]) -> str:
+    """Return a source status; sources without it fall back to ``available``."""
+    status = source.get("status")
+    if isinstance(status, str):
+        return status
+    return "available" if source.get("available") else "unavailable"
+
+
+def _state_data(state: State | None, entity_id: str) -> dict[str, Any]:
+    """Return an explicit, JSON-safe view of one entity state.
+
+    ``status`` distinguishes missing, unavailable and unknown sources, which
+    ``available`` and ``state`` cannot (both are false/null for the last two).
+    """
+    if state is None:
+        return {
+            "entity_id": entity_id,
+            "state": None,
+            "available": False,
+            "status": "missing",
+        }
     return {
+        "status": _source_status(state),
         "entity_id": entity_id,
         "name": state.attributes.get(ATTR_FRIENDLY_NAME, entity_id),
         "state": (
@@ -188,27 +220,49 @@ def _controls(hass: HomeAssistant, area: AdaptiveArea) -> list[dict[str, Any]]:
     return groups
 
 
-def _environment(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any] | None:
-    """Return the public environment presentation, if the feature has data."""
+_ENVIRONMENT_VALUES = (
+    "temperature",
+    "humidity",
+    "comfort",
+    "air_quality",
+    "mould_risk",
+    "notices",
+)
+
+
+# A generated environment state is shown when it carries a value or a notice.
+_ENVIRONMENT_MARKERS = ("comfort", "humidity", "air_quality", "mould_risk", "notices")
+
+
+def _environment(
+    hass: HomeAssistant, area: AdaptiveArea, include_entities: bool = True
+) -> dict[str, Any] | None:
+    """Return the public environment presentation, if the feature has data.
+
+    Non-administrators receive the values only: no entity fields of the generated
+    entity and no ``used_sensors`` (a list of entity IDs).
+    """
     for entity in _generated_states(hass, area):
         state = hass.states.get(entity["entity_id"])
-        if state is None or "notices" not in state.attributes:
+        if state is None or not any(
+            key in state.attributes for key in _ENVIRONMENT_MARKERS
+        ):
             continue
+        values = {
+            key: state.attributes[key]
+            for key in _ENVIRONMENT_VALUES
+            if key in state.attributes
+        }
+        if not include_entities:
+            return values
         return {
             **entity,
-            **{
-                key: state.attributes[key]
-                for key in (
-                    "temperature",
-                    "humidity",
-                    "comfort",
-                    "air_quality",
-                    "mould_risk",
-                    "notices",
-                    "used_sensors",
-                )
-                if key in state.attributes
-            },
+            **values,
+            **(
+                {"used_sensors": state.attributes["used_sensors"]}
+                if "used_sensors" in state.attributes
+                else {}
+            ),
         }
     return None
 
@@ -251,8 +305,74 @@ def _cleaning(area: AdaptiveArea) -> dict[str, Any] | None:
     }
 
 
-def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]:
-    """Build the compact stable DTO used by the overview and update events."""
+def _floor_name(hass: HomeAssistant, floor_id: str | None) -> str | None:
+    """Return the floor name from the registry, or None when it is unknown."""
+    if not floor_id:
+        return None
+    floor = async_get_floor_registry(hass).async_get_floor(floor_id)
+    return floor.name if floor is not None else None
+
+
+def _meta_members(hass: HomeAssistant, area: AdaptiveArea) -> list[str]:
+    """Return the IDs of loaded physical Areas that a Meta-Area aggregates.
+
+    Only Areas that are loaded are listed; a configured child that is not loaded
+    is omitted rather than invented.
+    """
+    children = set(getattr(area, "child_areas", []) or [])
+    return sorted(
+        str(member.id)
+        for member in _areas(hass)
+        if not member.is_meta() and member.slug in children
+    )
+
+
+def _presence_state(
+    hass: HomeAssistant, area: AdaptiveArea, coverage: dict[str, int]
+) -> str:
+    """Return occupied, clear or unknown for the dashboard.
+
+    `is_occupied()` stays the decision of the existing automation (including a
+    valid Presence Hold or a timeout). Without such a decision, a Physical Area
+    is clear only if at least one of its own presence sources is available;
+    otherwise the state is unknown and is never counted as clear. A Meta-Area is
+    clear only if every loaded member is clear.
+    """
+    if area.is_occupied():
+        return "occupied"
+    if not area.is_meta():
+        return "clear" if coverage["available"] > 0 else "unknown"
+    member_ids = set(_meta_members(hass, area))
+    if not member_ids:
+        return "unknown"
+    members = [
+        member
+        for member in _areas(hass)
+        if not member.is_meta() and str(member.id) in member_ids
+    ]
+    states = [
+        _presence_state(
+            hass,
+            member,
+            _source_coverage(hass, member.get_presence_sensors()),
+        )
+        for member in members
+    ]
+    if len(states) != len(member_ids):
+        return "unknown"
+    if "occupied" in states:
+        return "occupied"
+    return "clear" if all(state == "clear" for state in states) else "unknown"
+
+
+def build_area_summary(
+    hass: HomeAssistant, area: AdaptiveArea, include_entities: bool = True
+) -> dict[str, Any]:
+    """Build the compact stable DTO used by the overview and update events.
+
+    Entity identifiers (controls) are only included for administrators.
+    Source coverage is always an aggregate.
+    """
     aggregates = _aggregates(hass, area)
     illuminance = next(
         (item for item in aggregates if item.get("device_class") == "illuminance"), None
@@ -271,20 +391,39 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
         if area.has_state(AREA_STATE_BRIGHT)
         else AREA_STATE_DARK if area.has_state(AREA_STATE_DARK) else None
     )
-    warning_count = sum(aggregate.get("source_count") == 0 for aggregate in aggregates)
+    aggregate_warnings = sum(
+        aggregate.get("source_count") == 0 for aggregate in aggregates
+    )
+    secondary_state_warnings = 0
     if dark_source and (
         (dark_source["state"] == STATE_ON and brightness_state == AREA_STATE_DARK)
         or (dark_source["state"] == "off" and brightness_state == AREA_STATE_BRIGHT)
     ):
-        warning_count += 1
+        secondary_state_warnings = 1
+    warning_count = aggregate_warnings + secondary_state_warnings
     return {
         "id": str(area.id),
         "name": area.name,
         "type": "meta" if area.is_meta() else "area",
+        # Floor metadata from the Home Assistant registry; null means no floor or
+        # an unknown floor. Floor IDs and names are not entity identifiers.
+        "floor_id": area.floor_id,
+        "floor_name": _floor_name(hass, area.floor_id),
+        **(
+            {
+                "members": _meta_members(hass, area),
+                # Configured children; fewer loaded members mean the Meta-Area is partial.
+                "members_total": len(getattr(area, "child_areas", []) or []),
+            }
+            if area.is_meta()
+            else {}
+        ),
         "occupied": area.is_occupied(),
         "active_states": sorted(str(state) for state in area.states),
         "presence": {
-            "state": "occupied" if area.is_occupied() else "clear",
+            "state": _presence_state(
+                hass, area, _source_coverage(hass, presence_sources)
+            ),
             **_source_coverage(hass, presence_sources),
         },
         "brightness": (
@@ -299,36 +438,90 @@ def build_area_summary(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any
             else None
         ),
         "warning_count": warning_count,
+        # Attribution by source: aggregates belong to the aggregates feature, the dark
+        # source belongs to the secondary states (no feature flag). Kept additive.
+        "warning_details": {
+            "aggregates": aggregate_warnings,
+            "secondary_states": secondary_state_warnings,
+        },
         "lights": (
             {
                 "on": sum(group["on"] for group in groups),
                 "total": sum(group["total"] for group in groups),
-                "groups": [
-                    {key: group[key] for key in ("id", "name", "on", "total")}
-                    for group in groups
-                ],
+                # Group names and per-group counts are light runtime detail: administrators only.
+                **(
+                    {
+                        "groups": [
+                            {key: group[key] for key in ("id", "name", "on", "total")}
+                            for group in groups
+                        ]
+                    }
+                    if include_entities
+                    else {}
+                ),
             }
             if groups
             else None
         ),
-        "environment": _environment(hass, area),
+        "environment": _environment(hass, area, include_entities),
         "room_usage": _room_usage(area),
         "cleaning": _cleaning(area),
         "sources": _source_coverage(hass, sources),
-        "controls": _controls(hass, area),
         "enabled_features": sorted(area.config.get(CONF_ENABLED_FEATURES, {})),
+        **({"controls": _controls(hass, area)} if include_entities else {}),
     }
 
 
-def build_area_detail(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]:
-    """Build a read-only area DTO from current runtime data."""
-    summary = build_area_summary(hass, area)
+def _aggregate_without_entities(aggregate: dict[str, Any]) -> dict[str, Any]:
+    """Return an aggregate for non-administrators: counts only, no entity IDs."""
+    sources = aggregate.get("sources", [])
+    return {
+        key: value
+        for key, value in aggregate.items()
+        if key not in ("entity_id", "sources")
+    } | {
+        "sources": {
+            "total": len(sources),
+            "available": sum(bool(source.get("available")) for source in sources),
+        }
+    }
+
+
+def build_area_detail(
+    hass: HomeAssistant, area: AdaptiveArea, include_entities: bool = True
+) -> dict[str, Any]:
+    """Build a read-only area DTO from current runtime data.
+
+    Non-administrators receive aggregated counts instead of entity identifiers
+    and no light-group or control detail.
+    """
+    summary = build_area_summary(hass, area, include_entities)
     aggregates = _aggregates(hass, area)
     dark_source_id = area.config.get(CONF_DARK_ENTITY)
+    if not include_entities:
+        return {
+            **summary,
+            "presence": {
+                "occupied": area.is_occupied(),
+                "state": _presence_state(
+                    hass,
+                    area,
+                    _source_coverage(hass, area.get_presence_sensors()),
+                ),
+                "sources": _source_coverage(hass, area.get_presence_sensors()),
+            },
+            "brightness_detail": {"state": summary["brightness"]},
+            "aggregates": [_aggregate_without_entities(item) for item in aggregates],
+            "environment": _environment(hass, area, include_entities=False),
+            "sources": _source_coverage(hass, _area_sources(area)),
+        }
     return {
         **summary,
         "presence": {
             "occupied": area.is_occupied(),
+            "state": _presence_state(
+                hass, area, _source_coverage(hass, area.get_presence_sensors())
+            ),
             "sources": [
                 _state_data(hass.states.get(source), source)
                 for source in area.get_presence_sensors()
@@ -350,6 +543,168 @@ def build_area_detail(hass: HomeAssistant, area: AdaptiveArea) -> dict[str, Any]
             for source in _area_sources(area)
         ],
         "controls": summary["controls"],
+    }
+
+
+# Allowlists for the decision trace export. Unknown values are replaced by "other"
+# so that dynamic or future values never reach the panel unfiltered.
+TRACE_FEATURES = frozenset(
+    {
+        "presence",
+        "light_groups",
+        "climate_control",
+        "fan_control",
+        "switch_groups",
+        "media_player_control",
+        "area_aware_media_player",
+        "environment",
+        "room_usage",
+    }
+)
+TRACE_TRIGGERS = frozenset(
+    {
+        "area_state_changed",
+        "presence_activity",
+        "aggregate_sensor_changed",
+        "play_media",
+        "state_recalculated",
+        "primary_environment_source_changed",
+        "area_input_changed",
+        "environment_changed",
+    }
+)
+TRACE_DECISIONS = frozenset(
+    {
+        "no_action",
+        "turn_on",
+        "turn_off",
+        "set_preset",
+        "play_media",
+        "presence_started",
+        "presence_stopped",
+        "state_transition",
+    }
+)
+TRACE_OUTCOMES = frozenset(
+    {"observed", "evaluated", "considered", "skipped", "executed", "failed", "tracked"}
+)
+TRACE_REASON_CODES = frozenset(
+    {
+        "action_executed",
+        "action_failed",
+        "activation_disabled",
+        "activation_state_matched",
+        "activation_state_not_matched",
+        "already_off",
+        "already_on",
+        "area_state_matched",
+        "blocking_state_active",
+        "cleaning_presence_started",
+        "cleaning_presence_stopped",
+        "control_action_in_progress",
+        "control_disabled",
+        "darkness_requirement_not_met",
+        "eligible_area_active",
+        "manual_override_active",
+        "no_eligible_areas",
+        "no_eligible_entities",
+        "no_environment_fan_request",
+        "occupancy_threshold_not_met",
+        "presence_cleared",
+        "required_state_not_matched",
+        "threshold_not_met",
+        "clear_timeout_expired",
+        "presence_control_on",
+        "secondary_state_change",
+        "extended_state_entered",
+        "presence_detected",
+        "presence_source_on",
+        "motion_detected",
+        "ble_presence",
+        "wasp_presence",
+        "meta_child_occupied",
+        "meta_child_cleared",
+        "dark_state_active",
+        "bright_state_active",
+        "sleep_state_active",
+        "accent_state_active",
+        "area_state_changed",
+        "extended_state_inactive",
+        "sleep_state_inactive",
+        "accented_state_inactive",
+    }
+)
+TRACE_STATES = frozenset(
+    {"clear", "occupied", "extended", "dark", "bright", "sleep", "accented"}
+)
+_EXCEPTION_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+_TRACE_MAX_TARGETS = 1000
+
+
+def _allowed(value: Any, allowed: frozenset[str]) -> str:
+    return value if isinstance(value, str) and value in allowed else "other"
+
+
+def _trace_timestamp(value: Any) -> str | None:
+    """Return the timestamp only when it is a valid ISO-8601 UTC value."""
+    if not isinstance(value, str):
+        return None
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value
+
+
+def _trace_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Map one stored trace entry to the public DTO through allowlists."""
+    raw_states = entry.get("area_state") or []
+    raw_reasons = entry.get("reason_codes") or []
+    raw_count = entry.get("target_count", 0)
+    exception = entry.get("exception_class")
+    return {
+        "timestamp": _trace_timestamp(entry.get("timestamp")),
+        "feature": _allowed(entry.get("feature"), TRACE_FEATURES),
+        "trigger": _allowed(entry.get("trigger"), TRACE_TRIGGERS),
+        "area_state": [
+            state
+            for state in (raw_states if isinstance(raw_states, list) else [])
+            if state in TRACE_STATES
+        ][:10],
+        "decision": _allowed(entry.get("decision"), TRACE_DECISIONS),
+        "outcome": _allowed(entry.get("outcome"), TRACE_OUTCOMES),
+        "reason_codes": [
+            code
+            for code in (raw_reasons if isinstance(raw_reasons, list) else [])
+            if code in TRACE_REASON_CODES
+        ][:5],
+        "target_count": (
+            min(raw_count, _TRACE_MAX_TARGETS)
+            if isinstance(raw_count, int) and raw_count >= 0
+            else 0
+        ),
+        "from": entry.get("from") if entry.get("from") in TRACE_STATES else None,
+        "to": entry.get("to") if entry.get("to") in TRACE_STATES else None,
+        "exception_class": (
+            exception
+            if isinstance(exception, str) and _EXCEPTION_NAME.match(exception)
+            else None
+        ),
+    }
+
+
+def build_decision_trace(area: AdaptiveArea, limit: int = 20) -> dict[str, Any]:
+    """Return the newest decisions of one area from its in-memory ring buffer.
+
+    The buffer keeps at most DEFAULT_TRACE_LENGTH entries. Nothing is persisted.
+    """
+    limit = max(1, min(int(limit), 20))
+    entries = area.decision_trace.export()[-limit:]
+    entries.reverse()
+    return {
+        "area_id": str(area.id),
+        "limit": limit,
+        "entries": [_trace_entry(entry) for entry in entries],
     }
 
 
@@ -480,10 +835,22 @@ def _areas(hass: HomeAssistant) -> Iterable[AdaptiveArea]:
     yield from iter_runtime_areas(hass)
 
 
-def build_overview(hass: HomeAssistant) -> dict[str, Any]:
+def _count_presence(summaries: list[dict[str, Any]], state: str) -> int:
+    """Count physical Areas with the given presence state (Meta-Areas excluded)."""
+    return sum(
+        1
+        for summary in summaries
+        if summary.get("type") != "meta"
+        and (summary.get("presence") or {}).get("state") == state
+    )
+
+
+def build_overview(
+    hass: HomeAssistant, include_entities: bool = True
+) -> dict[str, Any]:
     """Build the complete lightweight overview without global entity discovery."""
     areas = sorted(_areas(hass), key=lambda area: area.name.casefold())
-    summaries = [build_area_summary(hass, area) for area in areas]
+    summaries = [build_area_summary(hass, area, include_entities) for area in areas]
     return {
         "areas": summaries,
         "enabled_feature_tabs": sorted(
@@ -496,7 +863,12 @@ def build_overview(hass: HomeAssistant) -> dict[str, Any]:
         "counts": {
             "areas": sum(not area.is_meta() for area in areas),
             "meta_areas": sum(area.is_meta() for area in areas),
+            # Legacy semantics (automation decision, includes Meta-Areas); kept unchanged.
             "occupied": sum(area.is_occupied() for area in areas),
+            # Physical Areas only, same presence semantics as the Area cards.
+            "physical_occupied": _count_presence(summaries, "occupied"),
+            "physical_clear": _count_presence(summaries, "clear"),
+            "physical_unknown": _count_presence(summaries, "unknown"),
             "dark": sum(area.has_state(AREA_STATE_DARK) for area in areas),
             "bright": sum(area.has_state(AREA_STATE_BRIGHT) for area in areas),
             "lights_on": sum((item["lights"] or {}).get("on", 0) for item in summaries),
@@ -510,6 +882,7 @@ def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any
     issues = []
     adaptive_entity_count = 0
     unavailable = 0
+    unknown_sources = 0
     for area in areas:
         try:
             detail = build_area_detail(hass, area)
@@ -527,7 +900,14 @@ def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any
             )
             continue
         adaptive_entity_count += len(_generated_states(hass, area))
-        unavailable += sum(not source["available"] for source in detail["sources"])
+        # Unknown sources are not technical faults: they are counted separately.
+        unavailable += sum(
+            _status_of(source) in ("unavailable", "missing")
+            for source in detail["sources"]
+        )
+        unknown_sources += sum(
+            _status_of(source) == "unknown" for source in detail["sources"]
+        )
         for aggregate in detail["aggregates"]:
             if aggregate["source_count"] == 0:
                 issues.append(
@@ -560,7 +940,18 @@ def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any
                 "message": "A source is unavailable.",
             }
             for source in detail["sources"]
-            if not source["available"]
+            if _status_of(source) in ("unavailable", "missing")
+        )
+        # Informational only: an unknown state is not reported as a fault.
+        issues.extend(
+            {
+                "severity": "info",
+                "area_id": detail["id"],
+                "code": "unknown_source",
+                "message": "A source state is unknown.",
+            }
+            for source in detail["sources"]
+            if _status_of(source) == "unknown"
         )
     return {
         "version": version,
@@ -568,9 +959,14 @@ def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any
         "meta_area_count": sum(area.is_meta() for area in areas),
         "adaptive_entity_count": adaptive_entity_count,
         "unavailable_source_count": unavailable,
+        "unknown_source_count": unknown_sources,
+        # False while any source state is unknown or an Area's diagnostics failed:
+        # an empty issue list then says nothing about completeness.
+        "data_complete": unknown_sources == 0
+        and not any(issue["code"] == "diagnostics_unavailable" for issue in issues),
         "empty_aggregate_count": sum(
             issue["code"] == "empty_aggregate" for issue in issues
         ),
-        "warning_count": len(issues),
+        "warning_count": sum(issue["severity"] == "warning" for issue in issues),
         "issues": issues,
     }

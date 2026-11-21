@@ -166,7 +166,7 @@ async def test_area_primary_state_change(
     assert any(
         entry["feature"] == "presence"
         and entry["to"] == AreaStates.OCCUPIED
-        and "presence_detected" in entry["reason_codes"]
+        and "motion_detected" in entry["reason_codes"]
         for entry in area.decision_trace.export()
     )
 
@@ -188,7 +188,7 @@ async def test_area_primary_state_change(
     assert any(
         entry["feature"] == "presence"
         and entry["to"] == AreaStates.CLEAR
-        and "presence_cleared" in entry["reason_codes"]
+        and "clear_timeout_expired" in entry["reason_codes"]
         for entry in area.decision_trace.export()
     )
 
@@ -508,6 +508,8 @@ async def test_extended_semantic_events(
         previous_states - {AreaStates.EXTENDED},
         (set(), {AreaStates.EXTENDED}),
     )
+    # hass.bus.async_fire schedules listeners; wait for them before asserting.
+    await hass.async_block_till_done()
     event_types = [event.data["event_type"] for event in events]
     assert "extended_started" in event_types
     assert "extended_ended" in event_types

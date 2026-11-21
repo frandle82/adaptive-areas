@@ -1,0 +1,79 @@
+{
+  "areas": [
+    {
+      "active_states": [
+        "clear",
+        "dark"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "environment"
+      ],
+      "environment": {
+        "available": true,
+        "comfort": "comfortable",
+        "device_class": "enum",
+        "entity_id": "sensor.adaptive_areas_environment_kitchen",
+        "name": "kitchen Area Climate",
+        "notices": [
+          "Humidity data missing"
+        ],
+        "state": "off",
+        "status": "available",
+        "unit": null,
+        "used_sensors": {
+          "indoor": {
+            "humidity": [
+              "sensor.env_kitchen_humidity"
+            ],
+            "temperature": [
+              "sensor.env_kitchen_temperature"
+            ]
+          }
+        }
+      },
+      "floor_id": "first_floor",
+      "floor_name": "first_floor",
+      "id": "kitchen",
+      "lights": null,
+      "name": "kitchen",
+      "occupied": false,
+      "presence": {
+        "available": 0,
+        "state": "unknown",
+        "total": 0
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 2
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    }
+  ],
+  "counts": {
+    "areas": 1,
+    "bright": 0,
+    "dark": 1,
+    "lights_on": 0,
+    "meta_areas": 0,
+    "occupied": 0,
+    "physical_clear": 0,
+    "physical_occupied": 0,
+    "physical_unknown": 1
+  },
+  "enabled_feature_tabs": [
+    "environment"
+  ]
+}

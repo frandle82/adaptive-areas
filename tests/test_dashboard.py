@@ -1,5 +1,7 @@
 """Tests for the read-only Adaptive Areas dashboard DTOs."""
 
+import re
+
 import json
 from pathlib import Path
 from time import monotonic
@@ -53,6 +55,28 @@ from custom_components.adaptive_areas.websocket import (
 from custom_components.adaptive_areas.panel import async_setup_panel
 
 
+def _dashboard_texts() -> str:
+    """All visible dashboard texts (both languages): the native translation source (E7)."""
+    import json as _json  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    root = (
+        _Path(__file__).parents[1]
+        / "custom_components"
+        / "adaptive_areas"
+        / "translations"
+    )
+    return " ".join(
+        _json.dumps(
+            _json.loads((root / f"{lang}.json").read_text(encoding="utf-8"))[
+                "dashboard"
+            ],
+            ensure_ascii=False,
+        )
+        for lang in ("en", "de")
+    )
+
+
 async def test_dashboard_overview_is_empty_without_loaded_areas(
     hass: HomeAssistant,
 ) -> None:
@@ -67,6 +91,9 @@ async def test_dashboard_overview_is_empty_without_loaded_areas(
             "areas": 0,
             "meta_areas": 0,
             "occupied": 0,
+            "physical_occupied": 0,
+            "physical_clear": 0,
+            "physical_unknown": 0,
             "dark": 0,
             "bright": 0,
             "lights_on": 0,
@@ -646,7 +673,7 @@ def test_panel_keeps_vacancy_delay_and_renders_light_runtime_status() -> None:
     assert 'name="${prefix}vacancy_delay"' in panel
     assert 'light.vacancy_delay??""' in panel
     assert "adaptive_areas/get_light_runtime_status" in panel
-    assert "Aktueller Status" in panel
+    assert "Aktueller Status" in _dashboard_texts()
 
 
 def test_panel_light_control_configuration_is_area_scoped() -> None:
@@ -657,10 +684,13 @@ def test_panel_light_control_configuration_is_area_scoped() -> None:
 
     assert "_lightAreas()" in panel
     assert "data-light-area" in panel
-    assert "_renderLightAutomationConfiguration" in panel
     assert "_renderLightGroupsConfiguration" in panel
-    assert '_lightPolicyFields(t,light,"light:")' in panel
-    assert "area_id:area.area_id,options:{features}" in panel
+    assert '_lightPolicyFields(t,features.light||{},"light:")' in panel
+    assert "adaptive_areas/update_area" in panel
+    # The Light tab is read-only and opens the central Area editor (step 6.8).
+    assert "data-config-area" in panel
+    assert "_saveLightConfiguration" not in panel
+    assert "data-light-configuration" not in panel
     assert "await this._loadLightRuntime(area.area_id)" in panel
     # Light group values are written by the Light tab only, never by the Area form save.
     assert "light_group:${key}" not in panel
@@ -677,11 +707,16 @@ def test_panel_climate_control_configuration_is_area_scoped() -> None:
     assert '"climate_control" in (area.options?.features||{})' in panel
     assert "data-climate-area" in panel
     assert "_climateControlTab(t)" in panel
-    assert "_saveClimateConfiguration(event)" in panel
+    # The Climate tab is read-only and opens the central Area editor (step 6.8).
+    assert "data-config-area" in panel
+    assert "_saveClimateConfiguration" not in panel
+    assert "data-climate-configuration" not in panel
+    assert "_climateFromForm" in panel
     assert "_loadClimateRuntime(areaId)" in panel
     assert 'type:"adaptive_areas/get_climate_runtime_status",area_id:areaId' in panel
-    assert "await this._loadClimateRuntime(area.area_id)" in panel
-    assert 'entityId.startsWith("climate.")' in panel
+    assert "this._loadClimateRuntime(area.area_id)" in panel
+    # Climate options come from _scopedOptions (domain filter), the live code path.
+    assert "id.startsWith(`${domain}.`)" in panel
     assert "climate:entity_id" in panel
     for key in (
         "preset_clear",
@@ -715,10 +750,10 @@ def test_panel_climate_control_configuration_is_area_scoped() -> None:
         "Verfügbar",
         "Nicht verfügbar",
         "Nicht konfiguriert",
-        "wartet auf Belegungsschwelle",
+        "wartet auf die Belegungsschwelle",
         "Aktueller Status derzeit nicht verfügbar.",
     ):
-        assert label in panel
+        assert label in _dashboard_texts()
     for value in (
         'clear:"Frei"',
         'sleep:"Schlafzustand"',
@@ -728,7 +763,8 @@ def test_panel_climate_control_configuration_is_area_scoped() -> None:
         'occupied:"Belegung"',
         'no_action:"Keine automatische Aktion"',
     ):
-        assert value in panel
+        label_value = value.split(':"', 1)[1][:-1]
+        assert f'"{label_value}"' in _dashboard_texts()
     assert "adaptive_areas/update_area" in panel
 
 
@@ -738,10 +774,10 @@ def test_panel_light_groups_uses_current_runtime_configuration() -> None:
         "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
     ).read_text(encoding="utf-8")
 
-    assert '["overhead","Deckenleuchten"]' in panel
-    assert '["sleep","Schlaflichter"]' in panel
-    assert '["accent","Akzentlichter"]' in panel
-    assert '["task","Arbeitslichter"]' in panel
+    assert '["overhead",this._t.lgOverhead]' in panel
+    assert '["sleep",this._t.lgSleep]' in panel
+    assert '["accent",this._t.lgAccent]' in panel
+    assert '["task",this._t.lgTask]' in panel
     assert "_lights_activation" in panel
     assert "_lights_blocking_states" in panel
     assert "_lights_brightness" in panel
@@ -752,10 +788,6 @@ def test_panel_light_groups_uses_current_runtime_configuration() -> None:
 
 def test_panel_exposes_final_light_control_labels() -> None:
     """The Light tab keeps user-facing German labels for its current mappings."""
-    panel = Path(
-        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
-    ).read_text(encoding="utf-8")
-
     for label in (
         "Lichtsteuerung",
         "Bereich",
@@ -778,7 +810,7 @@ def test_panel_exposes_final_light_control_labels() -> None:
         "Nicht aktiv",
         "Bei Belegung",
     ):
-        assert label in panel
+        assert label in _dashboard_texts()
 
 
 def test_panel_settings_renderer_is_defined_and_uses_global_websocket_api() -> None:
@@ -800,7 +832,7 @@ def test_panel_settings_renderer_is_defined_and_uses_global_websocket_api() -> N
     assert 'name="global_light_sensor"' in panel
     assert 'type:"adaptive_areas/get_global_configuration"' in panel
     assert 'type:"adaptive_areas/update_global_configuration"' in panel
-    assert "friendly_name||entityId" in panel
+    assert "friendly_name||id" in panel
     assert "_saveGlobalSettings(){" in panel and "t.saveFailed" in panel
 
 
@@ -810,16 +842,14 @@ def test_panel_climate_target_shows_friendly_name_with_entity_id_fallback() -> N
         "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
     ).read_text(encoding="utf-8")
 
-    assert (
-        "escape(this._hass?.states?.[entityId]?.attributes?.friendly_name||entityId)"
-        in panel
-    )
-    assert "if(selected&&!targets.includes(selected))targets.push(selected)" in panel
+    # Live path: _scopedOptions labels with the friendly name, falls back to the entity id,
+    # and keeps a stored value that is not in the states (marked, never dropped).
+    assert "attributes?.friendly_name||id" in panel
+    assert "if(!entries.some((entry)=>entry.id===id))" in panel
 
 
 def test_panel_calls_only_defined_methods() -> None:
     """Every `this._method(` call in the panel has a matching method definition."""
-    import re
 
     panel = Path(
         "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"

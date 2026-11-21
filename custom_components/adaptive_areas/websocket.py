@@ -6,6 +6,7 @@ from homeassistant.components import websocket_api
 from homeassistant.components.sensor.const import SensorDeviceClass
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.loader import async_get_integration
 
@@ -15,6 +16,7 @@ from custom_components.adaptive_areas.dashboard import (
     _controls,
     _generated_states,
     build_area_detail,
+    build_decision_trace,
     build_climate_runtime_status,
     build_light_runtime_status,
     build_area_summary,
@@ -35,6 +37,7 @@ from custom_components.adaptive_areas.const import (
     CONF_GLOBAL_LIGHT_SENSOR,
     CONF_WEATHER_ENTITY,
     DOMAIN,
+    SIGNAL_AREAS_CHANGED,
 )
 from custom_components.adaptive_areas.migration import get_global_entries
 
@@ -60,6 +63,11 @@ def _validate_global_options(hass: HomeAssistant, updates: dict) -> dict[str, st
     return errors
 
 
+def _is_admin(connection) -> bool:
+    """Fail closed: only an explicit administrator receives entity-level detail."""
+    return bool(getattr(getattr(connection, "user", None), "is_admin", False))
+
+
 def _get_area(hass: HomeAssistant, area_id: str):
     for area in _areas(hass):
         if str(area.id) == area_id:
@@ -78,8 +86,10 @@ def _get_entry(hass: HomeAssistant, entry_id: str):
 @websocket_api.websocket_command({vol.Required("type"): "adaptive_areas/get_overview"})
 @websocket_api.async_response
 async def websocket_get_overview(hass, connection, msg):
-    """Return the compact dashboard overview."""
-    connection.send_result(msg["id"], build_overview(hass))
+    """Return the compact dashboard overview; entity detail only for administrators."""
+    connection.send_result(
+        msg["id"], build_overview(hass, include_entities=_is_admin(connection))
+    )
 
 
 @websocket_api.websocket_command(
@@ -89,7 +99,31 @@ async def websocket_get_overview(hass, connection, msg):
 async def websocket_get_area(hass, connection, msg):
     """Return one detailed read-only area snapshot."""
     connection.send_result(
-        msg["id"], build_area_detail(hass, _get_area(hass, msg["area_id"]))
+        msg["id"],
+        build_area_detail(
+            hass,
+            _get_area(hass, msg["area_id"]),
+            include_entities=_is_admin(connection),
+        ),
+    )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "adaptive_areas/get_decision_trace",
+        vol.Required("area_id"): str,
+        vol.Optional("limit", default=20): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=20)
+        ),
+    }
+)
+@websocket_api.async_response
+async def websocket_get_decision_trace(hass, connection, msg):
+    """Return the in-memory decision trace of one area (administrators only)."""
+    connection.send_result(
+        msg["id"],
+        build_decision_trace(_get_area(hass, msg["area_id"]), msg["limit"]),
     )
 
 
@@ -288,39 +322,72 @@ async def websocket_delete_area(hass, connection, msg):
 )
 @websocket_api.async_response
 async def websocket_subscribe_updates(hass, connection, msg):
-    """Send changed area summaries for tracked runtime entities only."""
-    entity_to_area = {
-        entity_id: area
-        for area in _areas(hass)
-        for entity_id in {
-            *_area_sources(area),
-            *(state["entity_id"] for state in _generated_states(hass, area)),
-            *area.get_presence_sensors(),
-            *(
-                control["entity_id"]
-                for group in _controls(hass, area)
-                for control in group["controls"]
-            ),
-        }
-    }
+    """Send changed area summaries for tracked runtime entities only.
+
+    The entity index is rebuilt whenever the set of loaded Areas changes, and the
+    client receives a data-free ``areas_changed`` event so it can reload the
+    overview. An entity shared by several Areas (for example a child and its Meta
+    Area) updates every one of them.
+
+    The role is read for every event: Home Assistant updates ``connection.user``
+    in place when a user's groups change and keeps the connection open, so a
+    role captured at subscription time could go stale.
+    """
     last_summaries: dict[str, dict] = {}
+    entity_to_areas: dict[str, list] = {}
+    remove_state_listener = lambda: None
+
+    def _index() -> dict[str, list]:
+        index: dict[str, list] = {}
+        for area in _areas(hass):
+            for entity_id in {
+                *_area_sources(area),
+                *(state["entity_id"] for state in _generated_states(hass, area)),
+                *area.get_presence_sensors(),
+                *(
+                    control["entity_id"]
+                    for group in _controls(hass, area)
+                    for control in group["controls"]
+                ),
+            }:
+                index.setdefault(entity_id, []).append(area)
+        return index
 
     @callback
     def _state_changed(event) -> None:
-        entity_id = event.data["entity_id"]
-        if area := entity_to_area.get(entity_id):
-            summary = build_area_summary(hass, area)
+        for area in entity_to_areas.get(event.data["entity_id"], ()):
+            summary = build_area_summary(hass, area, _is_admin(connection))
             if last_summaries.get(summary["id"]) == summary:
-                return
+                continue
             last_summaries[summary["id"]] = summary
             connection.send_event(msg["id"], {"area": summary})
 
-    remove_listener = lambda: None
-    if entity_to_area:
-        remove_listener = async_track_state_change_event(
-            hass, list(entity_to_area), _state_changed
+    @callback
+    def _track() -> None:
+        nonlocal entity_to_areas, remove_state_listener
+        remove_state_listener()
+        entity_to_areas = _index()
+        remove_state_listener = (
+            async_track_state_change_event(hass, list(entity_to_areas), _state_changed)
+            if entity_to_areas
+            else (lambda: None)
         )
-    connection.subscriptions[msg["id"]] = remove_listener
+
+    @callback
+    def _areas_changed() -> None:
+        _track()
+        last_summaries.clear()
+        connection.send_event(msg["id"], {"areas_changed": True})
+
+    _track()
+    remove_signal = async_dispatcher_connect(hass, SIGNAL_AREAS_CHANGED, _areas_changed)
+
+    @callback
+    def _unsubscribe() -> None:
+        remove_signal()
+        remove_state_listener()
+
+    connection.subscriptions[msg["id"]] = _unsubscribe
     connection.send_result(msg["id"])
 
 
@@ -333,6 +400,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     for command in (
         websocket_get_overview,
         websocket_get_area,
+        websocket_get_decision_trace,
         websocket_get_diagnostics,
         websocket_get_area_configuration,
         websocket_get_light_runtime_status,

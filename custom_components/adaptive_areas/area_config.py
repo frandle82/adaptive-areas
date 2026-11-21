@@ -15,6 +15,7 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_META,
     CONF_AREAS,
     CONF_ENABLED_FEATURES,
+    CONF_GLOBAL_ENTRY,
     CONF_GLOBAL_OPTIONS,
     CONF_FEATURE_LIST,
     CONF_FEATURE_LIST_GLOBAL,
@@ -112,6 +113,9 @@ def area_configuration(
 def area_configurations(entry: ConfigEntry) -> list[dict[str, Any]]:
     """Return every logical Area configuration owned by an entry."""
     areas = entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS))
+    if entry.data.get(CONF_GLOBAL_ENTRY) and not isinstance(areas, dict):
+        # A GlobalEntry without Areas owns no logical Area yet.
+        return []
     if isinstance(areas, dict):
         return sorted(
             [

@@ -1,0 +1,60 @@
+{
+  "area_id": "kitchen",
+  "entries": [
+    {
+      "area_state": [
+        "dark",
+        "occupied"
+      ],
+      "decision": "state_transition",
+      "exception_class": null,
+      "feature": "presence",
+      "from": "clear",
+      "outcome": "observed",
+      "reason_codes": [
+        "motion_detected"
+      ],
+      "target_count": 0,
+      "timestamp": "2026-11-20T21:23:00.803806Z",
+      "to": "occupied",
+      "trigger": "state_recalculated"
+    },
+    {
+      "area_state": [
+        "clear",
+        "dark"
+      ],
+      "decision": "state_transition",
+      "exception_class": null,
+      "feature": "presence",
+      "from": "occupied",
+      "outcome": "observed",
+      "reason_codes": [
+        "clear_timeout_expired"
+      ],
+      "target_count": 0,
+      "timestamp": "2026-11-20T21:23:00.803393Z",
+      "to": "clear",
+      "trigger": "state_recalculated"
+    },
+    {
+      "area_state": [
+        "dark",
+        "occupied"
+      ],
+      "decision": "state_transition",
+      "exception_class": null,
+      "feature": "presence",
+      "from": "clear",
+      "outcome": "observed",
+      "reason_codes": [
+        "motion_detected"
+      ],
+      "target_count": 0,
+      "timestamp": "2026-11-20T21:23:00.802902Z",
+      "to": "occupied",
+      "trigger": "state_recalculated"
+    }
+  ],
+  "limit": 20
+}

@@ -1,0 +1,15 @@
+{
+  "area_id": "kitchen",
+  "area_states": [
+    "occupied"
+  ],
+  "configured_preset": null,
+  "controller_on": false,
+  "current_preset": null,
+  "decision": "no_action",
+  "enabled": false,
+  "occupancy_pending": false,
+  "occupancy_threshold": null,
+  "target_available": false,
+  "target_entity": null
+}

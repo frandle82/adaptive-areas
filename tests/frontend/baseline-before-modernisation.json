@@ -1,0 +1,19 @@
+{
+  "initial": {
+    "ms": 5,
+    "mutations": 4,
+    "wsCalls": 2
+  },
+  "subscriptionUpdate": {
+    "mutations": 1,
+    "scrollBefore": 400,
+    "scrollAfter": 400
+  },
+  "navigateSettings": {
+    "mutations": 3,
+    "wsCalls": 1
+  },
+  "focusTarget": false,
+  "focusRetained": "n/a (no focusable field on the current view)",
+  "jsErrors": 0
+}

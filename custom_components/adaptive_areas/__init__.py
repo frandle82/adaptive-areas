@@ -21,6 +21,7 @@ from homeassistant.helpers.entity_registry import (
     EventEntityRegistryUpdatedData,
     async_get as async_get_entity_registry,
 )
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.floor_registry import EVENT_FLOOR_REGISTRY_UPDATED
 
@@ -70,6 +71,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_ROOM_CATEGORY,
     DEFAULT_PRESENCE_MINUTES_TO_DUE,
     MODULE_DATA,
+    SIGNAL_AREAS_CHANGED,
     AdaptiveConfigEntryVersion,
 )
 from custom_components.adaptive_areas.helpers.area import (
@@ -664,6 +666,7 @@ async def async_setup_entry(  # noqa: C901
             config_entry.title,
             (monotonic() - total_start) * 1000,
         )
+        async_dispatcher_send(hass, SIGNAL_AREAS_CHANGED)
         return True
 
     hass.data.setdefault(MODULE_DATA, {})
@@ -726,6 +729,7 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
         async_unload_services(hass)
         hass.data.pop(MODULE_DATA)
 
+    async_dispatcher_send(hass, SIGNAL_AREAS_CHANGED)
     return True
 
 

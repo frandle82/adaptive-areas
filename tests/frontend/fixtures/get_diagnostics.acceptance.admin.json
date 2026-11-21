@@ -1,0 +1,109 @@
+{
+  "adaptive_entity_count": 42,
+  "area_count": 8,
+  "data_complete": true,
+  "empty_aggregate_count": 0,
+  "issues": [
+    {
+      "area_id": "living_room",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "master_bedroom",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "garage",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "front_yard",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "interior",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "interior",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "interior",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "exterior",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "global",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "global",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "global",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "global",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "ground_level",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "ground_level",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "first_floor",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    },
+    {
+      "area_id": "second_floor",
+      "code": "unavailable_source",
+      "message": "A source is unavailable.",
+      "severity": "warning"
+    }
+  ],
+  "meta_area_count": 6,
+  "unavailable_source_count": 16,
+  "unknown_source_count": 0,
+  "version": "1.6.19-rc.10",
+  "warning_count": 16
+}

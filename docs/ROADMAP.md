@@ -8,7 +8,7 @@ Status: approved and functionally complete on `main`. Pending: visual review in 
 
 Owner: maintainer (Andreas Grundke).
 
-Reference: the Dashboard 2.0 target design is the binding specification for panel behaviour. Backend fields, WebSocket endpoints and runtime semantics come from the code, not from the UI.
+Reference: the versioned [dashboard specification](specifications/dashboard.md) is the binding reference for panel behaviour. The Dashboard 2.0 target design is merged into it. Backend fields, WebSocket endpoints and runtime semantics come from the code, not from the UI.
 
 ### Scope
 
@@ -54,3 +54,33 @@ Reference: the Dashboard 2.0 target design is the binding specification for pane
 ### Compatibility
 
 No storage, entity id or config entry changes. No backend migration.
+
+## Dashboard Redesign – approved specification
+
+Status: Planned. Specification approved at Approval Gate 1; see [specifications/dashboard.md](specifications/dashboard.md) §14 for the full work packages, acceptance criteria and risks. Nothing in this section is implemented yet.
+
+Work packages in dependency order (summary; see the specification for details):
+
+1. Baseline and documentation alignment (done for the specification itself, §16).
+2. Non-administrator data shaping per user role (§3.1). Requires a verification of the panel consumers before the change.
+3. Permission tests for all WebSocket commands, positive and negative.
+4. Theme foundation with Home Assistant theme variables.
+5. Translation architecture through `frontend/get_translations`, after the minimum-version check.
+6. Rendering migration with regression tests first; implementation only after Approval Gate 2.
+7. Responsive shell, overview, area cards, area detail, environment, cleaning, room usage, lighting, climate, administration.
+8. Decision Trace backend (`adaptive_areas/get_decision_trace`) and trace-only reason codes, then frontend timeline.
+9. Diagnostics view, state handling, accessibility, performance measurement, browser validation, final documentation.
+
+Not in scope of the first version: a global cross-area decision trace, new persistence of trace history, trend visualisations.
+
+## Fan configuration (not yet implemented)
+
+Status: deliberately not editable in the Dashboard. The configuration keys `ventilation_fans`, `circulation_fans` and `disabled_fans` are validated (entities of domain `fan`) and kept on save, but no runtime path reads them in this repository (checked: `helpers/environment.py`, `switch/fan_control.py`, `fan.py`). Fan control works from the computed fan requests only.
+
+Open definition before any implementation:
+
+- what a ventilation fan list controls (requested by the environment assessment, or switched directly);
+- whether a circulation fan list is used for the same request or separately;
+- whether excluded fans are only left out of automation or are switched off when the request is not met.
+
+Until these are decided, the Dashboard neither shows nor changes these keys; the values are preserved on every save.

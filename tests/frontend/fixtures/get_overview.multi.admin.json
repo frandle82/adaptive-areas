@@ -1,0 +1,603 @@
+{
+  "areas": [
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "ground_level",
+      "floor_name": "ground_level",
+      "id": "backyard",
+      "lights": null,
+      "name": "backyard",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "first_floor",
+      "floor_name": "first_floor",
+      "id": "dining_room",
+      "lights": null,
+      "name": "dining_room",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": null,
+      "floor_name": null,
+      "id": "exterior",
+      "lights": null,
+      "members": [
+        "backyard",
+        "front_yard"
+      ],
+      "members_total": 2,
+      "name": "Exterior",
+      "occupied": true,
+      "presence": {
+        "available": 2,
+        "state": "occupied",
+        "total": 2
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 6,
+        "total": 6
+      },
+      "type": "meta",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "first_floor",
+      "floor_name": "first_floor",
+      "id": "first_floor",
+      "lights": null,
+      "members": [
+        "dining_room",
+        "kitchen",
+        "living_room"
+      ],
+      "members_total": 3,
+      "name": "first_floor",
+      "occupied": true,
+      "presence": {
+        "available": 3,
+        "state": "occupied",
+        "total": 3
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 9,
+        "total": 9
+      },
+      "type": "meta",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "ground_level",
+      "floor_name": "ground_level",
+      "id": "front_yard",
+      "lights": null,
+      "name": "front_yard",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "ground_level",
+      "floor_name": "ground_level",
+      "id": "garage",
+      "lights": null,
+      "name": "garage",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": null,
+      "floor_name": null,
+      "id": "global",
+      "lights": null,
+      "members": [
+        "backyard",
+        "dining_room",
+        "front_yard",
+        "garage",
+        "guest_bedroom",
+        "kitchen",
+        "living_room",
+        "master_bedroom"
+      ],
+      "members_total": 8,
+      "name": "Global",
+      "occupied": true,
+      "presence": {
+        "available": 8,
+        "state": "occupied",
+        "total": 8
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 24,
+        "total": 24
+      },
+      "type": "meta",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "ground_level",
+      "floor_name": "ground_level",
+      "id": "ground_level",
+      "lights": null,
+      "members": [
+        "backyard",
+        "front_yard",
+        "garage"
+      ],
+      "members_total": 3,
+      "name": "ground_level",
+      "occupied": true,
+      "presence": {
+        "available": 3,
+        "state": "occupied",
+        "total": 3
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 9,
+        "total": 9
+      },
+      "type": "meta",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "second_floor",
+      "floor_name": "second_floor",
+      "id": "guest_bedroom",
+      "lights": null,
+      "name": "guest_bedroom",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": null,
+      "floor_name": null,
+      "id": "interior",
+      "lights": null,
+      "members": [
+        "dining_room",
+        "garage",
+        "guest_bedroom",
+        "kitchen",
+        "living_room",
+        "master_bedroom"
+      ],
+      "members_total": 6,
+      "name": "Interior",
+      "occupied": true,
+      "presence": {
+        "available": 6,
+        "state": "occupied",
+        "total": 6
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 18,
+        "total": 18
+      },
+      "type": "meta",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "first_floor",
+      "floor_name": "first_floor",
+      "id": "kitchen",
+      "lights": null,
+      "name": "kitchen",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "first_floor",
+      "floor_name": "first_floor",
+      "id": "living_room",
+      "lights": null,
+      "name": "living_room",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "second_floor",
+      "floor_name": "second_floor",
+      "id": "master_bedroom",
+      "lights": null,
+      "name": "master_bedroom",
+      "occupied": true,
+      "presence": {
+        "available": 1,
+        "state": "occupied",
+        "total": 1
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 1,
+        "total": 1
+      },
+      "type": "area",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    },
+    {
+      "active_states": [
+        "dark",
+        "occupied"
+      ],
+      "brightness": {
+        "illuminance": null,
+        "state": "dark",
+        "unit": null
+      },
+      "cleaning": null,
+      "controls": [],
+      "enabled_features": [
+        "aggregates"
+      ],
+      "environment": null,
+      "floor_id": "second_floor",
+      "floor_name": "second_floor",
+      "id": "second_floor",
+      "lights": null,
+      "members": [
+        "guest_bedroom",
+        "master_bedroom"
+      ],
+      "members_total": 2,
+      "name": "second_floor",
+      "occupied": true,
+      "presence": {
+        "available": 2,
+        "state": "occupied",
+        "total": 2
+      },
+      "room_usage": null,
+      "sources": {
+        "available": 6,
+        "total": 6
+      },
+      "type": "meta",
+      "warning_count": 0,
+      "warning_details": {
+        "aggregates": 0,
+        "secondary_states": 0
+      }
+    }
+  ],
+  "counts": {
+    "areas": 8,
+    "bright": 0,
+    "dark": 14,
+    "lights_on": 0,
+    "meta_areas": 6,
+    "occupied": 14
+  },
+  "enabled_feature_tabs": [
+    "aggregates"
+  ]
+}

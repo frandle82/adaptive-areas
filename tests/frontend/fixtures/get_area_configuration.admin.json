@@ -1,0 +1,68 @@
+{
+  "areas": [
+    {
+      "area_id": "kitchen",
+      "available_features": [
+        "media_player_groups",
+        "light_groups",
+        "cover_groups",
+        "climate_control",
+        "aggregates",
+        "health",
+        "light",
+        "environment",
+        "room_usage",
+        "area_aware_media_player",
+        "presence_hold",
+        "ble_trackers",
+        "fan_groups",
+        "wasp_in_a_box"
+      ],
+      "entry_id": "01M7XDEQGVGR11M03JZG8ZQE3B",
+      "name": "Kitchen",
+      "options": {
+        "area_humidity_sensor": "",
+        "area_temperature_sensor": "",
+        "circulation_fans": [],
+        "clear_timeout": 0,
+        "disabled_fans": [],
+        "exclude_entities": [],
+        "features": {},
+        "humidity_warning_duration": 15,
+        "ignore_diagnostic_entities": true,
+        "include_entities": [],
+        "keep_only_entities": [],
+        "outdoor_humidity_entity": "",
+        "outdoor_temperature_entity": "",
+        "passive_cooling_temperature_difference": 2.0,
+        "presence_control_entities": [],
+        "presence_device_platforms": [
+          "media_player",
+          "binary_sensor"
+        ],
+        "presence_sensor_device_class": [
+          "motion",
+          "occupancy",
+          "presence"
+        ],
+        "relevant_windows": [],
+        "reload_on_registry_change": true,
+        "room_category": "living_sedentary",
+        "secondary_states": {
+          "accent_entity": "",
+          "dark_entity": "",
+          "extended_time": 5,
+          "extended_timeout": 10,
+          "sleep_entity": "",
+          "sleep_timeout": 1
+        },
+        "surface_temperature_entity": "",
+        "type": "interior",
+        "ventilation_fans": []
+      },
+      "type": "interior",
+      "validation_errors": {}
+    }
+  ],
+  "available_areas": []
+}
