@@ -27,6 +27,7 @@ Tox environments use Python 3.14. `scripts/lint` needs `tox` only. `scripts/test
   - Python 3.14.10 on the GitHub runner.
   - `homeassistant==2026.11.0b6` (value of `HA_BETA_VERSION`, selected by the workflow).
   - `pytest-homeassistant-custom-component` is installed without a version. No harness release supports Home Assistant 2026.11.x beta; pip therefore resolves the 2020 release `0.2.1`, which pins `pytest==6.2.2` and `pluggy==1.0.0.dev0`. pytest 6.2.2 fails on Python 3.14 during assertion rewriting (`TypeError: required field "lineno" missing from alias`) while loading `conftest.py`.
+  - The same versions fail with a different message on a later run (`AttributeError: module 'ast' has no attribute 'Str'`, run 45015644626 on `e981ad1`). Both messages come from pytest 6.2.2 running on Python 3.14; the failing module varies with the import order.
   - The current harness `0.13.375` pins `homeassistant==2026.10.4`. Installed manually against Home Assistant `2026.11.0b6` it fails in two places: `respx` imports `httpx` before Home Assistant aliases it to `httpx2`, and `pytest_homeassistant_custom_component` imports the private `_clear_logger_overwrites` from `homeassistant.components.logger`, which the beta no longer provides.
 - The job was not green before. Run `1bad0d0` reported success only because `continue-on-error` hid the failure (`ha-beta: exit 1`, no tests collected).
 - Not allowed: a stable Home Assistant version as beta, an old pytest pin, test shims, skipping the job, or marking it non-blocking.
