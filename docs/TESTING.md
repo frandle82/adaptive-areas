@@ -20,6 +20,18 @@ Tox environments use Python 3.14. `scripts/lint` needs `tox` only. `scripts/test
 - Override the default only for experiments, for example `HA_STABLE_VERSION=2026.8.1 tox -e ha-stable`.
 - Verified 2026-11-20 on the working tree (HEAD 3b1bd6a plus uncommitted Phase 5 changes): full suite with Home Assistant 2026.10.4 and harness 0.13.375 reports 594 passed. The 563 figure is the pre-change baseline; the new tests in `tests/test_dashboard_permissions.py`, `tests/test_frontend_fixtures.py` and `tests/test_dashboard_subscription.py` account for the difference. Earlier figures for 2026.8.1 (532 passed, 1 skipped) were not re-run.
 
+## Beta test job status
+
+- Job `test-beta` in `.github/workflows/pytest.yml` is blocking. `continue-on-error` was removed so a failure is reported as a failure.
+- **BLOCKED – TEST INFRASTRUCTURE INCOMPATIBILITY.** Not passed. Verified 2026-11-22 from the CI log of commit `15ec8f4`:
+  - Python 3.14.10 on the GitHub runner.
+  - `homeassistant==2026.11.0b6` (value of `HA_BETA_VERSION`, selected by the workflow).
+  - `pytest-homeassistant-custom-component` is installed without a version. No harness release supports Home Assistant 2026.11.x beta; pip therefore resolves the 2020 release `0.2.1`, which pins `pytest==6.2.2` and `pluggy==1.0.0.dev0`. pytest 6.2.2 fails on Python 3.14 during assertion rewriting (`TypeError: required field "lineno" missing from alias`) while loading `conftest.py`.
+  - The current harness `0.13.375` pins `homeassistant==2026.10.4`. Installed manually against Home Assistant `2026.11.0b6` it fails in two places: `respx` imports `httpx` before Home Assistant aliases it to `httpx2`, and `pytest_homeassistant_custom_component` imports the private `_clear_logger_overwrites` from `homeassistant.components.logger`, which the beta no longer provides.
+- The job was not green before. Run `1bad0d0` reported success only because `continue-on-error` hid the failure (`ha-beta: exit 1`, no tests collected).
+- Not allowed: a stable Home Assistant version as beta, an old pytest pin, test shims, skipping the job, or marking it non-blocking.
+- Exit condition: a `pytest-homeassistant-custom-component` release that supports the beta version. Then the job must run tests and pass.
+
 ## Selection rules
 
 - Behavior changes require affected tests and, for broad changes, `scripts/test stable`.

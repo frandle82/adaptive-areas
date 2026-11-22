@@ -23,6 +23,7 @@
 
 ### Known issues
 
+- Home Assistant stable was tested successfully. The automated Home Assistant beta test could not run successfully because of an incompatibility of the test harness with the beta release; it is blocked and not passed. No beta compatibility is claimed.
 - Not yet verified: the real Home Assistant interface, a true 200 % browser zoom, a screen reader, and behaviour with real presence sensors.
 - The status error observed on the test instance (a configured source shown as `unknown`) was not explained by this release.
 

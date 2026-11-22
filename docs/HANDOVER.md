@@ -293,3 +293,10 @@ Siehe „Fortsetzungspunkt“ oben (Schritt 4.2). Zu erhaltende Vorgaben aus der
 - Bewusst nativ geblieben (keine Entitäten): Bereichs-Auswahlen (`data-*-area`, `area_id`), Aufzählungen (`room_category`, `type`, Aktivierung, Helligkeit der Lichtgruppen) und die Zustandswerte der Blockierung (`*_blocking_states`, Zeichenketten).
 - Tests: Browser 354/354 (neu: ENT1–ENT3, ENT5; umgestellt: S-, G-, V02-, LG1-, S4-Prüfungen). Python 707 bestanden, inkl. neuer `tests/test_panel_loading.py`.
 - Nicht geprüft: echter 200-%-Browserzoom (Browser-Zoom ist im Harness nicht steuerbar; Viewport-Verkleinerung ist keine Zoomprüfung), echte Home-Assistant-Oberfläche, Screenreader.
+
+## CI: Beta-Job sichtbar machen und Release-Ausnahme 1.6.19-rc.15 (2026-11-22)
+
+- `continue-on-error` aus `test-beta` entfernt. Der Beta-Job meldet seinen Status. Andere Workflows enthalten keine Fehlerunterdrückung (geprüft: `grep continue-on-error|| true`). `main` hat keine Branch-Protection.
+- Beta-Prüfung: **BLOCKED – TEST INFRASTRUCTURE INCOMPATIBILITY**. Details und Nachweis: `docs/TESTING.md` („Beta test job status“).
+- Ausnahme ausschließlich für `1.6.19-rc.15`: Release, obwohl der Beta-Job rot ist, weil der Fehler aus der Testinfrastruktur stammt. Voraussetzungen: Validate, Lint, Stable-Tests, lokale Python- und Browser-Suite, JSON, Release-Validierung grün. Keine Umstellung auf optional.
+- Für künftige Releases gilt wieder: Beta-Job muss grün sein.
