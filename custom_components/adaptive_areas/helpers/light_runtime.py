@@ -249,6 +249,11 @@ class LightRuntimeManager:
         """Return the current manual override state without allowing mutation."""
         return self._manual_override_state
 
+    @property
+    def last_dispatched_action(self) -> LightPolicyAction | None:
+        """Return the last executed on/off action, or None after a neutral evaluation."""
+        return self._last_dispatched_action
+
     def unload(self) -> None:
         """Remove all targeted listeners owned by this manager."""
         self._unloaded = True

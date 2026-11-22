@@ -25,6 +25,7 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_DARK,
     CONF_ACCENT_LIGHTS,
     CONF_DARK_ENTITY,
+    CONF_SECONDARY_STATES,
     CONF_ENABLED_FEATURES,
     CONF_OVERHEAD_LIGHTS,
     CONF_SLEEP_LIGHTS,
@@ -40,7 +41,14 @@ from custom_components.adaptive_areas.helpers.area import (
     generated_entities_for_area,
     iter_runtime_areas,
 )
+from custom_components.adaptive_areas.helpers.light_override import (
+    LightManualOverrideMode,
+    LightManualOverrideState,
+    apply_manual_override,
+)
 from custom_components.adaptive_areas.helpers.light_policy import (
+    LightPolicyAction,
+    LightPolicyDecision,
     evaluate_light_policy,
     light_policy_config_from_feature,
 )
@@ -72,6 +80,56 @@ def _status_of(source: dict[str, Any]) -> str:
     if isinstance(status, str):
         return status
     return "available" if source.get("available") else "unavailable"
+
+
+def _dark_source_id(area: AdaptiveArea) -> str | None:
+    """Return the configured darkness entity on the same path the Area logic reads.
+
+    The presence logic reads `secondary_states.dark_entity`; the dashboard must use
+    the same path, otherwise its consistency check never sees a configured source.
+    """
+    secondary = area.config.get(CONF_SECONDARY_STATES) or {}
+    return secondary.get(CONF_DARK_ENTITY) or None
+
+
+def _brightness_reason(dark_source: dict[str, Any] | None) -> str:
+    """Explain where the dark/bright state comes from, without inventing a source."""
+    if dark_source is None:
+        return "not_configured"
+    if dark_source.get("status") == "missing":
+        return "source_missing"
+    if not dark_source.get("available"):
+        return "source_unavailable"
+    return "configured_source"
+
+
+def light_policy_diagnostics(
+    decision: LightPolicyDecision,
+    override_mode: LightManualOverrideMode,
+    last_dispatched: LightPolicyAction | None,
+) -> dict[str, Any]:
+    """Explain a policy decision: blocked by override, duplicate, or allowed.
+
+    Uses the same rules as the runtime (`apply_manual_override` and the dispatch
+    dedupe). It only reads state and never changes the runtime.
+    """
+    if decision.action not in (LightPolicyAction.TURN_ON, LightPolicyAction.TURN_OFF):
+        return {"blocked_by": None, "duplicate": False}
+    allowed = apply_manual_override(
+        override_state=LightManualOverrideState(mode=override_mode),
+        decision=decision,
+    ).allowed
+    if not allowed:
+        blocked = (
+            "force_on"
+            if override_mode is LightManualOverrideMode.FORCE_ON
+            else "force_off"
+        )
+        return {"blocked_by": blocked, "duplicate": False}
+    return {
+        "blocked_by": None,
+        "duplicate": last_dispatched is decision.action,
+    }
 
 
 def _state_data(state: State | None, entity_id: str) -> dict[str, Any]:
@@ -380,7 +438,7 @@ def build_area_summary(
     groups = _light_groups(hass, area)
     presence_sources = area.get_presence_sensors()
     sources = _area_sources(area)
-    dark_source_id = area.config.get(CONF_DARK_ENTITY)
+    dark_source_id = _dark_source_id(area)
     dark_source = (
         _state_data(hass.states.get(dark_source_id), dark_source_id)
         if dark_source_id
@@ -497,7 +555,7 @@ def build_area_detail(
     """
     summary = build_area_summary(hass, area, include_entities)
     aggregates = _aggregates(hass, area)
-    dark_source_id = area.config.get(CONF_DARK_ENTITY)
+    dark_source_id = _dark_source_id(area)
     if not include_entities:
         return {
             **summary,
@@ -510,11 +568,20 @@ def build_area_detail(
                 ),
                 "sources": _source_coverage(hass, area.get_presence_sensors()),
             },
-            "brightness_detail": {"state": summary["brightness"]},
+            "brightness_detail": {
+                "state": summary["brightness"],
+                "reason": "not_available_without_entities",
+                "default_dark": False,
+            },
             "aggregates": [_aggregate_without_entities(item) for item in aggregates],
             "environment": _environment(hass, area, include_entities=False),
             "sources": _source_coverage(hass, _area_sources(area)),
         }
+    dark_source_data = (
+        _state_data(hass.states.get(dark_source_id), dark_source_id)
+        if dark_source_id
+        else None
+    )
     return {
         **summary,
         "presence": {
@@ -529,11 +596,9 @@ def build_area_detail(
         },
         "brightness_detail": {
             "state": summary["brightness"],
-            "dark_source": (
-                _state_data(hass.states.get(dark_source_id), dark_source_id)
-                if dark_source_id
-                else None
-            ),
+            "dark_source": dark_source_data,
+            "reason": _brightness_reason(dark_source_data),
+            "default_dark": dark_source_id is None and area.has_state(AREA_STATE_DARK),
         },
         "light_groups": _light_groups(hass, area),
         "aggregates": aggregates,
@@ -724,13 +789,21 @@ def build_light_runtime_status(
                 "presence": {"available": False, "occupied": None},
                 "illuminance": {
                     "configured": False,
+                    "entity_id": None,
                     "available": False,
                     "value": None,
                 },
-                "policy": {"decision": "NO_ACTION", "reason": "policy_not_configured"},
+                "thresholds": {"turn_on_below": None, "turn_off_above": None},
+                "policy": {
+                    "decision": "NO_ACTION",
+                    "reason": "policy_not_configured",
+                    "blocked_by": None,
+                    "duplicate": False,
+                },
+                "dispatch": {"recorded": False, "last_action": None},
                 "override": {"mode": "NONE"},
                 "vacancy": {"pending": False, "due_at": None},
-                "targets": {"total": 0, "available": 0},
+                "targets": {"total": 0, "available": 0, "entity_ids": []},
             },
         }
 
@@ -744,6 +817,12 @@ def build_light_runtime_status(
     manager = getattr(area, "light_runtime_manager", None)
     vacancy = manager.vacancy_state if manager is not None else None
     override = manager.override_state if manager is not None else None
+    last_dispatched = manager.last_dispatched_action if manager is not None else None
+    override_mode = (
+        override.mode if override is not None else LightManualOverrideMode.NONE
+    )
+    diagnostics = light_policy_diagnostics(decision, override_mode, last_dispatched)
+    light_feature = area.feature_config(CONF_FEATURE_LIGHT) or {}
     return {
         "area_id": str(area.id),
         "light": {
@@ -754,17 +833,33 @@ def build_light_runtime_status(
             },
             "illuminance": {
                 "configured": snapshot.illuminance_entity_id is not None,
+                "entity_id": snapshot.illuminance_entity_id,
                 "available": snapshot.illuminance_available,
                 "value": snapshot.illuminance_value,
+            },
+            "thresholds": {
+                "turn_on_below": light_feature.get("turn_on_below"),
+                "turn_off_above": light_feature.get("turn_off_above"),
             },
             "policy": {
                 "decision": decision.action.value.upper(),
                 "reason": decision.reason.value,
+                "blocked_by": diagnostics["blocked_by"],
+                "duplicate": diagnostics["duplicate"],
+            },
+            # Only the integration's own dispatch record: a service call was issued.
+            # It is not confirmed by the light's state. `recorded` False means no
+            # runtime manager exists, so nothing can be said.
+            "dispatch": {
+                "recorded": manager is not None,
+                "last_action": (
+                    last_dispatched.value.upper()
+                    if last_dispatched is not None
+                    else None
+                ),
             },
             "override": {
-                "mode": (
-                    override.mode.value.upper() if override is not None else "NONE"
-                )
+                "mode": override_mode.value.upper(),
             },
             "vacancy": {
                 "pending": bool(vacancy and vacancy.pending),
@@ -773,6 +868,7 @@ def build_light_runtime_status(
             "targets": {
                 "total": len(snapshot.targets),
                 "available": sum(target.available for target in snapshot.targets),
+                "entity_ids": [target.entity_id for target in snapshot.targets],
             },
         },
     }

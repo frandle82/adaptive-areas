@@ -18,6 +18,7 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
     AREA_STATE_DARK,
     CONF_DARK_ENTITY,
+    CONF_SECONDARY_STATES,
     CONF_ENABLED_FEATURES,
     CONF_FEATURE_CLIMATE_CONTROL,
     CONF_FEATURE_LIGHT,
@@ -280,11 +281,27 @@ def test_climate_runtime_status_reports_effective_runtime_state(
     assert status["light"] == {
         "enabled": True,
         "presence": {"available": True, "occupied": True},
-        "illuminance": {"configured": False, "available": False, "value": None},
-        "policy": {"decision": "NO_ACTION", "reason": "policy_not_configured"},
+        "illuminance": {
+            "configured": False,
+            "entity_id": None,
+            "available": False,
+            "value": None,
+        },
+        "thresholds": {"turn_on_below": None, "turn_off_above": None},
+        "policy": {
+            "decision": "NO_ACTION",
+            "reason": "policy_not_configured",
+            "blocked_by": None,
+            "duplicate": False,
+        },
+        "dispatch": {"recorded": False, "last_action": None},
         "override": {"mode": "NONE"},
         "vacancy": {"pending": False, "due_at": None},
-        "targets": {"total": 2, "available": 1},
+        "targets": {
+            "total": 2,
+            "available": 1,
+            "entity_ids": [target.entity_id for target in snapshot.targets],
+        },
     }
 
 
@@ -295,6 +312,7 @@ def test_light_runtime_status_keeps_manager_state_area_local(
     manager = SimpleNamespace(
         override_state=LightManualOverrideState(LightManualOverrideMode.FORCE_ON, 1),
         vacancy_state=LightVacancyState(detected_at=10, due_at=40),
+        last_dispatched_action=None,
     )
     area = SimpleNamespace(
         id="living",
@@ -316,6 +334,8 @@ def test_light_runtime_status_keeps_manager_state_area_local(
     assert status["light"]["policy"] == {
         "decision": "NO_ACTION",
         "reason": "no_targets",
+        "blocked_by": None,
+        "duplicate": False,
     }
 
     kitchen = SimpleNamespace(
@@ -325,6 +345,7 @@ def test_light_runtime_status_keeps_manager_state_area_local(
                 LightManualOverrideMode.FORCE_OFF, 1
             ),
             vacancy_state=LightVacancyState(),
+            last_dispatched_action=None,
         ),
         has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
         feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
@@ -459,7 +480,7 @@ async def test_dashboard_brightness_consistency_uses_available_dark_source_only(
     """Only contradictory available dark sources produce a warning."""
     area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
     entity_id = "binary_sensor.dashboard_dark_source"
-    area.config[CONF_DARK_ENTITY] = entity_id
+    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: entity_id}
     area.states = [area_state]
     hass.states.async_set(entity_id, dark_source_state)
 
@@ -469,6 +490,79 @@ async def test_dashboard_brightness_consistency_uses_available_dark_source_only(
         "brightness_state_inconsistent"
         in {issue["code"] for issue in diagnostics["issues"]}
     ) is expected_warning
+
+
+async def test_dashboard_brightness_reason_for_configured_dark_entity(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """A configured, available darkness entity is reported as the source."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    entity_id = "binary_sensor.dashboard_reason_configured"
+    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: entity_id}
+    area.states = [AREA_STATE_DARK]
+    hass.states.async_set(entity_id, "off")
+
+    detail = build_area_detail(hass, area, include_entities=True)
+
+    assert detail["brightness_detail"]["reason"] == "configured_source"
+    assert detail["brightness_detail"]["default_dark"] is False
+    assert detail["brightness_detail"]["dark_source"]["entity_id"] == entity_id
+
+
+async def test_dashboard_brightness_reason_for_missing_and_unavailable_entities(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Missing config is the labelled default; an unavailable entity is not guessed."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+
+    area.config[CONF_SECONDARY_STATES] = {}
+    area.states = [AREA_STATE_DARK]
+    missing = build_area_detail(hass, area, include_entities=True)["brightness_detail"]
+    assert missing["reason"] == "not_configured"
+    assert missing["default_dark"] is True
+    assert missing["dark_source"] is None
+
+    entity_id = "binary_sensor.dashboard_reason_unavailable"
+    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: entity_id}
+    hass.states.async_set(entity_id, "unavailable")
+    unavailable = build_area_detail(hass, area, include_entities=True)[
+        "brightness_detail"
+    ]
+    assert unavailable["reason"] == "source_unavailable"
+    assert unavailable["default_dark"] is False
+
+
+async def test_dashboard_ignores_a_dark_entity_stored_on_the_top_level(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Regression: only `secondary_states.dark_entity` is the configured darkness source."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    entity_id = "binary_sensor.dashboard_top_level_dark"
+    area.config[CONF_DARK_ENTITY] = entity_id
+    area.config.pop(CONF_SECONDARY_STATES, None)
+    area.states = [AREA_STATE_BRIGHT]
+    hass.states.async_set(entity_id, "off")
+
+    diagnostics = build_diagnostics(hass, "test")
+
+    assert "brightness_state_inconsistent" not in {
+        issue["code"] for issue in diagnostics["issues"]
+    }
+
+
+async def test_dashboard_without_dark_entity_has_no_brightness_source(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Missing darkness entity: no source, no consistency warning (default DARK applies)."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    area.config[CONF_SECONDARY_STATES] = {}
+    area.states = [AREA_STATE_DARK]
+
+    diagnostics = build_diagnostics(hass, "test")
+
+    assert "brightness_state_inconsistent" not in {
+        issue["code"] for issue in diagnostics["issues"]
+    }
 
 
 async def test_panel_and_websocket_registration_are_idempotent(

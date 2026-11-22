@@ -317,3 +317,9 @@ Die folgenden Punkte stammen aus Praxistests des Benutzers in einer realen Home-
 
 - Beta-CI-Modernisierung: `docs/specifications/beta-ci-modernisation.md`.
 - Prozent-Hysterese für Lichtautomatik: Entscheidung DECIDED / CLOSED (2026-11-22). Plan und Entscheidungen: `docs/specifications/light-percent-hysteresis-plan.md`. Die frühere absolute Festlegung in `dashboard-migration-matrix.md` ist ersetzt.
+
+## Helligkeitsdiagnose (lokal, 2026-11-22, nicht committet)
+
+- Nicht committet. Geändert: `dashboard.py`, `helpers/light_runtime.py` (nur lesende Eigenschaft `last_dispatched_action`), Panel, DE/EN-Texte, Tests (`test_dashboard.py`, `test_brightness_diagnostics.py`, `test_light_override_sequence.py`, `run.mjs`), `docs/specifications/brightness-diagnostics-concept.md`.
+- Ursprüngliche Praxisprobleme: weiterhin **ungeklärt**. Benötigte Daten: siehe `docs/specifications/brightness-diagnostics-concept.md`, Abschnitt 7.
+- Datenschutz: Entitäts-IDs und Grenzwerte erscheinen nur im Admin-Laufzeitstatus (Endpunkt admin-only) und in der Admin-Detailansicht. Für Nicht-Administratoren bleibt die Quelle ausgeblendet.

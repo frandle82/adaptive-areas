@@ -98,3 +98,12 @@ A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not 
 - Finalisiert (lokal, 2026-11-22, noch nicht committet): gültige Paare immer als Prozent; Legacy nur für ungültige Paare; exakte Werte bei unveränderten Feldern; Gleichheitssemantik an der Schwelle dokumentiert; ungenutzte Übersetzungsschlüssel entfernt. Prüfungen: Python 717 bestanden, Browser 367/367 bestanden.
 - Vorher (überholt): Panel-Eingabe in Prozent mit Vorschau, Backend akzeptiert gleiche Grenzen (H = 0), Legacy-Anzeige für Paare, die eine Nachkommastelle nicht reproduziert. Prüfungen: Python 709 bestanden, Browser 364/364 bestanden.
 - Für die Prozentdefinition gilt: jedes Paar mit T > 0 ist exakt als T und H darstellbar. Legacy-Anzeige greift deshalb nur bei Rundungsabweichung der Einnachkommastellen-Anzeige, nicht bei einer strengen Asymmetrie.
+
+## Helligkeitsdiagnose (lokal, 2026-11-22, nicht committet)
+
+- Drei getrennte Helligkeitsmechanismen: (1) Bereichsstatus hell/dunkel über `secondary_states.dark_entity`; ohne Entität gilt der Standard „dunkel“. (2) Automatischer Schwellensensor mit eigener Aggregationsschwelle und Hysterese. (3) Lichtautomatik mit globalem Helligkeitssensor und `turn_on_below` / `turn_off_above`. Die Mechanismen sind nicht verbunden.
+- Korrigiert: Die Konsistenzprüfung in `dashboard.py` las `dark_entity` auf oberster Ebene und konnte nie auslösen. Jetzt derselbe Pfad wie die Bereichslogik (`secondary_states`).
+- Diagnose im Dashboard: Bereichsdetail zeigt den Grund des Bereichsstatus (konfigurierte Entität, Standardannahme, Entität nicht gefunden, nicht verfügbar). Lichtdiagnose zeigt Sensor, Grenzen, Policy-Entscheidung und Grund, Sperre durch Übersteuerung, Unterdrückung durch Dedupe, Präsenz, Lichtziele und die ausgelöste Aktion. Die ausgelöste Aktion ist nur der Service-Aufruf, nicht durch den Zustand bestätigt. Fehlt der Eintrag der Laufzeit, steht „nicht erfasst“.
+- Schaltlogik, Präsenzlogik, Dedupe- und Übersteuerungsregeln sind unverändert.
+- Die ursprünglichen Praxisprobleme (Bereich bleibt dunkel; Licht schaltet bei hell→dunkel nicht ein) sind **ungeklärt**. Ohne reale Diagnosedaten (siehe Konzept) ist die Ursache nicht bestätigt.
+- Prüfungen: Python 738 bestanden; Browser 378/378 bestanden.
