@@ -7,7 +7,7 @@ Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchi
 - Präsenzdiagnose: `presence.evaluation` in der nativen Diagnose (Home Assistant: Einstellungen → Geräte & Dienste → Adaptive Areas → Bereich → Diagnose herunterladen). Keine Entity-IDs im Export. Details: [CURRENT_STATE.md](CURRENT_STATE.md).
 - Gate-Semantik: `DECIDED / CLOSED` (siehe [DECISIONS.md](DECISIONS.md)).
 - Ursache des Statusfehlers auf der Testinstanz: `UNRESOLVED`. Nächster Schritt: Diagnose-Export des betroffenen Bereichs auslesen und die Quellen mit `reason` und `status` auswerten.
-- Offen und nicht Teil dieses Releases: Prozent-Hysterese, Formularüberarbeitung, Entitätsauswahl.
+- Offen und nicht Teil dieses Releases: Formularüberarbeitung, Entitätsauswahl. (Prozent-Hysterese: Entscheidung 2026-11-22, siehe unten.)
 
 ## Vorheriger Fortsetzungspunkt (historisch, 2026-11-21)
 
@@ -300,3 +300,20 @@ Siehe „Fortsetzungspunkt“ oben (Schritt 4.2). Zu erhaltende Vorgaben aus der
 - Beta-Prüfung: **BLOCKED – TEST INFRASTRUCTURE INCOMPATIBILITY**. Details und Nachweis: `docs/TESTING.md` („Beta test job status“).
 - Ausnahme ausschließlich für `1.6.19-rc.15`: Release, obwohl der Beta-Job rot ist, weil der Fehler aus der Testinfrastruktur stammt. Voraussetzungen: Validate, Lint, Stable-Tests, lokale Python- und Browser-Suite, JSON, Release-Validierung grün. Keine Umstellung auf optional.
 - Für künftige Releases gilt wieder: Beta-Job muss grün sein.
+
+## Praxisabnahme 1.6.19-rc.15 (2026-11-22, Benutzerfeedback)
+
+Die folgenden Punkte stammen aus Praxistests des Benutzers in einer realen Home-Assistant-Instanz. Sie sind Benutzerfeedback und keine automatisierten Testergebnisse. Sie gelten für die geprüften Szenarien und nicht pauschal für alle Geräte oder Home-Assistant-Versionen.
+
+- Präsenzquellenerkennung: fachlich abgenommen. Acht Praxistests bestanden (inaktiver Bewegungssensor → frei; bestätigte Bewegung → belegt; geöffneter Fensterkontakt → keine Anwesenheit; automatische Erkennung ohne manuelle Einschlussliste).
+- Bereichsstatus frei/belegt: für die geprüften Szenarien abgenommen.
+- Fensterkontakte: geprüfter Ausschluss erfolgreich.
+- Entity-Picker: fachlich abgenommen (Suche, Hinzufügen, Entfernen, Speichern, Persistenz nach Bereichswechsel).
+- Formularlayout und einklappbare Abschnitte: fachlich abgenommen.
+- Speicherung und Neuladen: erfolgreich geprüft (Dashboard nach Neuladen und erneutem Öffnen).
+- Nicht abgenommen oder nicht geprüft: Beta-Kompatibilität (BLOCKED – TEST INFRASTRUCTURE INCOMPATIBILITY), echter 200-%-Browserzoom, Screenreader, Verhalten mit weiteren Sensortypen und Home-Assistant-Versionen.
+
+### Vorschläge (ohne Umsetzung)
+
+- Beta-CI-Modernisierung: `docs/specifications/beta-ci-modernisation.md`.
+- Prozent-Hysterese für Lichtautomatik: Entscheidung DECIDED / CLOSED (2026-11-22). Plan und Entscheidungen: `docs/specifications/light-percent-hysteresis-plan.md`. Die frühere absolute Festlegung in `dashboard-migration-matrix.md` ist ersetzt.

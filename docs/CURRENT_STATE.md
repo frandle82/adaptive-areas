@@ -84,3 +84,15 @@ A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not 
 - Ladeweg: Lader `adaptive-areas-loader.js` (Panel-Modul), nur im Adaptive-Areas-Panel. Keine globale Einbindung. Details: `docs/HANDOVER.md`.
 - Alle Entitätsauswahlen außer Bereichs-, Aufzählungs- und Zeichenkettenfeldern nutzen `<aa-entity-picker>`.
 - Tests: Browser 354/354, Python 707 bestanden. Echter 200-%-Zoom, Screenreader und reale HA-Oberfläche sind nicht geprüft.
+
+## Praxisabnahme 1.6.19-rc.15 (2026-11-22)
+
+- Benutzer-Praxistests (acht Szenarien, bestanden): Präsenzquellenerkennung und Bereichsstatus frei/belegt für die geprüften Szenarien, Fensterkontakt-Ausschluss, Entity-Picker, Formularlayout, Speichern und Neuladen. Das ist Benutzerfeedback, keine automatisierten Testergebnisse, und gilt nicht pauschal für alle Geräte oder Home-Assistant-Versionen.
+- Automatisierte Prüfungen des veröffentlichten Stands: Python 709 bestanden, Browser 354 bestanden, Home Assistant stable erfolgreich.
+- Beta-Prüfung: BLOCKED – TEST INFRASTRUCTURE INCOMPATIBILITY, nicht bestanden. Details in `docs/TESTING.md`.
+- Offen: echter 200-%-Browserzoom, Screenreader, weitere Sensortypen, weitere Home-Assistant-Versionen.
+
+## Prozent-Hysterese (Entscheidung 2026-11-22)
+
+- Entscheidung DECIDED / CLOSED: Lichtschwelle T in lx, Hysterese H in Prozent (0 bis 200). Speicherung unverändert über `turn_on_below` und `turn_off_above`. Ersetzt die frühere absolute Festlegung in lx.
+- Noch nicht umgesetzt (Phase B): Panel-Eingabe, Backend-Akzeptanz gleicher Grenzen, Tests.
