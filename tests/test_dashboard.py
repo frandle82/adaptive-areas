@@ -64,13 +64,11 @@ def _dashboard_texts() -> str:
         _Path(__file__).parents[1]
         / "custom_components"
         / "adaptive_areas"
-        / "translations"
+        / "dashboard_texts"
     )
     return " ".join(
         _json.dumps(
-            _json.loads((root / f"{lang}.json").read_text(encoding="utf-8"))[
-                "dashboard"
-            ],
+            _json.loads((root / f"{lang}.json").read_text(encoding="utf-8")),
             ensure_ascii=False,
         )
         for lang in ("en", "de")

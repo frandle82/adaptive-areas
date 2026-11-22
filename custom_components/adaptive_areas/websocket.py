@@ -40,6 +40,7 @@ from custom_components.adaptive_areas.const import (
     DOMAIN,
     SIGNAL_AREAS_CHANGED,
 )
+from custom_components.adaptive_areas.dashboard_texts import load_dashboard_texts
 from custom_components.adaptive_areas.migration import get_global_entries
 
 
@@ -401,6 +402,29 @@ async def websocket_subscribe_updates(hass, connection, msg):
     connection.send_result(msg["id"])
 
 
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "adaptive_areas/get_dashboard_texts",
+        vol.Required("language"): str,
+    }
+)
+@websocket_api.async_response
+async def websocket_get_dashboard_texts(hass, connection, msg):
+    """Return the dashboard texts for the panel; available to every signed-in user."""
+    try:
+        resources = await hass.async_add_executor_job(
+            load_dashboard_texts, msg["language"]
+        )
+    except OSError, ValueError, TypeError:
+        connection.send_error(
+            msg["id"],
+            "dashboard_texts_unavailable",
+            "Dashboard texts could not be loaded.",
+        )
+        return
+    connection.send_result(msg["id"], {"resources": resources})
+
+
 @callback
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register the command set once for all config entries."""
@@ -421,6 +445,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
         websocket_update_area,
         websocket_delete_area,
         websocket_subscribe_updates,
+        websocket_get_dashboard_texts,
     ):
         websocket_api.async_register_command(hass, command)
     hass.data[key] = True

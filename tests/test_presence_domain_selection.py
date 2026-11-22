@@ -48,6 +48,7 @@ PANEL = (
     / "adaptive-areas-panel.js"
 )
 TRANSLATIONS = ROOT / "custom_components" / "adaptive_areas" / "translations"
+TEXTS = ROOT / "custom_components" / "adaptive_areas" / "dashboard_texts"
 
 ALLOWED_PRESENCE_DOMAINS = {
     BINARY_SENSOR_DOMAIN,
@@ -164,19 +165,19 @@ def test_unsupported_stored_domain_survives_a_save_without_changes() -> None:
 
 
 def test_translation_keys_for_domain_and_entity_list_controls() -> None:
-    """New controls have English and German texts in the dashboard category."""
+    """New controls have English and German texts in the dashboard text files."""
     keys = [
         "domainMultiHint",
         "domainNone",
         "domainUnsupported",
         "entityListToggle",
     ]
-    english = json.loads((TRANSLATIONS / "en.json").read_text(encoding="utf-8"))
-    german = json.loads((TRANSLATIONS / "de.json").read_text(encoding="utf-8"))
+    english = json.loads((TEXTS / "en.json").read_text(encoding="utf-8"))
+    german = json.loads((TEXTS / "de.json").read_text(encoding="utf-8"))
     for key in keys:
-        assert english["dashboard"].get(key), key
-        assert german["dashboard"].get(key), key
-        assert english["dashboard"][key] != german["dashboard"][key], key
+        assert english.get(key), key
+        assert german.get(key), key
+        assert english[key] != german[key], key
 
 
 async def test_new_unsupported_presence_domain_is_rejected_without_mutation(

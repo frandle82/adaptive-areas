@@ -21,6 +21,7 @@
 - Explicitly included presence sources bypass the `binary_sensor` device-class filter; exclusions still win.
 - Explicitly included light entities without a registry entry are light targets.
 - Entity selectors and lux inputs no longer overflow narrow containers.
+- Integration translation files passed Home Assistant's hassfest validation again: the dashboard texts moved from the custom `dashboard` category in `translations/*.json` to `dashboard_texts/*.json`, loaded through `adaptive_areas/get_dashboard_texts`. The texts are unchanged.
 
 ### Compatibility
 

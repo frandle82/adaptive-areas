@@ -65,7 +65,7 @@ Work packages in dependency order (summary; see the specification for details):
 2. Non-administrator data shaping per user role (§3.1). Requires a verification of the panel consumers before the change.
 3. Permission tests for all WebSocket commands, positive and negative.
 4. Theme foundation with Home Assistant theme variables.
-5. Translation architecture through `frontend/get_translations`, after the minimum-version check.
+5. Translation architecture: dashboard texts in `dashboard_texts/*.json`, loaded through `adaptive_areas/get_dashboard_texts` (2026-11-22, replaces the `frontend/get_translations` plan; Hassfest rejects a custom `dashboard` category).
 6. Rendering migration with regression tests first; implementation only after Approval Gate 2.
 7. Responsive shell, overview, area cards, area detail, environment, cleaning, room usage, lighting, climate, administration.
 8. Decision Trace backend (`adaptive_areas/get_decision_trace`) and trace-only reason codes, then frontend timeline.

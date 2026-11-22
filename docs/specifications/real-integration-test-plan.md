@@ -14,7 +14,7 @@ runtime compatibility.
 | # | Check | Steps | Expected | Status |
 |---|---|---|---|---|
 | 1 | Panel registration | Start HA, open the sidebar entry | The panel loads without console errors | not run |
-| 2 | Translation contract | Open DevTools, filter `frontend/get_translations` | One request per language, response with `component.adaptive_areas.dashboard.*` keys | not run |
+| 2 | Translation contract | Open DevTools, filter `adaptive_areas/get_dashboard_texts` | One request per language, response with `component.adaptive_areas.dashboard.*` keys | not run |
 | 3 | English fallback | Switch a user profile to a language without a dashboard file | English texts are shown, no empty labels | not run |
 | 4 | Language switch | Change the user language with an open, unsaved editor draft | Draft, focus and open section kept, no write request | not run |
 | 5 | Subscriptions | Open and close the panel several times | One `adaptive_areas/subscribe_updates` per panel session, no duplicate subscriptions | not run |

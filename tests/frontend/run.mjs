@@ -31,7 +31,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function loadTranslations() {
   const flatten = (node, prefix) => Object.entries(node).reduce((out, [key, value]) => (value && typeof value === "object" ? { ...out, ...flatten(value, `${prefix}${key}.`) } : { ...out, [`${prefix}${key}`]: value }), {});
   const prefix = "component.adaptive_areas.dashboard.";
-  const read = (lang) => JSON.parse(readFileSync(join(ROOT, "custom_components/adaptive_areas/translations", `${lang}.json`), "utf8")).dashboard;
+  const read = (lang) => JSON.parse(readFileSync(join(ROOT, "custom_components/adaptive_areas/dashboard_texts", `${lang}.json`), "utf8"));
   const en = flatten(read("en"), prefix);
   const de = flatten(read("de"), prefix);
   return { en, de: { ...en, ...de } };
@@ -2004,10 +2004,10 @@ async function regression(browser) {
   const br10en = await browser.evaluate(`(() => { const list = ${brEntityList("include_entities")}?.querySelector("summary")?.textContent || ""; return { list }; })()`);
   check("BR10b English labels: Show entities", br10en.list.includes("Show entities"), JSON.stringify(br10en));
 
-  // E7: native translations (frontend/get_translations): fallback, load failure, late response, repeated updates
+  // E7: dashboard texts (adaptive_areas/get_dashboard_texts): fallback, load failure, late response, repeated updates
   const e7Mount = (language, translations = "f.translations", slow = false) => `(() => { const f = window.__fixtures; const panel = document.createElement("adaptive-areas-panel"); document.getElementById("stage").replaceChildren(panel);
     const fixtures = { overview: f.overviewAdmin, area: f.areaAdmin, config: f.config, global: f.global, light: f.light, climate: f.climate, trace: f.trace, diagnostics: f.diagnostics, translations: ${translations} };
-    panel.hass = AAHarness.createHass({ admin: true, language: ${JSON.stringify(language)}, states: {}, fixtures, latency: ${slow ? '{ "frontend/get_translations": 700 }' : "{}"} }); return true; })()`;
+    panel.hass = AAHarness.createHass({ admin: true, language: ${JSON.stringify(language)}, states: {}, fixtures, latency: ${slow ? '{ "adaptive_areas/get_dashboard_texts": 700 }' : "{}"} }); return true; })()`;
   // E7a: a German key that is missing falls back to English (the response carries the English fallback, as Home Assistant does)
   await browser.evaluate(`(() => { const f = window.__fixtures; const de = { ...f.translations.de }; const removed = "component.adaptive_areas.dashboard.navViews"; delete de[removed]; window.__e7de = de; return true; })()`);
   await browser.evaluate(e7Mount("de", "{ en: window.__fixtures.translations.en, de: window.__e7de }"));
@@ -2031,7 +2031,7 @@ async function regression(browser) {
   await waitFor(browser, `${text()}.includes("Connected")`, 4000).catch(() => {});
   await browser.evaluate(`(() => { const panel = document.querySelector("adaptive-areas-panel"); for (let i = 0; i < 5; i++) panel.hass = Object.assign({}, panel._hass); return true; })()`);
   await new Promise((resolve) => setTimeout(resolve, 200));
-  const e7d = await browser.evaluate(`(() => ({ requests: (document.querySelector("adaptive-areas-panel")._hass.__state?.calls || []).filter((c) => c === "frontend/get_translations").length }))()`);
+  const e7d = await browser.evaluate(`(() => ({ requests: (document.querySelector("adaptive-areas-panel")._hass.__state?.calls || []).filter((c) => c === "adaptive_areas/get_dashboard_texts").length }))()`);
   check("E7d repeated hass updates send exactly one translation request per language", e7d.requests === 1, JSON.stringify(e7d));
 
   // DG6-DG11: what counts as a changed Area draft (dirty check of the central editor)

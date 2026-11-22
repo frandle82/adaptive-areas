@@ -1,7 +1,9 @@
 """Native translation source of the dashboard panel (E7).
 
-The texts live only in the integration's translation files under the
-`dashboard` category. The panel loads them through `frontend/get_translations`.
+The texts live in `custom_components/adaptive_areas/dashboard_texts/` (outside
+`translations/`, because Home Assistant's translation schema does not allow a
+custom `dashboard` category). The panel loads them through
+`adaptive_areas/get_dashboard_texts`.
 These tests check the files, not the panel's runtime; the runtime contract is
 covered by the browser harness (tests/frontend/run.mjs, E7a-E7d).
 """
@@ -36,6 +38,14 @@ IDENTICAL_BY_DESIGN = {
 }
 
 
+TEXTS = ROOT / "custom_components" / "adaptive_areas" / "dashboard_texts"
+
+
+def _texts(lang: str) -> dict:
+    """Dashboard texts; they live outside translations/ (see dashboard_texts.py)."""
+    return json.loads((TEXTS / f"{lang}.json").read_text(encoding="utf-8"))
+
+
 def _load(lang: str) -> dict:
     return json.loads((TRANSLATIONS / f"{lang}.json").read_text(encoding="utf-8"))
 
@@ -48,16 +58,16 @@ def _leaves(node, prefix: str = ""):
         yield prefix, node
 
 
-def test_dashboard_category_exists_in_both_files() -> None:
-    """The dashboard category exists in both translation files."""
+def test_dashboard_texts_exist_in_both_languages() -> None:
+    """The dashboard text files exist for English and German and are objects."""
     for lang in ("en", "de"):
-        assert isinstance(_load(lang).get("dashboard"), dict), lang
+        assert isinstance(_texts(lang), dict), lang
 
 
 def test_every_english_key_has_its_own_german_value() -> None:
     """Every English key has its own German value (no silent fallback)."""
-    english = dict(_leaves(_load("en")["dashboard"]))
-    german = dict(_leaves(_load("de")["dashboard"]))
+    english = dict(_leaves(_texts("en")))
+    german = dict(_leaves(_texts("de")))
     assert sorted(set(english) - set(german)) == []
     identical = sorted(
         key
@@ -69,8 +79,8 @@ def test_every_english_key_has_its_own_german_value() -> None:
 
 def test_placeholders_match_between_languages() -> None:
     """Placeholders such as {name} are the same in both languages."""
-    english = dict(_leaves(_load("en")["dashboard"]))
-    german = dict(_leaves(_load("de")["dashboard"]))
+    english = dict(_leaves(_texts("en")))
+    german = dict(_leaves(_texts("de")))
     mismatches = [
         key
         for key, value in english.items()
@@ -84,7 +94,7 @@ def test_placeholders_match_between_languages() -> None:
 def test_trace_labels_exist_in_both_languages() -> None:
     """The decision trace labels exist in English and German."""
     for lang in ("en", "de"):
-        trace = _load(lang)["dashboard"]["trace_map"]
+        trace = _texts(lang)["trace_map"]
         assert set(trace) == {
             "decision",
             "outcome",
@@ -111,6 +121,13 @@ def test_existing_backend_translations_are_preserved() -> None:
             "device",
         ):
             assert key in data, (lang, key)
+
+
+def test_panel_loads_texts_through_the_adaptive_areas_command() -> None:
+    """The panel reads dashboard texts from the integration command, not frontend/get_translations."""
+    source = PANEL.read_text(encoding="utf-8")
+    assert 'type:"adaptive_areas/get_dashboard_texts"' in source
+    assert "frontend/get_translations" not in source
 
 
 def test_no_javascript_translation_tables_remain() -> None:

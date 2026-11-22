@@ -32,7 +32,7 @@ Legende Status: Impl. = Implemented · Teil = teilweise implementiert · Offen =
 | T3 | Lichtsteuerung nur über Funktions-Tab (Soll §Lichtsteuerung) | Lighting im Area-Detail | Doppelung | Ein Ort je Information: Detail verlinkt auf Lichtsteuerung | Offen | Keine doppelte Darstellung derselben Felder |
 | T4 | Klima: genau 6 Felder, keine Sollwerte (Soll §Klimasteuerung) | Environment-Anzeige | keine | Sollwerte bleiben verboten | Offen | Keine Temperatur-Sollwerte im Frontend |
 | T5 | Verbotene sichtbare Begriffe (Soll §Verboten) | Technische Begriffe nur in Admin-Diagnostik | keine | Übersetzte Anzeige; Keys nie sichtbar | Offen | Test: keine Keys/Enums im sichtbaren Text (DE/EN) |
-| T6 | Eigenes EN/DE-Objekt im Panel (Ist) | Zentrale `translations/*.json` | Ja | `frontend/get_translations`, Fallback `en` (§8) | Offen | Test je Sprache; fehlende Schlüssel → EN |
+| T6 | Eigenes EN/DE-Objekt im Panel (Ist) | Zentrale `dashboard_texts/*.json` (2026-11-22; vorher `translations/*.json`, siehe §8) | Ja | `adaptive_areas/get_dashboard_texts`, Fallback `en` (§8) | Offen | Test je Sprache; fehlende Schlüssel → EN |
 | T7 | Keine Gerätesteuerung, keine generische Steuerung | Keine neuen Steuerpfade | keine | Nicht eingeführt | Impl. | Kein neuer Befehl mit Service-Aufruf |
 | T8 | Area-Detail: Presence, Lights, Environment, Sources, Controls (Ist) | Area-Details gruppiert, Trace-Auszug | keine | Gruppierung, Trace-Auszug in Area-Detail | Teil | Gruppen gemäß §12 |
 | T9 | Environment-Daten in Summary/Detail (Ist) | Environment-Ansicht | keine | Ansicht aus vorhandenen DTOs | Teil | Nur vorhandene Felder |
@@ -357,7 +357,7 @@ Eine Quelle: `custom_components/adaptive_areas/translations/*.json`. Das Panel n
 
 ### 8.2 Native Weg
 
-- Befehl: `frontend/get_translations` mit `language`, `category`, `integration`.
+- Ursprünglicher Befehl: `frontend/get_translations` mit `language`, `category`, `integration`. **Überholt (2026-11-22):** Hassfest lehnt die Kategorie `dashboard` in `translations/*.json` ab. Die Texte stehen jetzt in `custom_components/adaptive_areas/dashboard_texts/{en,de}.json`, geladen über `adaptive_areas/get_dashboard_texts` (Antwort mit `resources`, flache Schlüssel `component.adaptive_areas.dashboard.*`, Englisch als Fallback, Fehler `dashboard_texts_unavailable`). Umgesetzt in `dashboard_texts.py`; Tests `tests/test_dashboard_texts.py`.
 - Verifiziert in HA 2026.10.4 (`homeassistant/components/frontend/__init__.py`): Befehl vorhanden, keine Admin-Pflicht, liefert `resources`.
 - **Offen (vor Umsetzung zu testen):**
   - Welche Kategorie die Schlüssel der Integration liefert (`component`?) und wie die Schlüssel verschachtelt sind.
@@ -713,7 +713,7 @@ Reihenfolge nach Abhängigkeiten. Komplexität relativ (S/M/L). Regressionsrisik
 | 3 | Permission-Tests | Negativ- und Positivtests je Befehl | `tests/test_dashboard.py` | 1 | Tests | Alle 12 Befehle geprüft | Pytest | Test-Harness-Aufwand | S | N |
 | 4 | Befund B1 (Non-Admin-Aufbereitung nach §3.1) | Approved. Prüfauftrag zu `controls`/`sources` zuerst. | Admin-Antworten unverändert testen | Planned | Entfall nur für `controls`/Entity-Felder bei Nicht-Admin | M | M |
 | 5 | Theme-Foundation | Hex-frei, Variablen | Panel-CSS | 2 | Panel-JS | Keine Hex-Werte; Light/Dark prüfen | Browser-Prüfung | Visuelle Regression | M | M |
-| 6 | Übersetzung | `frontend/get_translations` | Panel, `translations/*.json` | 2, Nachweis | Panel-JS | Keine EN/DE-Duplizierung; Test je Sprache | Schlüssel-Test (alle Schlüssel in en.json, de.json) | Mindestversion | M | M |
+| 6 | Übersetzung | `adaptive_areas/get_dashboard_texts` (2026-11-22) | Panel, `dashboard_texts/*.json` | 2, Nachweis | Panel-JS | Keine EN/DE-Duplizierung; Test je Sprache | Schlüssel-Test (alle Schlüssel in en.json, de.json) | Mindestversion | M | M |
 | 7 | Render-Regressionstests | Bestehende Funktionen sichern | Tests | 3 | Tests | Filter, Dirty-State, Speichern, Navigation | Browser-Harness + Pytest | Harness-Umfang | M | N |
 | 8 | Render-Umbau: Shell | Stabile Shell | Panel-JS | 5, 6, 7 | Panel-JS | Keine Neuaufbau-Renders bei Live-Update | Render-Zähler | Großer Diff | M | H |
 | 9 | Render-Umbau: State und Karten | Gezielte Updates | Panel-JS | 8 | Panel-JS | Messwert verbessert; Scroll/Fokus/Filter erhalten | Render-Zähler, Browser | Fehler bei Live-Updates | M | H |

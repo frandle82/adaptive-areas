@@ -42,7 +42,7 @@
       callWS(message) {
         state.calls.push(message.type);
         switch (message.type) {
-          case "frontend/get_translations": {
+          case "adaptive_areas/get_dashboard_texts": {
             // Same response shape as Home Assistant: flat keys, English merged as fallback (see translation.py)
             const language = message.language === "de" ? "de" : "en";
             const table = fixtures.translations;

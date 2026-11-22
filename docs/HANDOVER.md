@@ -229,3 +229,10 @@ Siehe „Fortsetzungspunkt“ oben (Schritt 4.2). Zu erhaltende Vorgaben aus der
 - Nicht geprüft: reale Home-Assistant-Instanz (Dropdown, eingeklappte Listen, Speichern mit echtem Präsenzsensor), 200-%-Zoom, geöffnetes Domänen-Dropdown bei langen IDs.
 - Tests: Python 660 passed; Browser 333/333 passed; Ruff und Black sauber (isoliert in `.tox/lint`); pre-commit nicht ausgeführt.
 - Graph `graphify-out/` gehört zu HEAD `45a0911` und ist für diese Änderungen veraltet; nicht neu erzeugt.
+
+## Übersetzungen: Hassfest-Korrektur (2026-11-22)
+
+- Ursache: Hassfest meldete `[TRANSLATIONS] Invalid translations/en.json: not a valid option at 'dashboard'`. Die Kategorie `dashboard` lag in `translations/en.json` und `de.json`. Der Fehler bestand bereits auf `326a978` (geplanter Validate-Lauf vom 04:04).
+- Lösung: Die 365 Dashboard-Texte stehen in `custom_components/adaptive_areas/dashboard_texts/{en,de}.json`. Der Befehl `adaptive_areas/get_dashboard_texts` liefert sie an das Panel (`dashboard_texts.py`, `websocket.py`). Das Panel übernimmt das bisherige flache Schlüsselformat. Englisch bleibt der Fallback. Die Integrationsdateien enthalten nur noch Hassfest-Kategorien.
+- Die Entscheidung steht als **DECIDED / CLOSED** in `docs/DECISIONS.md`. Der ältere E7-Eintrag ist als ersetzt markiert.
+- Lokal nicht prüfbar: der Hassfest-Lauf selbst. Docker und das Hassfest-Skript sind nicht verfügbar. Maßgeblich bleibt der GitHub-Validate-Workflow.
