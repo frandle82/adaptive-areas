@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.6.19-rc.16 - 2026-11-22
+
+### Added
+
+- Percentage-based hysteresis for the light automation in the dashboard. The Area editor takes a threshold T in lx and a hysteresis H in percent. Stored limits: `on = T × (1 − H / 200)` (turn on below) and `off = T × (1 + H / 200)` (turn off above). Example: T = 100 lx, H = 20 % gives turn on below 90 lx and turn off above 110 lx. The display shows at most one decimal place; the calculation uses full precision without intermediate rounding.
+
+### Compatibility
+
+- Stored lux limits stay stored in `turn_on_below` and `turn_off_above`. No schema change and no automatic migration.
+- Saving without changes leaves the stored limits unchanged.
+- Changing only the threshold keeps the exact stored hysteresis; changing only the percentage recalculates from the exact threshold.
+- Every valid stored pair (threshold greater than 0, 0 ≤ on ≤ off) is shown as a percentage. Invalid stored values are shown with both lux limits and are not overwritten silently; they are replaced only after an explicit user action.
+- The backend accepts equal limits (0 % hysteresis).
+
+### Limits
+
+- H = 0 % is allowed: the light follows the threshold without a hold band.
+- H = 200 % is allowed (turn on below 0 lx).
+- T = 0 is not allowed; the backend rejects a stored threshold of 0.
+- The aggregate threshold sensor is unchanged and keeps its own percentage hysteresis, which uses a different formula.
+
+### Known issues
+
+- Home Assistant beta tests are blocked by an incompatibility of the test harness (BLOCKED – TEST INFRASTRUCTURE INCOMPATIBILITY). The stable tests passed. No beta compatibility is claimed.
+- The real-world acceptance of the percentage hysteresis in a Home Assistant instance is still pending.
+
 ## 1.6.19-rc.15 - 2026-11-22
 
 ### Fixed
