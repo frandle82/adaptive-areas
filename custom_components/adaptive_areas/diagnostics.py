@@ -4,7 +4,7 @@ from collections import Counter
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.const import STATE_ON, STATE_UNAVAILABLE
+from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
@@ -15,6 +15,12 @@ from custom_components.adaptive_areas.base.adaptive import (
     AdaptiveMetaArea,
 )
 from custom_components.adaptive_areas.const import (
+    CONF_EXCLUDE_ENTITIES,
+    CONF_INCLUDE_ENTITIES,
+    CONF_PRESENCE_DEVICE_PLATFORMS,
+    CONF_PRESENCE_SENSOR_DEVICE_CLASS,
+    DEFAULT_PRESENCE_DEVICE_PLATFORMS,
+    PRESENCE_CONTROL_VALID_ON_STATES,
     AREA_STATE_CLEAR,
     AREA_STATE_OCCUPIED,
     CONF_CLEAR_TIMEOUT,
@@ -27,6 +33,11 @@ from custom_components.adaptive_areas.const import (
     DOMAIN,
     MetaAreaType,
 )
+from custom_components.adaptive_areas.dashboard import (
+    _presence_state,
+    _source_coverage,
+)
+from custom_components.adaptive_areas.helpers.sources import is_presence_source_active
 from custom_components.adaptive_areas.helpers.diagnostics import (
     safe_entity_descriptor,
 )
@@ -156,6 +167,99 @@ def _presence_summary(area: AdaptiveArea) -> dict[str, Any]:
             "active_states", sorted(str(state) for state in area.states)
         ),
         "sources": sources,
+        "evaluation": _presence_evaluation(area),
+    }
+
+
+def _source_status_label(state: Any) -> str:
+    """Return missing, unavailable, unknown or available for one state."""
+    if state is None:
+        return "missing"
+    if state.state == STATE_UNAVAILABLE:
+        return "unavailable"
+    if state.state == STATE_UNKNOWN:
+        return "unknown"
+    return "available"
+
+
+def _presence_evaluation(area: AdaptiveArea) -> dict[str, Any]:
+    """Explain the presence status: raw signals, gate, confirmed state, reason.
+
+    Entity IDs are not included. Each source is described by domain, device
+    class, status, origin (manual include or automatic discovery), whether it is
+    evaluated and whether its raw state is active. The gate and the confirmed
+    occupancy are reported separately from the raw signal.
+    """
+    hass = area.hass
+    config = area.config
+    include = {
+        entity_id
+        for entity_id in config.get(CONF_INCLUDE_ENTITIES, [])
+        if isinstance(entity_id, str)
+    }
+    sensor_ids = list(dict.fromkeys(area.get_presence_sensors()))
+    sources = []
+    for entity_id in sensor_ids:
+        state = hass.states.get(entity_id)
+        status = _source_status_label(state)
+        sources.append(
+            {
+                "domain": entity_id.partition(".")[0],
+                "device_class": (
+                    str(state.attributes.get("device_class"))
+                    if state is not None and state.attributes.get("device_class")
+                    else None
+                ),
+                "status": status,
+                "origin": "manual" if entity_id in include else "automatic",
+                "evaluated": status == "available",
+                "raw_active": status == "available"
+                and is_presence_source_active(hass, entity_id, state, area_id=area.id),
+            }
+        )
+    controls = config.get(CONF_PRESENCE_CONTROL_ENTITIES, [])
+    control_entries = []
+    for entity_id in controls:
+        state = hass.states.get(entity_id)
+        control_entries.append(
+            {
+                "domain": entity_id.partition(".")[0],
+                "status": _source_status_label(state),
+                "open": state is not None
+                and state.state in PRESENCE_CONTROL_VALID_ON_STATES,
+            }
+        )
+    gate_open = not control_entries or any(entry["open"] for entry in control_entries)
+    coverage = _source_coverage(hass, sensor_ids)
+    dashboard_state = _presence_state(hass, area, coverage)
+    raw_active = any(source["raw_active"] for source in sources)
+    confirmed = area.is_occupied()
+    if confirmed:
+        reason = "confirmed_occupied"
+    elif dashboard_state == "unknown":
+        reason = "no_evaluable_source"
+    elif raw_active:
+        reason = "raw_signal_not_confirmed"
+    else:
+        reason = "evaluable_source_inactive"
+    return {
+        "configured_domains": sorted(
+            config.get(
+                CONF_PRESENCE_DEVICE_PLATFORMS, DEFAULT_PRESENCE_DEVICE_PLATFORMS
+            )
+        ),
+        "device_class_filter": sorted(
+            str(item) for item in config.get(CONF_PRESENCE_SENSOR_DEVICE_CLASS, [])
+        ),
+        "manual_include_count": len(include),
+        "exclude_count": len(config.get(CONF_EXCLUDE_ENTITIES, [])),
+        "sources": sources,
+        "presence_control": control_entries,
+        "gate_open": gate_open,
+        "raw_signal_active": raw_active,
+        "confirmed_occupied": confirmed,
+        "dashboard_state": dashboard_state,
+        "reason": reason,
     }
 
 

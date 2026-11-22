@@ -64,6 +64,12 @@ Presence control entities remain a separate confirmation mechanism. A tracker
 used only as a presence control opens the gate while `home`, but does not create
 presence by itself.
 
+### Gate semantics and status (dashboard)
+
+- A **closed gate does not confirm occupancy**. Raw sources may be active while the Area stays not occupied.
+- The dashboard shows `occupied` only when the Area is confirmed occupied. It shows `clear` (frei) when at least one source is evaluable and nothing confirms occupancy, which is also true for a closed gate. It shows `unknown` (unbekannt) only when no source is evaluable (`unknown` or `unavailable`).
+- The native diagnostics (`presence.evaluation`) list the raw signal, the gate state, the confirmed state, the dashboard state and a reason code (`confirmed_occupied`, `raw_signal_not_confirmed`, `evaluable_source_inactive`, `no_evaluable_source`) without entity IDs.
+
 ---
 
 ## ⚠️ Known Limitations

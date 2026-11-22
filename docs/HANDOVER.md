@@ -2,7 +2,15 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
-## Fortsetzungspunkt
+## Fortsetzungspunkt (aktuell, 2026-11-22, rc.14)
+
+- Präsenzdiagnose: `presence.evaluation` in der nativen Diagnose (Home Assistant: Einstellungen → Geräte & Dienste → Adaptive Areas → Bereich → Diagnose herunterladen). Keine Entity-IDs im Export. Details: [CURRENT_STATE.md](CURRENT_STATE.md).
+- Gate-Semantik: `DECIDED / CLOSED` (siehe [DECISIONS.md](DECISIONS.md)).
+- Ursache des Statusfehlers auf der Testinstanz: `UNRESOLVED`. Nächster Schritt: Diagnose-Export des betroffenen Bereichs auslesen und die Quellen mit `reason` und `status` auswerten.
+- Offen und nicht Teil dieses Releases: Prozent-Hysterese, Formularüberarbeitung, Entitätsauswahl.
+
+## Vorheriger Fortsetzungspunkt (historisch, 2026-11-21)
+
 
 **Git-Stand (2026-11-21):** Lokaler Entwicklungscommit `222036a` auf `main`: `feat(dashboard): implement intelligence center and native translations` (60 Dateien: Dashboard-Panel, Backend-DTOs, Übersetzungen, Tests, Harness mit Fixtures, Spezifikation, Entscheidungen, Prüfanleitung, Prototyp). Der Commit ist **nicht gepusht**. Sicherungsbranch `backup/pre-push-222036a` zeigt auf denselben Commit. `origin/main` enthält den Release-Bot-Commit `b78964f chore(release): 1.6.19-rc.11` (nur `manifest.json`, Version); `main` und `origin/main` sind **nicht abgeglichen** (`[ahead 1, behind 1]`). Kein Release, kein Tag, keine Versionsänderung.
 

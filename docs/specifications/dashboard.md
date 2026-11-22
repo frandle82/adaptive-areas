@@ -322,6 +322,14 @@ Keine neuen DTO-Felder außer `get_decision_trace` und der unten beschriebenen a
 
 ---
 
+### 6.1 Präsenzstatus und Gate (DECIDED / CLOSED)
+
+- `belegt`: bestätigte Belegung durch die Automatik.
+- `frei`: mindestens eine auswertbare Quelle ist vorhanden und keine Belegung ist bestätigt. Ein geschlossenes Präsenz-Steuerungs-Gate bestätigt keine Belegung, ist aber kein Grund für `unbekannt`.
+- `unbekannt`: keine auswertbare Quelle (nur `unknown` oder `unavailable`).
+- Rohsignal und bestätigter Bereichsstatus werden in der Diagnose getrennt dargestellt (`presence.evaluation`).
+- Ursache des Fehlers auf der Testinstanz: **UNRESOLVED** bis Laufzeitdaten vorliegen.
+
 ## 7. State Matrix
 
 | Zustand | Anzeige | Quelle | Gilt für | Test |

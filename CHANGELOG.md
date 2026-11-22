@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.19-rc.14 - 2026-11-22
+
+### Added
+
+- The native Home Assistant diagnostics of an Area include `presence.evaluation`: configured domains, device-class filter, manual include and exclude counts, each presence source with domain, device class, status, origin (manual or automatic), evaluation and raw signal, the presence control gate, the raw signal, the confirmed occupancy, the dashboard state and a reason code. Entity IDs are not exported.
+
+### Compatibility
+
+- The presence logic is unchanged. Existing diagnostic keys are unchanged; `presence.evaluation` is additional.
+- A closed presence control gate does not confirm occupancy. The dashboard may still show `clear` when the Area is reliably not occupied; `unknown` only when no source is evaluable.
+
+### Known issues
+
+- The status error observed on the test instance (a configured source shown as `unknown`) is not yet explained. Use the new diagnostics to identify the cause.
+
 ## 1.6.19-rc.13 - 2026-11-22
 
 ### Added
