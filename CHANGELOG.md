@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.6.19-rc.13 - 2026-11-22
+
+### Added
+
+- Presence domains in the Area editor are a checkbox dropdown offering exactly `binary_sensor`, `device_tracker`, `media_player` and `remote`. Several domains can be selected at once; the closed dropdown lists the selection.
+- Entity lists (include, exclude, presence release, keep-only) are collapsed by default and show the number of selected entities.
+- The Area editor shows a factual hint when the saved Area has no effective presence source.
+
+### Changed
+
+- Light limits are edited as threshold and hysteresis and stored unchanged as `turn_on_below` and `turn_off_above`.
+- The global light sensor accepts sensors with device class `illuminance` or the exact unit `lx`.
+- Lux inputs are compact numeric fields.
+- Light groups are nested, keyboard-operable sections with item counts.
+
+### Fixed
+
+- Explicitly included presence entities without a registry entry are used as presence sources.
+- Explicitly included presence sources bypass the `binary_sensor` device-class filter; exclusions still win.
+- Explicitly included light entities without a registry entry are light targets.
+- Entity selectors and lux inputs no longer overflow narrow containers.
+
+### Compatibility
+
+- Stored presence domains outside the four offered domains are kept and flagged. They are not deleted or migrated, and they are ignored by presence evaluation.
+- The backend rejects a presence domain only when a save newly adds it. Explicit removal is allowed.
+- An empty presence domain selection is allowed.
+- Stored light limits are unchanged.
+
+### Validation
+
+- 660 Python tests passed (pytest-homeassistant-custom-component, Home Assistant 2026.10.4 test framework).
+- 333 browser harness checks passed (headless Chrome with a simulated Home Assistant `hass` object and backend-generated fixtures).
+- Ruff, Black, JSON validation and `git diff --check` passed. The repository pre-commit hooks passed on the staged files.
+
+### Known limitations
+
+- Not yet run in a real Home Assistant installation: presence domain dropdown, collapsed entity lists, saving with a real presence sensor, the configured lux sensor on the test instance, and browser zoom at 200 %.
+- Opening the presence domain dropdown with very long entity IDs is not covered by the browser harness.
+- The presence hint reflects the saved configuration, not unsaved form changes.
+
 ## 1.6.19-rc.12 - 2026-11-21
 
 ### Added
