@@ -4,6 +4,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.components.sensor.const import SensorDeviceClass
+from homeassistant.const import LIGHT_LUX as LIGHT_LUX_UNIT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -42,6 +43,15 @@ from custom_components.adaptive_areas.const import (
 from custom_components.adaptive_areas.migration import get_global_entries
 
 
+def is_illuminance_state(state) -> bool:
+    """Accept illuminance device class or the exact lx unit; never convert others."""
+    attributes = state.attributes
+    return (
+        attributes.get("device_class") == SensorDeviceClass.ILLUMINANCE
+        or attributes.get("unit_of_measurement") == LIGHT_LUX_UNIT
+    )
+
+
 def _validate_global_options(hass: HomeAssistant, updates: dict) -> dict[str, str]:
     """Validate only global-option fields explicitly supplied by the client."""
     errors = {}
@@ -58,7 +68,7 @@ def _validate_global_options(hass: HomeAssistant, updates: dict) -> dict[str, st
             errors[CONF_GLOBAL_LIGHT_SENSOR] = "Expected an illuminance sensor"
         elif state is None:
             errors[CONF_GLOBAL_LIGHT_SENSOR] = "Unknown illuminance sensor"
-        elif state.attributes.get("device_class") != SensorDeviceClass.ILLUMINANCE:
+        elif not is_illuminance_state(state):
             errors[CONF_GLOBAL_LIGHT_SENSOR] = "Expected an illuminance sensor"
     return errors
 

@@ -787,8 +787,138 @@ async function regression(browser) {
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-climate]") !== null`, 4000).catch(() => {});
   const av5 = await browser.evaluate(`({ editor: !!document.querySelector("adaptive-areas-panel form[data-area-form]"), tab: document.querySelector("adaptive-areas-panel [data-tab=areas]")?.getAttribute("aria-selected") || null, light: !!document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]"), climate: !!document.querySelector("adaptive-areas-panel form[data-area-form] [data-climate]") })`);
   check("AV5 the navigation button opens the central Area editor with the light and climate sections", av5.editor === true && av5.tab === "true" && av5.light === true && av5.climate === true, JSON.stringify(av5));
-  const av6 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { on: f.elements.namedItem("light:turn_on_below").value, preset: f.elements.namedItem("climate:preset_occupied").value }; })()`);
-  check("AV6 the migrated light and climate values are editable in the central editor", av6.on === "50" && av6.preset === "comfort", JSON.stringify(av6));
+  const av6 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold")?.value ?? null, hysteresis: f.elements.namedItem("light:hysteresis")?.value ?? null, preset: f.elements.namedItem("climate:preset_occupied").value }; })()`);
+  check("AV6 the stored 50/200 lx pair is shown as threshold 125 lx and hysteresis 150 lx, and climate values stay editable", av6.threshold === "125" && av6.hysteresis === "150" && av6.preset === "comfort", JSON.stringify(av6));
+
+  // H-series: lux threshold and hysteresis mapping, responsive editor widths
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 90, turn_off_above: 110 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); p._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  const h1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold")?.value ?? null, hysteresis: f.elements.namedItem("light:hysteresis")?.value ?? null, legacy: !!f.elements.namedItem("light:turn_on_below") }; })()`);
+  check("H1 the stored 90/110 lx pair is shown as threshold 100 and hysteresis 20 without legacy fields", h1.threshold === "100" && h1.hysteresis === "20" && h1.legacy === false, JSON.stringify(h1));
+  await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; (() => { document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+  await sleep(200);
+  const h2 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("H2 saving without changing the pair keeps the stored limits exactly (no rounding or rewrite)", h2 === null || (h2.turn_on_below === 90 && h2.turn_off_above === 110), JSON.stringify(h2));
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`, 4000).catch(() => {});
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']")?.click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  const widths = [];
+  for (const width of [320, 390, 430, 768, 1024]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await sleep(120);
+    const w = await browser.evaluate(`(() => { const doc = document.documentElement; const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = form ? form.getBoundingClientRect() : null; const over = box ? [...form.querySelectorAll("select, input")].filter((n) => n.getBoundingClientRect().right > box.right + 1 || n.getBoundingClientRect().left < box.left - 1).map((n) => n.name || n.tagName) : ["no-form"]; return { docScroll: doc.scrollWidth, client: doc.clientWidth, over }; })()`);
+    widths.push({ width, ...w });
+  }
+  check("H4 the light editor has no horizontal page overflow and no control outside its form at 320, 390, 430, 768 and 1024 px", widths.every((w) => w.docScroll <= w.client && w.over.length === 0), JSON.stringify(widths));
+  await browser.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "100"; f.elements.namedItem("light:hysteresis").value = "40"; f.requestSubmit(); return true; })()`);
+  await sleep(250);
+  const h3 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("H3 threshold 100 with hysteresis 40 is stored as 80 on and 120 off", h3?.turn_on_below === 80 && h3?.turn_off_above === 120, JSON.stringify(h3));
+
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 110, turn_off_above: 90 } })); const p = document.querySelector("adaptive-areas-panel"); p._data.config = JSON.parse(JSON.stringify(st.config)); window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  const h5 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { legacyOn: f.elements.namedItem("light:turn_on_below")?.value ?? null, legacyOff: f.elements.namedItem("light:turn_off_above")?.value ?? null, warning: !!f.querySelector("[data-light-legacy]"), pairShown: !!f.querySelector("[data-light-pair]") }; })()`);
+  check("H5 inverted stored limits (110 on, 90 off) stay in the original fields with a hint and are not converted", h5.legacyOn === "110" && h5.legacyOff === "90" && h5.warning === true && h5.pairShown === false, JSON.stringify(h5));
+  await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+  await sleep(200);
+  const h6 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("H6 saving the inverted limits without an edit sends them unchanged (no conversion)", h6 === null || (h6.turn_on_below === 110 && h6.turn_off_above === 90), JSON.stringify(h6));
+
+  // RS-series: long entity IDs and labels in selectors at narrow widths and 200 % zoom equivalents
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 90, turn_off_above: 110 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); p._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  await browser.evaluate(`(() => { const long = "binary_sensor.upstairs_corridor_hallway_motion_detector_zone_north_long_name_v3_2026"; const h = window.__h.hass; const extra = {}; for (let i = 0; i < 6; i += 1) extra["binary_sensor.very_long_presence_entity_identifier_number_" + i + "_for_responsive_layout_testing"] = { state: "off", attributes: { friendly_name: "Presence sensor with a very long display name number " + i + " for the responsive layout check", device_class: "motion" } }; extra[long] = { state: "on", attributes: { friendly_name: "Upstairs corridor hallway motion detector zone north", device_class: "motion" } }; h.states = Object.assign({}, h.states, extra); document.querySelector("adaptive-areas-panel")._render(); return true; })()`);
+  await sleep(150);
+  const rs0 = await browser.evaluate(`(() => { const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); if (!form) return { form: false }; for (const sel of form.querySelectorAll("select[multiple]")) { for (const opt of sel.options) { if (opt.value.startsWith("binary_sensor.upstairs")) opt.selected = true; } } return { form: true, multi: form.querySelectorAll("select[multiple]").length }; })()`);
+  check("RS0 the Area editor with long entity IDs and a multi-select is open", rs0.form === true && rs0.multi >= 1, JSON.stringify(rs0));
+  const rsWidths = [320, 390, 430, 768, 1024, 160, 195, 512];
+  const rsResults = [];
+  for (const width of rsWidths) {
+    await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await sleep(150);
+    const r = await browser.evaluate(`(() => { const doc = document.documentElement; const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); if (!form) return { form: false, docScroll: doc.scrollWidth, client: doc.clientWidth }; const box = form.getBoundingClientRect(); const bad = []; for (const n of form.querySelectorAll("select, input, label")) { const r = n.getBoundingClientRect(); if (r.width === 0) continue; if (r.right > box.right + 1 || r.left < box.left - 1) bad.push((n.name || n.tagName) + ":" + Math.round(r.right - box.right)); if (n.scrollWidth > n.clientWidth + 1 && (n.tagName === "INPUT" || (n.tagName === "SELECT" && !n.multiple))) bad.push("clip:" + (n.name || n.tagName)); if (n.tagName === "SELECT" && n.multiple) { for (const o of n.options) { if (!o.title && o.value.includes(".")) bad.push("no-title:" + o.value); } } } return { form: true, docScroll: doc.scrollWidth, client: doc.clientWidth, bad: bad.slice(0, 6) }; })()`);
+    rsResults.push({ width, ...r });
+  }
+  check("RS1 at 160, 195, 320, 390, 430, 512, 768 and 1024 px (200 % zoom equivalents included) the form has no horizontal page overflow and no control or label outside its container or clipped", rsResults.every((r) => r.form === true && r.docScroll <= r.client && (r.bad || []).length === 0), JSON.stringify(rsResults));
+  await browser.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+
+  // HX-series: hysteresis floats, unchanged saves, blocked invalid input, equality cases
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 90.3, turn_off_above: 110.1 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); p._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  const hx1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value }; })()`);
+  check("HX1 a stored float pair 90.3/110.1 is shown without rounding (threshold 100.2, hysteresis 19.8 within float precision)", Math.abs(Number(hx1.threshold) - 100.2) < 1e-9 && Math.abs(Number(hx1.hysteresis) - 19.8) < 1e-9, JSON.stringify(hx1));
+  await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; (() => { document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+  await sleep(200);
+  const hx2 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("HX2 saving the unchanged float pair sends exactly 90.3 and 110.1", hx2 === null || (hx2.turn_on_below === 90.3 && hx2.turn_off_above === 110.1), JSON.stringify(hx2));
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`, 4000).catch(() => {});
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']")?.click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:hysteresis").value = ""; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
+  await sleep(200);
+  const hx3 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = f?.querySelector("[data-light-pair-error]"); return { sentNull: window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null, shown: !!box && !box.hidden && box.textContent.length > 0, form: !!f }; })()`);
+  check("HX3 an empty hysteresis blocks the save with a visible message and sends nothing", hx3.form === true && hx3.shown === true && hx3.sentNull === null, JSON.stringify(hx3));
+  const invalid = ["-5", "0", "250", "x"];
+  const hx4 = [];
+  for (const value of invalid) {
+    await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "100"; f.elements.namedItem("light:hysteresis").value = ${JSON.stringify(value)}; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
+    await sleep(120);
+    const r = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = f?.querySelector("[data-light-pair-error]"); return { sent: window.__h.hass.__state.lastAreaUpdate ?? null, shown: !!box && !box.hidden }; })()`);
+    hx4.push({ value, ...r });
+  }
+  check("HX4 negative, zero, too wide (250 would put the lower limit below 0 at threshold 100) and non-numeric hysteresis are blocked", hx4.every((r) => r.sent === null && r.shown === true), JSON.stringify(hx4));
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "100"; f.elements.namedItem("light:hysteresis").value = "20"; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
+  await sleep(200);
+  const hx5 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("HX5 threshold 100 and hysteresis 20 give exactly 90 on and 110 off (equality case, inclusive limits stay in the backend)", hx5?.turn_on_below === 90 && hx5?.turn_off_above === 110, JSON.stringify(hx5));
+  // LG-series: light groups as nested details (open/close, keyboard, content mapping, unchanged config)
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 90, turn_off_above: 110 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); const p = document.querySelector("adaptive-areas-panel"); p._data.config = JSON.parse(JSON.stringify(st.config)); window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-group='overhead']") !== null`);
+  const lg1 = await browser.evaluate(`(() => { const groups = [...document.querySelectorAll("adaptive-areas-panel form[data-area-form] details.light-group")]; return groups.map((g) => ({ prefix: g.dataset.lightGroup, open: g.open, selects: [...g.querySelectorAll("select")].map((n) => n.name), count: g.querySelector("[data-light-group-count]")?.textContent.trim() ?? null })); })()`);
+  const prefixesOk = ["overhead", "sleep", "accent", "task"].every((prefix) => lg1.find((g) => g.prefix === prefix)?.selects.every((name) => name.startsWith("light_group:" + prefix + "_")) && (lg1.find((g) => g.prefix === prefix)?.selects.length ?? 0) >= 4);
+  check("LG1 the four light groups are nested details and each contains only its own settings", lg1.length === 4 && prefixesOk, JSON.stringify(lg1));
+  check("LG2 all groups start closed and show the number of assigned lights (overhead 1, sleep 1, accent 0, task 0)", lg1.every((g) => g.open === false) && lg1.find((g) => g.prefix === "overhead")?.count === "1" && lg1.find((g) => g.prefix === "sleep")?.count === "1" && lg1.find((g) => g.prefix === "accent")?.count === "0", JSON.stringify(lg1.map((g) => [g.prefix, g.open, g.count])));
+  await browser.evaluate(`(() => { const el = document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-group='overhead'] > summary"); el.focus(); return true; })()`);
+  await browser.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r", unmodifiedText: "\r", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+  await browser.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+  await sleep(120);
+  const lg2 = await browser.evaluate(`document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-group='overhead']").open`);
+  check("LG3 Enter on a focused group summary opens the group", lg2 === true, String(lg2));
+  await browser.send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", text: " ", unmodifiedText: " ", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
+  await browser.send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
+  await sleep(120);
+  const lg3 = await browser.evaluate(`document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-group='overhead']").open`);
+  check("LG4 Space on the focused group summary closes it again", lg3 === false, String(lg3));
+  await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+  await sleep(200);
+  const lg4 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light_groups ?? null`);
+  check("LG5 toggling groups without edits keeps the stored group configuration", lg4 === null || (lg4.overhead_lights_activation === "occupied" && JSON.stringify(lg4.sleep_lights) === JSON.stringify(["light.bed"]) && JSON.stringify(lg4.overhead_lights) === JSON.stringify(["light.ceiling"]) && lg4.sleep_lights_activation === "sleep"), JSON.stringify(lg4));
 
   // O-series (step 4.1): overview KPIs, filters, search, meta row, data freshness
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
@@ -1138,25 +1268,25 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 50, turn_off_above: 200, vacancy_delay: 30 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); p._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
-  const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { on: f.elements.namedItem("light:turn_on_below").value, off: f.elements.namedItem("light:turn_off_above").value, vacancy: f.elements.namedItem("light:vacancy_delay").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.elements.namedItem("light_group:sleep_lights").selectedOptions].map((o) => o.value) }; })()`);
-  check("L1 the central editor shows the stored light thresholds and light group settings", l1.on === "50" && l1.off === "200" && l1.vacancy === "30" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
+  const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value, vacancy: f.elements.namedItem("light:vacancy_delay").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.elements.namedItem("light_group:sleep_lights").selectedOptions].map((o) => o.value) }; })()`);
+  check("L1 the central editor shows the stored 50/200 lx pair as threshold 125 and hysteresis 150 and keeps light group settings", l1.threshold === "125" && l1.hysteresis === "150" && l1.vacancy === "30" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
   await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; true`);
-  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:turn_on_below").value = "40"; f.elements.namedItem("light_group:overhead_lights_activation").value = "extended"; f.elements.namedItem("light:vacancy_delay").value = ""; f.requestSubmit(); return true; })()`);
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "120"; f.elements.namedItem("light_group:overhead_lights_activation").value = "extended"; f.elements.namedItem("light:vacancy_delay").value = ""; f.requestSubmit(); return true; })()`);
   await sleep(250);
   const l2 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate || null`);
-  check("L2 a changed threshold and group setting are sent; an empty vacancy delay is removed; untouched group settings are kept", l2?.features?.light?.turn_on_below === 40 && !("vacancy_delay" in (l2?.features?.light || {})) && l2?.features?.light?.turn_off_above === 200 && l2?.features?.light_groups?.overhead_lights_activation === "extended" && JSON.stringify(l2?.features?.light_groups?.sleep_lights) === JSON.stringify(["light.bed"]) && l2?.features?.light_groups?.sleep_lights_activation === "sleep", JSON.stringify(l2));
+  check("L2 a changed threshold and group setting are sent; an empty vacancy delay is removed; untouched group settings are kept", l2?.features?.light?.turn_on_below === 45 && !("vacancy_delay" in (l2?.features?.light || {})) && l2?.features?.light?.turn_off_above === 195 && l2?.features?.light_groups?.overhead_lights_activation === "extended" && JSON.stringify(l2?.features?.light_groups?.sleep_lights) === JSON.stringify(["light.bed"]) && l2?.features?.light_groups?.sleep_lights_activation === "sleep", JSON.stringify(l2));
   await sleep(150);
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config.areas[0].options.features.light.turn_on_below = 99; window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
-  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:turn_on_below").value = "45"; f.requestSubmit(); return true; })()`);
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "70"; f.elements.namedItem("light:hysteresis").value = "50"; f.requestSubmit(); return true; })()`);
   await sleep(250);
-  const l3 = await browser.evaluate(`({ updates: window.__h.hass.__state.lastAreaUpdate || null, conflict: !!document.querySelector("adaptive-areas-panel [data-conflict-scope=area]"), draft: document.querySelector("adaptive-areas-panel form[data-area-form] input[name=clear_timeout]") ? document.querySelector("adaptive-areas-panel form[data-area-form] select[name=type]")?.value : null, kept: document.querySelector("adaptive-areas-panel form[data-area-form]").elements.namedItem("light:turn_on_below").value })`);
-  check("L3 a server change blocks the central light save, keeps the entered value and shows the conflict", l3.updates === null && l3.conflict === true && l3.kept === "45", JSON.stringify(l3));
+  const l3 = await browser.evaluate(`({ updates: window.__h.hass.__state.lastAreaUpdate || null, conflict: !!document.querySelector("adaptive-areas-panel [data-conflict-scope=area]"), draft: document.querySelector("adaptive-areas-panel form[data-area-form] input[name=clear_timeout]") ? document.querySelector("adaptive-areas-panel form[data-area-form] select[name=type]")?.value : null, kept: document.querySelector("adaptive-areas-panel form[data-area-form]").elements.namedItem("light:threshold").value })`);
+  check("L3 a server change blocks the central light save, keeps the entered value and shows the conflict", l3.updates === null && l3.conflict === true && l3.kept === "70", JSON.stringify(l3));
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict-scope=area] [data-conflict-overwrite]")?.click()`);
   await sleep(250);
   const l4 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light?.turn_on_below ?? null`);
-  check("L4 only the explicit overwrite confirmation writes the kept light value", l4 === 45, String(l4));
+  check("L4 only the explicit overwrite confirmation writes the kept light value (70 lx threshold, 50 lx hysteresis gives 45 and 95)", l4 === 45, String(l4));
 
   // K-series (step 6.5): climate configuration in the central editor
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
@@ -1219,6 +1349,28 @@ async function regression(browser) {
   const gl1 = await browser.evaluate(`({ weather: [...document.querySelectorAll("adaptive-areas-panel select[name=weather_entity] option")].map((o) => o.value).filter((v) => v), light: [...document.querySelectorAll("adaptive-areas-panel select[name=global_light_sensor] option")].map((o) => o.value).filter((v) => v) })`);
   check("GL1 the weather field offers only weather entities and the brightness field only illuminance sensors, as the backend validates", gl1.weather.every((v) => v.startsWith("weather.")) && gl1.light.includes("sensor.lux") && !gl1.light.includes("sensor.temp") && !gl1.light.includes("light.kitchen"), JSON.stringify(gl1));
 
+  // GL2-series: light sensor selection rules (device class illuminance, unit lx, value 0, unsupported units)
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Global settings");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=global_light_sensor]") !== null`, 4000);
+  await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, { "sensor.lux_class": { state: "120", attributes: { friendly_name: "Lux class", device_class: "illuminance", unit_of_measurement: "lx" } }, "sensor.lux_unit": { state: "45", attributes: { friendly_name: "Lux unit only", unit_of_measurement: "lx" } }, "sensor.plain": { state: "300", attributes: { friendly_name: "Plain" } }, "sensor.percent": { state: "50", attributes: { friendly_name: "Percent", unit_of_measurement: "%" } }, "sensor.lux_word": { state: "70", attributes: { friendly_name: "Lux word", unit_of_measurement: "lux" } }, "sensor.lux_zero": { state: "0", attributes: { friendly_name: "Zero lux", device_class: "illuminance", unit_of_measurement: "lx" } } }); document.querySelector("adaptive-areas-panel")._render(); return true; })()`);
+  await sleep(150);
+  const gl2 = await browser.evaluate(`[...document.querySelectorAll("adaptive-areas-panel select[name=global_light_sensor] option")].map((o) => o.value).filter((v) => v)`);
+  check("GL2a the brightness field offers illuminance-class sensors and lx-unit sensors (incl. value 0) and nothing else", ["sensor.lux_class", "sensor.lux_unit", "sensor.lux_zero"].every((v) => gl2.includes(v)) && !gl2.includes("sensor.plain") && !gl2.includes("sensor.percent") && !gl2.includes("sensor.lux_word"), JSON.stringify(gl2));
+  await browser.evaluate(`(() => { window.__glSent = null; const h = window.__h.hass; const orig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_global_configuration") window.__glSent = msg.options; return orig(msg); }; const sel = document.querySelector("adaptive-areas-panel select[name=global_light_sensor]"); sel.value = "sensor.lux_unit"; sel.dispatchEvent(new Event("change", { bubbles: true })); document.querySelector("adaptive-areas-panel [data-save-global]")?.click(); return true; })()`);
+  await sleep(250);
+  const gl3 = await browser.evaluate(`({ sent: window.__glSent, selected: document.querySelector("adaptive-areas-panel select[name=global_light_sensor]")?.value ?? null })`);
+  check("GL2b a lx-unit sensor is saved as global_light_sensor and stays selected after the save round trip", gl3.sent?.global_light_sensor === "sensor.lux_unit" && gl3.selected === "sensor.lux_unit", JSON.stringify(gl3));
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Global settings");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=global_light_sensor]") !== null`, 4000);
+  await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, { "sensor.percent": { state: "50", attributes: { friendly_name: "Percent", unit_of_measurement: "%" } }, "sensor.lux_unit": { state: "45", attributes: { friendly_name: "Lux unit only", unit_of_measurement: "lx" } } }); h.__state.global = Object.assign({}, h.__state.global, { options: { weather_entity: null, global_light_sensor: "sensor.percent" } }); document.querySelector("adaptive-areas-panel")._drafts.global = { original: { weather_entity: null, global_light_sensor: "sensor.percent" }, draft: null, saving: false, errors: {} }; document.querySelector("adaptive-areas-panel")._render(); return true; })()`);
+  await sleep(150);
+  const gl4 = await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=global_light_sensor]")?.value ?? null`);
+  check("GL2c an already stored sensor that is not selectable by the new rules stays selected (no silent change)", gl4 === "sensor.percent", String(gl4));
+
   // PR-series (step 6.7): a direct Area assignment takes precedence over the inherited device Area
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
@@ -1239,17 +1391,17 @@ async function regression(browser) {
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
   await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config.areas[0].options.features.light.turn_on_below = 99; return true; })()`);
-  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:turn_on_below").value = "45"; f.requestSubmit(); return true; })()`);
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "70"; f.elements.namedItem("light:hysteresis").value = "50"; f.requestSubmit(); return true; })()`);
   await sleep(200);
   await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; (() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.requestSubmit(); return true; })()`);
   await sleep(200);
-  const x1 = await browser.evaluate(`({ sent: window.__h.hass.__state.lastAreaUpdate || null, kept: document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:turn_on_below").value ?? null, conflict: !!document.querySelector("adaptive-areas-panel [data-conflict-scope=area]") })`);
-  check("M68a a normal repeated save after a light conflict writes nothing and keeps the entered value (R05b in the central editor)", x1.sent === null && x1.kept === "45" && x1.conflict === true, JSON.stringify(x1));
+  const x1 = await browser.evaluate(`({ sent: window.__h.hass.__state.lastAreaUpdate || null, kept: document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:threshold").value ?? null, conflict: !!document.querySelector("adaptive-areas-panel [data-conflict-scope=area]") })`);
+  check("M68a a normal repeated save after a light conflict writes nothing and keeps the entered value (R05b in the central editor)", x1.sent === null && x1.kept === "70" && x1.conflict === true, JSON.stringify(x1));
   await browser.evaluate(`(() => { const h = window.__h.hass; const orig = h.callWS.bind(h); window.__m68orig = orig; h.callWS = (msg) => msg.type === "adaptive_areas/update_area" ? Promise.resolve({ ok: false, errors: { turn_on_below: "must be a number" } }) : orig(msg); return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict-scope=area] [data-conflict-overwrite]")?.click()`);
   await sleep(250);
-  const x2 = await browser.evaluate(`({ kept: document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:turn_on_below").value ?? null, error: [...document.querySelectorAll("adaptive-areas-panel form[data-area-form] ha-alert")].map((n) => n.textContent).join(" ") })`);
-  check("M68b a backend validation error keeps the entered light value and shows the backend message", x2.kept === "45" && x2.error.includes("turn_on_below"), JSON.stringify(x2));
+  const x2 = await browser.evaluate(`({ kept: document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:threshold").value ?? null, error: [...document.querySelectorAll("adaptive-areas-panel form[data-area-form] ha-alert")].map((n) => n.textContent).join(" ") })`);
+  check("M68b a backend validation error keeps the entered light value and shows the backend message", x2.kept === "70" && x2.error.includes("turn_on_below"), JSON.stringify(x2));
   await browser.evaluate(`window.__h.hass.callWS = window.__m68orig`);
 
   // climate part of the migrated R05 requirements
@@ -1300,7 +1452,7 @@ async function regression(browser) {
   const v4 = await browser.evaluate(`(() => { const txt = document.querySelector("adaptive-areas-panel form[data-area-form]").textContent; return { analysis: txt.includes("Entitäten in die Analyse einschließen"), presence: txt.includes("Anwesenheitsfreigabe"), sleep: txt.includes("Entität für Schlafzustand"), english: txt.includes("Include entities in analysis") }; })()`);
   check("V2 German editor shows the German labels and no English label", v4.analysis && v4.presence && v4.sleep && v4.english === false, JSON.stringify(v4));
   // V02: stored entities are marked by their real state; a missing thermostat is "not found", never "not assigned to this Area"
-  const v02 = await browser.evaluate(`(() => { const el = document.querySelector("adaptive-areas-panel"); const th = el._scopedSingle("climate:entity_id", "climate.v02_missing", "Thermostat", "climate", false); const env = el._scopedSingle("area_humidity_sensor", "sensor.v02_missing", "Humidity", "sensor", true); return { th, env, falseWarning: /nicht diesem Bereich|not assigned to this Area/.test(th + env), notFound: th.includes("nicht gefunden") && env.includes("nicht gefunden"), kept: th.includes('value="climate.v02_missing" selected') }; })()`);
+  const v02 = await browser.evaluate(`(() => { const el = document.querySelector("adaptive-areas-panel"); const th = el._scopedSingle("climate:entity_id", "climate.v02_missing", "Thermostat", "climate", false); const env = el._scopedSingle("area_humidity_sensor", "sensor.v02_missing", "Humidity", "sensor", true); return { th, env, falseWarning: /nicht diesem Bereich|not assigned to this Area/.test(th + env), notFound: th.includes("nicht gefunden") && env.includes("nicht gefunden"), kept: /value="climate\.v02_missing" (title="[^"]*" )?selected/.test(th) }; })()`);
   check("V02a a stored thermostat missing from the states is marked as not found, not as outside the Area", v02.notFound && !v02.falseWarning, JSON.stringify(v02));
   check("V02b a stored value that is not found stays selected in the field", v02.kept === true, JSON.stringify(v02));
 
@@ -1711,6 +1863,146 @@ async function regression(browser) {
   await sleep(300);
   const v10d = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const d = [...document.querySelectorAll("adaptive-areas-panel form[data-area-form] > details")].find((x) => x.querySelector("summary")?.textContent.includes("Anwesenheit")); return { german: document.querySelector("adaptive-areas-panel")?.innerText.includes("Bereich: Kitchen") || document.querySelector("adaptive-areas-panel")?.innerText.includes("Anwesenheit") || false, draft: document.querySelector("adaptive-areas-panel form[data-area-form] input[name='clear_timeout']")?.value ?? null, open: d?.open === true, focus: document.activeElement?.getAttribute("name") || null }; })()`);
   check("V10d a language change keeps the unsaved draft, the open section and the focus", v10d.draft === "11" && v10d.open === true && v10d.focus === "clear_timeout", JSON.stringify(v10d));
+
+  // BR: Bereichsverwaltung – einklappbare Entitätslisten und Domänenauswahl (R01, R11-R16)
+  const BR_FORM = "adaptive-areas-panel form[data-area-form]";
+  const BR_STATES = {
+    "binary_sensor.hall_motion": { state: "off", attributes: { friendly_name: "Hall motion", device_class: "motion" } },
+    "device_tracker.phone": { state: "home", attributes: { friendly_name: "Phone" } },
+    "light.kitchen_ceiling": { state: "on", attributes: { friendly_name: "Kitchen ceiling" } },
+    "media_player.tv": { state: "off", attributes: { friendly_name: "TV" } },
+    "person.alex": { state: "home", attributes: { friendly_name: "Alex" } },
+    "remote.living": { state: "on", attributes: { friendly_name: "Living remote" } },
+    "sensor.very_long_presence_entity_identifier_for_narrow_container_check_number_one": { state: "1", attributes: { friendly_name: "A very long presence sensor name that must wrap inside a narrow container", device_class: "motion" } },
+  };
+  const brEntityList = (key) => `document.querySelector("${BR_FORM} details[data-entity-list='${key}']")`;
+  const brSection = (label) => `[...document.querySelectorAll("${BR_FORM} > details")].find((x) => x.querySelector("summary")?.textContent.includes(${JSON.stringify(label)}))`;
+  const brDomain = `document.querySelector("${BR_FORM} details.domain-select")`;
+  const brOpen = async (language, states = BR_STATES, width = 1280) => {
+    await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await browser.evaluate(mountCode({ admin: true, language, states }));
+    await waitFor(browser, `/Connected|Verbunden/.test(${text()})`);
+    await browser.evaluate(`document.querySelector("adaptive-areas-panel nav [data-tab='areas']").click()`);
+    await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+    await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+    await waitFor(browser, `document.querySelector("${BR_FORM}") !== null`);
+  };
+  // A successful save returns to the Area list; reopening loads the configuration the server now holds.
+  const brReopen = async () => {
+    await browser.evaluate(`(() => { window.confirm = () => true; document.querySelector("adaptive-areas-panel form[data-area-form] [data-cancel]")?.click(); return true; })()`);
+    await sleep(200);
+    await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel nav [data-tab='areas']")?.click(); return true; })()`);
+    await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`, 4000).catch(async () => {
+      const dump = await browser.evaluate(`(document.querySelector("adaptive-areas-panel")?.textContent || "").replace(/\\s+/g, " ").slice(0, 400)`);
+      throw new Error("brReopen: no Area list. Panel text: " + dump);
+    });
+    await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+    await waitFor(browser, `document.querySelector("${BR_FORM}") !== null`);
+  };
+  // The server answers with the saved options; mirror them so the editor's consistency check sees no conflict.
+  const brMirrorSave = () => `(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); Object.assign(st.config.areas[0].options, JSON.parse(JSON.stringify(st.lastAreaUpdate || {}))); document.querySelector("adaptive-areas-panel")._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`;
+  const brSetStoredDomains = (domains) => `(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.presence_device_platforms = ${JSON.stringify(domains)}; document.querySelector("adaptive-areas-panel")._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`;
+  await brOpen("en");
+  // BR1: entity lists exist and are collapsed by default
+  const br1 = await browser.evaluate(`(() => { const lists = [...document.querySelectorAll("${BR_FORM} details.entity-list")]; return { keys: lists.map((d) => d.dataset.entityList), openCount: lists.filter((d) => d.open).length }; })()`);
+  check("BR1 include, exclude, presence-control and keep-only entity lists are collapsed by default", ["include_entities", "exclude_entities", "presence_control_entities", "keep_only_entities"].every((key) => br1.keys.includes(key)) && br1.openCount === 0, JSON.stringify(br1));
+  // BR2: opening and closing sends no write and keeps the selection
+  await browser.evaluate(`(() => { const h = window.__h.hass; window.__brWrites = 0; window.__brOrig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_area") window.__brWrites += 1; return window.__brOrig(msg); }; const sel = ${brEntityList("include_entities")}.querySelector("select"); [...sel.options].slice(0, 2).forEach((o) => { o.selected = true; }); sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  const br2 = await browser.evaluate(`(() => { const d = ${brEntityList("include_entities")}; const s = d.querySelector("summary"); const picked = [...d.querySelector("select").selectedOptions].map((o) => o.value); s.click(); const opened = d.open; s.click(); const closed = d.open; s.click(); return { opened, closed, reopened: d.open, picked, writes: window.__brWrites }; })()`);
+  check("BR2 opening and closing the entity list sends no write and keeps every selected entity", br2.opened === true && br2.closed === false && br2.reopened === true && br2.writes === 0 && br2.picked.length === 2, JSON.stringify(br2));
+  // BR3: a re-render keeps the open state and the selection; the summary counts the selection
+  const br3 = await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel")._render(); const d = ${brEntityList("include_entities")}; return { open: d.open, picked: [...d.querySelector("select").selectedOptions].map((o) => o.value), summary: d.querySelector("summary").textContent.trim() }; })()`);
+  check("BR3 a re-render keeps the open state, the selection and shows the count", br3.open === true && br3.picked.length === 2 && br3.summary.includes("(2)"), JSON.stringify(br3));
+  // BR4: saving sends exactly the selected entities of the list
+  await browser.evaluate(`(() => { document.querySelector("${BR_FORM}").requestSubmit(); return true; })()`);
+  await waitFor(browser, `window.__h.hass.__state.lastAreaUpdate !== undefined`, 3000).catch(() => {});
+  const br4 = await browser.evaluate(`(() => { const u = window.__h.hass.__state.lastAreaUpdate || {}; return { include: u.include_entities || null, exclude: u.exclude_entities || null }; })()`);
+  check("BR4 saving sends the selected entities of the collapsed list", Array.isArray(br4.include) && br4.include.length === 2 && Array.isArray(br4.exclude) && br4.exclude.length === 0, JSON.stringify(br4));
+  await browser.evaluate(brMirrorSave());
+  await brReopen();
+  // BR5: presence domains: exactly the four supported domains, stored values checked
+  await browser.evaluate(`${brSection("Presence tracking")}.open = true`);
+  const br5 = await browser.evaluate(`(() => { const boxes = [...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")]; return { values: boxes.map((b) => b.value), checked: boxes.filter((b) => b.checked).map((b) => b.value), summary: ${brDomain}.querySelector("summary").textContent.trim() }; })()`);
+  check("BR5 the presence domain choice offers exactly binary_sensor, device_tracker, media_player and remote", JSON.stringify(br5.values) === JSON.stringify(["binary_sensor", "device_tracker", "media_player", "remote"]) && br5.checked.includes("media_player") && br5.checked.includes("binary_sensor") && br5.checked.length === 2 && br5.summary.includes("media_player"), JSON.stringify(br5));
+  // BR6: several domains can be selected at once; saving and reloading keeps the choice
+  await browser.evaluate(`${brDomain}.querySelector("summary").click()`);
+  for (const value of ["device_tracker", "media_player"]) await browser.evaluate(`[...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")].find((b) => b.value === "${value}").click()`);
+  await browser.evaluate(`(() => { window.__h.hass.__state.lastAreaUpdate = undefined; document.querySelector("${BR_FORM}").requestSubmit(); return true; })()`);
+  await waitFor(browser, `window.__h.hass.__state.lastAreaUpdate?.presence_device_platforms !== undefined`, 3000).catch(() => {});
+  const br6saved = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.presence_device_platforms || null`);
+  await browser.evaluate(brMirrorSave());
+  await brReopen();
+  await browser.evaluate(`${brSection("Presence tracking")}.open = true`);
+  const br6 = await browser.evaluate(`(() => { const boxes = [...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")]; return { reloaded: boxes.filter((b) => b.checked).map((b) => b.value) }; })()`);
+  check("BR6 two domains are saved and shown checked again after a reload", JSON.stringify(br6saved) === JSON.stringify(["binary_sensor", "device_tracker"]) && JSON.stringify(br6.reloaded) === JSON.stringify(["binary_sensor", "device_tracker"]), JSON.stringify({ br6saved, reloaded: br6.reloaded }));
+  // BR7: a stored domain that is no longer offered stays visible, flagged and is not deleted by saving
+  await browser.evaluate(brSetStoredDomains(["binary_sensor", "light"]));
+  await brReopen();
+  await browser.evaluate(`${brSection("Presence tracking")}.open = true`);
+  await browser.evaluate(`${brDomain}.querySelector("summary").click()`);
+  const br7a = await browser.evaluate(`(() => { const boxes = [...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")]; const light = boxes.find((b) => b.value === "light"); return { values: boxes.map((b) => b.value), lightChecked: light?.checked === true, flagged: light?.closest("label")?.textContent.includes("not supported") === true }; })()`);
+  check("BR7a a stored unsupported domain is shown checked and flagged, not silently removed", br7a.lightChecked && br7a.flagged && br7a.values.length === 5, JSON.stringify(br7a));
+  await browser.evaluate(`(() => { window.__h.hass.__state.lastAreaUpdate = undefined; document.querySelector("${BR_FORM}").requestSubmit(); return true; })()`);
+  await waitFor(browser, `window.__h.hass.__state.lastAreaUpdate?.presence_device_platforms !== undefined`, 3000).catch(() => {});
+  const br7b = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.presence_device_platforms || null`);
+  check("BR7b saving without changes keeps the stored unsupported value", Array.isArray(br7b) && br7b.includes("light") && br7b.includes("binary_sensor"), JSON.stringify(br7b));
+  // BR8: keyboard: Enter and Space toggle an entity list; Space toggles a domain checkbox
+  await brReopen();
+  await browser.evaluate(`${brSection("Presence tracking")}.open = true`);
+  await browser.evaluate(`${brEntityList("exclude_entities")}.querySelector("summary").focus()`);
+  await v5Key("keyDown", "Enter", "Enter", 13, "\r"); await v5Key("keyUp", "Enter", "Enter", 13);
+  const br8a = await browser.evaluate(`({ open: ${brEntityList("exclude_entities")}.open, focus: document.activeElement?.tagName === "SUMMARY" })`);
+  await browser.send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", text: " ", unmodifiedText: " ", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 }); await browser.send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
+  const br8b = await browser.evaluate(`${brEntityList("exclude_entities")}.open`);
+  check("BR8a Enter and Space toggle an entity list from the keyboard", br8a.open === true && br8a.focus === true && br8b === false, JSON.stringify({ br8a, br8b }));
+  await browser.evaluate(`(() => { ${brDomain}.open = true; const box = [...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")].find((b) => b.value === "remote"); box.focus(); return true; })()`);
+  await browser.send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", text: " ", unmodifiedText: " ", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 }); await browser.send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
+  const br8c = await browser.evaluate(`({ checked: [...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")].find((b) => b.value === "remote")?.checked === true, focused: document.activeElement?.getAttribute("value") ?? document.activeElement?.tagName ?? null })`);
+  check("BR8b Space toggles a domain checkbox from the keyboard", br8c.checked === true, JSON.stringify(br8c));
+  // BR9: a long entity ID in a narrow container causes no horizontal overflow (320 px)
+  await brOpen("en", BR_STATES, 320);
+  const br9 = await browser.evaluate(`(() => { ${brEntityList("include_entities")}.querySelector("summary").click(); const list = ${brEntityList("include_entities")}; const sel = list.querySelector("select"); return { pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, selectFits: sel.getBoundingClientRect().width <= list.getBoundingClientRect().width + 1 }; })()`);
+  check("BR9 long entity names in an open list do not overflow a 320 px screen", br9.pageOverflow <= 0 && br9.selectFits === true, JSON.stringify(br9));
+  // BR11: lux fields are compact numeric inputs at desktop and phone widths
+  for (const width of [1280, 390]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await browser.evaluate(mountCode({ admin: true, language: "en", states: BR_STATES }));
+    await waitFor(browser, `/Connected|Verbunden/.test(${text()})`);
+    await clickByText(browser, "Area management");
+    await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+    await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = { light: { turn_on_below: 90, turn_off_above: 110 } }; document.querySelector("adaptive-areas-panel")._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+    await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+    await waitFor(browser, `document.querySelector("${BR_FORM} [data-light]") !== null`);
+    await browser.evaluate(`(() => { const d = document.querySelector("${BR_FORM} details[data-light]"); if (d) d.open = true; return true; })()`);
+    await sleep(150);
+    const lux = await browser.evaluate(`(() => { const inputs = [...document.querySelectorAll("${BR_FORM} details[data-light] input[name^='light:'][type=number]")]; return { count: inputs.length, widest: Math.max(0, ...inputs.map((i) => Math.round(i.getBoundingClientRect().width))), overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }; })()`);
+    check(`BR11 lux inputs are compact at ${width} px (max 160 px wide, no page overflow)`, lux.count >= 2 && lux.widest <= 160 && lux.overflow <= 0, JSON.stringify(lux));
+  }
+  // BR12: a warning only when the saved Area has no effective presence source
+  await brOpen("en");
+  await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 0, available: 0 }; p._render(); return true; })()`);
+  await brOpen("en");
+  const br12a = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 0, available: 0 }; p._render(); return [...document.querySelectorAll("${BR_FORM} ha-alert")].some((n) => n.textContent.includes("No effective presence source")); })()`);
+  check("BR12a the presence warning appears when the saved Area has no effective source", br12a === true, String(br12a));
+  await brOpen("en");
+  const br12b = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 2, available: 2 }; p._render(); return [...document.querySelectorAll("${BR_FORM} ha-alert")].some((n) => n.textContent.includes("No effective presence source")); })()`);
+  check("BR12b no warning when the saved Area has effective sources", br12b === false, String(br12b));
+  // BR13: an empty domain choice saves as an empty list without an error and changes nothing else
+  await brOpen("en");
+  await browser.evaluate(`${brSection("Presence tracking")}.open = true`);
+  await browser.evaluate(`${brDomain}.open = true`);
+  for (const value of ["media_player", "binary_sensor"]) await browser.evaluate(`[...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")].find((b) => b.value === "${value}").click()`);
+  await browser.evaluate(`(() => { window.__h.hass.__state.lastAreaUpdate = undefined; document.querySelector("${BR_FORM}").requestSubmit(); return true; })()`);
+  await waitFor(browser, `window.__h.hass.__state.lastAreaUpdate?.presence_device_platforms !== undefined`, 3000).catch(() => {});
+  const br13 = await browser.evaluate(`(() => { const u = window.__h.hass.__state.lastAreaUpdate || null; return { presence: u?.presence_device_platforms ?? null, include: u?.include_entities ?? null }; })()`);
+  check("BR13 an empty domain choice is saved as an empty list", Array.isArray(br13.presence) && br13.presence.length === 0 && Array.isArray(br13.include), JSON.stringify(br13));
+  // BR10: German and English labels for the new controls
+  await brOpen("de");
+  const br10de = await browser.evaluate(`(() => { const list = ${brEntityList("include_entities")}?.querySelector("summary")?.textContent || ""; ${brSection("Anwesenheitsverfolgung")}.querySelector("summary").click(); const dom = ${brDomain}; dom.querySelector("summary").click(); return { list, domain: dom.querySelector("summary").textContent, hint: dom.querySelector("small")?.textContent || "" }; })()`);
+  check("BR10a German labels: Entitäten anzeigen and the domain multi-select", br10de.list.includes("Entitäten anzeigen") && br10de.domain.includes("Domänen zur Anwesenheitsverfolgung") && br10de.hint.includes("Mehrere Domänen"), JSON.stringify(br10de));
+  await brOpen("en");
+  const br10en = await browser.evaluate(`(() => { const list = ${brEntityList("include_entities")}?.querySelector("summary")?.textContent || ""; return { list }; })()`);
+  check("BR10b English labels: Show entities", br10en.list.includes("Show entities"), JSON.stringify(br10en));
 
   // E7: native translations (frontend/get_translations): fallback, load failure, late response, repeated updates
   const e7Mount = (language, translations = "f.translations", slow = false) => `(() => { const f = window.__fixtures; const panel = document.createElement("adaptive-areas-panel"); document.getElementById("stage").replaceChildren(panel);

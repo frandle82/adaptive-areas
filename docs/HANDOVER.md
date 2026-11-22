@@ -218,3 +218,14 @@ Siehe „Fortsetzungspunkt“ oben (Schritt 4.2). Zu erhaltende Vorgaben aus der
 - Browser: `node tests/frontend/run.mjs` (gegen eine andere Panel-Datei: `--panel=<pfad>`, nur in einer isolierten Kopie verwenden)
 - Fixtures aus dem Backend: `ADAPTIVE_AREAS_WRITE_FIXTURES=1 .tox/ha-stable/bin/pytest tests/test_frontend_fixtures.py`
 - Python: `.tox/ha-stable/bin/pytest -q tests`
+
+## Bereichsverwaltung: Übergabe (2026-11-22, Release-Candidate 1.6.19-rc.13)
+
+- Stand: Entitätslisten eingeklappt; Präsenz-Domänen als Checkbox-Dropdown mit genau `binary_sensor`, `device_tracker`, `media_player`, `remote`; gespeicherte Altwerte bleiben sichtbar und werden nicht gelöscht.
+- Backend: `area_config.py` lehnt eine Domäne nur ab, wenn ein Speichern sie neu hinzufügt. Bereits gespeicherte Werte bleiben, bewusstes Entfernen ist erlaubt. Tests: `tests/test_presence_domain_selection.py`.
+- **DECIDED / CLOSED (verbindlich, keine offene Frage):** Gespeicherte, nicht unterstützte Präsenzdomänen bleiben erhalten (keine automatische Löschung, keine Migration, keine Bereinigung beim Speichern). Eine leere Präsenzdomänenauswahl ist ausdrücklich erlaubt (keine Pflichtauswahl, keine blockierende Validierung, keine automatische Ergänzung). Festgelegt in `docs/DECISIONS.md` und `docs/specifications/dashboard-migration-matrix.md`.
+- Warnung bei fehlender Quelle: erscheint nur bei `presence.total == 0`. Dieser Wert zählt bereits Presence Hold, BLE und Wasp in a Box, wenn die Funktion aktiv ist.
+- Lux-Felder: kompakt (höchstens 9 rem), getestet mit BR11.
+- Nicht geprüft: reale Home-Assistant-Instanz (Dropdown, eingeklappte Listen, Speichern mit echtem Präsenzsensor), 200-%-Zoom, geöffnetes Domänen-Dropdown bei langen IDs.
+- Tests: Python 660 passed; Browser 333/333 passed; Ruff und Black sauber (isoliert in `.tox/lint`); pre-commit nicht ausgeführt.
+- Graph `graphify-out/` gehört zu HEAD `45a0911` und ist für diese Änderungen veraltet; nicht neu erzeugt.

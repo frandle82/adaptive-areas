@@ -186,6 +186,15 @@ def area_entity_ids(
     for entity_id in candidates - excluded:
         entry = entity_registry.async_get(entity_id)
         if entry is None:
+            # Explicitly included entities may exist only as state (for example
+            # template entities without unique_id). The panel offers every state,
+            # so an explicit include must not be dropped silently.
+            if (
+                entity_id in explicit
+                and hass.states.get(entity_id) is not None
+                and (domain is None or entity_id.partition(".")[0] == domain)
+            ):
+                result.add(entity_id)
             continue
         if domain is not None and entry.domain != domain:
             continue
@@ -287,6 +296,14 @@ def physical_presence_source_ids(
         CONF_PRESENCE_DEVICE_PLATFORMS, DEFAULT_PRESENCE_DEVICE_PLATFORMS
     )
     device_classes = config.get(CONF_PRESENCE_SENSOR_DEVICE_CLASS, [])
+    # An explicit include is a deliberate user choice: it bypasses only the
+    # binary_sensor device-class filter. Exclusions were already applied by
+    # area_entity_ids(), and unknown/unavailable states are never active.
+    explicit = {
+        entity_id
+        for entity_id in config.get(CONF_INCLUDE_ENTITIES, [])
+        if isinstance(entity_id, str)
+    }
     result: list[str] = []
     candidates = area_entity_ids(hass, config_entry, config)
     candidates.update(loaded_entity_ids)
@@ -299,6 +316,7 @@ def physical_presence_source_ids(
             continue
         if (
             domain == "binary_sensor"
+            and entity_id not in explicit
             and entity_device_class(hass, entity_id) not in device_classes
         ):
             continue

@@ -11,7 +11,7 @@ These options control the general behavior of the area.
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | **Area type** | `string` | `interior` | Defines the area type. Options: `interior`, `exterior`. Used for meta-area calculations. |
-| **Include entities** | `list<entity>` | `[]` | Force-add entities to the area, even if not assigned to it in Home Assistant. |
+| **Include entities** | `list<entity>` | `[]` | Force-add entities to the area, even if not assigned to it in Home Assistant. Entities without a registry entry (for example template sensors without `unique_id`) are accepted when they exist in Home Assistant. An explicitly included `binary_sensor` counts as a presence source regardless of its device class. Exclude entities still take precedence. |
 | **Exclude entities** | `list<entity>` | `[]` | Force-remove entities from the area. Useful if you want them in Home Assistant but excluded from Adaptive Areas calculations. |
 | **Presence control entities** | `list<entity>` | `[]` | Optional confirmation gate. Room sources are evaluated only while a control is `home` or `on`; controls never occupy a room by themselves. Smartphone trackers belong here. |
 | **Automatic reload on registry updates** | `bool` | `true` | Automatically reloads the area if a new device or entity is added/removed. |

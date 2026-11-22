@@ -28,8 +28,10 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_GLOBAL_ENTRY,
     CONF_GLOBAL_LIGHT_SENSOR,
+    CONF_EXCLUDE_ENTITIES,
     CONF_GLOBAL_OPTIONS,
     CONF_ID,
+    CONF_INCLUDE_ENTITIES,
     CONF_NAME,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
@@ -249,3 +251,32 @@ def test_light_snapshot_is_gated_by_new_feature_only(hass) -> None:
     assert light_source_snapshot(disabled) is None
     assert light_source_snapshot(legacy) is None
     assert light_source_snapshot(enabled) is not None
+
+
+def test_explicit_light_include_without_registry_entry_is_a_light_target(hass) -> None:
+    """A light.* selected in the panel but absent from the registry is a target.
+
+    Explicit includes are existing entities of the matching domain. Missing
+    states, other domains and excluded entities are not targets.
+    """
+    area, _living, _entry = _area(hass, "Diele", {CONF_FEATURE_LIGHT: {}})
+    hass.states.async_set("light.template_on", STATE_ON)
+    hass.states.async_set("light.template_unavailable", STATE_UNAVAILABLE)
+    hass.states.async_set("light.template_excluded", STATE_ON)
+    hass.states.async_set("switch.template_not_light", STATE_ON)
+    area.config[CONF_INCLUDE_ENTITIES] = [
+        "light.template_on",
+        "light.template_unavailable",
+        "light.template_excluded",
+        "light.template_missing",
+        "switch.template_not_light",
+    ]
+    area.config[CONF_EXCLUDE_ENTITIES] = ["light.template_excluded"]
+
+    snapshot = light_source_snapshot(area)
+
+    assert snapshot is not None
+    assert {target.entity_id: target.available for target in snapshot.targets} == {
+        "light.template_on": True,
+        "light.template_unavailable": False,
+    }

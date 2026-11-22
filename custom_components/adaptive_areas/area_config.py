@@ -23,7 +23,10 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_ID,
     CONF_NAME,
+    CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_SECONDARY_STATES,
+    ALL_PRESENCE_DEVICE_PLATFORMS,
+    DEFAULT_PRESENCE_DEVICE_PLATFORMS,
     CONF_TYPE,
     DOMAIN,
     META_AREA_SCHEMA,
@@ -176,6 +179,31 @@ async def async_create_area(
     return entry, {}
 
 
+def _new_unsupported_presence_platforms(
+    current: Mapping[str, Any], updates: Mapping[str, Any]
+) -> list[str]:
+    """Return unsupported presence domains that this save would newly add.
+
+    A value already stored stays accepted, so unchanged entries keep saving.
+    A value the user removed is not in the stored state anymore and is rejected
+    when it is selected again.
+    """
+    if CONF_PRESENCE_DEVICE_PLATFORMS not in updates:
+        return []
+    requested = updates[CONF_PRESENCE_DEVICE_PLATFORMS]
+    if not isinstance(requested, list):
+        requested = [requested] if requested is not None else []
+    stored = set(
+        current.get(CONF_PRESENCE_DEVICE_PLATFORMS, DEFAULT_PRESENCE_DEVICE_PLATFORMS)
+        or []
+    )
+    return sorted(
+        str(domain)
+        for domain in set(requested)
+        if domain not in ALL_PRESENCE_DEVICE_PLATFORMS and domain not in stored
+    )
+
+
 async def async_update_area(
     hass: HomeAssistant, area_id: str | ConfigEntry, updates: Mapping[str, Any]
 ) -> dict[str, str]:
@@ -204,6 +232,11 @@ async def async_update_area(
     )
     if unsupported:
         return {CONF_ENABLED_FEATURES: "Unsupported feature selection"}
+    if new_domains := _new_unsupported_presence_platforms(current, updates):
+        return {
+            CONF_PRESENCE_DEVICE_PLATFORMS: "Unsupported presence domain: "
+            + ", ".join(new_domains)
+        }
     validated, errors = validate_area_options(current, updates)
     if validated is None:
         return errors
