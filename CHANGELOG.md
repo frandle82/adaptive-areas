@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.6.19-rc.17 - 2026-11-22
+
+### Added
+
+- Brightness diagnostics in the dashboard, for test and diagnosis in a real Home Assistant instance:
+  - Area detail shows the actual darkness source: the configured darkness entity with its state, the derived area status, and a note when no darkness entity is configured (the default assumption "dark" is labelled as such), when the entity is not found, or when it is unavailable (the last valid state remains).
+  - Light automation shows the global light sensor with its entity ID, the current lux value, the stored on and off limits, the policy decision and reason code, presence, the light targets with their availability, and the active manual override mode.
+  - Policy wish, override block and duplicate suppression are reported separately.
+  - The dispatched action is labelled as a service call that was issued. It is not presented as a confirmed light switch. If no runtime record exists, it is shown as "not recorded".
+  - The aggregation threshold sensor is shown as a separate configuration, with its own threshold and hysteresis, not mixed with the percentage hysteresis of the light automation.
+
+### Fixed
+
+- The dashboard consistency check read the darkness entity from the wrong configuration path and could never report a contradiction. It now reads the same path as the area logic (`secondary_states.dark_entity`).
+
+### Compatibility
+
+- No change to light switching, presence, dedupe or override rules. No schema change, no migration, no new persistence.
+- The light runtime status now also contains entity IDs and stored limits. It is available to administrators only.
+
+### Known issues
+
+- The original field reports are not yet fixed or finally explained: the area stays dark although the expected brightness is exceeded, and the lights do not switch on at a change from bright to dark. This release is for targeted diagnosis in a real Home Assistant instance.
+- Home Assistant stable tests passed. The Home Assistant beta test is BLOCKED by a test-infrastructure incompatibility and was not completed successfully. No beta compatibility is claimed.
+- Real-world acceptance of the diagnosis is still pending.
+
 ## 1.6.19-rc.16 - 2026-11-22
 
 ### Added
