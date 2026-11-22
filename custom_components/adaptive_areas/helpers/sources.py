@@ -40,6 +40,7 @@ from custom_components.adaptive_areas.const import (
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     DEFAULT_PRESENCE_DEVICE_PLATFORMS,
+    DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS,
     DOMAIN,
 )
 
@@ -48,7 +49,11 @@ if TYPE_CHECKING:
 
 _PRESENCE_SOURCE_ACTIVE_STATES: dict[str, frozenset[str]] = {
     BINARY_SENSOR_DOMAIN: frozenset((STATE_ON, STATE_OPEN)),
-    MEDIA_PLAYER_DOMAIN: frozenset((STATE_ON, STATE_PLAYING)),
+    # `playing` is an activity indicator, not proof of presence. `on` alone (powered
+    # but idle) is not an active presence source.
+    MEDIA_PLAYER_DOMAIN: frozenset((STATE_PLAYING,)),
+    # Remote `on` has no reliable presence semantics. Remotes are therefore never
+    # discovered automatically; only an explicit include makes them a source.
     REMOTE_DOMAIN: frozenset((STATE_ON,)),
     # Presence Hold is an integration-owned source, not a discoverable platform.
     SWITCH_DOMAIN: frozenset((STATE_ON,)),
@@ -295,7 +300,9 @@ def physical_presence_source_ids(
     platforms = config.get(
         CONF_PRESENCE_DEVICE_PLATFORMS, DEFAULT_PRESENCE_DEVICE_PLATFORMS
     )
-    device_classes = config.get(CONF_PRESENCE_SENSOR_DEVICE_CLASS, [])
+    device_classes = config.get(
+        CONF_PRESENCE_SENSOR_DEVICE_CLASS, DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS
+    )
     # An explicit include is a deliberate user choice: it bypasses only the
     # binary_sensor device-class filter. Exclusions were already applied by
     # area_entity_ids(), and unknown/unavailable states are never active.
@@ -305,14 +312,21 @@ def physical_presence_source_ids(
         if isinstance(entity_id, str)
     }
     result: list[str] = []
+    excluded = set(config.get(CONF_EXCLUDE_ENTITIES, []))
     candidates = area_entity_ids(hass, config_entry, config)
-    candidates.update(loaded_entity_ids)
+    candidates.update(
+        entity_id for entity_id in loaded_entity_ids if entity_id not in excluded
+    )
     for entity_id in sorted(candidates):
         domain = entity_id.partition(".")[0]
         if (
             domain not in platforms
             or domain not in SUPPORTED_PHYSICAL_PRESENCE_SOURCE_DOMAINS
         ):
+            continue
+        if entity_id not in explicit and domain == REMOTE_DOMAIN:
+            # No explicit presence semantics for remotes: automatic discovery never
+            # turns a remote into a presence source.
             continue
         if (
             domain == "binary_sensor"

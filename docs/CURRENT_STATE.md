@@ -65,3 +65,22 @@ The README describes the dashboard as read-only, but the current WebSocket API i
 ## Unverified items
 
 A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not present locally) has not been analysed. No deployed Home Assistant instance was inspected.
+
+## Anwesenheitsquellen (Teilkorrektur, 2026-11-22)
+
+- Automatische Quellenerkennung: Geräteklassen-Default für fehlende Konfiguration, Ausschluss vor Einschluss (`helpers/sources.py`). Tests: `tests/test_presence_source_detection.py`.
+- „Entitäten in die Analyse einschließen“ ist optional; die automatische Erkennung arbeitet unabhängig davon.
+- Warnung der Bereichsbearbeitung: neutraler Hinweis bei ungespeicherten Domänenänderungen, definitive Warnung nur bei gespeichertem Stand ohne wirksame Quelle.
+- Noch offen: Zustandsmodell für `remote` und `media_player` (`on` ist unscharf), Entitätsauswahl-Vereinheitlichung, Formularlayout, reale HA-Prüfung. Details: `docs/HANDOVER.md`.
+
+## Bereichseinstellungen: Entitätsauswahl und Abschnitte (2026-11-22)
+
+- Gemeinsame Komponente `aa-entity-picker` für Einzel- und Mehrfachauswahl der Bereichseinstellungen (Einschluss, Ausschluss, Anwesenheits-Kontrolle, Behalten, Dunkelheit, Akzent, Schlaf). Details: `docs/HANDOVER.md`.
+- Noch native Auswahl: Umgebungsfelder, `relevant_windows` und die globalen Quellen.
+- Tests: 350/350 Browser-Checks, 701 Python-Tests. Echter 200-%-Zoom und reale HA-Oberfläche sind nicht geprüft.
+
+## Entity-Picker: Ladeweg und Vereinheitlichung (2026-11-22)
+
+- Ladeweg: Lader `adaptive-areas-loader.js` (Panel-Modul), nur im Adaptive-Areas-Panel. Keine globale Einbindung. Details: `docs/HANDOVER.md`.
+- Alle Entitätsauswahlen außer Bereichs-, Aufzählungs- und Zeichenkettenfeldern nutzen `<aa-entity-picker>`.
+- Tests: Browser 354/354, Python 707 bestanden. Echter 200-%-Zoom, Screenreader und reale HA-Oberfläche sind nicht geprüft.

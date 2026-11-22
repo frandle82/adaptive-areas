@@ -37,7 +37,7 @@ from tests.helpers import (
         ("binary_sensor.door", STATE_OPEN, True),
         ("binary_sensor.motion", "off", False),
         ("media_player.tv", STATE_PLAYING, True),
-        ("media_player.tv", STATE_ON, True),
+        ("media_player.tv", STATE_ON, False),
         ("media_player.tv", "paused", False),
         ("remote.tv", STATE_ON, True),
         ("remote.tv", STATE_PLAYING, False),

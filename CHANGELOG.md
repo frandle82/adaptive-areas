@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.6.19-rc.15 - 2026-11-22
+
+### Fixed
+
+- Automatic detection of suitable presence sensors: `binary_sensor` entities are discovered for the device classes `motion`, `occupancy` and `presence` without a manual include list. A missing device-class setting now falls back to these defaults instead of detecting nothing.
+- Exclusion rules: `exclude_entities` always wins over `include_entities`, also for entities that are known only from loaded Area entities.
+- Misleading presence hint when changing the domain selection: unsaved changes show a neutral note; the definitive warning appears only for the saved configuration without an effective presence source.
+
+### Changed
+
+- Entity selection is unified in one component (`aa-entity-picker`): searchable, single and multiple selection with chips, keyboard operation (arrow keys, Enter, Escape, Tab) and a stored-value safe 200-option limit. It is used for include, exclude, presence control, keep-only, darkness, accent and sleep entities, the Area temperature and humidity sensors, outdoor and surface sensors, relevant windows, the weather entity, the global light sensor, the climate entity and the lights of light groups.
+- Form layout: consistent field heights, labels above fields, checkboxes aligned with their labels, and clearly separated section headings.
+- The panel loads its JavaScript through a versioned loader. Updates load the JavaScript that belongs to the installed integration.
+- Keyboard and basic accessibility: combobox roles, labelled remove buttons, status messages for selection changes.
+
+### Compatibility
+
+- `media_player`: only `playing` counts as a presence activity indicator. A media player that is `on` but idle is no longer presence. Existing configurations are kept; there is no data migration.
+- `remote`: never discovered automatically. A remote counts only when it is explicitly included in the Area.
+- Stored configuration values, including unsupported presence domains and values outside the current filters, are kept.
+
+### Known issues
+
+- Not yet verified: the real Home Assistant interface, a true 200 % browser zoom, a screen reader, and behaviour with real presence sensors.
+- The status error observed on the test instance (a configured source shown as `unknown`) was not explained by this release.
+
 ## 1.6.19-rc.14 - 2026-11-22
 
 ### Added

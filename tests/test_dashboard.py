@@ -37,6 +37,7 @@ from custom_components.adaptive_areas.dashboard import (
     build_light_runtime_status,
     build_overview,
 )
+
 from custom_components.adaptive_areas.switch.climate_control import ClimateControlSwitch
 from custom_components.adaptive_areas.helpers.light_override import (
     LightManualOverrideMode,
@@ -53,6 +54,14 @@ from custom_components.adaptive_areas.websocket import (
     async_register_websocket_commands,
 )
 from custom_components.adaptive_areas.panel import async_setup_panel
+
+PICKER_SOURCE = (
+    Path(__file__).parents[1]
+    / "custom_components"
+    / "adaptive_areas"
+    / "frontend"
+    / "aa-entity-picker.js"
+)
 
 
 def _dashboard_texts() -> str:
@@ -483,6 +492,7 @@ async def test_panel_and_websocket_registration_are_idempotent(
 
     hass.http.async_register_static_paths.assert_awaited_once()
     register_panel.assert_awaited_once()
+    assert "adaptive-areas-loader.js" in register_panel.call_args.kwargs["module_url"]
     assert hass.data["adaptive_areas_dashboard_websocket_registered"] is True
 
 
@@ -713,8 +723,11 @@ def test_panel_climate_control_configuration_is_area_scoped() -> None:
     assert "_loadClimateRuntime(areaId)" in panel
     assert 'type:"adaptive_areas/get_climate_runtime_status",area_id:areaId' in panel
     assert "this._loadClimateRuntime(area.area_id)" in panel
-    # Climate options come from _scopedOptions (domain filter), the live code path.
-    assert "id.startsWith(`${domain}.`)" in panel
+    # Climate options come from the shared entity picker (domain filter), the live code path.
+    assert 'domain="${escape(domain)}"' in panel
+    assert 'commaList(this.getAttribute("domain"))' in PICKER_SOURCE.read_text(
+        encoding="utf-8"
+    )
     assert "climate:entity_id" in panel
     for key in (
         "preset_clear",
@@ -820,7 +833,7 @@ def test_panel_settings_renderer_is_defined_and_uses_global_websocket_api() -> N
     for method in (
         "_renderSettings(t){",
         "_renderGlobalSettings(){",
-        "_entityOptions(value,domain,deviceClass){",
+        "_scopedSingle(key,value,label,domain,scoped){",
         "_isGlobalSettingsDirty(){",
         "async _saveGlobalSettings(){",
     ):
@@ -830,20 +843,17 @@ def test_panel_settings_renderer_is_defined_and_uses_global_websocket_api() -> N
     assert 'name="global_light_sensor"' in panel
     assert 'type:"adaptive_areas/get_global_configuration"' in panel
     assert 'type:"adaptive_areas/update_global_configuration"' in panel
-    assert "friendly_name||id" in panel
+    assert "friendly_name" in PICKER_SOURCE.read_text(encoding="utf-8")
     assert "_saveGlobalSettings(){" in panel and "t.saveFailed" in panel
 
 
 def test_panel_climate_target_shows_friendly_name_with_entity_id_fallback() -> None:
     """The thermostat select shows friendly names and keeps the entity id as fallback."""
-    panel = Path(
-        "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
-    ).read_text(encoding="utf-8")
-
-    # Live path: _scopedOptions labels with the friendly name, falls back to the entity id,
-    # and keeps a stored value that is not in the states (marked, never dropped).
-    assert "attributes?.friendly_name||id" in panel
-    assert "if(!entries.some((entry)=>entry.id===id))" in panel
+    # Live path: the shared entity picker labels with the friendly name, falls back to the
+    # entity id, and keeps a stored value that is not in the states (marked, never dropped).
+    picker = PICKER_SOURCE.read_text(encoding="utf-8")
+    assert "friendly_name" in picker
+    assert "this.selected" in picker and "_mark(" in picker
 
 
 def test_panel_calls_only_defined_methods() -> None:

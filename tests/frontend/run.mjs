@@ -125,6 +125,7 @@ async function setupPage(browser, viewport) {
   const ready = await waitFor(browser, "document.getElementById('stage') !== null && document.body !== null", 8000).catch(() => false);
   if (!ready) throw new Error("harness page not ready: " + JSON.stringify(await browser.evaluate("({ url: location.href, readyState: document.readyState, body: document.body?.innerHTML.slice(0, 200) ?? null })")));
   await browser.evaluate(readFileSync(join(HARNESS, "harness.js"), "utf8"));
+  await browser.evaluate(readFileSync(join(ROOT, "custom_components", "adaptive_areas", "frontend", "aa-entity-picker.js"), "utf8"));
   await browser.evaluate(readFileSync(PANEL, "utf8"));
   await browser.evaluate(`window.__fixtures = ${JSON.stringify(loadFixtures())};`);
 }
@@ -199,18 +200,18 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states, failures: { "adaptive_areas/update_global_configuration": "Save rejected" } }));
   await waitFor(browser, `${text()}.length > 40`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
-  const pick = (value) => `(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event("change", { bubbles: true })); return s.value; })()`;
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
+  const pick = (value) => `(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event("change", { bubbles: true })); return s.value; })()`;
   const chosen = await browser.evaluate(pick("weather.city"));
   await clickByText(browser, "Save");
   await sleep(300);
   check("R6 rejected save reports the failure", (await browser.evaluate(text())).includes("could not be saved"));
-  check("R6 rejected save keeps the draft value", (await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=weather_entity]").value`)) === chosen, chosen);
+  check("R6 rejected save keeps the draft value", (await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value`)) === chosen, chosen);
 
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.length > 40`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   const chosen2 = await browser.evaluate(pick("weather.city"));
   await clickByText(browser, "Save");
   await sleep(300);
@@ -236,14 +237,14 @@ async function regression(browser) {
 
   // S4: focus and an unsaved draft survive a subscription update on the settings view
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   await sleep(300);
-  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.focus(); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.focus(); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); window.__renderCount = 0; const orig = p._render.bind(p); p._render = () => { window.__renderCount++; return orig(); }; return true; })()`);
   await browser.evaluate(`window.__h.hass.__emitArea(${JSON.stringify(officeChanged)})`);
   await sleep(120);
-  check("S4 focus survives a subscription update", await browser.evaluate(`document.activeElement === document.querySelector("adaptive-areas-panel select[name=weather_entity]")`));
-  check("S5 unsaved draft survives a subscription update", await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=weather_entity]").value === "weather.city"`));
+  check("S4 focus survives a subscription update", await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]")?.shadowRoot?.activeElement?.tagName === "INPUT"`));
+  check("S5 unsaved draft survives a subscription update", await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value === "weather.city"`));
 
   // S6: repeated open and close: subscriptions and listeners do not accumulate
   for (let cycle = 0; cycle < 3; cycle++) {
@@ -262,13 +263,13 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
-  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
+  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   const callsBefore = (await browser.evaluate("window.__h.hass.__state.calls")).length;
   await browser.evaluate(`window.__h.hass.__emitConnection("disconnected")`);
   await sleep(80);
   check("S7 disconnect shows Connection lost", (await browser.evaluate(text())).includes("Connection lost"));
-  check("S7b disconnect keeps the unsaved draft", await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=weather_entity]").value === "weather.city"`));
+  check("S7b disconnect keeps the unsaved draft", await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value === "weather.city"`));
   await browser.evaluate(`window.__h.hass.__emitConnection("ready")`);
   await waitFor(browser, `${text()}.includes("Connected")`, 4000).then(() => check("S7c reconnect shows Connected again", true)).catch(() => check("S7c reconnect shows Connected again", false));
   const callsAfter = (await browser.evaluate("window.__h.hass.__state.calls")).length;
@@ -318,7 +319,7 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   const beforeRole = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); return { config: Boolean(p._data.config), globalSettings: Boolean(p._drafts.global.original) }; })()`);
   await browser.evaluate(`(() => { const panel = document.querySelector("adaptive-areas-panel"); const next = AAHarness.createHass({ admin: false, language: "en", states: {}, fixtures: { overview: window.__fixtures.overviewUser, area: window.__fixtures.areaUser, config: window.__fixtures.config, global: window.__fixtures.global, light: window.__fixtures.light, climate: window.__fixtures.climate, trace: window.__fixtures.trace, diagnostics: window.__fixtures.diagnostics } }); window.__h.hass = next; panel.hass = next; return true; })()`);
   await sleep(200);
@@ -375,23 +376,23 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   await sleep(200);
-  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   await browser.evaluate(`(() => { window.__h.hass.__state.global = { ok: true, errors: {}, options: { weather_entity: "weather.home", global_light_sensor: null } }; return true; })()`);
   await browser.evaluate(`window.__h.hass.__emitConnection("disconnected")`);
   await browser.evaluate(`window.__h.hass.__emitConnection("ready")`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-conflict]") !== null`, 4000).then(() => check("S17 changed server configuration is reported as a conflict", true)).catch(() => check("S17 changed server configuration is reported as a conflict", false));
-  check("S17b reconnect keeps the local draft", await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=weather_entity]").value === "weather.city"`));
+  check("S17b reconnect keeps the local draft", await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value === "weather.city"`));
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict-keep]").click()`);
-  check("S17c keeping the draft removes the notice and keeps the value", (await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict]") === null && document.querySelector("adaptive-areas-panel select[name=weather_entity]").value === "weather.city"`)) === true);
+  check("S17c keeping the draft removes the notice and keeps the value", (await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict]") === null && document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value === "weather.city"`)) === true);
 
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   await sleep(200);
-  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   await browser.evaluate(`window.__h.hass.__emitConnection("disconnected")`);
   await browser.evaluate(`window.__h.hass.__emitConnection("ready")`);
   await sleep(200);
@@ -402,9 +403,9 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   await sleep(200);
-  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   await browser.evaluate(conflictSetup);
   await browser.evaluate(`window.__h.hass.__emitConnection("disconnected")`);
   await browser.evaluate(`window.__h.hass.__emitConnection("ready")`);
@@ -421,17 +422,17 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`);
   await sleep(200);
-  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); s.value = "weather.city"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   await browser.evaluate(conflictSetup);
   await browser.evaluate(`window.__h.hass.__emitConnection("disconnected")`);
   await browser.evaluate(`window.__h.hass.__emitConnection("ready")`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-conflict-take]") !== null`, 4000).catch(() => null);
-  check("S18d 'use server values' replaces the draft only after the explicit choice", (await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=weather_entity]").value === "weather.city"`)) === true);
+  check("S18d 'use server values' replaces the draft only after the explicit choice", (await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value === "weather.city"`)) === true);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict-take]").click()`);
   await sleep(200);
-  check("S18e after 'use server values' the form shows the server value", (await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=weather_entity]").value === "weather.home"`)) === true);
+  check("S18e after 'use server values' the form shows the server value", (await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").value === "weather.home"`)) === true);
 
   // S19: area form: a server change during editing is a conflict; the draft is kept; saving needs an explicit overwrite
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
@@ -487,7 +488,7 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const panel = document.querySelector("adaptive-areas-panel"); const next = AAHarness.createHass({ admin: true, language: "en", states: {}, fixtures: { overview: window.__fixtures.overviewAdmin, area: window.__fixtures.areaAdmin, config: window.__fixtures.config, global: window.__fixtures.global, light: window.__fixtures.light, climate: window.__fixtures.climate, trace: window.__fixtures.trace, diagnostics: window.__fixtures.diagnostics } }); window.__h.hass = next; panel.hass = next; return true; })()`);
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  const recovered = await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`, 4000).then(() => true).catch(() => false);
+  const recovered = await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`, 4000).then(() => true).catch(() => false);
   check("S22 settings recover after a role change during loading", recovered);
 
   // B01: subscription events keep working after one or several reconnects; no duplicate subscriptions or listeners
@@ -811,7 +812,7 @@ async function regression(browser) {
   for (const width of [320, 390, 430, 768, 1024]) {
     await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await sleep(120);
-    const w = await browser.evaluate(`(() => { const doc = document.documentElement; const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = form ? form.getBoundingClientRect() : null; const over = box ? [...form.querySelectorAll("select, input")].filter((n) => n.getBoundingClientRect().right > box.right + 1 || n.getBoundingClientRect().left < box.left - 1).map((n) => n.name || n.tagName) : ["no-form"]; return { docScroll: doc.scrollWidth, client: doc.clientWidth, over }; })()`);
+    const w = await browser.evaluate(`(() => { const doc = document.documentElement; const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = form ? form.getBoundingClientRect() : null; const controls = [...form.querySelectorAll("select, input:not([type=hidden])"), ...[...form.querySelectorAll("aa-entity-picker")].map((p) => p.shadowRoot?.querySelector("input")).filter(Boolean)]; const over = box ? controls.filter((n) => n.getBoundingClientRect().right > box.right + 1 || n.getBoundingClientRect().left < box.left - 1).map((n) => n.name || n.tagName) : ["no-form"]; return { docScroll: doc.scrollWidth, client: doc.clientWidth, over }; })()`);
     widths.push({ width, ...w });
   }
   check("H4 the light editor has no horizontal page overflow and no control outside its form at 320, 390, 430, 768 and 1024 px", widths.every((w) => w.docScroll <= w.client && w.over.length === 0), JSON.stringify(widths));
@@ -900,7 +901,7 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 90, turn_off_above: 110 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); const p = document.querySelector("adaptive-areas-panel"); p._data.config = JSON.parse(JSON.stringify(st.config)); window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-group='overhead']") !== null`);
-  const lg1 = await browser.evaluate(`(() => { const groups = [...document.querySelectorAll("adaptive-areas-panel form[data-area-form] details.light-group")]; return groups.map((g) => ({ prefix: g.dataset.lightGroup, open: g.open, selects: [...g.querySelectorAll("select")].map((n) => n.name), count: g.querySelector("[data-light-group-count]")?.textContent.trim() ?? null })); })()`);
+  const lg1 = await browser.evaluate(`(() => { const groups = [...document.querySelectorAll("adaptive-areas-panel form[data-area-form] details.light-group")]; return groups.map((g) => ({ prefix: g.dataset.lightGroup, open: g.open, selects: [...g.querySelectorAll("select, aa-entity-picker")].map((n) => n.getAttribute("name")), count: g.querySelector("[data-light-group-count]")?.textContent.trim() ?? null })); })()`);
   const prefixesOk = ["overhead", "sleep", "accent", "task"].every((prefix) => lg1.find((g) => g.prefix === prefix)?.selects.every((name) => name.startsWith("light_group:" + prefix + "_")) && (lg1.find((g) => g.prefix === prefix)?.selects.length ?? 0) >= 4);
   check("LG1 the four light groups are nested details and each contains only its own settings", lg1.length === 4 && prefixesOk, JSON.stringify(lg1));
   check("LG2 all groups start closed and show the number of assigned lights (overhead 1, sleep 1, accent 0, task 0)", lg1.every((g) => g.open === false) && lg1.find((g) => g.prefix === "overhead")?.count === "1" && lg1.find((g) => g.prefix === "sleep")?.count === "1" && lg1.find((g) => g.prefix === "accent")?.count === "0", JSON.stringify(lg1.map((g) => [g.prefix, g.open, g.count])));
@@ -1244,11 +1245,11 @@ async function regression(browser) {
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form]") !== null`);
   await browser.evaluate(`(() => { const h = window.__h.hass; const st = h.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.area_temperature_sensor = "sensor.office_temp"; const p = document.querySelector("adaptive-areas-panel"); p._data.config = JSON.parse(JSON.stringify(st.config)); if (p._drafts.area.draft) { p._drafts.area.draft.area_temperature_sensor = "sensor.office_temp"; p._drafts.area.original.area_temperature_sensor = "sensor.office_temp"; } h.states = Object.assign({}, h.states, { "sensor.kitchen_temp": { state: "21", attributes: { friendly_name: "Kitchen temperature" } }, "sensor.office_temp": { state: "20", attributes: { friendly_name: "Office temperature" } }, "sensor.dev_temp": { state: "22", attributes: { friendly_name: "Device temperature" } }, "sensor.loose_temp": { state: "19", attributes: { friendly_name: "Loose temperature" } } }); h.entities = { "sensor.kitchen_temp": { area_id: "kitchen", device_id: null }, "sensor.office_temp": { area_id: "office", device_id: null }, "sensor.dev_temp": { area_id: null, device_id: "dev1" }, "sensor.loose_temp": { area_id: null, device_id: null } }; h.devices = { dev1: { area_id: "kitchen" } }; p._render(); return true; })()`);
   await sleep(120);
-  const g1 = await browser.evaluate(`(() => { const sel = document.querySelector("adaptive-areas-panel select[name=area_temperature_sensor]"); return [...sel.options].map((o) => o.value).filter((v) => v); })()`);
+  const g1 = await browser.evaluate(`(() => { const sel = document.querySelector("adaptive-areas-panel aa-entity-picker[name=area_temperature_sensor]"); return [...sel.options].map((o) => o.value).filter((v) => v); })()`);
   check("G1 an area-bound field offers only entities of this Area, direct or inherited from the device, plus the stored value (kept, see G2)", JSON.stringify(g1) === JSON.stringify(["sensor.dev_temp", "sensor.kitchen_temp", "sensor.office_temp"]), JSON.stringify(g1));
-  const g2 = await browser.evaluate(`(() => { const sel = document.querySelector("adaptive-areas-panel select[name=area_temperature_sensor]"); const opt = [...sel.options].find((o) => o.value === "sensor.office_temp"); return { selected: !!opt && opt.selected, label: opt ? opt.textContent : null }; })()`);
+  const g2 = await browser.evaluate(`(() => { const sel = document.querySelector("adaptive-areas-panel aa-entity-picker[name=area_temperature_sensor]"); const opt = [...sel.options].find((o) => o.value === "sensor.office_temp"); return { selected: !!opt && opt.selected, label: opt ? opt.textContent : null }; })()`);
   check("G2 a stored source outside the Area is kept selected and named as outside this Area (cross-area use allowed)", g2.selected === true && (g2.label || "").includes("outside this Area; cross-area use allowed"), JSON.stringify(g2));
-  const g3 = await browser.evaluate(`(() => { const sel = document.querySelector("adaptive-areas-panel select[name=outdoor_temperature_entity]"); return [...sel.options].map((o) => o.value).filter((v) => v); })()`);
+  const g3 = await browser.evaluate(`(() => { const sel = document.querySelector("adaptive-areas-panel aa-entity-picker[name=outdoor_temperature_entity]"); return [...sel.options].map((o) => o.value).filter((v) => v); })()`);
   check("G3 outdoor sources are not restricted to the Area", g3.includes("sensor.office_temp") && g3.includes("sensor.loose_temp"), JSON.stringify(g3));
   await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; true`);
   await browser.evaluate(`(() => { const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); form.elements.namedItem("humidity_warning_duration").value = "0"; form.elements.namedItem("clear_timeout").value = "4"; form.requestSubmit(); return true; })()`);
@@ -1268,7 +1269,7 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 50, turn_off_above: 200, vacancy_delay: 30 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); p._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
-  const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value, vacancy: f.elements.namedItem("light:vacancy_delay").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.elements.namedItem("light_group:sleep_lights").selectedOptions].map((o) => o.value) }; })()`);
+  const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value, vacancy: f.elements.namedItem("light:vacancy_delay").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.querySelectorAll('aa-entity-picker[name=\"light_group:sleep_lights\"] input[type=hidden]')].map((o) => o.value) }; })()`);
   check("L1 the central editor shows the stored 50/200 lx pair as threshold 125 and hysteresis 150 and keeps light group settings", l1.threshold === "125" && l1.hysteresis === "150" && l1.vacancy === "30" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
   await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; true`);
   await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "120"; f.elements.namedItem("light_group:overhead_lights_activation").value = "extended"; f.elements.namedItem("light:vacancy_delay").value = ""; f.requestSubmit(); return true; })()`);
@@ -1343,32 +1344,32 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=global_light_sensor]") !== null`, 4000);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]") !== null`, 4000);
   await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, { "sensor.lux": { state: "10", attributes: { friendly_name: "Lux", device_class: "illuminance" } }, "sensor.temp": { state: "20", attributes: { friendly_name: "Temp", device_class: "temperature" } }, "light.kitchen": { state: "on", attributes: { friendly_name: "Kitchen light" } } }); window.__h.hass.__state.global = Object.assign({}, window.__h.hass.__state.global); document.querySelector("adaptive-areas-panel")._render(); return true; })()`);
   await sleep(150);
-  const gl1 = await browser.evaluate(`({ weather: [...document.querySelectorAll("adaptive-areas-panel select[name=weather_entity] option")].map((o) => o.value).filter((v) => v), light: [...document.querySelectorAll("adaptive-areas-panel select[name=global_light_sensor] option")].map((o) => o.value).filter((v) => v) })`);
+  const gl1 = await browser.evaluate(`({ weather: [...document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]").options].map((o) => o.value).filter((v) => v), light: [...document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]").options].map((o) => o.value).filter((v) => v) })`);
   check("GL1 the weather field offers only weather entities and the brightness field only illuminance sensors, as the backend validates", gl1.weather.every((v) => v.startsWith("weather.")) && gl1.light.includes("sensor.lux") && !gl1.light.includes("sensor.temp") && !gl1.light.includes("light.kitchen"), JSON.stringify(gl1));
 
   // GL2-series: light sensor selection rules (device class illuminance, unit lx, value 0, unsupported units)
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=global_light_sensor]") !== null`, 4000);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]") !== null`, 4000);
   await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, { "sensor.lux_class": { state: "120", attributes: { friendly_name: "Lux class", device_class: "illuminance", unit_of_measurement: "lx" } }, "sensor.lux_unit": { state: "45", attributes: { friendly_name: "Lux unit only", unit_of_measurement: "lx" } }, "sensor.plain": { state: "300", attributes: { friendly_name: "Plain" } }, "sensor.percent": { state: "50", attributes: { friendly_name: "Percent", unit_of_measurement: "%" } }, "sensor.lux_word": { state: "70", attributes: { friendly_name: "Lux word", unit_of_measurement: "lux" } }, "sensor.lux_zero": { state: "0", attributes: { friendly_name: "Zero lux", device_class: "illuminance", unit_of_measurement: "lx" } } }); document.querySelector("adaptive-areas-panel")._render(); return true; })()`);
   await sleep(150);
-  const gl2 = await browser.evaluate(`[...document.querySelectorAll("adaptive-areas-panel select[name=global_light_sensor] option")].map((o) => o.value).filter((v) => v)`);
+  const gl2 = await browser.evaluate(`[...document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]").options].map((o) => o.value).filter((v) => v)`);
   check("GL2a the brightness field offers illuminance-class sensors and lx-unit sensors (incl. value 0) and nothing else", ["sensor.lux_class", "sensor.lux_unit", "sensor.lux_zero"].every((v) => gl2.includes(v)) && !gl2.includes("sensor.plain") && !gl2.includes("sensor.percent") && !gl2.includes("sensor.lux_word"), JSON.stringify(gl2));
-  await browser.evaluate(`(() => { window.__glSent = null; const h = window.__h.hass; const orig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_global_configuration") window.__glSent = msg.options; return orig(msg); }; const sel = document.querySelector("adaptive-areas-panel select[name=global_light_sensor]"); sel.value = "sensor.lux_unit"; sel.dispatchEvent(new Event("change", { bubbles: true })); document.querySelector("adaptive-areas-panel [data-save-global]")?.click(); return true; })()`);
+  await browser.evaluate(`(() => { window.__glSent = null; const h = window.__h.hass; const orig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_global_configuration") window.__glSent = msg.options; return orig(msg); }; const sel = document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]"); sel.value = "sensor.lux_unit"; sel.dispatchEvent(new Event("change", { bubbles: true })); document.querySelector("adaptive-areas-panel [data-save-global]")?.click(); return true; })()`);
   await sleep(250);
-  const gl3 = await browser.evaluate(`({ sent: window.__glSent, selected: document.querySelector("adaptive-areas-panel select[name=global_light_sensor]")?.value ?? null })`);
+  const gl3 = await browser.evaluate(`({ sent: window.__glSent, selected: document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]")?.value ?? null })`);
   check("GL2b a lx-unit sensor is saved as global_light_sensor and stays selected after the save round trip", gl3.sent?.global_light_sensor === "sensor.lux_unit" && gl3.selected === "sensor.lux_unit", JSON.stringify(gl3));
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
   await clickByText(browser, "Global settings");
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=global_light_sensor]") !== null`, 4000);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]") !== null`, 4000);
   await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, { "sensor.percent": { state: "50", attributes: { friendly_name: "Percent", unit_of_measurement: "%" } }, "sensor.lux_unit": { state: "45", attributes: { friendly_name: "Lux unit only", unit_of_measurement: "lx" } } }); h.__state.global = Object.assign({}, h.__state.global, { options: { weather_entity: null, global_light_sensor: "sensor.percent" } }); document.querySelector("adaptive-areas-panel")._drafts.global = { original: { weather_entity: null, global_light_sensor: "sensor.percent" }, draft: null, saving: false, errors: {} }; document.querySelector("adaptive-areas-panel")._render(); return true; })()`);
   await sleep(150);
-  const gl4 = await browser.evaluate(`document.querySelector("adaptive-areas-panel select[name=global_light_sensor]")?.value ?? null`);
+  const gl4 = await browser.evaluate(`document.querySelector("adaptive-areas-panel aa-entity-picker[name=global_light_sensor]")?.value ?? null`);
   check("GL2c an already stored sensor that is not selectable by the new rules stays selected (no silent change)", gl4 === "sensor.percent", String(gl4));
 
   // PR-series (step 6.7): a direct Area assignment takes precedence over the inherited device Area
@@ -1379,7 +1380,7 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, { "sensor.own_office": { state: "20", attributes: { friendly_name: "Own office sensor" } }, "sensor.kitchen_dev": { state: "21", attributes: { friendly_name: "Kitchen device sensor" } } }); h.entities = { "sensor.own_office": { area_id: "office", device_id: "devk" }, "sensor.kitchen_dev": { area_id: null, device_id: "devk" } }; h.devices = { devk: { area_id: "kitchen" } }; return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form]") !== null`);
-  const pr1 = await browser.evaluate(`[...document.querySelector("adaptive-areas-panel select[name=area_temperature_sensor]").options].map((o) => o.value).filter((v) => v)`);
+  const pr1 = await browser.evaluate(`[...document.querySelector("adaptive-areas-panel aa-entity-picker[name=area_temperature_sensor]").options].map((o) => o.value).filter((v) => v)`);
   check("PR1 an entity with its own Area is not offered for the device's Area; an entity without its own Area inherits the device Area", pr1.includes("sensor.kitchen_dev") && !pr1.includes("sensor.own_office"), JSON.stringify(pr1));
 
   // M68-series (step 6.8 migration of the R05 requirements to the central editor)
@@ -1452,7 +1453,7 @@ async function regression(browser) {
   const v4 = await browser.evaluate(`(() => { const txt = document.querySelector("adaptive-areas-panel form[data-area-form]").textContent; return { analysis: txt.includes("Entitäten in die Analyse einschließen"), presence: txt.includes("Anwesenheitsfreigabe"), sleep: txt.includes("Entität für Schlafzustand"), english: txt.includes("Include entities in analysis") }; })()`);
   check("V2 German editor shows the German labels and no English label", v4.analysis && v4.presence && v4.sleep && v4.english === false, JSON.stringify(v4));
   // V02: stored entities are marked by their real state; a missing thermostat is "not found", never "not assigned to this Area"
-  const v02 = await browser.evaluate(`(() => { const el = document.querySelector("adaptive-areas-panel"); const th = el._scopedSingle("climate:entity_id", "climate.v02_missing", "Thermostat", "climate", false); const env = el._scopedSingle("area_humidity_sensor", "sensor.v02_missing", "Humidity", "sensor", true); return { th, env, falseWarning: /nicht diesem Bereich|not assigned to this Area/.test(th + env), notFound: th.includes("nicht gefunden") && env.includes("nicht gefunden"), kept: /value="climate\.v02_missing" (title="[^"]*" )?selected/.test(th) }; })()`);
+  const v02 = await browser.evaluate(`(async () => { const el = document.querySelector("adaptive-areas-panel"); const host = document.createElement("div"); host.innerHTML = el._scopedSingle("climate:entity_id", "climate.v02_missing", "Thermostat", "climate", false); el.appendChild(host); const picker = host.querySelector("aa-entity-picker"); const chip = picker.shadowRoot.querySelector(".chip.missing"); const out = { notFound: chip !== null && /not found|nicht gefunden/.test(chip.textContent), falseWarning: /outside this Area|nicht diesem Bereich/.test(chip?.textContent || ""), kept: picker.value === "climate.v02_missing" }; host.remove(); return out; })()`);
   check("V02a a stored thermostat missing from the states is marked as not found, not as outside the Area", v02.notFound && !v02.falseWarning, JSON.stringify(v02));
   check("V02b a stored value that is not found stays selected in the field", v02.kept === true, JSON.stringify(v02));
 
@@ -1907,11 +1908,11 @@ async function regression(browser) {
   const br1 = await browser.evaluate(`(() => { const lists = [...document.querySelectorAll("${BR_FORM} details.entity-list")]; return { keys: lists.map((d) => d.dataset.entityList), openCount: lists.filter((d) => d.open).length }; })()`);
   check("BR1 include, exclude, presence-control and keep-only entity lists are collapsed by default", ["include_entities", "exclude_entities", "presence_control_entities", "keep_only_entities"].every((key) => br1.keys.includes(key)) && br1.openCount === 0, JSON.stringify(br1));
   // BR2: opening and closing sends no write and keeps the selection
-  await browser.evaluate(`(() => { const h = window.__h.hass; window.__brWrites = 0; window.__brOrig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_area") window.__brWrites += 1; return window.__brOrig(msg); }; const sel = ${brEntityList("include_entities")}.querySelector("select"); [...sel.options].slice(0, 2).forEach((o) => { o.selected = true; }); sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
-  const br2 = await browser.evaluate(`(() => { const d = ${brEntityList("include_entities")}; const s = d.querySelector("summary"); const picked = [...d.querySelector("select").selectedOptions].map((o) => o.value); s.click(); const opened = d.open; s.click(); const closed = d.open; s.click(); return { opened, closed, reopened: d.open, picked, writes: window.__brWrites }; })()`);
+  await browser.evaluate(`(() => { const h = window.__h.hass; window.__brWrites = 0; window.__brOrig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_area") window.__brWrites += 1; return window.__brOrig(msg); }; const pk = ${brEntityList("include_entities")}.querySelector("aa-entity-picker"); ${brEntityList("include_entities")}.open = true; pk.shadowRoot.querySelector("input").focus(); [...pk.shadowRoot.querySelectorAll("[role=option]")].slice(0, 2).forEach((o) => o.click()); ${brEntityList("include_entities")}.open = false; return true; })()`);
+  const br2 = await browser.evaluate(`(() => { const d = ${brEntityList("include_entities")}; const s = d.querySelector("summary"); const picked = [...d.querySelectorAll("aa-entity-picker input[type=hidden]")].map((i) => i.value); s.click(); const opened = d.open; s.click(); const closed = d.open; s.click(); return { opened, closed, reopened: d.open, picked, writes: window.__brWrites }; })()`);
   check("BR2 opening and closing the entity list sends no write and keeps every selected entity", br2.opened === true && br2.closed === false && br2.reopened === true && br2.writes === 0 && br2.picked.length === 2, JSON.stringify(br2));
   // BR3: a re-render keeps the open state and the selection; the summary counts the selection
-  const br3 = await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel")._render(); const d = ${brEntityList("include_entities")}; return { open: d.open, picked: [...d.querySelector("select").selectedOptions].map((o) => o.value), summary: d.querySelector("summary").textContent.trim() }; })()`);
+  const br3 = await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel")._render(); const d = ${brEntityList("include_entities")}; return { open: d.open, picked: [...d.querySelectorAll("aa-entity-picker input[type=hidden]")].map((i) => i.value), summary: d.querySelector("summary").textContent.trim() }; })()`);
   check("BR3 a re-render keeps the open state, the selection and shows the count", br3.open === true && br3.picked.length === 2 && br3.summary.includes("(2)"), JSON.stringify(br3));
   // BR4: saving sends exactly the selected entities of the list
   await browser.evaluate(`(() => { document.querySelector("${BR_FORM}").requestSubmit(); return true; })()`);
@@ -1961,8 +1962,101 @@ async function regression(browser) {
   check("BR8b Space toggles a domain checkbox from the keyboard", br8c.checked === true, JSON.stringify(br8c));
   // BR9: a long entity ID in a narrow container causes no horizontal overflow (320 px)
   await brOpen("en", BR_STATES, 320);
-  const br9 = await browser.evaluate(`(() => { ${brEntityList("include_entities")}.querySelector("summary").click(); const list = ${brEntityList("include_entities")}; const sel = list.querySelector("select"); return { pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, selectFits: sel.getBoundingClientRect().width <= list.getBoundingClientRect().width + 1 }; })()`);
+  const br9 = await browser.evaluate(`(() => { ${brEntityList("include_entities")}.querySelector("summary").click(); const list = ${brEntityList("include_entities")}; const sel = list.querySelector("aa-entity-picker"); return { pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, selectFits: sel.getBoundingClientRect().width <= list.getBoundingClientRect().width + 1 }; })()`);
   check("BR9 long entity names in an open list do not overflow a 320 px screen", br9.pageOverflow <= 0 && br9.selectFits === true, JSON.stringify(br9));
+  // PK: shared entity picker (aa-entity-picker): search, multiple selection, chips, keyboard, dirty state, save
+  const PK = `document.querySelector("${BR_FORM} aa-entity-picker[name='include_entities']")`;
+  const pkInput = `${PK}.shadowRoot.querySelector("input")`;
+  const pkKey = async (key, code, vk, textValue = "") => { await browser.send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, text: textValue }); await browser.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk }); };
+  await brOpen("en");
+  await browser.evaluate(`${brEntityList("include_entities")}.open = true`);
+  // PK1: opening the picker shows the list; typing filters by entity ID and by friendly name
+  await browser.evaluate(`(() => { ${pkInput}.focus(); return true; })()`);
+  const pk1a = await browser.evaluate(`${PK}.shadowRoot.querySelectorAll("[role=option]").length`);
+  await browser.evaluate(`(() => { const i = ${pkInput}; i.value = "phone"; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+  const pk1b = await browser.evaluate(`[...${PK}.shadowRoot.querySelectorAll("[role=option]")].map((o) => o.querySelector(".option-id").textContent)`);
+  await browser.evaluate(`(() => { const i = ${pkInput}; i.value = "KITCHEN"; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+  const pk1c = await browser.evaluate(`[...${PK}.shadowRoot.querySelectorAll("[role=option]")].map((o) => o.querySelector(".option-id").textContent)`);
+  check("PK1 the picker lists entities and search matches entity ID and friendly name, case-insensitively", pk1a >= 5 && JSON.stringify(pk1b) === JSON.stringify(["device_tracker.phone"]) && JSON.stringify(pk1c) === JSON.stringify(["light.kitchen_ceiling"]), JSON.stringify({ pk1a, pk1b, pk1c }));
+  // PK2: several entities are added without reopening; the list stays open and the count is shown
+  await browser.evaluate(`(() => { const i = ${pkInput}; i.value = ""; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+  await browser.evaluate(`(() => { const opts = [...${PK}.shadowRoot.querySelectorAll("[role=option]")]; opts.find((o) => o.querySelector(".option-id").textContent === "binary_sensor.hall_motion").click(); return true; })()`);
+  await browser.evaluate(`(() => { const opts = [...${PK}.shadowRoot.querySelectorAll("[role=option]")]; opts.find((o) => o.querySelector(".option-id").textContent === "device_tracker.phone").click(); return true; })()`);
+  const pk2 = await browser.evaluate(`({ hidden: [...${PK}.querySelectorAll("input[type=hidden][name='include_entities']")].map((i) => i.value), listOpen: !${PK}.shadowRoot.querySelector(".list").hidden, count: ${PK}.shadowRoot.querySelector(".meta").textContent, selectedMarks: [...${PK}.shadowRoot.querySelectorAll("[role=option][aria-selected=true]")].length })`);
+  check("PK2 several entities are added without reopening and the count is shown", JSON.stringify(pk2.hidden) === JSON.stringify(["binary_sensor.hall_motion", "device_tracker.phone"]) && pk2.listOpen === true && pk2.count.includes("2") && pk2.selectedMarks === 2, JSON.stringify(pk2));
+  // PK3: selected entities appear as chips; removing one leaves the others and keeps focus in the search field
+  await browser.evaluate(`(() => { const chip = [...${PK}.shadowRoot.querySelectorAll(".chip")].find((c) => c.textContent.includes("Phone")); chip.querySelector("button").click(); return true; })()`);
+  const pk3 = await browser.evaluate(`({ hidden: [...${PK}.querySelectorAll("input[type=hidden][name='include_entities']")].map((i) => i.value), chips: [...${PK}.shadowRoot.querySelectorAll(".chip")].length, focus: ${PK}.shadowRoot.activeElement?.tagName ?? null })`);
+  check("PK3 a single chip is removed, the other stays and focus stays in the search field", JSON.stringify(pk3.hidden) === JSON.stringify(["binary_sensor.hall_motion"]) && pk3.chips === 1 && pk3.focus === "INPUT", JSON.stringify(pk3));
+  // PK4: keyboard: arrows move the active option, Enter toggles it, Escape closes the list only
+  await browser.evaluate(`(() => { ${pkInput}.focus(); return true; })()`);
+  await pkKey("ArrowDown", "ArrowDown", 40);
+  const pk4a = await browser.evaluate(`[...${PK}.shadowRoot.querySelectorAll("[role=option]")].findIndex((o) => o.dataset.active === "true")`);
+  await pkKey("Enter", "Enter", 13, "\r");
+  const pk4b = await browser.evaluate(`[...${PK}.querySelectorAll("input[type=hidden][name='include_entities']")].map((i) => i.value)`);
+  await pkKey("Escape", "Escape", 27);
+  const pk4c = await browser.evaluate(`({ listHidden: ${PK}.shadowRoot.querySelector(".list").hidden, formStill: document.querySelector("${BR_FORM}") !== null, stillSelected: [...${PK}.querySelectorAll("input[type=hidden][name='include_entities']")].length })`);
+  check("PK4 arrow keys move the active entry, Enter toggles it, Escape closes only the list", pk4a >= 0 && pk4b.length === 2 && pk4c.listHidden === true && pk4c.formStill === true && pk4c.stillSelected === 2, JSON.stringify({ pk4a, pk4b, pk4c }));
+  // PK5: opening, closing and tabbing away change nothing (no write, not dirty)
+  await browser.evaluate(`(() => { window.__pkWrites = 0; const h = window.__h.hass; window.__pkOrig = h.callWS.bind(h); h.callWS = (msg) => { if (msg.type === "adaptive_areas/update_area") window.__pkWrites += 1; return window.__pkOrig(msg); }; ${pkInput}.focus(); return true; })()`);
+  const pk5before = await browser.evaluate(`document.querySelector("adaptive-areas-panel")._areaDirty()`);
+  await browser.evaluate(`(() => { ${pkInput}.blur(); return true; })()`);
+  await browser.evaluate(`(() => { ${pkInput}.focus(); return true; })()`);
+  await pkKey("Tab", "Tab", 9);
+  const pk5 = await browser.evaluate(`({ dirtyBefore: ${JSON.stringify(false)} || null, dirtyNow: document.querySelector("adaptive-areas-panel")._areaDirty(), writes: window.__pkWrites, selected: [...${PK}.querySelectorAll("input[type=hidden][name='include_entities']")].map((i) => i.value).length })`);
+  check("PK5 opening and leaving the picker without a choice sends no write and changes no dirty state", pk5.writes === 0 && pk5.dirtyNow === pk5before && pk5.selected === 2, JSON.stringify({ pk5before, ...pk5 }));
+  // PK6: a long entity ID stays inside its chip and causes no page overflow at 320 px
+  await brOpen("en", BR_STATES, 320);
+  const pk6 = await browser.evaluate(`(() => { const p = document.querySelector("${BR_FORM} aa-entity-picker[name='include_entities']"); const pi = p.shadowRoot.querySelector("input"); pi.focus(); pi.dispatchEvent(new Event("input", { bubbles: true })); [...p.shadowRoot.querySelectorAll("[role=option]")].find((o) => o.querySelector(".option-id").textContent.startsWith("sensor.very_long")).click(); const host = p.getBoundingClientRect(); const chip = p.shadowRoot.querySelector(".chip-text")?.getBoundingClientRect(); return { overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, chipInside: !!chip && chip.right <= host.right + 1 && chip.left >= host.left - 1 }; })()`);
+  check("PK6 a long entity ID wraps inside its chip with no overflow at 320 px", pk6.overflow <= 0 && pk6.chipInside === true, JSON.stringify(pk6));
+  // PK7: saving sends exactly the picked entities; reopening shows the saved selection
+  await browser.evaluate(`(() => { window.__h.hass.__state.lastAreaUpdate = undefined; document.querySelector("${BR_FORM}").requestSubmit(); return true; })()`);
+  await waitFor(browser, `window.__h.hass.__state.lastAreaUpdate?.include_entities !== undefined`, 3000).catch(() => {});
+  const pk7saved = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.include_entities || null`);
+  await browser.evaluate(brMirrorSave());
+  await brReopen();
+  await browser.evaluate(`${brEntityList("include_entities")}.open = true`);
+  const pk7 = await browser.evaluate(`[...document.querySelectorAll("${BR_FORM} aa-entity-picker[name='include_entities'] input[type=hidden]")].map((i) => i.value)`);
+  check("PK7 saving sends the picked entities and reopening shows them again", Array.isArray(pk7saved) && pk7saved.length === 1 && JSON.stringify(pk7) === JSON.stringify(pk7saved), JSON.stringify({ pk7saved, pk7 }));
+  // PK8: the single picker (Entity for darkness) selects and clears through the same component
+  await brOpen("en");
+  const pk8 = await browser.evaluate(`(() => { const d = document.querySelector("${BR_FORM} aa-entity-picker[name='dark_entity']"); const i = d.shadowRoot.querySelector("input"); i.focus(); i.dispatchEvent(new Event("input", { bubbles: true })); const opt = [...d.shadowRoot.querySelectorAll("[role=option]")].find((o) => o.querySelector(".option-id").textContent === "light.kitchen_ceiling"); opt.click(); const after = [...d.querySelectorAll("input[type=hidden]")].map((x) => x.value); const chipCount = d.shadowRoot.querySelectorAll(".chip").length; const rmBefore = d.shadowRoot.querySelector(".chip .remove") ? "found" : "missing"; d.shadowRoot.querySelector(".chip .remove")?.click(); const cleared = [...d.querySelectorAll("input[type=hidden]")].map((x) => x.value); return { after, chipCount, cleared, draftDark: document.querySelector("adaptive-areas-panel")._drafts.area.draft?.secondary_states?.dark_entity ?? null, dirtyAfterClear: document.querySelector("adaptive-areas-panel")._areaDirty() }; })()`);
+  check("PK8 the single picker selects, shows and clears the entity; clearing back to the saved empty value is not a change", JSON.stringify(pk8.after) === JSON.stringify(["light.kitchen_ceiling"]) && pk8.chipCount === 1 && JSON.stringify(pk8.cleared) === JSON.stringify([""]) && pk8.draftDark === "" && pk8.dirtyAfterClear === false, JSON.stringify(pk8));
+  // PK9: the picker stays usable and free of horizontal overflow at phone and tablet widths
+  for (const width of [320, 390, 430, 768, 1024, 1440]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await sleep(100);
+    const pk9 = await browser.evaluate(`(() => { const p = document.querySelector("${BR_FORM} aa-entity-picker[name='include_entities']"); const host = p.getBoundingClientRect(); const form = document.querySelector("${BR_FORM}").getBoundingClientRect(); return { overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, insideForm: host.right <= form.right + 1 && host.width > 0 }; })()`);
+    check(`PK9 the picker fits the form without page overflow at ${width} px`, pk9.overflow <= 0 && pk9.insideForm === true, JSON.stringify(pk9));
+  }
+  // SEC: section headings, collapsing and checkbox alignment
+  await brOpen("en");
+  await browser.evaluate(`(() => { const i = document.querySelector("${BR_FORM} input[name='clear_timeout']"); if (i) { i.value = "17"; i.dispatchEvent(new Event("input", { bubbles: true })); } return true; })()`);
+  const sec1 = await browser.evaluate(`(() => { const sections = [...document.querySelectorAll("${BR_FORM} > details")]; const before = document.querySelector("adaptive-areas-panel")._areaDirty(); const value = document.querySelector("${BR_FORM} input[name='clear_timeout']")?.value ?? null; const first = sections[0]; const summary = first.querySelector("summary"); const height = summary.getBoundingClientRect().height; sections.forEach((d) => { d.open = !d.open; }); sections.forEach((d) => { d.open = !d.open; }); const after = document.querySelector("adaptive-areas-panel")._areaDirty(); const valueAfter = document.querySelector("${BR_FORM} input[name='clear_timeout']")?.value ?? null; return { count: sections.length, height, dirtyChanged: before !== after, valueKept: value === valueAfter, valueAfter }; })()`);
+  check("SEC1 each top-level section has a heading of at least 44 px; toggling sections keeps inputs and changes no dirty state", sec1.count >= 4 && sec1.height >= 44 && sec1.dirtyChanged === false && sec1.valueKept === true, JSON.stringify(sec1));
+  const sec2 = await browser.evaluate(`(() => { const box = document.querySelector("${BR_FORM} details.domain-select"); if (box) box.open = true; const row = document.querySelector("${BR_FORM} label.check input[type=checkbox]") || document.querySelector("${BR_FORM} .domain-option input"); if (!row) return { found: false }; const label = row.closest("label"); const a = row.getBoundingClientRect(); const b = label.getBoundingClientRect(); const centreDelta = Math.abs((a.top + a.height / 2) - (b.top + b.height / 2)); return { found: true, centreDelta: Math.round(centreDelta), targetHeight: Math.round(b.height) }; })()`);
+  check("SEC2 a checkbox shares its vertical centre with its label and has a 40 px click target", sec2.found === true && sec2.centreDelta <= 3 && sec2.targetHeight >= 36, JSON.stringify(sec2));
+  // ENT: picker hardening: accessibility, the 200-option cap, domain filter and a failed picker load
+  await brOpen("en");
+  await browser.evaluate(`${brEntityList("include_entities")}.open = true`);
+  const ar1 = await browser.evaluate(`(() => { const p = ${PK}; const input = p.shadowRoot.querySelector("input"); const list = p.shadowRoot.querySelector("[role=listbox]"); input.focus(); input.dispatchEvent(new Event("input", { bubbles: true })); const expandedOpen = input.getAttribute("aria-expanded"); const controls = input.getAttribute("aria-controls"); const listId = list.id; input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true })); const active = input.getAttribute("aria-activedescendant"); const activeNode = active ? p.shadowRoot.getElementById(active) : null; const removeLabels = [...p.shadowRoot.querySelectorAll(".chip .remove")].map((b) => b.getAttribute("aria-label")); return { expandedOpen, controls, listId, activeOk: activeNode?.getAttribute("role") === "option" && activeNode.dataset.active === "true", optionRoles: [...list.querySelectorAll("[role=option]")].length > 0, label: input.getAttribute("aria-label"), removeLabels }; })()`);
+  check("ENT1 the search field is a labelled combobox that controls the listbox and marks the active option", ar1.expandedOpen === "true" && ar1.controls === ar1.listId && ar1.activeOk === true && ar1.optionRoles === true && (ar1.label || "").length > 0, JSON.stringify(ar1));
+  const ar2 = await browser.evaluate(`(() => { const p = ${PK}; const status = p.shadowRoot.querySelector("[role=status]"); const before = status.textContent; p.shadowRoot.querySelectorAll("[role=option]")[1].click(); return { before, after: status.textContent, removeLabels: [...p.shadowRoot.querySelectorAll(".chip .remove")].map((b) => b.getAttribute("aria-label")) }; })()`);
+  check("ENT2 a selection change is announced and each remove button names its entity", ar2.after.includes("added") && ar2.removeLabels.every((label) => label.startsWith("Remove ") || label.startsWith("Entfernen")), JSON.stringify(ar2));
+  // ENT3: more than 200 possible matches: the list is capped, but a stored value outside the cap stays selected and editable
+  const many = {};
+  for (let i = 0; i < 260; i += 1) many[`binary_sensor.bulk_${String(i).padStart(3, "0")}`] = { state: "off", attributes: { friendly_name: `Bulk ${i}`, device_class: "motion" } };
+  many["binary_sensor.zz_stored"] = { state: "on", attributes: { friendly_name: "Stored late", device_class: "motion" } };
+  await browser.evaluate(`(() => { const h = window.__h.hass; h.states = Object.assign({}, h.states, ${JSON.stringify(many)}); const p = document.querySelector("adaptive-areas-panel"); p._data.config = p._data.config; p._drafts.area.draft = { ...p._drafts.area.draft, include_entities: ["binary_sensor.zz_stored"] }; p._render(); return true; })()`);
+  await sleep(120);
+  const ent3 = await browser.evaluate(`(() => { const p = ${PK}; const total = p.options.length; p.shadowRoot.querySelector("input").dispatchEvent(new Event("input", { bubbles: true })); const shown = p.shadowRoot.querySelectorAll("[role=option]").length; const chips = [...p.shadowRoot.querySelectorAll(".chip-text")].map((c) => c.textContent); return { total, shown, stored: p.selected, chipKept: chips.some((c) => c.includes("Stored late")), notice: p.shadowRoot.querySelector(".meta").textContent }; })()`);
+  check("ENT3 the list is capped at 200 options, a stored value beyond the cap stays selected and visible, and the user is told to refine", ent3.total >= 261 && ent3.shown === 200 && JSON.stringify(ent3.stored) === JSON.stringify(["binary_sensor.zz_stored"]) && ent3.chipKept === true && ent3.notice.includes("200"), JSON.stringify(ent3));
+  // ENT5: a failed picker load shows a notice on the Area form and the panel stays usable
+  await browser.evaluate(`(() => { window.__entOrigGet = customElements.get.bind(customElements); customElements.get = (name) => (name === "aa-entity-picker" ? undefined : window.__entOrigGet(name)); return true; })()`);
+  await brOpen("en");
+  const ent5 = await browser.evaluate(`(() => { const notice = [...document.querySelectorAll("${BR_FORM}")].length ? document.querySelector("adaptive-areas-panel").textContent : ""; return { notice: notice.includes("could not be loaded"), formStillThere: document.querySelector("${BR_FORM}") !== null }; })()`);
+  await browser.evaluate(`(() => { customElements.get = window.__entOrigGet; return true; })()`);
+  check("ENT5 a picker that failed to load shows a notice on the Area form and the form stays usable", ent5.notice === true && ent5.formStillThere === true, JSON.stringify(ent5));
   // BR11: lux fields are compact numeric inputs at desktop and phone widths
   for (const width of [1280, 390]) {
     await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -1982,11 +2076,15 @@ async function regression(browser) {
   await brOpen("en");
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 0, available: 0 }; p._render(); return true; })()`);
   await brOpen("en");
-  const br12a = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 0, available: 0 }; p._render(); return [...document.querySelectorAll("${BR_FORM} ha-alert")].some((n) => n.textContent.includes("No effective presence source")); })()`);
+  const br12a = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 0, available: 0 }; p._render(); return [...document.querySelectorAll("${BR_FORM} ha-alert")].some((n) => n.textContent.includes("no available presence source")); })()`);
   check("BR12a the presence warning appears when the saved Area has no effective source", br12a === true, String(br12a));
   await brOpen("en");
-  const br12b = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 2, available: 2 }; p._render(); return [...document.querySelectorAll("${BR_FORM} ha-alert")].some((n) => n.textContent.includes("No effective presence source")); })()`);
+  const br12b = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 2, available: 2 }; p._render(); return [...document.querySelectorAll("${BR_FORM} ha-alert")].some((n) => n.textContent.includes("no available presence source")); })()`);
   check("BR12b no warning when the saved Area has effective sources", br12b === false, String(br12b));
+  // BR12c: an unsaved domain change replaces the definitive warning with a neutral pending note
+  await brOpen("en");
+  const br12c = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const area = p._data.overview.areas.find((a) => a.id === "kitchen"); area.presence = { ...area.presence, total: 0, available: 0 }; p._render(); ${brSection("Presence tracking")}.open = true; ${brDomain}.open = true; [...document.querySelectorAll("${BR_FORM} input[name='presence_device_platforms']")].find((b) => b.value === "remote").click(); const texts = [...document.querySelectorAll("${BR_FORM} ha-alert")].map((n) => n.textContent); return { pending: texts.some((t) => t.includes("Unsaved changes")), warning: texts.some((t) => t.includes("no available presence source")) }; })()`);
+  check("BR12c an unsaved domain change shows the neutral pending note, not the warning", br12c.pending === true && br12c.warning === false, JSON.stringify(br12c));
   // BR13: an empty domain choice saves as an empty list without an error and changes nothing else
   await brOpen("en");
   await browser.evaluate(`${brSection("Presence tracking")}.open = true`);
@@ -2064,11 +2162,11 @@ async function regression(browser) {
   await browser.evaluate(`document.querySelector("adaptive-areas-panel nav [data-tab='areas']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] select[name='include_entities']") !== null`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] aa-entity-picker[name='include_entities']") !== null`);
   // saved list in another order than the editor delivers it (as stored by Home Assistant)
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._drafts.area = { ...p._drafts.area, original: { ...p._drafts.area.original, include_entities: ["binary_sensor.b", "binary_sensor.a"] }, draft: { ...p._drafts.area.draft, include_entities: ["binary_sensor.b", "binary_sensor.a"] } }; p._render(); return true; })()`);
-  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] select[name='include_entities']") !== null`);
-  const dg7jSet = (values) => browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel form[data-area-form] select[name='include_entities']"); [...s.options].forEach((o) => { o.selected = ${JSON.stringify(values)}.includes(o.value); }); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] aa-entity-picker[name='include_entities']") !== null`);
+  const dg7jSet = (values) => browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel form[data-area-form] aa-entity-picker[name='include_entities']"); p.querySelectorAll("input[type=hidden][name='include_entities']").forEach((i) => i.remove()); ${JSON.stringify(values)}.forEach((id) => { const i = document.createElement("input"); i.type = "hidden"; i.name = "include_entities"; i.value = id; p.appendChild(i); }); p.dispatchEvent(new Event("input", { bubbles: true })); p.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
   const dg7jDirty = () => browser.evaluate(`document.querySelector("adaptive-areas-panel")._areaDirty()`);
   await dg7jSet(["binary_sensor.a", "binary_sensor.b"]);
   const dg7j1 = await dg7jDirty();
@@ -2167,14 +2265,14 @@ async function measure(browser) {
     const n0 = await browser.evaluate("performance.now()");
     const clicked = (await clickByText(browser, "Global settings")) || (await clickByText(browser, "Settings"));
     if (!clicked) throw new Error("settings tab not found");
-    await waitFor(browser, `document.querySelector("adaptive-areas-panel select[name=weather_entity]") !== null`, 4000).catch(() => null);
+    await waitFor(browser, `document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]") !== null`, 4000).catch(() => null);
     samples.navigateMs.push((await browser.evaluate("performance.now()")) - n0);
 
-    const focused = await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel select[name=weather_entity]"); if (!s) return "n/a"; s.focus(); return true; })()`);
+    const focused = await browser.evaluate(`(() => { const s = document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]"); if (!s) return "n/a"; s.focus(); return true; })()`);
     if (focused === true) {
       await browser.evaluate(`window.__h.hass.__emitArea(window.__probe)`);
       await sleep(40);
-      samples.focusRetained.push(await browser.evaluate(`document.activeElement === document.querySelector("adaptive-areas-panel select[name=weather_entity]")`));
+      samples.focusRetained.push(await browser.evaluate(`document.activeElement === document.querySelector("adaptive-areas-panel aa-entity-picker[name=weather_entity]")`));
     }
     await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel").remove(); return true; })()`);
     await sleep(60);

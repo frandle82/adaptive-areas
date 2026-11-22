@@ -6,9 +6,12 @@ Adaptive Areas works by detecting presence within an area and triggering state c
 
 Adaptive Areas currently supports presence sensing from the following Home Assistant platforms:
 
-- `media_player` (and `remote`)
-- `binary_sensor`
+- `binary_sensor` with a suitable device class (`motion`, `occupancy`, `presence`)
 - `device_tracker` assigned to or explicitly included in the Area
+- `media_player` while it is **playing** (an activity indicator, not proof of presence)
+- `remote` only when it is explicitly included in the Area
+
+Automatic discovery does not depend on "Include entities for analysis". That setting is an optional extension only.
 
 This may seem like a limited list, but it's intentional. Adaptive Areas relies on clear and predictable `states` and `device_class` values to automatically detect which entities can be used for presence sensing — with no manual configuration required in most cases.
 
@@ -27,8 +30,9 @@ The following entity states are used by default to infer presence:
 - `home` for discovered `device_tracker` sources
 
 States are interpreted per entity domain: binary sensors react to `on` (and
-configured open device classes), media players to `playing` or `on`, and
-remotes to `on`. Device trackers use `home` after source discovery and also
+configured open device classes), media players react to `playing` only, and
+remotes react to `on` only when explicitly included. A media player that is
+`on` but idle is **not** presence (behaviour change, see below). Device trackers use `home` after source discovery and also
 support the optional Area-specific states described below.
 
 ## 📡 Default `binary_sensor` Device Classes

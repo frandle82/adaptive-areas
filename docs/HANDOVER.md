@@ -244,3 +244,52 @@ Siehe „Fortsetzungspunkt“ oben (Schritt 4.2). Zu erhaltende Vorgaben aus der
 - Lösung: Die 365 Dashboard-Texte stehen in `custom_components/adaptive_areas/dashboard_texts/{en,de}.json`. Der Befehl `adaptive_areas/get_dashboard_texts` liefert sie an das Panel (`dashboard_texts.py`, `websocket.py`). Das Panel übernimmt das bisherige flache Schlüsselformat. Englisch bleibt der Fallback. Die Integrationsdateien enthalten nur noch Hassfest-Kategorien.
 - Die Entscheidung steht als **DECIDED / CLOSED** in `docs/DECISIONS.md`. Der ältere E7-Eintrag ist als ersetzt markiert.
 - Lokal nicht prüfbar: der Hassfest-Lauf selbst. Docker und das Hassfest-Skript sind nicht verfügbar. Maßgeblich bleibt der GitHub-Validate-Workflow.
+
+## Anwesenheitsquellen: Korrektur Teil 1 (2026-11-22, Arbeitsstand, ungebunden)
+
+- Festgelegt: „Entitäten in die Analyse einschließen“ ist optional. Die automatische Erkennung geeigneter Anwesenheitsquellen (Zuordnung zum Bereich, Domäne, Geräteklasse) funktioniert unabhängig davon.
+- Nachgewiesene Ursachen (Backend, `helpers/sources.py`):
+  1. `physical_presence_source_ids` las die Geräteklassen mit Default `[]`. Fehlte der Schlüssel, wurden keine Binärsensoren automatisch erkannt. Jetzt Default `DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS` (motion, occupancy, presence).
+  2. Entitäten aus `loaded_entity_ids` umgingen `exclude_entities`. Ausschluss gewinnt jetzt vor Einschluss.
+- Tests: `tests/test_presence_source_detection.py` (neu, 10 Fälle inkl. Fenster-/Tür-/Feuchte-/Rauchkontakte, Include ohne Geräteklasse, leere Domänenauswahl, alle vier Domänen, unknown/unavailable).
+- Frontend-Warnung (`_noPresenceSourcesHint`): Bei ungespeicherten Domänenänderungen zeigt das Panel einen neutralen Hinweis (`presenceHintPending`) statt einer definitiven Warnung. Der Hinweis aktualisiert sich live über `_captureAreaDraft`. Die Warnung selbst erscheint nur bei gespeichertem Stand mit `presence.total == 0`. Der Text wurde präzisiert (`noPresenceSources`).
+- Harness: `tests/frontend/run.mjs` BR12a/b auf neuen Wortlaut angepasst, BR12c neu (ungespeicherte Änderung → neutraler Hinweis).
+
+### Offen (nächste Sitzung, Reihenfolge wie im Auftrag)
+
+- Remote und Media Player: `on` gilt aktuell als aktiv. Für `remote` ist das fachlich unscharf (Gerät an ≠ Anwesenheit). Entscheidung vor Änderung nötig, Zustandsmodell je Domäne dokumentieren.
+- Entitätsauswahl vereinheitlichen (Abschnitt 6 des Auftrags): Referenz ist das Dropdown „Entität für Dunkelheit“. Noch nicht umgesetzt.
+- Formularlayout, einklappbare Abschnitte, 200 % Zoom und schmale Breiten (Abschnitte 7 und 8): nicht umgesetzt, nicht geprüft.
+- Reale Home-Assistant-Prüfung mit echtem Bewegungs- und Fenstersensor: offen.
+- Die IDE meldet in `helpers/sources.py` (`_numeric_state_value`) einen möglichen `None`-Zugriff. Die Zeile existierte vorher und ist nicht Teil dieser Änderung; prüfen.
+- Graph `graphify-out/` gehört zu `45a0911`, HEAD ist `609d16f`. Nicht neu erzeugt.
+
+## Präsenz-Domänensemantik (DECIDED / CLOSED, 2026-11-22)
+
+- Verbindlich, keine erneute Rückfrage: `media_player` zählt nur bei `playing` (Aktivitätsindiz, keine bestätigte Anwesenheit). `on` allein gilt nicht mehr als Anwesenheit. `remote` wird nie automatisch erkannt; ein ausdrücklich eingeschlossenes Remote zählt bei `on`. `device_tracker` bleibt unverändert.
+- Verhaltensänderung: Bereiche, die sich auf einen im Leerlauf eingeschalteten Media Player oder ein automatisch gefundenes Remote verlassen haben, verlieren dieses Signal, bis die Quelle eingeschlossen wird oder der Media Player spielt. Gespeicherte Konfigurationen bleiben erhalten, keine Datenmigration.
+- Regressionstests: `tests/test_sources.py`, `tests/test_presence_source_detection.py`. Entscheidung in `docs/DECISIONS.md`, Spezifikation in `docs/source/concepts/presence-sensing.md`.
+
+## Bereichseinstellungen: gemeinsame Entitätsauswahl (2026-11-22, Arbeitsstand, ungebunden)
+
+- Neue Komponente: `custom_components/adaptive_areas/frontend/aa-entity-picker.js` (`<aa-entity-picker>`, lesbar, kein Build). Einzel- und Mehrfachauswahl über die Attribute `name` und `multiple`. Ausgewählte Werte stehen als versteckte `input[name=...]` im Light DOM, damit das Formular und der Entwurfsfluss sie unverändert lesen.
+- Registrierung: `panel.py` lädt das Modul über `add_extra_js_url` mit Versionsparameter, vor dem Panel. Das Modul gilt damit für jede HA-Oberfläche, nicht nur für das Panel. Der Harness lädt es vor dem Panel.
+- Umgestellt: Einschluss, Ausschluss, Anwesenheits-Kontrollentitäten, Behalten (`keep_only`) als Mehrfachauswahl; „Entität für Dunkelheit“, Akzentuierung und Schlaf als Einzelauswahl.
+- Bedienung: Suche nach Entity-ID und Anzeigename (ohne Groß-/Kleinschreibung); Chips mit Entfernen-Knopf; Pfeiltasten bewegen die aktive Option, Enter schaltet um, Escape schließt nur die Liste, Tab verlässt die Komponente ohne Falle; sichtbarer Fokus. Öffnen und Schließen ändert nichts. Enter sendet das Formular nicht ab.
+- Begrenzung: höchstens 200 Treffer werden angezeigt, mit Hinweis.
+- Nicht umgestellt (weiterhin native Auswahl): Umgebungsfelder (`area_temperature_sensor`, `area_humidity_sensor`, `outdoor_*`, `surface_temperature_entity`), `relevant_windows` (bereichsgefiltert) und die globalen Felder `weather_entity` und `global_light_sensor`. Das ist ein eigener Schritt, weil diese Felder den Bereichsfilter der Registry nutzen.
+- Formular: einheitliche Feldhöhe 40 px, Beschriftung über dem Feld, Checkbox mit 18 px und gleicher Mitte wie das Label. Lux-Felder bleiben höchstens 9 rem breit. Abschnittsköpfe sind dezent getrennt; Auf- und Zuklappen verändert keine Eingaben und keinen Entwurf.
+- Tests: `tests/frontend/run.mjs` PK1–PK9, SEC1–SEC2 (neu), H4/BR11/RS1 angepasst. Ergebnis 350/350. Python: 701 bestanden.
+- Nicht geprüft: echter 200-%-Browserzoom (der Harness verkleinert nur das Viewport und ist ausdrücklich keine Zoomprüfung), reale Home-Assistant-Oberfläche, Tastatur mit Screenreader.
+
+## Entity-Picker: endgültiger Ladeweg und Vereinheitlichung (2026-11-22, Arbeitsstand, ungebunden)
+
+- Ladeweg: `panel.py` registriert das Panel mit `module_url` = `frontend/adaptive-areas-loader.js?v=<Version>`. Der Lader importiert zuerst `aa-entity-picker.js` und danach `adaptive-areas-panel.js`. Keine globale Einbindung (`add_extra_js_url` entfernt). Fällt der Picker-Import aus, öffnet sich das Panel trotzdem und zeigt einen Fehlerhinweis (`pickerUnavailable`) auf dem Bereichsformular und in den Globalen Einstellungen.
+- Die Panel-Datei bleibt ein klassisches Skript ohne `import` (der Harness wertet sie so aus). Modul-Caching: der Lader trägt die Version; die relativen Imports laufen über den statischen Pfad ohne `cache_headers`, also werden sie revalidiert.
+- Umgestellt auf `<aa-entity-picker>`: Temperatur- und Feuchtesensoren des Bereichs, Außen- und Oberflächensensor, `relevant_windows`, `weather_entity`, `global_light_sensor` (Luxfilter: `device_class: illuminance` oder Einheit `lx`), `climate:entity_id`, Lichter der Lichtgruppen (Domäne `light`), Einschluss, Ausschluss, Anwesenheits-Kontrolle, Behalten.
+- Filter der Komponente: Attribute `domain`, `device-class` (mit Lux-Regel), `scope` (Bereichs-ID, nur wenn die Registry verfügbar ist). Gespeicherte Werte bleiben immer sichtbar und werden bei Abweichung gekennzeichnet: nicht gefunden, außerhalb des Bereichs oder nicht verfügbar (vorhandene Texte `fxMarkNotFound`, `fxOutOfScope`, `fxMarkUnavailable`).
+- Trefferliste: höchstens 200 Einträge. Gespeicherte Werte gehen nie verloren, auch nicht jenseits der Grenze.
+- Barrierefreiheit: Combobox mit `aria-expanded`, `aria-controls`, `aria-activedescendant`, beschriftetes Suchfeld, Entfernen-Schaltflächen mit Namen, Statusmeldung bei Änderungen (`role=status`). Ein echter Screenreader-Test ist nicht durchgeführt.
+- Bewusst nativ geblieben (keine Entitäten): Bereichs-Auswahlen (`data-*-area`, `area_id`), Aufzählungen (`room_category`, `type`, Aktivierung, Helligkeit der Lichtgruppen) und die Zustandswerte der Blockierung (`*_blocking_states`, Zeichenketten).
+- Tests: Browser 354/354 (neu: ENT1–ENT3, ENT5; umgestellt: S-, G-, V02-, LG1-, S4-Prüfungen). Python 707 bestanden, inkl. neuer `tests/test_panel_loading.py`.
+- Nicht geprüft: echter 200-%-Browserzoom (Browser-Zoom ist im Harness nicht steuerbar; Viewport-Verkleinerung ist keine Zoomprüfung), echte Home-Assistant-Oberfläche, Screenreader.
