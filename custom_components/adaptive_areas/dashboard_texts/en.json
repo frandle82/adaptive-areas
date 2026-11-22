@@ -288,10 +288,8 @@
   "lightInvalidHint": "The stored limits are incomplete or inconsistent. They are kept unchanged until you correct them here.",
   "lightPairIncomplete": "Enter both the threshold and the hysteresis, or clear both to remove the light limits.",
   "lightPairInvalid": "The threshold and the hysteresis must be numbers.",
-  "lightHysteresisNotPositive": "The hysteresis must be greater than 0 lx.",
-  "lightLowerLimitNegative": "The threshold minus half the hysteresis must not be below 0 lx.",
-  "lightHysteresisHint": "Total width around the threshold. Lights turn on at threshold minus half, and off at threshold plus half.",
-  "lightHysteresis": "Hysteresis (lx)",
+  "lightHysteresisHint": "Percentage hysteresis around the threshold, 0 to 200 %. Turn on below threshold × (1 − H/200), turn off above threshold × (1 + H/200). 0 % means the threshold without hysteresis.",
+  "lightHysteresis": "Hysteresis (%)",
   "lightThreshold": "Brightness threshold (lx)",
   "loading": "Loading…",
   "error": "Adaptive Areas could not be loaded.",
@@ -472,5 +470,8 @@
       "accented": "Accent",
       "other": "Other state"
     }
-  }
+  },
+  "lightPreview": "Turn on below {on} lx · turn off above {off} lx",
+  "lightThresholdNotPositive": "The threshold must be greater than 0 lx.",
+  "lightHysteresisRange": "The hysteresis must be between 0 and 200 %."
 }

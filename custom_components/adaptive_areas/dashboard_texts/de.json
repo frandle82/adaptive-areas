@@ -288,10 +288,8 @@
   "lightInvalidHint": "Die gespeicherten Grenzen sind unvollständig oder widersprüchlich. Sie bleiben unverändert, bis Sie sie hier korrigieren.",
   "lightPairIncomplete": "Tragen Sie Schwellwert und Hysterese ein oder leeren Sie beide, um die Lichtgrenzen zu entfernen.",
   "lightPairInvalid": "Schwellwert und Hysterese müssen Zahlen sein.",
-  "lightHysteresisNotPositive": "Die Hysterese muss größer als 0 lx sein.",
-  "lightLowerLimitNegative": "Der Schwellwert minus die halbe Hysterese darf nicht unter 0 lx liegen.",
-  "lightHysteresisHint": "Gesamtbreite um den Schwellwert. Das Licht schaltet bei Schwellwert minus die Hälfte ein und bei Schwellwert plus die Hälfte aus.",
-  "lightHysteresis": "Hysterese (lx)",
+  "lightHysteresisHint": "Prozentuale Hysterese um die Schwelle, 0 bis 200 %. Einschalten unter Schwelle × (1 − H/200), ausschalten über Schwelle × (1 + H/200). 0 % heißt: Schwelle ohne Hysterese.",
+  "lightHysteresis": "Hysterese (%)",
   "lightThreshold": "Helligkeitsschwelle (lx)",
   "loading": "Laden…",
   "error": "Adaptive Areas konnte nicht geladen werden.",
@@ -472,5 +470,8 @@
       "accented": "Akzent",
       "other": "Anderer Zustand"
     }
-  }
+  },
+  "lightPreview": "Einschalten unter {on} lx · Ausschalten über {off} lx",
+  "lightThresholdNotPositive": "Die Schwelle muss größer als 0 lx sein.",
+  "lightHysteresisRange": "Die Hysterese muss zwischen 0 und 200 % liegen."
 }

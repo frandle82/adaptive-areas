@@ -789,7 +789,7 @@ async function regression(browser) {
   const av5 = await browser.evaluate(`({ editor: !!document.querySelector("adaptive-areas-panel form[data-area-form]"), tab: document.querySelector("adaptive-areas-panel [data-tab=areas]")?.getAttribute("aria-selected") || null, light: !!document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]"), climate: !!document.querySelector("adaptive-areas-panel form[data-area-form] [data-climate]") })`);
   check("AV5 the navigation button opens the central Area editor with the light and climate sections", av5.editor === true && av5.tab === "true" && av5.light === true && av5.climate === true, JSON.stringify(av5));
   const av6 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold")?.value ?? null, hysteresis: f.elements.namedItem("light:hysteresis")?.value ?? null, preset: f.elements.namedItem("climate:preset_occupied").value }; })()`);
-  check("AV6 the stored 50/200 lx pair is shown as threshold 125 lx and hysteresis 150 lx, and climate values stay editable", av6.threshold === "125" && av6.hysteresis === "150" && av6.preset === "comfort", JSON.stringify(av6));
+  check("AV6 the stored 50/200 lx pair is shown as threshold 125 and hysteresis 120 %, and climate values stay editable", av6.threshold === "125" && av6.hysteresis === "120" && av6.preset === "comfort", JSON.stringify(av6));
 
   // H-series: lux threshold and hysteresis mapping, responsive editor widths
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
@@ -829,7 +829,7 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 110, turn_off_above: 90 } })); const p = document.querySelector("adaptive-areas-panel"); p._data.config = JSON.parse(JSON.stringify(st.config)); window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
-  const h5 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { legacyOn: f.elements.namedItem("light:turn_on_below")?.value ?? null, legacyOff: f.elements.namedItem("light:turn_off_above")?.value ?? null, warning: !!f.querySelector("[data-light-legacy]"), pairShown: !!f.querySelector("[data-light-pair]") }; })()`);
+  const h5 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { legacyOn: f.elements.namedItem("light:turn_on_below")?.value ?? null, legacyOff: f.elements.namedItem("light:turn_off_above")?.value ?? null, warning: !!f.querySelector("[data-light-legacy]"), pairShown: !!f.querySelector("[data-light-pair]:not([data-light-legacy])") }; })()`);
   check("H5 inverted stored limits (110 on, 90 off) stay in the original fields with a hint and are not converted", h5.legacyOn === "110" && h5.legacyOff === "90" && h5.warning === true && h5.pairShown === false, JSON.stringify(h5));
   await browser.evaluate(`(() => { document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
   await sleep(200);
@@ -880,7 +880,7 @@ async function regression(browser) {
   await sleep(200);
   const hx3 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = f?.querySelector("[data-light-pair-error]"); return { sentNull: window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null, shown: !!box && !box.hidden && box.textContent.length > 0, form: !!f }; })()`);
   check("HX3 an empty hysteresis blocks the save with a visible message and sends nothing", hx3.form === true && hx3.shown === true && hx3.sentNull === null, JSON.stringify(hx3));
-  const invalid = ["-5", "0", "250", "x"];
+  const invalid = ["-5", "250", "x"];
   const hx4 = [];
   for (const value of invalid) {
     await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "100"; f.elements.namedItem("light:hysteresis").value = ${JSON.stringify(value)}; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
@@ -888,11 +888,82 @@ async function regression(browser) {
     const r = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = f?.querySelector("[data-light-pair-error]"); return { sent: window.__h.hass.__state.lastAreaUpdate ?? null, shown: !!box && !box.hidden }; })()`);
     hx4.push({ value, ...r });
   }
-  check("HX4 negative, zero, too wide (250 would put the lower limit below 0 at threshold 100) and non-numeric hysteresis are blocked", hx4.every((r) => r.sent === null && r.shown === true), JSON.stringify(hx4));
+  check("HX4 negative, above 200 % and non-numeric hysteresis are blocked", hx4.every((r) => r.sent === null && r.shown === true), JSON.stringify(hx4));
   await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "100"; f.elements.namedItem("light:hysteresis").value = "20"; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
   await sleep(200);
   const hx5 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
   check("HX5 threshold 100 and hysteresis 20 give exactly 90 on and 110 off (equality case, inclusive limits stay in the backend)", hx5?.turn_on_below === 90 && hx5?.turn_off_above === 110, JSON.stringify(hx5));
+  // HX6: 0 % hysteresis is valid and gives equal limits (threshold on and off at the same value)
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']")?.click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`, 4000).catch(() => {});
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "100"; f.elements.namedItem("light:hysteresis").value = "0"; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
+  await sleep(200);
+  const hx6 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("HX6 0 % hysteresis is valid: threshold 100 sends equal limits 100 and 100", hx6?.turn_on_below === 100 && hx6?.turn_off_above === 100, JSON.stringify(hx6));
+  // PCT: percentage hysteresis edge cases (formula T ± T·H/200, no intermediate rounding, legacy only when a one-decimal preview cannot reproduce the stored limits)
+  const pctOpen = async (on, off) => {
+    await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+    await waitFor(browser, `${text()}.includes("Connected")`);
+    await clickByText(browser, "Area management");
+    await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+    await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: ${on}, turn_off_above: ${off} } })); document.querySelector("adaptive-areas-panel")._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+    await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+    await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  };
+  const pctTry = async (threshold, percent) => {
+    await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = ${JSON.stringify(String(threshold))}; f.elements.namedItem("light:hysteresis").value = ${JSON.stringify(String(percent))}; window.__h.hass.__state.lastAreaUpdate = undefined; f.requestSubmit(); return true; })()`);
+    await sleep(160);
+    return browser.evaluate(`({ sent: window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null, error: !!document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-pair-error]:not([hidden])"), nativeInvalid: document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:threshold")?.validity.valid === false })`);
+  };
+  await pctOpen(90, 110);
+  const pct1 = await pctTry(100, 200);
+  check("PCT1 0 to 200 % is accepted: H 200 at threshold 100 gives 0 on and 200 off", pct1.sent?.turn_on_below === 0 && pct1.sent?.turn_off_above === 200, JSON.stringify(pct1));
+  await pctOpen(90, 110);
+  const pct2 = await pctTry(100, 100);
+  check("PCT2 H 100 % at threshold 100 gives 50 on and 150 off", pct2.sent?.turn_on_below === 50 && pct2.sent?.turn_off_above === 150, JSON.stringify(pct2));
+  await pctOpen(90, 110);
+  const pct3 = await pctTry(12.5, 33.3);
+  check("PCT3 decimal inputs are not rounded: 12.5 lx at 33.3 % gives 10.41875 and 14.58125", Math.abs(pct3.sent?.turn_on_below - 10.41875) < 1e-9 && Math.abs(pct3.sent?.turn_off_above - 14.58125) < 1e-9, JSON.stringify(pct3));
+  await pctOpen(90, 110);
+  const pct4 = await pctTry(0, 20);
+  check("PCT4 threshold 0 is blocked with a visible message and sends nothing", pct4.sent === null && pct4.error === true, JSON.stringify(pct4));
+  await pctOpen(90, 110);
+  const pct5 = await pctTry(-3, 20);
+  check("PCT5 a negative threshold is blocked and sends nothing (by the field minimum or by the visible message)", pct5.sent === null && (pct5.error === true || pct5.nativeInvalid === true), JSON.stringify(pct5));
+  await pctOpen(90, 110);
+  const pct6 = await browser.evaluate(`(() => { const preview = document.querySelector("adaptive-areas-panel form[data-area-form] [data-light-pair-preview]")?.textContent || ""; return { preview, shownHyst: document.querySelector("adaptive-areas-panel form[data-area-form] input[name='light:hysteresis']")?.value ?? null }; })()`);
+  check("PCT6 the preview shows the resulting limits (90 and 110 lx) and the percentage field shows 20", pct6.preview.includes("90") && pct6.preview.includes("110") && pct6.shownHyst === "20", JSON.stringify(pct6));
+  await pctOpen(0.04, 0.06);
+  const pct7 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { legacy: !!document.querySelector("adaptive-areas-panel [data-light-legacy]"), lux: [f.elements.namedItem("light:turn_on_below")?.value ?? null, f.elements.namedItem("light:turn_off_above")?.value ?? null], percentEmpty: (f.elements.namedItem("light:hysteresis")?.value ?? "x") === "" }; })()`);
+  check("PCT7 a valid tiny pair is shown as a percentage (threshold 0.1, hysteresis 40 %), not as legacy", pct7.legacy === false && pct7.lux.every((v) => v === null) && pct7.percentEmpty === false, JSON.stringify(pct7));
+  await pctOpen(0.04, 0.06);
+  const pct7d = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value }; })()`);
+  check("PCT7c the rounded display of 0.04/0.06 is threshold 0.1 and hysteresis 40", pct7d.threshold === "0.1" && pct7d.hysteresis === "40", JSON.stringify(pct7d));
+  const pct7b = await browser.evaluate(`(() => { window.__h.hass.__state.lastAreaUpdate = undefined; document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+  await sleep(160);
+  const pct7c = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+  check("PCT7b saving the tiny pair without edits sends the stored values unchanged", pct7c === null || (pct7c.turn_on_below === 0.04 && pct7c.turn_off_above === 0.06), JSON.stringify(pct7c));
+  await pctOpen(90.3, 110.1);
+  let drift = { ok: true, values: [] };
+  for (let round = 0; round < 3; round += 1) {
+    await browser.evaluate(`(() => { window.__h.hass.__state.lastAreaUpdate = undefined; document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+    await sleep(160);
+    const sent = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light ?? null`);
+    drift.values.push(sent);
+    if (sent !== null && (sent.turn_on_below !== 90.3 || sent.turn_off_above !== 110.1)) drift.ok = false;
+    await pctOpen(90.3, 110.1);
+  }
+  check("PCT8 repeated open and save cycles do not drift from the stored float pair", drift.ok === true, JSON.stringify(drift));
+  // PCT9: an invalid stored pair (T = 0) stays legacy with both lux fields and is not overwritten
+  await pctOpen(0, 0);
+  const pct9 = await browser.evaluate(`(() => ({ legacy: !!document.querySelector("adaptive-areas-panel [data-light-legacy]"), lux: [document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:turn_on_below")?.value ?? null, document.querySelector("adaptive-areas-panel form[data-area-form]")?.elements.namedItem("light:turn_off_above")?.value ?? null] }))()`);
+  check("PCT9 a stored zero-threshold pair is invalid: legacy with both lux values shown", pct9.legacy === true && JSON.stringify(pct9.lux) === JSON.stringify(["0", "0"]), JSON.stringify(pct9));
+  // PCT10: changing only the threshold keeps the exact stored hysteresis (not the rounded display)
+  await pctOpen(90.3, 110.1);
+  const pct10 = await pctTry(120, await browser.evaluate(`document.querySelector("adaptive-areas-panel form[data-area-form] input[name='light:hysteresis']").value`));
+  const exactH = 200 * (110.1 - 90.3) / (90.3 + 110.1);
+  const expectedOn = 120 - 120 * exactH / 200, expectedOff = 120 + 120 * exactH / 200;
+  check("PCT10 changing only the threshold keeps the exact hysteresis and derives new limits from it (not from the rounded 19.8)", Math.abs(pct10.sent?.turn_on_below - expectedOn) < 1e-9 && Math.abs(pct10.sent?.turn_off_above - expectedOff) < 1e-9, JSON.stringify({ sent: pct10.sent, expectedOn, expectedOff }));
   // LG-series: light groups as nested details (open/close, keyboard, content mapping, unchanged config)
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.includes("Connected")`);
@@ -1270,12 +1341,12 @@ async function regression(browser) {
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
   const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value, vacancy: f.elements.namedItem("light:vacancy_delay").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.querySelectorAll('aa-entity-picker[name=\"light_group:sleep_lights\"] input[type=hidden]')].map((o) => o.value) }; })()`);
-  check("L1 the central editor shows the stored 50/200 lx pair as threshold 125 and hysteresis 150 and keeps light group settings", l1.threshold === "125" && l1.hysteresis === "150" && l1.vacancy === "30" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
+  check("L1 the central editor shows the stored 50/200 lx pair as threshold 125 and hysteresis 120 % and keeps light group settings", l1.threshold === "125" && l1.hysteresis === "120" && l1.vacancy === "30" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
   await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; true`);
   await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "120"; f.elements.namedItem("light_group:overhead_lights_activation").value = "extended"; f.elements.namedItem("light:vacancy_delay").value = ""; f.requestSubmit(); return true; })()`);
   await sleep(250);
   const l2 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate || null`);
-  check("L2 a changed threshold and group setting are sent; an empty vacancy delay is removed; untouched group settings are kept", l2?.features?.light?.turn_on_below === 45 && !("vacancy_delay" in (l2?.features?.light || {})) && l2?.features?.light?.turn_off_above === 195 && l2?.features?.light_groups?.overhead_lights_activation === "extended" && JSON.stringify(l2?.features?.light_groups?.sleep_lights) === JSON.stringify(["light.bed"]) && l2?.features?.light_groups?.sleep_lights_activation === "sleep", JSON.stringify(l2));
+  check("L2 a changed threshold and group setting are sent; an empty vacancy delay is removed; untouched group settings are kept", l2?.features?.light?.turn_on_below === 48 && !("vacancy_delay" in (l2?.features?.light || {})) && l2?.features?.light?.turn_off_above === 192 && l2?.features?.light_groups?.overhead_lights_activation === "extended" && JSON.stringify(l2?.features?.light_groups?.sleep_lights) === JSON.stringify(["light.bed"]) && l2?.features?.light_groups?.sleep_lights_activation === "sleep", JSON.stringify(l2));
   await sleep(150);
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config.areas[0].options.features.light.turn_on_below = 99; window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
@@ -1287,7 +1358,7 @@ async function regression(browser) {
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-conflict-scope=area] [data-conflict-overwrite]")?.click()`);
   await sleep(250);
   const l4 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate?.features?.light?.turn_on_below ?? null`);
-  check("L4 only the explicit overwrite confirmation writes the kept light value (70 lx threshold, 50 lx hysteresis gives 45 and 95)", l4 === 45, String(l4));
+  check("L4 only the explicit overwrite confirmation writes the kept light value (70 lx threshold, 50 % hysteresis gives 52.5 and 87.5)", l4 === 52.5, String(l4));
 
   // K-series (step 6.5): climate configuration in the central editor
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));

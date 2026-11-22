@@ -160,7 +160,7 @@ def test_policy_allows_partial_target_availability_without_mutation() -> None:
     [
         (-1, 100),
         (100, -1),
-        (100, 100),
+        (0, 0),
         (200, 100),
         (float("nan"), 100),
         (100, float("inf")),
@@ -173,6 +173,24 @@ def test_policy_config_rejects_invalid_hysteresis(
     """Thresholds must be finite, non-negative, and ordered."""
     with pytest.raises(ValueError):
         LightPolicyConfig(turn_on_below, turn_off_above)
+
+
+def test_equal_limits_are_valid_and_turn_on_at_the_threshold() -> None:
+    """H = 0 % gives equal limits; the inclusive turn-on rule decides at exactly T."""
+    config = LightPolicyConfig(100, 100)
+    assert config.turn_on_below == config.turn_off_above == 100
+    assert (
+        evaluate_light_policy(_snapshot(illuminance_value=100.0), config).action
+        == LightPolicyAction.TURN_ON
+    )
+    assert (
+        evaluate_light_policy(_snapshot(illuminance_value=100.5), config).action
+        == LightPolicyAction.TURN_OFF
+    )
+    assert (
+        evaluate_light_policy(_snapshot(illuminance_value=99.5), config).action
+        == LightPolicyAction.TURN_ON
+    )
 
 
 def test_policy_config_adapter_is_read_only_and_requires_a_complete_mapping() -> None:
@@ -203,3 +221,47 @@ def test_vacancy_delay_adapter_rejects_invalid_values(delay) -> None:
     """Delay validation never accepts invalid numeric lookalikes."""
     with pytest.raises((TypeError, ValueError)):
         light_vacancy_delay_from_feature({CONF_VACANCY_DELAY: delay})
+
+
+@pytest.mark.parametrize(
+    ("illuminance", "expected"),
+    [
+        (99.9, LightPolicyAction.TURN_ON),
+        (100.0, LightPolicyAction.TURN_ON),
+        (100.1, LightPolicyAction.TURN_OFF),
+    ],
+)
+def test_zero_percent_hysteresis_decides_by_threshold_only(
+    illuminance, expected
+) -> None:
+    """H = 0 %: below or exactly on the threshold turns on, above turns off.
+
+    The decision depends only on the measured value, not on the previous light state,
+    so a value exactly on the threshold yields the same action on every evaluation.
+    """
+    config = LightPolicyConfig(100.0, 100.0)
+    first = evaluate_light_policy(_snapshot(illuminance_value=illuminance), config)
+    second = evaluate_light_policy(_snapshot(illuminance_value=illuminance), config)
+    assert first.action is expected
+    assert second == first
+
+
+@pytest.mark.parametrize(
+    ("illuminance", "expected"),
+    [
+        (89.99, LightPolicyAction.TURN_ON),
+        (90.0, LightPolicyAction.TURN_ON),
+        (100.0, LightPolicyAction.HOLD),
+        (110.0, LightPolicyAction.TURN_OFF),
+        (110.01, LightPolicyAction.TURN_OFF),
+    ],
+)
+def test_percentage_band_limits_are_inclusive_and_hold_inside(
+    illuminance, expected
+) -> None:
+    """Threshold 100 lx at 20 %: on at or below 90, off at or above 110, hold between."""
+    config = LightPolicyConfig(90.0, 110.0)
+    assert (
+        evaluate_light_policy(_snapshot(illuminance_value=illuminance), config).action
+        is expected
+    )

@@ -95,4 +95,6 @@ A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not 
 ## Prozent-Hysterese (Entscheidung 2026-11-22)
 
 - Entscheidung DECIDED / CLOSED: Lichtschwelle T in lx, Hysterese H in Prozent (0 bis 200). Speicherung unverändert über `turn_on_below` und `turn_off_above`. Ersetzt die frühere absolute Festlegung in lx.
-- Noch nicht umgesetzt (Phase B): Panel-Eingabe, Backend-Akzeptanz gleicher Grenzen, Tests.
+- Finalisiert (lokal, 2026-11-22, noch nicht committet): gültige Paare immer als Prozent; Legacy nur für ungültige Paare; exakte Werte bei unveränderten Feldern; Gleichheitssemantik an der Schwelle dokumentiert; ungenutzte Übersetzungsschlüssel entfernt. Prüfungen: Python 717 bestanden, Browser 367/367 bestanden.
+- Vorher (überholt): Panel-Eingabe in Prozent mit Vorschau, Backend akzeptiert gleiche Grenzen (H = 0), Legacy-Anzeige für Paare, die eine Nachkommastelle nicht reproduziert. Prüfungen: Python 709 bestanden, Browser 364/364 bestanden.
+- Für die Prozentdefinition gilt: jedes Paar mit T > 0 ist exakt als T und H darstellbar. Legacy-Anzeige greift deshalb nur bei Rundungsabweichung der Einnachkommastellen-Anzeige, nicht bei einer strengen Asymmetrie.

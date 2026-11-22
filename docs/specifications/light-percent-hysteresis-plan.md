@@ -80,6 +80,11 @@ Beispiel: T = 100 lx, H = 20 % → 90 / 110 lx. Dieses Beispiel stimmt mit dem b
 - Aggregate-Schwellensensor behält seine eigene Prozent-Hysterese.
 - H = 0 ergibt gleiche Grenzen. Das Backend akzeptiert dies (siehe DECISIONS.md).
 
+## 6b. Umsetzungsstand
+
+- Umgesetzt (lokal, nicht committet): Prozent-Eingabe mit Vorschau, exakte Speicherung bei unveränderten Feldern, Legacy nur für ungültige Paare, Backend akzeptiert gleiche Grenzen, Zustandstests an der Schwelle, bereinigte Übersetzungen.
+- Die Legacy-Bedingung aus Abschnitt 3 (Rundungsabweichung) ist durch die finale Regel ersetzt: gültige Paare sind immer Prozentpaare.
+
 ## 6a. Ehemals offene Entscheidungen (zur Historie)
 
 1. **Produktentscheidung:** Die bestehende Spezifikation sagt absolute lx. Soll die Prozentdefinition sie ersetzen?

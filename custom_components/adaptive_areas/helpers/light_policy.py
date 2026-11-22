@@ -54,8 +54,14 @@ class LightPolicyConfig:
             raise ValueError("Light policy thresholds must be finite numbers")
         if any(not isfinite(value) or value < 0 for value in values):
             raise ValueError("Light policy thresholds must be finite and non-negative")
-        if self.turn_off_above <= self.turn_on_below:
-            raise ValueError("turn_off_above must be greater than turn_on_below")
+        # Equal limits are valid (percentage hysteresis of 0 %). Evaluation is then
+        # inclusive: at exactly the threshold the light turns on.
+        if self.turn_off_above < self.turn_on_below:
+            raise ValueError("turn_off_above must not be less than turn_on_below")
+        if self.turn_on_below + self.turn_off_above <= 0:
+            raise ValueError(
+                "the threshold (turn_on_below + turn_off_above) / 2 must be greater than 0"
+            )
 
 
 @dataclass(frozen=True, slots=True)
