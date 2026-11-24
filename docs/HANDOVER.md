@@ -324,8 +324,9 @@ Die folgenden Punkte stammen aus Praxistests des Benutzers in einer realen Home-
 - Ursprüngliche Praxisprobleme: weiterhin **ungeklärt**. Benötigte Daten: siehe `docs/specifications/brightness-diagnostics-concept.md`, Abschnitt 7.
 - Datenschutz: Entitäts-IDs und Grenzwerte erscheinen nur im Admin-Laufzeitstatus (Endpunkt admin-only) und in der Admin-Detailansicht. Für Nicht-Administratoren bleibt die Quelle ausgeblendet.
 
-## Lichtsteuerung und eindeutige Gruppenzuordnung (2026-11-24, lokal, nicht committet)
+## Lichtsteuerung und eindeutige Gruppenzuordnung (2026-11-24, Commit 76bd329, Pre-Release 1.7.0-rc.1)
 
 - Stand, Regeln und Prüfungen: `docs/CURRENT_STATE.md`, Abschnitt „Lichtsteuerung und eindeutige Gruppenzuordnung“.
 - Gemeinsame Speicherprüfung: `helpers/light_ownership_runtime.py` (`light_group_ownership_problem`), genutzt von `area_config.py` (Dashboard) und `config_flow.py` (Options-Flow).
-- Nächster Schritt: reale Home-Assistant-Prüfung nach dem Smoke-Testplan, danach Commit-Freigabe (Approval Gate 3 bleibt geschlossen).
+- Nächster Schritt: praktische Validierung von 1.7.0-rc.1 auf Home Assistant 2026.11.3 (Testsystem), danach Auswertung. Ein Stable-Release ist nicht freigegeben.
+- Bekannt: Das Legacy-Feld `vacancy_delay` wirkt nicht mehr, wird aber im Light-Tab noch angezeigt (CHANGELOG, Known issues).

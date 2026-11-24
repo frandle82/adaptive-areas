@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.7.0-rc.1 - 2026-11-24
+
+Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.
+
+### Added
+
+- Exclusive light group ownership: a physical light may belong to one individual light group only (ceiling, sleep, accent or task lights). The rule applies across Areas, including the global entry. Nested Home Assistant light groups are resolved to their physical members. The ALL group is excluded from this rule.
+- Dashboard: lights that are already assigned to another individual light group are locked and name the owning group and Area.
+- Server-side validation in the Options Flow and on dashboard save rejects conflicting assignments. Error messages are localised (English and German). A rejected save leaves the previous valid configuration unchanged.
+
+### Changed
+
+- Light control uses one event-driven decision path for automatic light groups: transition decision, dispatch, group command, execution.
+- Transitions are decided explicitly, and redundant automatic switching commands are avoided.
+- No automatic retries when the decision basis is unchanged. There are no additional timers, deferred queues or periodic reconciliation.
+- Manual overrides and blockers are handled as separate states.
+- ALL switches off automatically only. It never switches on automatically.
+- Group control and policy-only control are separated. Lights of automatic groups are never policy targets.
+- Brightness classification and UNKNOWN states are handled consistently. Missing sensor data is not guessed.
+
+### Removed
+
+- The retired option `vacancy_delay` (vacancy timer) has no effect any more. Existing stored values are tolerated and ignored.
+- The internal vacancy helper module was removed. The vacancy OFF now follows the common decision path.
+
+### Compatibility
+
+- No schema change and no migration.
+- Existing configurations with a light in more than one individual light group are **not** changed automatically. The affected groups are excluded from automatic actions as a whole. Conflict-free groups keep working. The conflict is reported as a runtime diagnosis.
+- To resolve a conflict, remove the duplicate assignment in the dashboard or in the Options Flow. Manual control of the lights in Home Assistant remains possible.
+- Later registry or membership changes are reported as runtime deviations. They are not repaired automatically.
+
+### Known issues
+
+- Home Assistant beta tests are blocked. The beta job fails with `ResolutionImpossible`, because the test harness `pytest-homeassistant-custom-component` 0.13.375 pins Home Assistant 2026.10.4. No beta compatibility is claimed.
+- Home Assistant 2026.11.x has not been validated in practice. The automated stable target is Home Assistant 2026.10.4.
+- The vacancy delay value is still shown read-only in the light control tab of the dashboard. It has no effect.
+- The original field reports (an Area stays dark although the brightness is exceeded; lights do not switch on at a change from bright to dark) are not confirmed as resolved on a real instance.
+
+### Tests
+
+- Stable test suite (Home Assistant 2026.10.4, pytest-homeassistant-custom-component 0.13.375, Python 3.14): 957 passed.
+- Browser harness: 398 of 398 checks passed.
+- Coverage: 91 %.
+- Lint: ruff, black and pre-commit passed.
+
 ## 1.6.19-rc.17 - 2026-11-22
 
 ### Added

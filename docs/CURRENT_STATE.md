@@ -108,9 +108,9 @@ A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not 
 - Die ursprünglichen Praxisprobleme (Bereich bleibt dunkel; Licht schaltet bei hell→dunkel nicht ein) sind **ungeklärt**. Ohne reale Diagnosedaten (siehe Konzept) ist die Ursache nicht bestätigt.
 - Prüfungen: Python 738 bestanden; Browser 378/378 bestanden.
 
-## Lichtsteuerung und eindeutige Gruppenzuordnung (lokal, 2026-11-24, nicht committet)
+## Lichtsteuerung und eindeutige Gruppenzuordnung (Commit 76bd329, Release 1.7.0-rc.1 vorbereitet, 2026-11-24)
 
-Stand des Arbeitsbaums. Nicht committet, nicht veröffentlicht, nicht in einer Home-Assistant-Instanz geprüft.
+Commit `76bd329` enthält die Änderungen. Der Pre-Release `1.7.0-rc.1` ist vorbereitet (siehe CHANGELOG). Nicht in einer Home-Assistant-Instanz geprüft.
 
 **Regeln**
 
