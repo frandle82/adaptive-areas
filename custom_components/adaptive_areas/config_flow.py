@@ -77,7 +77,6 @@ from .const import (
     CONF_CLIMATE_CONTROL_PRESET_EXTENDED,
     CONF_CLIMATE_CONTROL_PRESET_OCCUPIED,
     CONF_CLIMATE_CONTROL_PRESET_SLEEP,
-    CONF_DARK_ENTITY,
     CONF_ENABLED_FEATURES,
     CONF_EXCLUDE_ENTITIES,
     CONF_EXTENDED_TIME,
@@ -124,6 +123,7 @@ from .const import (
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
     CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_ROOM_CATEGORY,
+    CONF_AREA_ILLUMINANCE_SENSOR,
     CONF_SECONDARY_STATES,
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_ENTITY,
@@ -215,7 +215,11 @@ from custom_components.adaptive_areas.helpers.area import (
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
-from custom_components.adaptive_areas.helpers.sources import area_entity_ids
+from custom_components.adaptive_areas.helpers.sources import (
+    area_entity_ids,
+    is_illuminance_state,
+)
+from custom_components.adaptive_areas.area_config import illuminance_sensor_error
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
     light_group_ownership_problem,
 )
@@ -1065,10 +1069,44 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 if self.area.is_meta()
                 else SECONDARY_STATES_SCHEMA
             )
+            # The Area brightness sensor is an Area property, not a secondary state.
+            illuminance_code = None
+            illuminance_value = None
+            if not self.area.is_meta() and CONF_AREA_ILLUMINANCE_SENSOR in user_input:
+                illuminance_value = user_input[CONF_AREA_ILLUMINANCE_SENSOR] or ""
+                illuminance_code = illuminance_sensor_error(
+                    self.hass,
+                    illuminance_value,
+                    self.area_options.get(CONF_AREA_ILLUMINANCE_SENSOR, ""),
+                )
+                user_input = {
+                    key: value
+                    for key, value in user_input.items()
+                    if key != CONF_AREA_ILLUMINANCE_SENSOR
+                }
+            if illuminance_code is not None:
+                errors = {CONF_AREA_ILLUMINANCE_SENSOR: illuminance_code}
+                return self.async_show_form(
+                    step_id="secondary_states",
+                    data_schema=self._build_options_schema(
+                        options=OPTIONS_SECONDARY_STATES,
+                        saved_options=self._secondary_saved_options(),
+                        dynamic_validators=self._secondary_dynamic_validators(),
+                        selectors=self._secondary_selectors(),
+                    ),
+                    errors=errors,
+                )
             try:
                 self.area_options[CONF_SECONDARY_STATES].update(
                     area_state_schema(user_input)
                 )
+                if illuminance_value is not None:
+                    if illuminance_value:
+                        self.area_options[CONF_AREA_ILLUMINANCE_SENSOR] = (
+                            illuminance_value
+                        )
+                    else:
+                        self.area_options.pop(CONF_AREA_ILLUMINANCE_SENSOR, None)
             except vol.MultipleInvalid as validation:
                 errors = {
                     str(error.path[0]): str(error.msg) for error in validation.errors
@@ -1102,42 +1140,69 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     if self.area.is_meta()
                     else OPTIONS_SECONDARY_STATES
                 ),
-                saved_options=self.area_options.get(CONF_SECONDARY_STATES, {}),
-                dynamic_validators={
-                    CONF_DARK_ENTITY: vol.In(
-                        EMPTY_ENTRY + self.all_light_tracking_entities
-                    ),
-                    CONF_SLEEP_ENTITY: vol.In(EMPTY_ENTRY + self.all_binary_entities),
-                    CONF_ACCENT_ENTITY: vol.In(EMPTY_ENTRY + self.all_binary_entities),
-                    CONF_SECONDARY_STATES_CALCULATION_MODE: vol.In(CalculationMode),
-                },
-                selectors={
-                    CONF_DARK_ENTITY: self._build_selector_entity_simple(
-                        self.all_light_tracking_entities
-                    ),
-                    CONF_SLEEP_ENTITY: self._build_selector_entity_simple(
-                        self.all_binary_entities
-                    ),
-                    CONF_ACCENT_ENTITY: self._build_selector_entity_simple(
-                        self.all_binary_entities
-                    ),
-                    CONF_SLEEP_TIMEOUT: self._build_selector_number(
-                        unit_of_measurement="minutes"
-                    ),
-                    CONF_EXTENDED_TIME: self._build_selector_number(
-                        unit_of_measurement="minutes"
-                    ),
-                    CONF_EXTENDED_TIMEOUT: self._build_selector_number(
-                        unit_of_measurement="minutes"
-                    ),
-                    CONF_SECONDARY_STATES_CALCULATION_MODE: self._build_selector_select(
-                        options=list(CalculationMode),
-                        translation_key=SelectorTranslationKeys.CALCULATION_MODE,
-                    ),
-                },
+                saved_options=self._secondary_saved_options(),
+                dynamic_validators=self._secondary_dynamic_validators(),
+                selectors=self._secondary_selectors(),
             ),
             errors=errors,
         )
+
+    def _secondary_saved_options(self) -> dict:
+        """Return the saved values of the secondary states step, including the Area sensor."""
+        saved = dict(self.area_options.get(CONF_SECONDARY_STATES, {}))
+        if not self.area.is_meta():
+            saved[CONF_AREA_ILLUMINANCE_SENSOR] = self.area_options.get(
+                CONF_AREA_ILLUMINANCE_SENSOR, ""
+            )
+        return saved
+
+    def _illuminance_candidates(self) -> list[str]:
+        """Numeric illuminance sensors only: domain sensor with device class or lx unit."""
+        return sorted(
+            state.entity_id
+            for state in self.hass.states.async_all("sensor")
+            if is_illuminance_state(state)
+        )
+
+    def _secondary_dynamic_validators(self) -> dict:
+        validators = {
+            CONF_SLEEP_ENTITY: vol.In(EMPTY_ENTRY + self.all_binary_entities),
+            CONF_ACCENT_ENTITY: vol.In(EMPTY_ENTRY + self.all_binary_entities),
+            CONF_SECONDARY_STATES_CALCULATION_MODE: vol.In(CalculationMode),
+        }
+        if not self.area.is_meta():
+            # Checked by illuminance_sensor_error only when the value changed, so a stored
+            # sensor that is temporarily unavailable never blocks another save.
+            validators[CONF_AREA_ILLUMINANCE_SENSOR] = vol.Any("", cv.entity_id)
+        return validators
+
+    def _secondary_selectors(self) -> dict:
+        selectors = {
+            CONF_SLEEP_ENTITY: self._build_selector_entity_simple(
+                self.all_binary_entities
+            ),
+            CONF_ACCENT_ENTITY: self._build_selector_entity_simple(
+                self.all_binary_entities
+            ),
+            CONF_SLEEP_TIMEOUT: self._build_selector_number(
+                unit_of_measurement="minutes"
+            ),
+            CONF_EXTENDED_TIME: self._build_selector_number(
+                unit_of_measurement="minutes"
+            ),
+            CONF_EXTENDED_TIMEOUT: self._build_selector_number(
+                unit_of_measurement="minutes"
+            ),
+            CONF_SECONDARY_STATES_CALCULATION_MODE: self._build_selector_select(
+                options=list(CalculationMode),
+                translation_key=SelectorTranslationKeys.CALCULATION_MODE,
+            ),
+        }
+        if not self.area.is_meta():
+            selectors[CONF_AREA_ILLUMINANCE_SENSOR] = (
+                self._build_selector_entity_simple(self._illuminance_candidates())
+            )
+        return selectors
 
     async def async_step_select_features(self, user_input=None):
         """Ask the user to select features to enable for the area."""

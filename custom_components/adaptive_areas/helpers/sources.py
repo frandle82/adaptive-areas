@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.sensor.const import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import LIGHT_LUX
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.device_tracker.const import (
     DOMAIN as DEVICE_TRACKER_DOMAIN,
@@ -35,6 +37,7 @@ from custom_components.adaptive_areas.helpers.light_ownership import (
     resolve_group_tree,
 )
 from custom_components.adaptive_areas.const import (
+    CONF_AREA_ILLUMINANCE_SENSOR,
     CONF_ACCENT_LIGHTS,
     CONF_ACCENT_LIGHTS_ACTIVATION,
     CONF_EXCLUDE_ENTITIES,
@@ -245,13 +248,13 @@ _AUTOMATIC_GROUPS = (
 )
 
 
-def automatic_group_lights(area: AdaptiveArea) -> frozenset[str]:
-    """Physical lights that an actively automated light group of this Area controls.
+def automatic_member_activations(groups) -> list[str]:
+    """Return the configured members of the active (not disabled) automatic groups of one Area.
 
-    Only groups whose activation is not disabled count. Members that cannot be resolved
-    are included as well: an unclear owner must never receive an uncontrolled policy call.
+    `groups` is the light group feature mapping of one Area. Used by the Area and by the
+    Area-wide ownership check, so both read the same activation rules.
     """
-    groups = area.feature_config(CONF_FEATURE_LIGHT_GROUPS) or {}
+    groups = groups or {}
     listed: list[str] = []
     for member_key, activation_key in _AUTOMATIC_GROUPS:
         activation = groups.get(
@@ -263,6 +266,17 @@ def automatic_group_lights(area: AdaptiveArea) -> frozenset[str]:
         if isinstance(value, str):
             value = [value]
         listed.extend(str(item) for item in value)
+    return listed
+
+
+def automatic_group_lights(area: AdaptiveArea) -> frozenset[str]:
+    """Physical lights that an actively automated light group of this Area controls.
+
+    Only groups whose activation is not disabled count. Members that cannot be resolved
+    are included as well: an unclear owner must never receive an uncontrolled policy call.
+    """
+    groups = area.feature_config(CONF_FEATURE_LIGHT_GROUPS) or {}
+    listed = automatic_member_activations(groups)
     if not listed:
         return frozenset()
     states = area.hass.states
@@ -282,6 +296,34 @@ def automatic_group_lights(area: AdaptiveArea) -> frozenset[str]:
         | frozenset(unresolved)
         | frozenset(unknown)
     )
+
+
+def is_illuminance_state(state) -> bool:
+    """Accept illuminance device class or the exact lx unit; never convert others."""
+    attributes = state.attributes
+    return (
+        attributes.get("device_class") == SensorDeviceClass.ILLUMINANCE
+        or attributes.get("unit_of_measurement") == LIGHT_LUX
+    )
+
+
+def light_illuminance_entity_id(area: AdaptiveArea) -> str | None:
+    """Return the numeric lux sensor of this Area (Light decision and Dark state).
+
+    Priority (no fallback between them): the Area's own `illuminance_entity`; if none is
+    configured, the global light sensor; otherwise None (UNKNOWN). A configured Area sensor
+    that is unavailable stays the source: the global sensor is never used as a fallback.
+    """
+    own = area.config.get(CONF_AREA_ILLUMINANCE_SENSOR)
+    if isinstance(own, str) and own:
+        return own
+    global_options = area.hass_config.options.get(CONF_GLOBAL_OPTIONS, {})
+    global_sensor = (
+        global_options.get(CONF_GLOBAL_LIGHT_SENSOR)
+        if isinstance(global_options, dict)
+        else None
+    )
+    return global_sensor if isinstance(global_sensor, str) and global_sensor else None
 
 
 def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
@@ -306,15 +348,7 @@ def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
         )
         for entity_id in target_ids
     )
-    global_options = area.hass_config.options.get(CONF_GLOBAL_OPTIONS, {})
-    illuminance_entity_id = (
-        global_options.get(CONF_GLOBAL_LIGHT_SENSOR)
-        if isinstance(global_options, dict)
-        else None
-    )
-    illuminance_entity_id = (
-        illuminance_entity_id if isinstance(illuminance_entity_id, str) else None
-    )
+    illuminance_entity_id = light_illuminance_entity_id(area)
     illuminance_state = (
         area.hass.states.get(illuminance_entity_id)
         if illuminance_entity_id is not None

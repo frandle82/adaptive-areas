@@ -49,12 +49,11 @@ def _set_binary(
     hass.states.async_set(entity_id, state, attributes)
 
 
-def test_default_device_classes_are_motion_occupancy_presence() -> None:
-    """The stored default is the presence set, not an empty filter."""
+def test_default_device_classes_are_motion_and_occupancy() -> None:
+    """D05: the default device classes are motion and occupancy, not an empty filter."""
     assert list(DEFAULT_PRESENCE_DEVICE_SENSOR_CLASS) == [
         BinarySensorDeviceClass.MOTION,
         BinarySensorDeviceClass.OCCUPANCY,
-        BinarySensorDeviceClass.PRESENCE,
     ]
 
 

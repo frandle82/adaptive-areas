@@ -190,6 +190,58 @@ def runtime_ownership_conflicts(hass: HomeAssistant) -> list[OwnershipConflict]:
     return find_ownership_conflicts(group_units(areas), members)
 
 
+def excluded_members_by_group(
+    hass: HomeAssistant, configured: Iterable[str], excluded: Iterable[str]
+) -> dict[str, list[str]]:
+    """Map each configured member to the excluded lamps that switching it would also switch.
+
+    A native light group switches all its members, nested ones included. A group whose
+    expansion contains an excluded lamp is therefore never switched automatically as a
+    whole; the excluded lamp is never switched through it. Pure lamps are never listed.
+    """
+    excluded_set = set(excluded)
+    if not excluded_set:
+        return {}
+    items = sorted({str(item) for item in configured})
+    members, _unresolved, _unknown = resolve_group_tree(
+        items, _attributes_lookup(hass), lambda _entity_id: False
+    )
+    result: dict[str, list[str]] = {}
+    for item in items:
+        hit = sorted(expand_members([item], members) & excluded_set)
+        if hit:
+            result[item] = hit
+    return result
+
+
+def owned_automatic_lights(hass: HomeAssistant) -> frozenset[str]:
+    """Physical lights that an active automatic group of ANY stored Area controls.
+
+    Exclusive ownership is Area-wide: a lamp of Area A's HA area that Area B's active
+    group owns is never a policy-only target of Area A. Groups with a disabled activation
+    own nothing. Unresolvable members are included (an unclear owner is never a policy
+    target). This reuses the group member keys and the activation defaults of the runtime.
+    """
+    from custom_components.adaptive_areas.helpers.sources import (  # noqa: PLC0415
+        automatic_member_activations,
+    )
+
+    listed: list[str] = []
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        for groups in light_group_configs_of_entry(entry).values():
+            listed.extend(automatic_member_activations(groups))
+    if not listed:
+        return frozenset()
+    members, unresolved, unknown = resolve_group_tree(
+        sorted(set(listed)), _attributes_lookup(hass), lambda _entity_id: False
+    )
+    return (
+        frozenset(expand_members(sorted(set(listed)), members))
+        | frozenset(unresolved)
+        | frozenset(unknown)
+    )
+
+
 def conflicted_lights(hass: HomeAssistant) -> frozenset[str]:
     """Physical lights with a runtime ownership conflict. Each conflict is logged once."""
     conflicts = runtime_ownership_conflicts(hass)

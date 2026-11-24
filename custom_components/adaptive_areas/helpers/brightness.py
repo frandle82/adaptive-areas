@@ -138,14 +138,28 @@ class BrightnessTracker:
         return result
 
 
+def _brightness_limits_config(area) -> dict:
+    """Return the Light limits used for the Area brightness (dark and bright).
+
+    The limits are an Area brightness input, so they also apply while the Light feature is
+    disabled: the enabled feature configuration, otherwise the parked one (D02). Nothing is
+    derived from light states; a missing or incomplete configuration stays UNKNOWN.
+    """
+    from custom_components.adaptive_areas.const import (  # noqa: PLC0415
+        CONF_FEATURE_LIGHT,
+        CONF_RETAINED_FEATURES,
+    )
+
+    enabled = area.feature_config(CONF_FEATURE_LIGHT)
+    if enabled:
+        return enabled
+    retained = (area.config.get(CONF_RETAINED_FEATURES) or {}).get(CONF_FEATURE_LIGHT)
+    return dict(retained) if isinstance(retained, dict) else {}
+
+
 def area_brightness(hass: HomeAssistant, area) -> BrightnessResult:
     """Evaluate the Area brightness from the global sensor and the light Lux limits."""
     # Local imports keep this module free of Home Assistant state access at import time.
-    from custom_components.adaptive_areas.const import (
-        CONF_FEATURE_LIGHT,
-        CONF_GLOBAL_LIGHT_SENSOR,
-        CONF_GLOBAL_OPTIONS,
-    )
     from custom_components.adaptive_areas.helpers.light_policy import (
         light_policy_config_from_feature,
     )
@@ -155,21 +169,17 @@ def area_brightness(hass: HomeAssistant, area) -> BrightnessResult:
     if tracker is None:
         tracker = BrightnessTracker()
         area.brightness_tracker = tracker
-    if area.is_meta() or not area.has_feature(CONF_FEATURE_LIGHT):
+    if area.is_meta():
         return tracker.update(value=None, config=None, source_id=None)
     try:
-        config = light_policy_config_from_feature(
-            area.feature_config(CONF_FEATURE_LIGHT)
-        )
+        config = light_policy_config_from_feature(_brightness_limits_config(area))
     except ValueError:
         config = None
-    global_options = area.hass_config.options.get(CONF_GLOBAL_OPTIONS, {})
-    source_id = (
-        global_options.get(CONF_GLOBAL_LIGHT_SENSOR)
-        if isinstance(global_options, dict)
-        else None
+    from custom_components.adaptive_areas.helpers.sources import (  # noqa: PLC0415
+        light_illuminance_entity_id,
     )
-    source_id = source_id if isinstance(source_id, str) and source_id else None
+
+    source_id = light_illuminance_entity_id(area)
     if source_id is None:
         return tracker.update(value=None, config=config, source_id=None)
     value = _numeric_state_value(hass.states.get(source_id))

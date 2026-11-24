@@ -812,7 +812,7 @@ async function regression(browser) {
   for (const width of [320, 390, 430, 768, 1024]) {
     await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await sleep(120);
-    const w = await browser.evaluate(`(() => { const doc = document.documentElement; const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = form ? form.getBoundingClientRect() : null; const controls = [...form.querySelectorAll("select, input:not([type=hidden])"), ...[...form.querySelectorAll("aa-entity-picker")].map((p) => p.shadowRoot?.querySelector("input")).filter(Boolean)]; const over = box ? controls.filter((n) => n.getBoundingClientRect().right > box.right + 1 || n.getBoundingClientRect().left < box.left - 1).map((n) => n.name || n.tagName) : ["no-form"]; return { docScroll: doc.scrollWidth, client: doc.clientWidth, over }; })()`);
+    const w = await browser.evaluate(`(() => { const doc = document.documentElement; const form = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = form ? form.getBoundingClientRect() : null; const controls = [...form.querySelectorAll("select, input:not([type=hidden])"), ...[...form.querySelectorAll("aa-entity-picker")].map((p) => p.shadowRoot?.querySelector("input")).filter(Boolean)]; const over = box ? controls.filter((n) => n.getClientRects().length > 0).filter((n) => n.getBoundingClientRect().right > box.right + 1 || n.getBoundingClientRect().left < box.left - 1).map((n) => n.name || n.tagName) : ["no-form"]; return { docScroll: doc.scrollWidth, client: doc.clientWidth, over }; })()`);
     widths.push({ width, ...w });
   }
   check("H4 the light editor has no horizontal page overflow and no control outside its form at 320, 390, 430, 768 and 1024 px", widths.every((w) => w.docScroll <= w.client && w.over.length === 0), JSON.stringify(widths));
@@ -1970,6 +1970,7 @@ async function regression(browser) {
     "binary_sensor.hall_motion": { state: "off", attributes: { friendly_name: "Hall motion", device_class: "motion" } },
     "device_tracker.phone": { state: "home", attributes: { friendly_name: "Phone" } },
     "light.kitchen_ceiling": { state: "on", attributes: { friendly_name: "Kitchen ceiling" } },
+    "sensor.kitchen_lux": { state: "120", attributes: { friendly_name: "Kitchen lux", device_class: "illuminance", unit_of_measurement: "lx" } },
     "media_player.tv": { state: "off", attributes: { friendly_name: "TV" } },
     "person.alex": { state: "home", attributes: { friendly_name: "Alex" } },
     "remote.living": { state: "on", attributes: { friendly_name: "Living remote" } },
@@ -2076,7 +2077,7 @@ async function regression(browser) {
   const pk1b = await browser.evaluate(`[...${PK}.shadowRoot.querySelectorAll("[role=option]")].map((o) => o.querySelector(".option-id").textContent)`);
   await browser.evaluate(`(() => { const i = ${pkInput}; i.value = "KITCHEN"; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
   const pk1c = await browser.evaluate(`[...${PK}.shadowRoot.querySelectorAll("[role=option]")].map((o) => o.querySelector(".option-id").textContent)`);
-  check("PK1 the picker lists entities and search matches entity ID and friendly name, case-insensitively", pk1a >= 5 && JSON.stringify(pk1b) === JSON.stringify(["device_tracker.phone"]) && JSON.stringify(pk1c) === JSON.stringify(["light.kitchen_ceiling"]), JSON.stringify({ pk1a, pk1b, pk1c }));
+  check("PK1 the picker lists entities and search matches entity ID and friendly name, case-insensitively", pk1a >= 5 && JSON.stringify(pk1b) === JSON.stringify(["device_tracker.phone"]) && JSON.stringify(pk1c) === JSON.stringify(["light.kitchen_ceiling","sensor.kitchen_lux"]), JSON.stringify({ pk1a, pk1b, pk1c }));
   // PK2: several entities are added without reopening; the list stays open and the count is shown
   await browser.evaluate(`(() => { const i = ${pkInput}; i.value = ""; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
   await browser.evaluate(`(() => { const opts = [...${PK}.shadowRoot.querySelectorAll("[role=option]")]; opts.find((o) => o.querySelector(".option-id").textContent === "binary_sensor.hall_motion").click(); return true; })()`);
@@ -2119,8 +2120,8 @@ async function regression(browser) {
   check("PK7 saving sends the picked entities and reopening shows them again", Array.isArray(pk7saved) && pk7saved.length === 1 && JSON.stringify(pk7) === JSON.stringify(pk7saved), JSON.stringify({ pk7saved, pk7 }));
   // PK8: the single picker (Entity for darkness) selects and clears through the same component
   await brOpen("en");
-  const pk8 = await browser.evaluate(`(() => { const d = document.querySelector("${BR_FORM} aa-entity-picker[name='dark_entity']"); const i = d.shadowRoot.querySelector("input"); i.focus(); i.dispatchEvent(new Event("input", { bubbles: true })); const opt = [...d.shadowRoot.querySelectorAll("[role=option]")].find((o) => o.querySelector(".option-id").textContent === "light.kitchen_ceiling"); opt.click(); const after = [...d.querySelectorAll("input[type=hidden]")].map((x) => x.value); const chipCount = d.shadowRoot.querySelectorAll(".chip").length; const rmBefore = d.shadowRoot.querySelector(".chip .remove") ? "found" : "missing"; d.shadowRoot.querySelector(".chip .remove")?.click(); const cleared = [...d.querySelectorAll("input[type=hidden]")].map((x) => x.value); return { after, chipCount, cleared, draftDark: document.querySelector("adaptive-areas-panel")._drafts.area.draft?.secondary_states?.dark_entity ?? null, dirtyAfterClear: document.querySelector("adaptive-areas-panel")._areaDirty() }; })()`);
-  check("PK8 the single picker selects, shows and clears the entity; clearing back to the saved empty value is not a change", JSON.stringify(pk8.after) === JSON.stringify(["light.kitchen_ceiling"]) && pk8.chipCount === 1 && JSON.stringify(pk8.cleared) === JSON.stringify([""]) && pk8.draftDark === "" && pk8.dirtyAfterClear === false, JSON.stringify(pk8));
+  const pk8 = await browser.evaluate(`(() => { const d = document.querySelector("${BR_FORM} aa-entity-picker[name='area_illuminance_sensor']"); const i = d.shadowRoot.querySelector("input"); i.focus(); i.dispatchEvent(new Event("input", { bubbles: true })); const opt = [...d.shadowRoot.querySelectorAll("[role=option]")].find((o) => o.querySelector(".option-id").textContent === "sensor.kitchen_lux"); opt.click(); const after = [...d.querySelectorAll("input[type=hidden]")].map((x) => x.value); const chipCount = d.shadowRoot.querySelectorAll(".chip").length; const rmBefore = d.shadowRoot.querySelector(".chip .remove") ? "found" : "missing"; d.shadowRoot.querySelector(".chip .remove")?.click(); const cleared = [...d.querySelectorAll("input[type=hidden]")].map((x) => x.value); return { after, chipCount, cleared, draftDark: document.querySelector("adaptive-areas-panel")._drafts.area.draft?.secondary_states?.dark_entity ?? null, dirtyAfterClear: document.querySelector("adaptive-areas-panel")._areaDirty() }; })()`);
+  check("PK8 the single picker selects, shows and clears the entity; clearing back to the saved empty value is not a change", JSON.stringify(pk8.after) === JSON.stringify(["sensor.kitchen_lux"]) && pk8.chipCount === 1 && JSON.stringify(pk8.cleared) === JSON.stringify([""]) && pk8.draftDark === "" && pk8.dirtyAfterClear === false, JSON.stringify(pk8));
   // PK9: the picker stays usable and free of horizontal overflow at phone and tablet widths
   for (const width of [320, 390, 430, 768, 1024, 1440]) {
     await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -2468,6 +2469,78 @@ async function measure(browser) {
   return out;
 }
 
+// D07: the light diagnosis names the real control path (native group) and no longer
+// shows "no lights assigned" when a group controls the lamps.
+async function d07Regression(browser) {
+  const fixture = JSON.stringify(JSON.parse(readFileSync(join(FIXTURES, "get_light_runtime_status.control_path.admin.json"), "utf8")));
+  for (const language of ["en", "de"]) {
+    await browser.evaluate(mountCode({ admin: true, language }));
+    await waitFor(browser, `${text()}.length > 40`);
+    const out = await browser.evaluate(`(() => {
+      const p = document.querySelector("adaptive-areas-panel");
+      const t = p._t;
+      const f = ${fixture};
+      const render = (mutate) => { const c = JSON.parse(JSON.stringify(f)); mutate(c.light); p._data.lightRuntime = c; return p._lightRuntimeStatus(t); };
+      const base = render(() => {});
+      const blocked = render((l) => { l.control_path.groups[0].ownership_blocked = true; });
+      const policy = render((l) => { l.control_path.group_active = false; l.control_path.groups = []; l.control_path.policy_only = { count: 1, entity_ids: ["light.policy_lamp"] }; });
+      return { t: { control: t.lxControlPathLabel, active: t.lxGroupActive, reasonGroup: t.lxReasonGroupControlled, noTargets: t[\"lxReason_no_targets\"], blocked: t.lxGroupOwnershipBlocked, policyLabel: t.lxPolicyOnlyLabel }, base, blocked, policy };
+    })()`);
+    const t = out.t;
+    check(`D07 ${language}: control path section shows the group control and its lamp`, out.base.includes(t.control) && out.base.includes(t.active) && out.base.includes("light.accent_lamp"), language);
+    check(`D07 ${language}: a group that controls the lamps does not show the no-targets text`, !out.base.includes(t.noTargets) && out.base.includes(t.reasonGroup), language);
+    check(`D07 ${language}: ownership block of a group is shown`, out.blocked.includes(t.blocked), language);
+    check(`D07 ${language}: policy-only lamps are named when present`, out.policy.includes(t.policyLabel) && out.policy.includes("light.policy_lamp"), language);
+  }
+}
+
+// D02 / D03 / D01 (form): feature sections follow the local draft at once; no save happens.
+async function d02d03Regression(browser) {
+  await browser.evaluate(mountCode({ admin: true, language: "en" }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form]") !== null`);
+  const before = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const sec = (k) => f.querySelector('[data-feature-section="' + k + '"]'); return { hasClimateSection: !!sec("climate_control"), climateHidden: sec("climate_control")?.hidden ?? null, envHidden: f.querySelector('details[data-feature-section="environment"]')?.hidden ?? null, draftHasEnvironment: Object.prototype.hasOwnProperty.call(p._drafts.area.draft?.features || {}, "environment"), sensorPicker: f.querySelector('aa-entity-picker[name="area_illuminance_sensor"]')?.getAttribute("device-class") ?? null, illuminancePickers: f.querySelectorAll('aa-entity-picker[name="area_illuminance_sensor"]').length, darkPickers: f.querySelectorAll('[name="dark_entity"]').length, lightPickers: f.querySelectorAll('[name^="light:illuminance"]').length, sensorDomain: f.querySelector('aa-entity-picker[name="area_illuminance_sensor"]')?.getAttribute("domain") ?? null, climateToggle: !!f.elements.namedItem("feature:climate_control"), draftHasClimate: Object.prototype.hasOwnProperty.call(p._drafts.area.draft?.features || {}, "climate_control"), updatesBefore: window.__h.hass.__state.calls.filter((c) => c.type === "adaptive_areas/update_area").length }; })()`);
+  check("D02 the climate section is rendered hidden unless climate control is enabled", before.hasClimateSection && before.climateHidden === !before.draftHasClimate, JSON.stringify(before));
+  check("D02 the room climate (environment) section is hidden unless its feature is enabled", before.envHidden === !before.draftHasEnvironment, JSON.stringify(before));
+  check("D01 exactly one Area illuminance sensor field, a sensor filtered by device class illuminance", before.sensorPicker === "illuminance" && before.sensorDomain === "sensor" && before.illuminancePickers === 1, JSON.stringify(before));
+  check("D01 no binary dark entity and no second illuminance field in the Area form", before.darkPickers === 0 && before.lightPickers === 0, JSON.stringify(before));
+  if (before.climateToggle) {
+    const after = await browser.evaluate(`(async () => { const p = document.querySelector("adaptive-areas-panel"); const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = f.elements.namedItem("feature:climate_control"); const was = !!box.checked; box.checked = !was; box.dispatchEvent(new Event("input", { bubbles: true })); box.dispatchEvent(new Event("change", { bubbles: true })); await new Promise((r) => setTimeout(r, 80)); const sec = f.querySelector('[data-feature-section="climate_control"]'); return { was, now: !!box.checked, hiddenNow: sec.hidden, displayNow: sec.style.display, updates: window.__h.hass.__state.calls.filter((c) => c.type === "adaptive_areas/update_area").length, draft: Object.prototype.hasOwnProperty.call(p._drafts.area.draft?.features || {}, "climate_control") }; })()`);
+    check("D03 toggling climate control shows or hides its section at once", after.hiddenNow === after.was && after.draft === !after.was, JSON.stringify(after));
+    check("D03 toggling a function sends no automatic save", after.updates === before.updatesBefore, JSON.stringify({ before: before.updatesBefore, after: after.updates }));
+    await browser.evaluate(`(async () => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const box = f.elements.namedItem("feature:climate_control"); box.checked = !box.checked; box.dispatchEvent(new Event("input", { bubbles: true })); await new Promise((r) => setTimeout(r, 50)); return true; })()`);
+  }
+}
+
+// D05: device classes use the same checkbox dropdown as the domains; one shared message.
+async function d05Regression(browser) {
+  await browser.evaluate(mountCode({ admin: true, language: "en" }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form]") !== null`);
+  const d5 = await browser.evaluate(`(() => {
+    const f = document.querySelector("adaptive-areas-panel form[data-area-form]");
+    const dom = f.querySelector('details.domain-select[data-select="presence_device_platforms"]');
+    const cls = f.querySelector('details.domain-select[data-select="presence_sensor_device_class"]');
+    const classBoxes = cls ? [...cls.querySelectorAll('input[type=checkbox][name="presence_sensor_device_class"]')].map((b) => b.value) : [];
+    const checked = cls ? [...cls.querySelectorAll('input[type=checkbox][name="presence_sensor_device_class"]:checked')].map((b) => b.value) : [];
+    const domainBoxes = dom ? [...dom.querySelectorAll('input[type=checkbox][name="presence_device_platforms"]')].map((b) => b.value) : [];
+    const hints = f.querySelectorAll("[data-presence-hint]").length;
+    const order = dom && cls && hints === 1 ? (dom.compareDocumentPosition(cls) & Node.DOCUMENT_POSITION_FOLLOWING) && (cls.compareDocumentPosition(f.querySelector("[data-presence-hint]")) & Node.DOCUMENT_POSITION_FOLLOWING) : false;
+    const selectMultiple = f.querySelectorAll('select[name="presence_sensor_device_class"]').length;
+    return { hasDomainDropdown: !!dom, hasClassDropdown: !!cls, classBoxes, checked, domainBoxes, hints, order: !!order, selectMultiple };
+  })()`);
+  check("D05 device classes use the same checkbox dropdown as the domains, not a multi-select", d5.hasClassDropdown && d5.hasDomainDropdown && d5.selectMultiple === 0, JSON.stringify(d5));
+  check("D05 the device class choices include motion and occupancy and the stored ones are checked", ["motion", "occupancy"].every((c) => d5.classBoxes.includes(c)) && d5.checked.every((c) => d5.classBoxes.includes(c)), JSON.stringify(d5));
+  check("D05 one shared validation hint sits below both dropdowns", d5.hints === 1 && d5.order === true, JSON.stringify(d5));
+  check("D05 the domain choices are unchanged", JSON.stringify(d5.domainBoxes) === JSON.stringify(["binary_sensor", "device_tracker", "media_player", "remote"]), JSON.stringify(d5.domainBoxes));
+}
+
 const viewport = { width: 1280, height: 900 };
 const browser = await launch();
 try {
@@ -2480,6 +2553,9 @@ try {
     console.log("written:", outFile);
   } else {
     await regression(browser);
+    await d07Regression(browser);
+    await d02d03Regression(browser);
+    await d05Regression(browser);
     check("no JavaScript errors", browser.errors.length === 0, browser.errors.slice(0, 3).join(" | "));
     const failed = results.filter((r) => !r.pass);
     for (const r of results) console.log((r.pass ? "PASS " : "FAIL ") + r.name + (r.pass || !r.detail ? "" : "  [" + r.detail + "]"));

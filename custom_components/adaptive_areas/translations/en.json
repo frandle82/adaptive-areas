@@ -22,7 +22,7 @@
         "title": "Feature selection",
         "description": "Select the features you want to enable for this area. A new menu option will show up for configuring the feature if there are configurations options for that feature.",
         "data": {
-                    "light": "Enable future light control",
+          "light": "Enable future light control",
           "fan_groups": "Create fan groups",
           "climate_control": "Create climate controller",
           "media_player_groups": "Create media player groups",
@@ -384,18 +384,20 @@
       "invalid_entity": "Invalid entity selected",
       "climate_no_preset_support": "Climate entity does not support preset modes",
       "excluded_primary_source": "A primary Area climate sensor cannot also be excluded",
-      "invalid_primary_source": "Select a sensor assigned to this Home Assistant Area"
+      "invalid_primary_source": "Select a sensor assigned to this Home Assistant Area",
+      "expected_illuminance_sensor": "Expected an illuminance sensor (numeric lux sensor, unit lx).",
+      "unknown_illuminance_sensor": "Unknown illuminance sensor."
     }
   },
   "entity": {
     "binary_sensor": {
       "area_state": {
         "name": "Area State",
-                "state": {
-                  "off": "Clear",
-                  "on": "Occupied"
-                },
-                "state_attributes": {
+        "state": {
+          "off": "Clear",
+          "on": "Occupied"
+        },
+        "state_attributes": {
           "areas": {
             "name": "Areas"
           },
@@ -429,18 +431,42 @@
           "clear_timeout": {
             "name": "Clear timeout"
           },
-          "occupied_since": {"name": "Occupied since"},
-          "last_activity": {"name": "Last activity"},
-          "last_cleared": {"name": "Last cleared"},
-          "clear_at": {"name": "Expected clear time"},
-          "configured_source_count": {"name": "Configured sources"},
-          "available_source_count": {"name": "Available sources"},
-          "active_source_count": {"name": "Active sources"},
-          "active_sources": {"name": "Active source list"},
-          "last_active_sources": {"name": "Last active source list"},
-          "last_reason": {"name": "Last reason"},
-          "last_transition": {"name": "Last transition"},
-          "active_states": {"name": "Active states"}
+          "occupied_since": {
+            "name": "Occupied since"
+          },
+          "last_activity": {
+            "name": "Last activity"
+          },
+          "last_cleared": {
+            "name": "Last cleared"
+          },
+          "clear_at": {
+            "name": "Expected clear time"
+          },
+          "configured_source_count": {
+            "name": "Configured sources"
+          },
+          "available_source_count": {
+            "name": "Available sources"
+          },
+          "active_source_count": {
+            "name": "Active sources"
+          },
+          "active_sources": {
+            "name": "Active source list"
+          },
+          "last_active_sources": {
+            "name": "Last active source list"
+          },
+          "last_reason": {
+            "name": "Last reason"
+          },
+          "last_transition": {
+            "name": "Last transition"
+          },
+          "active_states": {
+            "name": "Active states"
+          }
         }
       },
       "ble_tracker_monitor": {
@@ -453,15 +479,33 @@
           "on": "Due"
         },
         "state_attributes": {
-          "cleaning_score": {"name": "Cleaning score"},
-          "cleaning_state": {"name": "Cleaning state"},
-          "cumulative_presence_seconds": {"name": "Cumulative presence"},
-          "presence_minutes_since_cleaning": {"name": "Presence since cleaning"},
-          "presence_minutes_to_due": {"name": "Presence time until due"},
-          "remaining_minutes_to_due": {"name": "Remaining time until due"},
-          "overdue_minutes": {"name": "Overdue time"},
-          "current_occupancy_duration_seconds": {"name": "Current occupancy duration"},
-          "last_cleaned": {"name": "Last cleaned"}
+          "cleaning_score": {
+            "name": "Cleaning score"
+          },
+          "cleaning_state": {
+            "name": "Cleaning state"
+          },
+          "cumulative_presence_seconds": {
+            "name": "Cumulative presence"
+          },
+          "presence_minutes_since_cleaning": {
+            "name": "Presence since cleaning"
+          },
+          "presence_minutes_to_due": {
+            "name": "Presence time until due"
+          },
+          "remaining_minutes_to_due": {
+            "name": "Remaining time until due"
+          },
+          "overdue_minutes": {
+            "name": "Overdue time"
+          },
+          "current_occupancy_duration_seconds": {
+            "name": "Current occupancy duration"
+          },
+          "last_cleaned": {
+            "name": "Last cleaned"
+          }
         }
       },
       "health_problem": {
@@ -568,7 +612,9 @@
           "off": "No problem"
         },
         "state_attributes": {
-          "notices": {"name": "Notes"},
+          "notices": {
+            "name": "Notes"
+          },
           "comfort": {
             "name": "Comfort",
             "state": {
@@ -585,27 +631,41 @@
           "temperature_state": {
             "name": "Temperature state",
             "state": {
-              "cold": "Cold", "cool": "Cool", "comfortable": "Comfortable",
-              "warm": "Warm", "hot": "Hot", "very_hot": "Very hot",
-              "not_applicable": "Not applicable", "unknown": "Unknown"
+              "cold": "Cold",
+              "cool": "Cool",
+              "comfortable": "Comfortable",
+              "warm": "Warm",
+              "hot": "Hot",
+              "very_hot": "Very hot",
+              "not_applicable": "Not applicable",
+              "unknown": "Unknown"
             }
           },
           "humidity_comfort_state": {
             "name": "Humidity comfort state",
             "state": {
-              "very_dry": "Very dry", "dry": "Dry", "normal": "Normal",
-              "elevated": "Elevated", "high": "High", "very_high": "Very high",
+              "very_dry": "Very dry",
+              "dry": "Dry",
+              "normal": "Normal",
+              "elevated": "Elevated",
+              "high": "High",
+              "very_high": "Very high",
               "unknown": "Unknown"
             }
           },
           "combined_comfort": {
             "name": "Combined comfort",
             "state": {
-              "comfortable": "Comfortable", "temperature_cold": "Temperature cold",
-              "temperature_cool": "Temperature cool", "temperature_warm": "Temperature warm",
-              "temperature_hot": "Temperature hot", "temperature_very_hot": "Temperature very hot",
-              "humidity_too_dry": "Humidity too dry", "humidity_too_high": "Humidity too high",
-              "multiple_deviations": "Multiple deviations", "not_applicable": "Not applicable",
+              "comfortable": "Comfortable",
+              "temperature_cold": "Temperature cold",
+              "temperature_cool": "Temperature cool",
+              "temperature_warm": "Temperature warm",
+              "temperature_hot": "Temperature hot",
+              "temperature_very_hot": "Temperature very hot",
+              "humidity_too_dry": "Humidity too dry",
+              "humidity_too_high": "Humidity too high",
+              "multiple_deviations": "Multiple deviations",
+              "not_applicable": "Not applicable",
               "unknown": "Unknown"
             }
           },
@@ -623,7 +683,9 @@
               "unknown": "Unknown"
             }
           },
-          "thermal_profile": {"name": "Thermal profile"},
+          "thermal_profile": {
+            "name": "Thermal profile"
+          },
           "humidity": {
             "name": "Humidity",
             "state": {
@@ -772,16 +834,36 @@
               "health": "Area health"
             }
           },
-          "dew_point": {"name": "Dew-point temperature"},
-          "temperature": {"name": "Temperature"},
-          "relative_humidity": {"name": "Relative humidity"},
-          "absolute_humidity": {"name": "Absolute humidity"},
-          "humidity_ratio": {"name": "Humidity ratio"},
-          "enthalpy": {"name": "Moist-air enthalpy"},
-          "humidex": {"name": "Humidex warm-stress index"},
-          "apparent_temperature": {"name": "Humidex (compatibility attribute)"},
-          "surface_temperature": {"name": "Surface temperature"},
-          "surface_relative_humidity": {"name": "Surface relative humidity"},
+          "dew_point": {
+            "name": "Dew-point temperature"
+          },
+          "temperature": {
+            "name": "Temperature"
+          },
+          "relative_humidity": {
+            "name": "Relative humidity"
+          },
+          "absolute_humidity": {
+            "name": "Absolute humidity"
+          },
+          "humidity_ratio": {
+            "name": "Humidity ratio"
+          },
+          "enthalpy": {
+            "name": "Moist-air enthalpy"
+          },
+          "humidex": {
+            "name": "Humidex warm-stress index"
+          },
+          "apparent_temperature": {
+            "name": "Humidex (compatibility attribute)"
+          },
+          "surface_temperature": {
+            "name": "Surface temperature"
+          },
+          "surface_relative_humidity": {
+            "name": "Surface relative humidity"
+          },
           "mould_quality": {
             "name": "Mould assessment quality",
             "state": {
@@ -790,9 +872,15 @@
               "unknown": "Unknown"
             }
           },
-          "mould_warning_duration_seconds": {"name": "Mould warning duration"},
-          "outdoor_humidity_ratio": {"name": "Outdoor humidity ratio"},
-          "outdoor_enthalpy": {"name": "Outdoor moist-air enthalpy"},
+          "mould_warning_duration_seconds": {
+            "name": "Mould warning duration"
+          },
+          "outdoor_humidity_ratio": {
+            "name": "Outdoor humidity ratio"
+          },
+          "outdoor_enthalpy": {
+            "name": "Outdoor moist-air enthalpy"
+          },
           "moisture_ventilation": {
             "name": "Dehumidification by ventilation",
             "state": {
@@ -804,33 +892,71 @@
           "air_exchange_suitability": {
             "name": "Air exchange suitability",
             "state": {
-              "favorable": "Favorable", "acceptable": "Acceptable",
-              "unfavorable": "Unfavorable", "hazardous": "Hazardous", "unknown": "Unknown"
+              "favorable": "Favorable",
+              "acceptable": "Acceptable",
+              "unfavorable": "Unfavorable",
+              "hazardous": "Hazardous",
+              "unknown": "Unknown"
             }
           },
-          "pollutant_comparisons": {"name": "Indoor/outdoor pollutant comparison"},
-          "outdoor_pollutant_measurements": {"name": "Outdoor pollutant measurements"},
-          "outdoor_pollutant_assessments": {"name": "Outdoor pollutant sources"},
-          "indoor_pollutant_measurements": {"name": "Indoor pollutant measurements"},
-          "indoor_pollutant_assessments": {"name": "Indoor pollutant assessments"},
+          "pollutant_comparisons": {
+            "name": "Indoor/outdoor pollutant comparison"
+          },
+          "outdoor_pollutant_measurements": {
+            "name": "Outdoor pollutant measurements"
+          },
+          "outdoor_pollutant_assessments": {
+            "name": "Outdoor pollutant sources"
+          },
+          "indoor_pollutant_measurements": {
+            "name": "Indoor pollutant measurements"
+          },
+          "indoor_pollutant_assessments": {
+            "name": "Indoor pollutant assessments"
+          },
           "dominant_indoor_pollutant": {
             "name": "Dominant indoor pollutant",
             "state": {
-              "co2": "CO₂", "pm25": "PM2.5", "pm10": "PM10",
-              "co": "Carbon monoxide", "no2": "Nitrogen dioxide",
-              "ozone": "Ozone", "voc": "VOC", "unknown": "Unknown"
+              "co2": "CO₂",
+              "pm25": "PM2.5",
+              "pm10": "PM10",
+              "co": "Carbon monoxide",
+              "no2": "Nitrogen dioxide",
+              "ozone": "Ozone",
+              "voc": "VOC",
+              "unknown": "Unknown"
             }
           },
-          "pollutant_measurements": {"name": "Pollutant measurements"},
-          "pollutant_assessments": {"name": "Pollutant assessments"},
-          "indoor_source_entities": {"name": "Indoor source entities"},
-          "outdoor_source_entities": {"name": "Outdoor source entities"},
-          "source_entities": {"name": "Entities used"},
-          "ignored_sources": {"name": "Ignored entities"},
-          "humidity_warning_duration_seconds": {"name": "High-humidity duration"},
-          "context": {"name": "Context"},
-          "indoor_reason_codes": {"name": "Indoor reason codes"},
-          "mitigation_reason_codes": {"name": "Mitigation reason codes"},
+          "pollutant_measurements": {
+            "name": "Pollutant measurements"
+          },
+          "pollutant_assessments": {
+            "name": "Pollutant assessments"
+          },
+          "indoor_source_entities": {
+            "name": "Indoor source entities"
+          },
+          "outdoor_source_entities": {
+            "name": "Outdoor source entities"
+          },
+          "source_entities": {
+            "name": "Entities used"
+          },
+          "ignored_sources": {
+            "name": "Ignored entities"
+          },
+          "humidity_warning_duration_seconds": {
+            "name": "High-humidity duration"
+          },
+          "context": {
+            "name": "Context"
+          },
+          "indoor_reason_codes": {
+            "name": "Indoor reason codes"
+          },
+          "mitigation_reason_codes": {
+            "name": "Mitigation reason codes"
+          },
           "reason_codes": {
             "name": "Reason codes",
             "state": {
@@ -880,10 +1006,18 @@
       "room_usage": {
         "name": "Cleaning score",
         "state_attributes": {
-          "cumulative_presence_seconds": {"name": "Cumulative presence"},
-          "presence_minutes_to_due": {"name": "Presence time until due"},
-          "current_occupancy_duration_seconds": {"name": "Current occupancy duration"},
-          "last_cleaned": {"name": "Last cleaned"}
+          "cumulative_presence_seconds": {
+            "name": "Cumulative presence"
+          },
+          "presence_minutes_to_due": {
+            "name": "Presence time until due"
+          },
+          "current_occupancy_duration_seconds": {
+            "name": "Current occupancy duration"
+          },
+          "last_cleaned": {
+            "name": "Last cleaned"
+          }
         }
       }
     },
@@ -938,27 +1072,27 @@
         "occupied": "Occupied",
         "dark": "Dark",
         "extended": "Extended",
-          "sleep": "Sleep",
-          "accented": "Accent mode"
-        }
-      },
-      "light_activation": {
-        "options": {
-          "disabled": "No automatic control",
-          "occupied": "Area occupied",
-          "extended": "Only after extended occupancy",
-          "sleep": "Sleep mode",
-          "accented": "Accent mode"
-        }
-      },
-      "light_brightness": {
-        "options": {
-          "ignore": "Ignore brightness",
-          "require_dark": "Only turn on when dark",
-          "turn_off": "Actively turn off when bright",
-          "dark_on_bright_off": "Turn on when dark and turn off when bright"
-        }
-      },
+        "sleep": "Sleep",
+        "accented": "Accent mode"
+      }
+    },
+    "light_activation": {
+      "options": {
+        "disabled": "No automatic control",
+        "occupied": "Area occupied",
+        "extended": "Only after extended occupancy",
+        "sleep": "Sleep mode",
+        "accented": "Accent mode"
+      }
+    },
+    "light_brightness": {
+      "options": {
+        "ignore": "Ignore brightness",
+        "require_dark": "Only turn on when dark",
+        "turn_off": "Actively turn off when bright",
+        "dark_on_bright_off": "Turn on when dark and turn off when bright"
+      }
+    },
     "control_on": {
       "options": {
         "occupancy": "When area goes from clear to occupied",
@@ -992,22 +1126,34 @@
       "name": "Mark Area cleaned",
       "description": "Sets the Cleaning Score of the selected Areas to 0% and records the cleaning time.",
       "fields": {
-        "area_id": {"name": "Areas", "description": "Areas to mark as cleaned."}
+        "area_id": {
+          "name": "Areas",
+          "description": "Areas to mark as cleaned."
+        }
       }
     },
     "reset": {
       "name": "Reset Cleaning Tracker",
       "description": "Completely resets the stored Cleaning Tracker state of the selected Areas.",
       "fields": {
-        "area_id": {"name": "Areas", "description": "Areas whose tracker state should be reset."}
+        "area_id": {
+          "name": "Areas",
+          "description": "Areas whose tracker state should be reset."
+        }
       }
     },
     "set_score": {
       "name": "Set Cleaning Score",
       "description": "Sets the Cleaning Score of the selected Areas and adjusts their cumulative presence accordingly.",
       "fields": {
-        "area_id": {"name": "Areas", "description": "Areas whose Cleaning Score should be set."},
-        "score": {"name": "Score", "description": "Cleaning Score from 0 to 100%."}
+        "area_id": {
+          "name": "Areas",
+          "description": "Areas whose Cleaning Score should be set."
+        },
+        "score": {
+          "name": "Score",
+          "description": "Cleaning Score from 0 to 100%."
+        }
       }
     }
   },

@@ -16,11 +16,13 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
+    CONF_EXCLUDE_ENTITIES,
     EMPTY_STRING,
     EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED,
     LIGHT_GROUP_BLOCKING_STATES,
@@ -47,6 +49,7 @@ from custom_components.adaptive_areas.helpers.light_executor import (
     async_execute_light_entity_action,
 )
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
+    excluded_members_by_group,
     group_is_blocked,
 )
 from custom_components.adaptive_areas.helpers.light_transition import (
@@ -61,6 +64,7 @@ from custom_components.adaptive_areas.helpers.light_transition import (
     transition_decision,
 )
 from custom_components.adaptive_areas.helpers.light_origin import (
+    request_for_context,
     current_area_signal,
     fail_request,
     new_light_group_context,
@@ -81,6 +85,49 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the area light config entry."""
     for area in get_runtime_areas_for_entry(hass, config_entry):
         await _async_setup_area(hass, area, async_add_entities)
+
+
+def _configured_group_lights(
+    hass, area: AdaptiveArea, light_entities: list[str], feature_config
+) -> list[str]:
+    """Explicitly configured group members that may be controlled by this Area's groups.
+
+    A member is accepted when it is a light that exists (state or registry entry) and is
+    not excluded by `exclude_entities`. HA-Area membership is not required (Option C).
+    Ownership conflicts are checked separately by the runtime.
+    """
+    excluded = set(area.config.get(CONF_EXCLUDE_ENTITIES, []) or [])
+    registry = er.async_get(hass)
+    accepted: list[str] = []
+    configured = [
+        entity_id
+        for category in LIGHT_GROUP_CATEGORIES
+        for entity_id in feature_config.get(category, {}) or {}
+        if str(entity_id).startswith("light.")
+    ]
+    # A nested group that would switch an excluded lamp is not controlled at all.
+    blocked_groups = excluded_members_by_group(hass, configured, excluded)
+    for category in LIGHT_GROUP_CATEGORIES:
+        for entity_id in feature_config.get(category, {}) or {}:
+            if entity_id in blocked_groups:
+                _LOGGER.warning(
+                    "%s: group member %s not controlled: it would switch excluded lights %s",
+                    area.name,
+                    entity_id,
+                    blocked_groups[entity_id],
+                )
+                continue
+            if entity_id in excluded or not entity_id.startswith("light."):
+                continue
+            if entity_id in accepted:
+                continue
+            if (
+                entity_id in light_entities
+                or hass.states.get(entity_id) is not None
+                or registry.async_get(entity_id) is not None
+            ):
+                accepted.append(entity_id)
+    return accepted
 
 
 async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
@@ -109,12 +156,17 @@ async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
     else:
         child_light_groups: list[AreaLightGroup] = []
         feature_config = area.feature_config(AdaptiveAreasFeatures.LIGHT_GROUPS)
+        # An explicitly configured group member is authoritative (Option C): it does not
+        # need to be found by the HA-Area entity lookup. Ownership is checked at runtime.
+        configured_lights = set(
+            _configured_group_lights(hass, area, light_entities, feature_config)
+        )
         configured_light_entities = list(
             dict.fromkeys(
                 light_entity
                 for category in LIGHT_GROUP_CATEGORIES
                 for light_entity in feature_config.get(category, {})
-                if light_entity in light_entities
+                if light_entity in configured_lights
             )
         )
 
@@ -123,7 +175,7 @@ async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
             category_lights = [
                 light_entity
                 for light_entity in feature_config.get(category, {})
-                if light_entity in light_entities
+                if light_entity in configured_lights
             ]
 
             if category_lights:
@@ -564,10 +616,19 @@ class AreaLightGroup(AdaptiveLightGroup):
         ids.append(context.id)
 
     def _is_own_context(self, context) -> bool:
-        """Return whether a state change carries the context of one of this group's calls."""
+        """Return whether a state change carries a call of this Area's own automation.
+
+        Own automation is the group calls of this Area and its policy calls. Both are
+        registered requests of the Area (light_origin); a policy-owned light that a
+        disabled group mirrors is therefore not a manual change.
+        """
         ids = getattr(self.area, "_light_group_own_contexts", None) or ()
-        return context.id in ids or (
-            context.parent_id is not None and context.parent_id in ids
+        candidates = [context.id]
+        if context.parent_id is not None:
+            candidates.append(context.parent_id)
+        return any(
+            candidate in ids or request_for_context(self.area, candidate) is not None
+            for candidate in candidates
         )
 
     def _all_target_lights_on(self) -> bool:
@@ -800,7 +861,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         self._set_manual_override(False)
         self._attr_extra_state_attributes["controlling"] = self.controlling
         self.schedule_update_ha_state()
-        self.logger.debug("{self.name}: Control Reset.")
+        self.logger.debug("%s: Control Reset.", self.name)
 
     def _set_manual_override(self, enabled: bool) -> None:
         """Set manual override state and expose it as an entity attribute."""

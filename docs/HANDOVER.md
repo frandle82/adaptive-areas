@@ -330,3 +330,10 @@ Die folgenden Punkte stammen aus Praxistests des Benutzers in einer realen Home-
 - Gemeinsame Speicherprüfung: `helpers/light_ownership_runtime.py` (`light_group_ownership_problem`), genutzt von `area_config.py` (Dashboard) und `config_flow.py` (Options-Flow).
 - Nächster Schritt: praktische Validierung von 1.7.0-rc.1 auf Home Assistant 2026.11.3 (Testsystem), danach Auswertung. Ein Stable-Release ist nicht freigegeben.
 - Bekannt: Das Legacy-Feld `vacancy_delay` wirkt nicht mehr, wird aber im Light-Tab noch angezeigt (CHANGELOG, Known issues).
+
+## Handover: correction block 1.7.0-rc.1 (not committed)
+
+- Start with `docs/CURRENT_STATE.md` (section "Final state of the correction block").
+- Before committing: re-run the browser harness (`node tests/frontend/run.mjs`). The last run that completed was 416/416, before the backend-only changes of the last round; the final run hung in the local headless Chrome.
+- Open decisions: brightness limits while Light is disabled (review); policy-only (architecture, not implemented); Options Flow offers no view of retained configurations.
+- Commit allowlist and messages: see the final report of this session; split by topic (light control, Area brightness sensor, retained features, device-class selector).

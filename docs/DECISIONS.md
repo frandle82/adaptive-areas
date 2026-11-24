@@ -28,3 +28,18 @@ This is an index of verified architectural decisions. It does not replace detail
 | A physical light belongs to at most one individual light group (overhead, sleep, accent, task), within one Area and across Areas, including the GlobalEntry. The ALL group is excluded and never switches ON automatically. Nested HA light groups are resolved to physical members. Saves are refused server-side (options flow and panel save) with a localized message naming the lamp and the owning group and Area; stored invalid configurations are never rewritten automatically and are blocked at runtime as a whole group | Accepted (2026-11-24), implemented locally, not committed | `helpers/light_ownership.py`, `helpers/light_ownership_runtime.py`, `area_config.py`, `config_flow.py`, `frontend/adaptive-areas-panel.js`; tests `tests/test_light_ownership*.py`, `tests/frontend/run.mjs` S-series |
 
 Record a new decision here only after it is accepted. Include context, decision, consequences, migration implications, and test impact; link a detailed ADR when one exists.
+
+## Light and area decisions (correction block, 1.7.0-rc.1)
+
+- Area brightness sensor: one optional Area property `area_illuminance_sensor`; priority Area sensor, global sensor, UNKNOWN; no fallback on failure; binary entities never used. Migration: none (additive key). Legacy `dark_entity` is ignored.
+- Brightness limits are read also while the Light feature is disabled (parked configuration). To review: the limits are an Area brightness input, not light control.
+- Disabled features keep their configuration in `retained_features` (inactive); re-enabling restores it. Additive key, no migration.
+- A native light group that would switch an excluded lamp is not controlled as a whole and is refused at save.
+- Automatic light calls are identified by their registered request context; a user context is never registered.
+
+## Brightness classification (final)
+
+- The Area brightness is one central source and one central classification. The Light feature consumes it; enabling or disabling the Light feature does not change it.
+- Configured limits stay effective while the Light feature is disabled (parked configuration).
+- No default limits exist in the code. Without configured limits the classification is UNKNOWN. UNKNOWN is never read as DARK or BRIGHT.
+- The hysteresis band is kept. No new limits were introduced.

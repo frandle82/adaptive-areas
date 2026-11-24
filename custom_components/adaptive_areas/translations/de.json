@@ -1,1055 +1,1201 @@
 {
-    "title": "Adaptive Areas",
-    "config": {
-        "step": {
-            "user": {
-                "title": "Adaptive Area erstellen",
-                "description": "Wähle den Home-Assistant-Bereich aus, den Adaptive Areas verwalten soll.",
-                "data": {
-                    "name": "Bereich"
-                }
-            }
-        },
-        "abort": {
-            "already_configured": "Dieses Gerät ist bereits konfiguriert",
-            "invalid_area": "Der ausgewählte Bereich existiert nicht",
-            "no_more_areas": "Alle verfügbaren Bereiche sind bereits konfiguriert."
-        }
-    },
-    "options": {
-        "step": {
-            "select_features": {
-                "title": "Funktionen auswählen",
-                "description": "Funktionen auswählen, die für diesen Bereich aktiviert werden sollen. Sofern Einstellungen für diese Funktion vorhanden sind, wird ein weiterer Menüeintrag zum Konfigurieren der Funktion angezeigt.",
-                "data": {
-                    "light": "Zukünftige Lichtsteuerung aktivieren",
-                    "fan_groups": "Lüftergruppen",
-                    "climate_control": "Klimasteuerung",
-                    "media_player_groups": "Media-Player-Gruppen erstellen",
-                    "light_groups": "Lichtgruppen",
-                    "cover_groups": "Abdeckungsgruppen",
-                    "area_aware_media_player": "Bereichsabhängiger Media Player",
-                    "aggregates": "Aggregierte Sensoren",
-                    "health": "Bereichsgesundheit",
-                    "presence_hold": "Anwesenheitshalteschalter",
-                    "ble_trackers": "BLE-Tracker-Überwachung",
-                    "switch_groups": "Schaltergruppen",
-                    "wasp_in_a_box": "Wasp in a Box",
-                    "environment": "Bereichsklima",
-                    "room_usage": "Reinigungs-Tracker"
-                }
-            },
-            "show_menu": {
-                "title": "Adaptive Areas Optionen",
-                "description": "Adaptive Areas führt standardmäßig eine einfache Anwesenheitserkennung durch. Das volle Potential von Adaptive Areas wird erst durch Verwendung der erweiterten Statusverfolgung und Anpassung der Anwesenheitsverfolgung freigeschaltet! Die Einstellungen werden erst durch `Speichern und beenden` gespeichert.",
-                "menu_options": {
-                    "area_config": "Allgemeine Bereichsoptionen",
-                    "secondary_states": "Erweiterte Statusverfolgung",
-                    "presence_tracking": "Anwesenheitsverfolgung",
-                    "select_features": "Funktionen auswählen",
-                    "finish": "Speichern und beenden",
-                    "feature_conf_health": "Bereichsgesundheit konfigurieren",
-                    "feature_conf_fan_groups": "Lüftergruppen konfigurieren",
-                    "feature_conf_climate_control": "Klimasteuerung konfigurieren",
-                    "feature_conf_light_groups": "Lichtgruppen konfigurieren",
-                    "feature_conf_area_aware_media_player": "Bereichsabhängigen Media Player konfigurieren",
-                    "feature_conf_aggregates": "Aggregierte Sensoren konfigurieren",
-                    "feature_conf_presence_hold": "Anwesenheitshalteschalter konfigurieren",
-                    "feature_conf_ble_trackers": "BLE-Tracker-Überwachung konfigurieren",
-                    "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
-                    "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
-                    "feature_conf_environment": "Bereichsklima konfigurieren",
-                    "feature_conf_room_usage": "Reinigungs-Tracker konfigurieren"
-                }
-            },
-            "feature_conf_health": {
-                "title": "Bereichsgesundheit",
-                "description": "Gesundheits-, Sicherheits- und Problemklassen von Binärsensoren auswählen, die in einer Bereichsgesundheitsentität zusammengefasst werden.",
-                "data": {
-                    "health_binary_sensor_device_classes": "Zu verfolgende Geräteklassen"
-                }
-            },
-            "feature_conf_light_groups": {
-                "title": "Lichtgruppen",
-                "description": "Adaptive Areas erstellt diese 4 (plus 1 globale) Lichtgruppen (wenn ihnen Lichter zugewiesen werden). Dies sind standardmäßig einfache Lichtgruppen, die jedoch automatisch gesteuert werden können, wenn sie Bereichszuständen zugewiesen sind und der Lichtsteuerungsschalter eingeschaltet wird (wird mit Aktivieren dieser Funktion erstellt). Alle Lichter werden ausgeschaltet, wenn ein Bereich freigegeben wird. Zusätzliche Zustände können durch Konfigurieren von `Erweiterte Statusverfolgung` freigeschaltet werden.",
-                "data": {
-                    "overhead_lights": "Deckenleuchten",
-                    "overhead_lights_activation": "Deckenleuchten automatisch einschalten während",
-                    "overhead_lights_brightness": "Helligkeitsverhalten der Deckenleuchten",
-                    "overhead_lights_states": "In welchen Zuständen sollen Deckenleuchten eingeschaltet werden",
-                    "overhead_lights_state_rules": "Zustandsregeln",
-                    "overhead_lights_state_rules_rule_1": "Regel 1",
-                    "overhead_lights_state_rules_rule_2": "Regel 2",
-                    "overhead_lights_state_rules_rule_3": "Regel 3",
-                    "overhead_lights_blocking_states": "In welchen Zuständen sollen Deckenleuchten blockiert werden",
-                    "overhead_lights_require_dark": "Deckenleuchten nur bei Dunkelheit einschalten",
-                    "overhead_lights_act_on": "Wann sollen die Deckenleuchten gesteuert werden?",
-                    "overhead_lights_turn_off_when_bright": "Deckenleuchten bei Helligkeit ausschalten",
-                    "sleep_lights": "Schlaflichter",
-                    "sleep_lights_activation": "Schlaflichter automatisch einschalten während",
-                    "sleep_lights_brightness": "Helligkeitsverhalten der Schlaflichter",
-                    "sleep_lights_states": "In welchen Zuständen sollen Schlaflichter eingeschaltet werden",
-                    "sleep_lights_state_rules": "Zustandsregeln",
-                    "sleep_lights_state_rules_rule_1": "Regel 1",
-                    "sleep_lights_state_rules_rule_2": "Regel 2",
-                    "sleep_lights_state_rules_rule_3": "Regel 3",
-                    "sleep_lights_blocking_states": "In welchen Zuständen sollen Schlaflichter blockiert werden",
-                    "sleep_lights_require_dark": "Schlaflichter nur bei Dunkelheit einschalten",
-                    "sleep_lights_act_on": "Wann sollen Schlaflichter gesteuert werden?",
-                    "sleep_lights_turn_off_when_bright": "Schlaflichter bei Helligkeit ausschalten",
-                    "accent_lights": "Akzentlichter",
-                    "accent_lights_activation": "Akzentlichter automatisch einschalten während",
-                    "accent_lights_brightness": "Helligkeitsverhalten der Akzentlichter",
-                    "accent_lights_states": "In welchen Zuständen sollen Akzentlichter eingeschaltet werden",
-                    "accent_lights_state_rules": "Zustandsregeln",
-                    "accent_lights_state_rules_rule_1": "Regel 1",
-                    "accent_lights_state_rules_rule_2": "Regel 2",
-                    "accent_lights_state_rules_rule_3": "Regel 3",
-                    "accent_lights_blocking_states": "In welchen Zuständen sollen Akzentlichter blockiert werden",
-                    "accent_lights_require_dark": "Akzentlichter nur bei Dunkelheit einschalten",
-                    "accent_lights_act_on": "Wann sollen die Akzentlichter gesteuert werden?",
-                    "accent_lights_turn_off_when_bright": "Akzentlichter bei Helligkeit ausschalten",
-                    "task_lights": "Arbeitslichter",
-                    "task_lights_activation": "Arbeitslichter automatisch einschalten während",
-                    "task_lights_brightness": "Helligkeitsverhalten der Arbeitslichter",
-                    "task_lights_states": "In welchen Zuständen sollen Arbeitslichter eingeschaltet werden",
-                    "task_lights_state_rules": "Zustandsregeln",
-                    "task_lights_state_rules_rule_1": "Regel 1",
-                    "task_lights_state_rules_rule_2": "Regel 2",
-                    "task_lights_state_rules_rule_3": "Regel 3",
-                    "task_lights_blocking_states": "In welchen Zuständen sollen Arbeitslichter blockiert werden",
-                    "task_lights_require_dark": "Arbeitslichter nur bei Dunkelheit einschalten",
-                    "task_lights_act_on": "Wann sollen die Arbeitslichter gesteuert werden?",
-                    "task_lights_turn_off_when_bright": "Arbeitslichter bei Helligkeit ausschalten"
-                },
-                "data_description": {
-                    "overhead_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "overhead_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
-                    "overhead_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
-                    "overhead_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "overhead_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "overhead_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "overhead_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
-                    "overhead_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
-                    "overhead_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
-                    "overhead_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
-                    "sleep_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "sleep_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
-                    "sleep_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
-                    "sleep_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "sleep_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "sleep_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "sleep_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
-                    "sleep_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
-                    "sleep_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
-                    "sleep_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
-                    "accent_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "accent_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
-                    "accent_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
-                    "accent_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "accent_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "accent_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "accent_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
-                    "accent_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
-                    "accent_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
-                    "accent_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
-                    "task_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
-                    "task_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
-                    "task_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
-                    "task_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "task_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "task_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
-                    "task_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
-                    "task_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
-                    "task_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
-                    "task_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird."
-                }
-            },
-            "feature_conf_switch_groups": {
-                "title": "Schaltergruppen",
-                "description": "Erstellt bereichsverwaltete Schaltergruppen für Schlaf-/Aufgaben-Szenarien. Jede Gruppe kann festlegen, ob die Zustandsaktion Schalter ein- oder ausschaltet.",
-                "data": {
-                    "sleep_switches": "Schlaf-Schalter",
-                    "sleep_switches_states": "Zustände, in denen Schlaf-Schalter eingeschaltet sind",
-                    "sleep_switches_act_on": "Wann sollen Schlaf-Schalter gesteuert werden?",
-                    "sleep_switches_action": "Aktion für Schlaf-Schalter",
-                    "task_switches": "Aufgaben-Schalter",
-                    "task_switches_states": "Zustände, in denen Aufgaben-Schalter eingeschaltet sind",
-                    "task_switches_act_on": "Wann sollen Aufgaben-Schalter gesteuert werden?",
-                    "task_switches_action": "Aktion für Aufgaben-Schalter"
-                }
-            },
-            "feature_conf_presence_hold": {
-                "title": "Anwesenheitshalteschalter",
-                "description": "Erstellt einen Schalter, der einen Bereich als belegt markiert hält (während der Schalter eingeschaltet ist). Wenn der Schalter häufig eingeschaltet bleibt, kann ein Timeout definiert werden, nach dessen Ablauf der Schalter automatisch ausgeschaltet wird.",
-                "data": {
-                    "presence_hold_timeout": "Zeit, nach der der Schalter automatisch ausgeschaltet wird. (0 = Timeout deaktiviert)."
-                }
-            },
-            "feature_conf_room_usage": {
-                "title": "Reinigungs-Tracker",
-                "description": "Erfasst die kumulierte Anwesenheit seit der letzten Reinigung und berechnet, wann die Reinigung fällig ist.",
-                "data": {
-                    "presence_minutes_to_due": "Anwesenheitszeit bis zur fälligen Reinigung"
-                },
-                "data_description": {
-                    "presence_minutes_to_due": "Kumulierte belegte Minuten, die einem Reinigungswert von 100 % entsprechen."
-                }
-            },
-            "feature_conf_area_aware_media_player": {
-                "title": "Funktion: Bereichsabhängiger Media Player",
-                "description": "Erstellt einen Media Player, der Wiedergabeaufrufe nur an Media Player in besetzten Bereichen weiterleitet. Dies ist nützlich, wenn TTS-Benachrichtigungen nur in belegten Bereichen abgespielt werden sollen. Diese Funktion ist unabhängig von `Media-Player-Gruppen`; nur Media-Player-Gruppen erstellen eine Gruppensteuerung im Raum. Diese Funktion verfügt über Konfigurationsoptionen in jedem Bereich. Achtung: der Media Player wird nur erstellt, wenn ein `globaler` Metabereich eingerichtet wurde.",
-                "data": {
-                    "notification_devices": "Für die Übertragung verwendete Media Player",
-                    "notification_states": "Benachrichtigungen nur in diesen Zuständen abspielen"
-                },
-                "data_description": {
-                    "notification_states": "Benachrichtigungen werden nur abgespielt, wenn sich ein Bereich in einem dieser Zustände befindet. Die Verwendung von `Erweitert` stellt sicher, dass in Bereichen, die gerade erst passiert wurden, keine Benachrichtungen abgespielt werden."
-                }
-            },
-            "feature_conf_aggregates": {
-                "title": "Funktion: Aggregierte Sensoren",
-                "description": "Wenn mehrere `Sensoren` (oder `binäre Sensoren`) desselben Typs existieren, kann Adaptive Areas diese zu einer Einheit zusammenfassen, so dass Durchschnittswerte (oder Summen) von Sensoren oder der kombinierte Zustand von binären Sensoren berechnet wird. Dies ist auch dann nützlich, wenn derzeit nur ein Sensor jeder Art existiert, da der Aggregatssensor in Automatisierungen verwendet und in Zukunft erweitert werden kann, ohne Automatisierungen neu erstellen/anpassen zu müssen.",
-                "data": {
-                    "aggregates_min_entities": "Mindestanzahl von Entitäten derselben Geräteklasse, die zum Erstellen von Aggregatsensoren erforderlich ist.",
-                    "aggregates_binary_sensor_device_classes": "Zu aggregierende Geräteklassen für binäre Sensoren.",
-                    "aggregates_sensor_device_classes": "Zu aggregierende Geräteklassen für Sensoren.",
-                    "aggregates_illuminance_threshold": "Beleuchtungsstärkeschwelle für diesen Bereich",
-                    "aggregates_illuminance_threshold_hysteresis": "Hysterese für Beleuchtungsstärkeschwellensensor"
-                },
-                "data_description": {
-                    "aggregates_illuminance_threshold": "Adaptive Areas erstellt einen binären `Licht` Sensor, der erkennt, wenn die Gesamtbeleuchtungsstärke des Bereichs diesen Schwellenwert überschreitet. Erfordert, dass die Geräteklasse `Beleuchtungsstärke` für den aggregierten Sensor ausgewählt ist. Zum Deaktivieren auf 0 setzen.",
-                    "aggregates_illuminance_threshold_hysteresis": "Hysterese definiert, wie empfindlich der Sensor auf Änderungen reagiert. Ein Wert von 0 bewirkt, dass der Sensorzustand jedes Mal umschaltet, wenn die Beleuchtungsstärke den festgelegten Schwellenwert überschreitet. Positive Werte bedeuten, dass der Sensor nur dann den Zustand ändert, wenn der Schwellenwert um einen bestimmten Betrag überschritten wird (ausgedrückt als Prozentsatz des zuvor festgelegten Schwellenwertes). Das Erhöhen dieses Werts kann nützlich sein, wenn der Sensor als Lichtsensor für seinen eigenen Bereich verwenden werden soll."
-                }
-            },
-            "feature_conf_fan_groups": {
-                "title": "Funktion: Lüftergruppen",
-                "description": "Alle Lüfter Entitäten eines Bereichs gruppieren. Mit dieser Funktion lassen sich Lüfter automatisch steuern – abhängig vom Status eines Bereichs und dem Wert eines Aggregatsensors (z. B. Temperatur). Wird ein definierter Schwellenwert überschritten, schaltet sich der Lüfter ein; fällt der Wert darunter, wird der Lüfter wieder ausgeschaltet. Für die Lüftersteuerung muss die Funktion `Aggregierte Sensoren` aktiviert und die passende Gerätekategorien ausgewählt sein.",
-                "data": {
-                    "required_state": "Erforderlicher Zustand",
-                    "tracked_device_class": "Überwachte Gerätekategorie",
-                    "setpoint": "Schwellwert"
-                },
-                "data_description": {
-                    "required_state": "Zustand, den der Bereich haben muss, damit die Lüftergruppe eingeschaltet wird.",
-                    "tracked_device_class": "Gerätekategorien, deren aggregierte Werte überwacht werden sollen.",
-                    "setpoint": "Wert, den der überwachte Aggregatsensor mindestens erreichen muss, damit die Lüftergruppe eingeschaltet wird."
-                }
-            },
-            "feature_conf_environment": {
-                "title": "Bereichsklima",
-                "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung. Gefundene Fähigkeiten: {temperature_count} Temperatur-, {humidity_count} Feuchte- und {window_count} Fensterquellen.",
-                "data": {
-                    "room_category": "Bereichskategorie",
-                    "area_temperature_sensor": "Bereichstemperatursensor",
-                    "area_humidity_sensor": "Bereichsluftfeuchtigkeitssensor",
-                    "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
-                    "outdoor_humidity_entity": "Außenluftfeuchtequelle (optional)",
-                    "surface_temperature_entity": "Temperatur einer kühlen Oberfläche (optional)",
-                    "relevant_windows": "Relevante Fenster (automatisch, wenn leer)",
-                    "passive_cooling_temperature_difference": "Mindesttemperaturdifferenz für passive Kühlung",
-                    "humidity_warning_duration": "Warnzeit bei hoher Luftfeuchtigkeit"
-                },
-                "data_description": {
-                    "room_category": "Legt bei Innenbereichen den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
-                    "area_temperature_sensor": "Autoritative Temperaturquelle dieses Bereichs. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar; die Geräteklasse dient nur als automatischer Vorschlag.",
-                    "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Bereichs. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar; die Geräteklasse dient nur als automatischer Vorschlag.",
-                    "outdoor_temperature_entity": "Eine explizite Außenquelle auswählen, wenn die automatische Erkennung über Außenbereiche nicht eindeutig ist.",
-                    "outdoor_humidity_entity": "Wird zusammen mit der Außentemperatur zum Vergleich von Feuchtegehalt und Enthalpie verwendet. Leer lassen für automatische Erkennung aus Außenbereichen.",
-                    "surface_temperature_entity": "Optionale Messung einer kühlen Oberfläche. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar.",
-                    "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften."
-                }
-            },
-            "feature_conf_climate_control": {
-                "title": "Funktion: Klimasteuerung > Auswahl der Entität",
-                "description": "Wähle die Klimaentität die anhand des Bereichszustands gesteuert werden soll.",
-                "data": {
-                    "entity_id": "Klimaentität"
-                },
-                "data_description": {
-                    "entity_id": "Klimaentität die gesteuert werden soll"
-                }
-            },
-            "feature_conf_climate_control_select_presets": {
-                "title": "Funktion: Klimasteuerung > Zuweisung von Presets",
-                "description": "Klimaentität steuern, indem Bereichszustände definierten Presets zugewiesen werden. `Schlaf` hat Vorrang vor `Erweitert`, `Erweitert` vor `Belegt`. Weise einem Bereichszustand ein leeres Preset zu, um Preset-Änderungen für diesen Zustand zu deaktivieren.",
-                "data": {
-                    "preset_clear": "Frei",
-                    "preset_occupied": "Belegt",
-                    "preset_sleep": "Schlaf",
-                    "preset_extended": "Erweitert",
-                    "climate_occupancy_threshold": "Belegt-Voreinstellung anwenden nach ... Minuten"
-                },
-                "data_description": {
-                    "preset_clear": "Preset, das beim Zustand `Frei` gesetzt wird",
-                    "preset_occupied": "Preset, das beim Zustand `Belegt` gesetzt wird",
-                    "preset_sleep": "Preset, das beim Zustand `Schlaf` gesetzt wird",
-                    "preset_extended": "Preset, das beim Zustand `Erweitert` gesetzt wird",
-                    "climate_occupancy_threshold": "Verhindert, dass kurzes Betreten eines Raumes sofort die Belegt-Voreinstellung anwendet."
-                }
-            },
-            "feature_conf_ble_trackers": {
-                "title": "BLE-Tracker-Integration",
-                "description": "Verfolgt Sensoren von BLE-Trackern und erstellt einen entsprechenden `occupancy`-Binärsensor für den Bereich, der aktiviert wird, wenn der BLE-Tracker-Sensor einen Zustand hat, der dem Namen oder der ID des Bereichs entspricht. **Diese Funktion führt _KEIN_ BLE-Tracking selbst durch.**",
-                "data": {
-                    "ble_tracker_entities": "Zu verfolgende BLE-Tracker Entitäten."
-                },
-                "data_description": {
-                    "ble_tracker_entities": "BLE-Tracker wie room-assistant, Bermuda und ESPresence erstellen Sensoren, die ihren Zustand je nach Bereich ändern, dem sich das Gerät näher befand."
-                }
-            },
-            "feature_conf_wasp_in_a_box": {
-                "title": "Wasp in a Box",
-                "description": "Wenn eine Wespe erkannt wird, ist sie in der Box. Wird die Box geschlossen, bleibt die Wespe darin. Bleibt die Box geschlossen und die Wespe bewegt sich nicht, wird angenommen, dass sie noch in der Box ist. Öffnet sich die Box und die Wespe bewegt sich nicht, gilt sie als entkommen (nicht mehr in der Box). Diese Funktion überwacht die `Tür`-Aggregatssensoren als Box und die `Bewegung`-Aggregatssensoren als Wespe. Ein neuer Binärsensor wird erstellt und automatisch auf Anwesenheit geprüft.",
-                "data": {
-                    "delay": "Verzögerung",
-                    "wasp_timeout": "Inaktivitäts-Timeout",
-                    "wasp_device_classes": "Gerätekategorien der Wespe"
-                },
-                "data_description": {
-                    "delay": "Wartezeit, bevor nach einer Wespe gesucht wird, nachdem sich der Zustand der Box geändert hat. Auf 0 setzen, um die Funktion zu deaktivieren.",
-                    "wasp_timeout": "Wenn größer als 0, wird die Wespe nach dieser Zeitspanne der Inaktivität als abwesend betrachtet.",
-                    "wasp_device_classes": "Wenn andere Aggregate als Wespe berücksichtigt werden sollen, bitte aus der Liste auswählen."
-                }
-            },
-            "secondary_states": {
-                "title": "Erweiterte Statusverfolgung",
-                "description": "Sekundäre Zustände für einen Adaptive Area aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
-                "data": {
-                    "dark_entity": "Lichtsensor des Bereichs",
-                    "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
-                    "sleep_timeout": "Wie lange soll der Bereich warten, bevor sein Status im Schlafzustand freigegeben wird?",
-                    "accent_entity": "Entität zur Verfolgung des akzentuierten Zustands eines Bereichs",
-                    "extended_time": "Der Bereich wird nach einer so langen Belegung als `erweitert` markiert",
-                    "extended_timeout": "Wie lange soll der Bereich warten, bevor sein Status freigegeben wird, wenn er sich im erweiterten Zustand befindet?",
-                    "calculation_mode": "Berechnungsmethode für die erweiterte Statusverfolgung"
-                },
-                "data_description": {
-                    "dark_entity": "Der Lichtsensor des Bereichs wird verwendet, um den Helligkeitsstatus eines Bereichs (hell/dunkel) zu verfolgen. Dieser wird von Funktionen wie Lichtgruppen verwendet, um Lichter je nach helligkeitsabhängig ein-/auszuschalten.\n\n**Die Verwendung von `Licht`-Sensoren im selben Bereich sollte vermieden werden, da dies zu einer Rückkopplung führen kann.** Es wird empfohlen, entweder `sun.sun` oder einen externen `Licht`-Sensor zu verwenden, der von den gesteuerten Lichtern nicht beeinflusst wird.",
-                    "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
-                    "sleep_timeout": "Wie lange soll der Bereich warten, bevor sein Status im Schlafzustand freigegeben wird?",
-                    "accent_entity": "Entität zur Verfolgung des akzentuierten Zustands eines Bereichs",
-                    "extended_time": "Der Bereich wird nach einer so langen Belegung als `erweitert` markiert",
-                    "extended_timeout": "Wie lange soll der Bereich warten, bevor sein Status freigegeben wird, wenn er sich im erweiterten Zustand befindet?",
-                    "calculation_mode": "Mode of calculating the meta-area secondary states from their children. 'Any' means if any area has the state, 'All' means all areas have to have the state and 'Majority' means >50% of the areas have to have the state."
-                }
-            },
-            "area_config": {
-                "title": "Grundlegende Bereichsoptionen",
-                "description": "Grundlegende Optionen des Bereichs konfigurieren. Die Bereichsart wird zur Zuweisung in die Metabereiche Innenbereich/Außenbereich/Global verwendet. Mithilfe der Optionen zum Ein-/Ausschließen von Entitäten kann genau festgelegt werden, welche Entitäten durch Adaptive Areas analysiert werden.",
-                "data": {
-                    "include_entities": "Entitäten in die Analyse einschließen",
-                    "exclude_entities": "Entitäten von der Analyse ausschließen",
-                    "presence_control_entities": "Anwesenheitsfreigabe durch Entitäten",
-                    "type": "Bereichsart (innen/außen)",
-                    "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
-                    "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren"
-                },
-                "data_description": {
-                    "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer Adaptive-Areas-Entitäten. Damit kann der binäre Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs dienen.",
-                    "exclude_entities": "Die hier aufgeführten Entitäten werden von Adaptive Areas vollständig ignoriert. Diese Option verwenden, wenn Entitäten die Daten verfälschen würden, wie z.B. Temperatursensoren von Geräten.",
-                    "presence_control_entities": "Optional. Wenn Entitäten gesetzt sind, wird Bewegung im Raum nur ausgewertet, wenn mindestens eine dieser Entitäten aktiv ist. Die Entitäten setzen den Raum nicht selbst auf belegt.",
-                    "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
-                    "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
-                    "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind."
-                }
-            },
-            "presence_tracking": {
-                "title": "Anwesenheitsverfolgung",
-                "description": "Konfigurieren, welche Domänen und binären Sensorgeräteklassen für die Anwesenheitsverfolgung verwendet werden. Adaptive Areas findet aktuell {presence_source_count} passende Quellen.",
-                "data": {
-                    "presence_sensor_device_class": "Geräteklassen für Anwesenheitssensoren",
-                    "presence_device_platforms": "Domänen zur Anwesenheitsverfolgung",
-                    "keep_only_entities": "Bestätigende Entitäten",
-                    "clear_timeout": "Timeout"
-                },
-                "data_description": {
-                    "presence_device_platforms": "Binäre Sensoren sind die Standardquelle für die Anwesenheitsverfolgung. Es können aber bspw. auch Media Player verwendet werden.",
-                    "presence_sensor_device_class": "Welche Geräteklassen von `binären Sensoren` sollen für die Anwesenheitsverfolgung verwendet werden. Übliche aber nicht standardmäßige Optionen sind Tür- und Feuchtigkeitssensoren.",
-                    "keep_only_entities": "Entitäten auswählen, die lediglich als Bestätigung dienen und nur dann berücksichtigt werden, wenn der Bereich bereits belegt ist. Dies ist nützlich, um zu verhindern, dass überempfindliche Sensoren wie mmWave-Sensoren und BLE-Tracker die Anwesenheit eines Bereichs fälschlicherweise auslösen.",
-                    "clear_timeout": "Wie lange soll seit dem letzten Anwesenheitsereignis gewartet werden, bevor der Bereich freigegeben wird?"
-                }
-            }
-        },
-        "error": {
-            "option_error": "Ungültige Option",
-            "malformed_input": "Diese Eingabe ist ungültig",
-            "light_ownership_conflict_overhead": "{light} ist bereits der Gruppe „Deckenleuchten“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
-            "light_ownership_conflict_sleep": "{light} ist bereits der Gruppe „Schlaflichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
-            "light_ownership_conflict_accent": "{light} ist bereits der Gruppe „Akzentlichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
-            "light_ownership_conflict_task": "{light} ist bereits der Gruppe „Arbeitslichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
-            "light_group_unresolved": "Die Lichtgruppe {light} konnte nicht aufgelöst werden, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
-            "light_entity_unknown": "{light} ist Home Assistant unbekannt, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
-            "no_entity_selected": "Keine Entität ausgewählt",
-            "invalid_entity": "Ungültige Entität ausgewählt",
-            "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi",
-            "excluded_primary_source": "Ein primärer Bereichsklimasensor kann nicht zugleich ausgeschlossen werden",
-            "invalid_primary_source": "Einen Sensor auswählen, der diesem Home-Assistant-Bereich zugeordnet ist"
-        }
-    },
-    "entity": {
-        "binary_sensor": {
-            "area_state": {
-                "name": "Status",
-                "state": {
-                  "off": "Frei",
-                  "on": "Belegt"
-                },
-                "state_attributes": {
-                  "areas": {
-                    "name": "Bereiche"
-                  },
-                  "states": {
-                    "name": "Zustände",
-                    "state": {
-                      "clear": "Frei",
-                      "occupied": "Belegt",
-                      "extended": "Erweitert",
-                      "sleep": "Schlaf",
-                      "dark": "Dunkel",
-                      "bright": "Hell"
-                    }
-                  },
-                  "active_sensors": {
-                    "name": "Aktive Sensoren"
-                  },
-                  "last_active_sensors": {
-                    "name": "Zuletzt aktive Sensoren"
-                  },
-                  "presence_sensors": {
-                    "name": "Präsenzsensoren"
-                  },
-                  "type": {
-                    "name": "Type",
-                    "state": {
-                      "interior": "Innen",
-                      "exterior": "Außen"
-                    }
-                  },
-                  "clear_timeout": {
-                    "name": "Timeout"
-                  },
-                  "occupied_since": {"name": "Belegt seit"},
-                  "last_activity": {"name": "Letzte Aktivität"},
-                  "last_cleared": {"name": "Zuletzt freigegeben"},
-                  "clear_at": {"name": "Voraussichtlich frei um"},
-                  "configured_source_count": {"name": "Konfigurierte Quellen"},
-                  "available_source_count": {"name": "Verfügbare Quellen"},
-                  "active_source_count": {"name": "Aktive Quellen"},
-                  "active_sources": {"name": "Liste aktiver Quellen"},
-                  "last_active_sources": {"name": "Zuletzt aktive Quellen"},
-                  "last_reason": {"name": "Letzter Grund"},
-                  "last_transition": {"name": "Letzter Übergang"},
-                  "active_states": {"name": "Aktive Zustände"}
-                }
-            },
-            "ble_tracker_monitor": {
-              "name": "BLE-Tracker Belegung"
-            },
-            "cleaning_due": {
-                "name": "Reinigung fällig",
-                "state": {
-                    "off": "Nicht fällig",
-                    "on": "Fällig"
-                },
-                "state_attributes": {
-                    "cleaning_score": {"name": "Reinigungswert"},
-                    "cleaning_state": {"name": "Reinigungszustand"},
-                    "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
-                    "presence_minutes_since_cleaning": {"name": "Anwesenheit seit Reinigung"},
-                    "presence_minutes_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
-                    "remaining_minutes_to_due": {"name": "Restzeit bis Fälligkeit"},
-                    "overdue_minutes": {"name": "Überfällige Zeit"},
-                    "current_occupancy_duration_seconds": {"name": "Aktuelle Belegungsdauer"},
-                    "last_cleaned": {"name": "Zuletzt gereinigt"}
-                }
-            },
-            "health_problem": {
-                "name": "Umwelt",
-                "state": {
-                    "off": "OK",
-                    "on": "Problem"
-                }
-            },
-            "threshold_light": {
-                "name": "Licht (berechnet)"
-            },
-            "wasp_in_a_box": {
-                "name": "Wasp in a Box",
-                "state": {
-                    "off": "Keine Wespe in der Box",
-                    "on": "Wespe ist in der Box"
-                },
-                "state_attributes": {
-                    "wasp": {
-                        "name": "Wespe",
-                        "state": {
-                            "off": "Nicht gesehen",
-                            "on": "Gesehen"
-                        }
-                    },
-                    "box": {
-                        "name": "Box",
-                        "state": {
-                            "off": "Geschlossen",
-                            "on": "Offen"
-                        }
-                    }
-                }
-            }
-        },
-        "fan": {
-          "fan_group": {
-            "name": "Lüfter"
-          }
-        },
-        "cover": {
-            "cover_group_awning": {
-                "name": "Markisen"
-            },
-            "cover_group_blind": {
-                "name": "Jalousien"
-            },
-            "cover_group_curtain": {
-                "name": "Vorhänge"
-            },
-            "cover_group_damper": {
-                "name": "Klappen"
-            },
-            "cover_group_door": {
-                "name": "Türen"
-            },
-            "cover_group_garage": {
-                "name": "Garagentore"
-            },
-            "cover_group_gate": {
-                "name": "Tore"
-            },
-            "cover_group_shade": {
-                "name": "Rollos"
-            },
-            "cover_group_shutter": {
-                "name": "Rollladen"
-            },
-            "cover_group_window": {
-                "name": "Fenster"
-            },
-            "cover_group": {
-                "name": "Abdeckungen"
-            }
-        },
-        "light": {
-            "all_lights": {
-                "name": "Alle Lichter"
-            },
-            "overhead_lights": {
-                "name": "Deckenleuchten"
-            },
-            "task_lights": {
-                "name": "Arbeitslichter"
-            },
-            "accent_lights": {
-                "name": "Akzentlichter"
-            },
-            "sleep_lights": {
-                "name": "Schlaflichter"
-            }
-        },
-        "number": {
-            "environment_reference_temperature": {
-                "name": "Bereichsklima-Referenztemperatur"
-            }
-        },
-        "sensor": {
-            "environment": {
-                "name": "Bereichsklima",
-                "state": {
-                    "on": "Problem erkannt",
-                    "off": "Kein Problem"
-                },
-                "state_attributes": {
-                    "notices": {"name": "Hinweise"},
-                    "comfort": {
-                        "name": "Komfort",
-                        "state": {
-                            "cold": "Kalt",
-                            "cool": "Kühl",
-                            "comfortable": "Angenehm",
-                            "warm": "Warm",
-                            "hot": "Heiß",
-                            "very_hot": "Sehr heiß",
-                            "not_applicable": "Für diese Bereichskategorie nicht anwendbar",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "temperature_state": {
-                        "name": "Temperaturzustand",
-                        "state": {
-                            "cold": "Kalt", "cool": "Kühl", "comfortable": "Angenehm",
-                            "warm": "Warm", "hot": "Heiß", "very_hot": "Sehr heiß",
-                            "not_applicable": "Nicht anwendbar", "unknown": "Unbekannt"
-                        }
-                    },
-                    "humidity_comfort_state": {
-                        "name": "Feuchtekomfortzustand",
-                        "state": {
-                            "very_dry": "Sehr trocken", "dry": "Trocken", "normal": "Normal",
-                            "elevated": "Erhöht", "high": "Hoch", "very_high": "Sehr hoch",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "combined_comfort": {
-                        "name": "Kombinierter Komfort",
-                        "state": {
-                            "comfortable": "Angenehm", "temperature_cold": "Temperatur kalt",
-                            "temperature_cool": "Temperatur kühl", "temperature_warm": "Temperatur warm",
-                            "temperature_hot": "Temperatur heiß", "temperature_very_hot": "Temperatur sehr heiß",
-                            "humidity_too_dry": "Luft zu trocken", "humidity_too_high": "Luftfeuchte zu hoch",
-                            "multiple_deviations": "Mehrere Abweichungen", "not_applicable": "Nicht anwendbar",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "room_category": {
-                        "name": "Bereichskategorie",
-                        "state": {
-                            "living_sedentary": "Wohnen / sitzende Nutzung",
-                            "sleeping_rest": "Schlafen / Ruhe",
-                            "hygiene_wet": "Bad / Feuchtraum",
-                            "active_domestic": "Aktive Hausarbeit",
-                            "circulation_transient": "Flur / Durchgang",
-                            "service_storage": "Technik / Lager",
-                            "unconditioned": "Unbeheizt",
-                            "manual": "Manuell",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "thermal_profile": {"name": "Thermisches Profil"},
-                    "humidity": {
-                        "name": "Luftfeuchtigkeit",
-                        "state": {
-                            "very_dry": "Sehr trocken",
-                            "dry": "Trocken",
-                            "normal": "Normal",
-                            "elevated": "Erhöht",
-                            "high": "Hoch",
-                            "very_high": "Sehr hoch",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "mould_risk": {
-                        "name": "Schimmelrisiko-Indikator",
-                        "state": {
-                            "low": "Niedrig",
-                            "elevated": "Erhöht",
-                            "high": "Hoch",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "air_quality": {
-                        "name": "Luftqualität",
-                        "state": {
-                            "good": "Gut",
-                            "degraded": "Beeinträchtigt",
-                            "poor": "Schlecht",
-                            "critical": "Kritisch",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "pollutant_state": {
-                        "name": "Schadstofflage",
-                        "state": {
-                            "good": "Gut",
-                            "elevated": "Erhöht",
-                            "poor": "Schlecht",
-                            "critical": "Kritisch",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "ventilation": {
-                        "name": "Lüftung",
-                        "state": {
-                            "not_required": "Nicht erforderlich",
-                            "recommended": "Empfohlen",
-                            "required": "Erforderlich",
-                            "urgent": "Dringend erforderlich",
-                            "ventilating": "Wird gelüftet",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "ventilation_demand": {
-                        "name": "Lüftungsbedarf",
-                        "state": {
-                            "not_required": "Nicht erforderlich",
-                            "recommended": "Empfohlen",
-                            "required": "Erforderlich",
-                            "urgent": "Dringend erforderlich",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "ventilation_strategy": {
-                        "name": "Lüftungsstrategie",
-                        "state": {
-                            "none": "Keine",
-                            "passive": "Passiv",
-                            "mechanical": "Mechanisch",
-                            "filtered_mechanical": "Gefiltert mechanisch",
-                            "avoid_outdoor_air": "Außenluft vermeiden",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "air_cleaning_recommendation": {
-                        "name": "Luftreinigungsempfehlung",
-                        "state": {
-                            "none": "Keine",
-                            "recommended": "Empfohlen",
-                            "strongly_recommended": "Dringend empfohlen",
-                            "not_effective": "Für diesen Schadstoff nicht wirksam",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "ventilation_activity": {
-                        "name": "Lüftungsaktivität",
-                        "state": {
-                            "inactive": "Inaktiv",
-                            "ventilating": "Wird gelüftet"
-                        }
-                    },
-                    "cooling": {
-                        "name": "Kühlung",
-                        "state": {
-                            "not_required": "Nicht erforderlich",
-                            "passive_recommended": "Passive Kühlung empfohlen",
-                            "active_recommended": "Aktive Kühlung empfohlen",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "window_recommendation": {
-                        "name": "Fensterempfehlung",
-                        "state": {
-                            "none": "Keine",
-                            "open": "Öffnen",
-                            "close": "Schließen",
-                            "keep_closed": "Geschlossen halten"
-                        }
-                    },
-                    "ventilation_fan_request": {
-                        "name": "Lüfterbedarf",
-                        "state": {
-                            "none": "Keine",
-                            "low": "Niedrig",
-                            "high": "Hoch"
-                        }
-                    },
-                    "circulation_fan_request": {
-                        "name": "Umluftbedarf",
-                        "state": {
-                            "none": "Keine",
-                            "low": "Niedrig",
-                            "medium": "Mittel",
-                            "high": "Hoch"
-                        }
-                    },
-                    "available_capabilities": {
-                        "name": "Verfügbare Messgrößen",
-                        "state": {
-                            "temperature": "Temperatur",
-                            "humidity": "Luftfeuchtigkeit",
-                            "co2": "CO₂",
-                            "pm25": "PM2,5",
-                            "pm10": "PM10",
-                            "pm1": "PM1",
-                            "voc": "VOC",
-                            "voc_parts": "VOC-Anteil",
-                            "aqi": "Luftqualitätsindex",
-                            "co": "Kohlenmonoxid",
-                            "no2": "Stickstoffdioxid",
-                            "ozone": "Ozon",
-                            "ventilation_fans": "Lüftungsventilatoren",
-                            "windows": "Fenster",
-                            "outdoor_temperature": "Außentemperatur",
-                            "outdoor_humidity": "Außenluftfeuchtigkeit",
-                            "surface_temperature": "Oberflächentemperatur",
-                            "health": "Gesundheitswarnungen des Bereichs"
-                        }
-                    },
-                    "dew_point": {"name": "Taupunkttemperatur"},
-                    "temperature": {"name": "Temperatur"},
-                    "relative_humidity": {"name": "Relative Luftfeuchtigkeit"},
-                    "absolute_humidity": {"name": "Absolute Luftfeuchtigkeit"},
-                    "humidity_ratio": {"name": "Feuchteverhältnis"},
-                    "enthalpy": {"name": "Enthalpie der feuchten Luft"},
-                    "humidex": {"name": "Humidex-Hitzebelastungsindex"},
-                    "apparent_temperature": {"name": "Humidex (Kompatibilitätsattribut)"},
-                    "surface_temperature": {"name": "Oberflächentemperatur"},
-                    "surface_relative_humidity": {"name": "Relative Oberflächenfeuchte"},
-                    "mould_quality": {
-                        "name": "Qualität der Schimmelrisikobewertung",
-                        "state": {
-                            "surface_based": "Gemessene Oberflächentemperatur",
-                            "room_air_estimate": "Schätzung aus der Raumluft",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "mould_warning_duration_seconds": {"name": "Dauer der Schimmelrisikowarnung"},
-                    "outdoor_humidity_ratio": {"name": "Feuchteverhältnis außen"},
-                    "outdoor_enthalpy": {"name": "Enthalpie der Außenluft"},
-                    "moisture_ventilation": {
-                        "name": "Entfeuchtung durch Lüften",
-                        "state": {
-                            "favorable": "Außenluft ist trockener",
-                            "unfavorable": "Außenluft ist nicht trockener",
-                            "unknown": "Unbekannt"
-                        }
-                    },
-                    "air_exchange_suitability": {
-                        "name": "Eignung des Luftaustauschs",
-                        "state": {
-                            "favorable": "Günstig", "acceptable": "Akzeptabel",
-                            "unfavorable": "Ungünstig", "hazardous": "Gefährlich", "unknown": "Unbekannt"
-                        }
-                    },
-                    "pollutant_comparisons": {"name": "Schadstoffvergleich innen/außen"},
-                    "outdoor_pollutant_measurements": {"name": "Schadstoffmesswerte außen"},
-                    "outdoor_pollutant_assessments": {"name": "Schadstoffquellen außen"},
-                    "indoor_pollutant_measurements": {"name": "Schadstoffmesswerte innen"},
-                    "indoor_pollutant_assessments": {"name": "Schadstoffbewertungen innen"},
-                    "dominant_indoor_pollutant": {
-                        "name": "Dominanter Innenraumschadstoff",
-                        "state": {
-                            "co2": "CO₂", "pm25": "PM2,5", "pm10": "PM10",
-                            "co": "Kohlenmonoxid", "no2": "Stickstoffdioxid",
-                            "ozone": "Ozon", "voc": "VOC", "unknown": "Unbekannt"
-                        }
-                    },
-                    "pollutant_measurements": {"name": "Schadstoffmesswerte"},
-                    "pollutant_assessments": {"name": "Schadstoffbewertungen"},
-                    "indoor_source_entities": {"name": "Innenraum-Quellentitäten"},
-                    "outdoor_source_entities": {"name": "Außenluft-Quellentitäten"},
-                    "source_entities": {"name": "Verwendete Entitäten"},
-                    "ignored_sources": {"name": "Verworfene Entitäten"},
-                    "humidity_warning_duration_seconds": {"name": "Dauer der hohen Luftfeuchtigkeit"},
-                    "context": {"name": "Kontext"},
-                    "indoor_reason_codes": {"name": "Innenraum-Grundcodes"},
-                    "mitigation_reason_codes": {"name": "Maßnahmen-Grundcodes"},
-                    "reason_codes": {
-                        "name": "Grundcodes",
-                        "state": {
-                            "health_alert": "Eine Gesundheitswarnung des Bereichs ist aktiv",
-                            "very_high_co2": "CO₂ ist sehr hoch",
-                            "high_co2": "CO₂ ist hoch",
-                            "co2_hysteresis": "CO₂ liegt weiterhin über der Entwarnungsschwelle",
-                            "high_pm25": "PM2,5 ist erhöht",
-                            "high_pm10": "PM10 ist erhöht",
-                            "high_co": "Kohlenmonoxid ist erhöht",
-                            "high_no2": "Stickstoffdioxid ist erhöht",
-                            "high_aqi": "Luftqualitätsindex ist erhöht",
-                            "high_voc": "VOC-Wert ist erhöht",
-                            "mould_risk_elevated": "Schimmelrisiko ist erhöht",
-                            "mould_risk_high": "Schimmelrisiko ist hoch",
-                            "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
-                            "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
-                            "rapid_humidity_rise": "Luftfeuchtigkeit steigt schnell",
-                            "humidity_persistent_65": "Luftfeuchtigkeit über 65 % hält an",
-                            "humidity_high_70": "Luftfeuchtigkeit liegt über 70 %",
-                            "outdoor_air_polluted": "Außenluft ist belastet",
-                            "outdoor_air_cleaner": "Außenluft ist sauberer",
-                            "outdoor_air_quality_unknown": "Außenluftqualität ist unbekannt",
-                            "air_exchange_unfavorable": "Luftaustausch ist ungünstig",
-                            "air_exchange_hazardous": "Luftaustausch ist gefährlich",
-                            "no2_short_term_elevated": "NO₂-Einstundenwert ist erhöht",
-                            "no2_short_term_critical": "NO₂-Einstundenwert ist kritisch",
-                            "window_already_open": "Ein relevantes Fenster ist bereits offen",
-                            "ventilation_should_stop": "Die laufende Lüftung soll beendet werden",
-                            "window_should_remain_closed": "Das Fenster soll geschlossen bleiben",
-                            "room_too_warm": "Der Raum ist zu warm",
-                            "outdoor_air_cooler": "Die Außenluft ist kühler",
-                            "passive_cooling_available": "Passive Kühlung ist möglich",
-                            "outdoor_air_warmer": "Die Außenluft ist wärmer",
-                            "active_cooling_recommended": "Aktive Kühlung wird empfohlen",
-                            "outdoor_air_moisture_penalty": "Kühlere Außenluft bietet keinen Enthalpievorteil",
-                            "outdoor_air_drier": "Die Außenluft enthält weniger Feuchtigkeit",
-                            "outdoor_air_more_humid": "Die Außenluft enthält gleich viel oder mehr Feuchtigkeit",
-                            "window_closed": "Ein relevantes Fenster ist geschlossen",
-                            "ventilation_complete": "Der Lüftungsbedarf ist beendet",
-                            "filtered_mechanical_preferred": "Gefilterte mechanische Lüftung wird bevorzugt",
-                            "air_cleaning_preferred": "Luftreinigung wird bevorzugt"
-                        }
-                    }
-                }
-            },
-            "room_usage": {
-                "name": "Reinigungswert",
-                "state_attributes": {
-                    "cumulative_presence_seconds": {"name": "Kumulierte Anwesenheit"},
-                    "presence_minutes_to_due": {"name": "Anwesenheitszeit bis Fälligkeit"},
-                    "current_occupancy_duration_seconds": {"name": "Aktuelle Anwesenheitsdauer"},
-                    "last_cleaned": {"name": "Zuletzt gereinigt"}
-                }
-            }
-        },
-        "media_player": {
-            "media_player_group": {
-                "name": "Media Player"
-            },
-            "area_aware_media_player": {
-                "name": "Bereichsabhängiger Media Player"
-            }
-        },
-        "switch": {
-            "presence_hold": {
-                "name": "Anwesenheit halten"
-            },
-            "light_control": {
-                "name": "Lichtsteuerung"
-            },
-            "media_player_control": {
-                "name": "Media-Player-Gruppensteuerung"
-            },
-            "climate_control": {
-                "name": "Klimasteuerung"
-            },
-            "fan_control": {
-              "name": "Lüftersteuerung"
-            },
-            "task_switches": {
-                "name": "Aufgaben-Schalter"
-            },
-            "sleep_switches": {
-                "name": "Schlaf-Schalter"
-            },
-            "switch_group": {
-                "name": "Alle Schalter"
-            },
-            "switch_group_control": {
-                "name": "Schaltergruppensteuerung"
-            }
-        }
-    },
-    "selector": {
-      "area_type": {
-        "options": {
-          "interior": "Innen",
-          "exterior": "Außen"
-        }
-      },
-      "area_states": {
-        "options": {
-          "clear": "Frei",
-          "occupied": "Belegt",
-          "dark": "Dunkel",
-          "extended": "Erweitert",
-          "sleep": "Schlaf",
-          "accented": "Akzentmodus"
-        }
-      },
-      "light_activation": {
-        "options": {
-          "disabled": "Keine automatische Steuerung",
-          "occupied": "Bereich belegt",
-          "extended": "Erst nach längerer Belegung",
-          "sleep": "Schlafmodus",
-          "accented": "Akzentmodus"
-        }
-      },
-      "light_brightness": {
-        "options": {
-          "ignore": "Helligkeit ignorieren",
-          "require_dark": "Nur einschalten, wenn dunkel",
-          "turn_off": "Bei Helligkeit aktiv ausschalten",
-          "dark_on_bright_off": "Einschalten, wenn dunkel, und ausschalten, wenn hell"
-        }
-      },
-      "control_on": {
-        "options": {
-          "occupancy": "Wenn der Bereich von `Frei` auf `Belegt` wechselt",
-          "dark": "Wenn der Bereich zwischen `Hell` und `Dunkel` wechselt",
-          "extended": "Wenn der Bereich von `Belegt` auf `Erweitert` wechselt",
-          "sleep": "Wenn der Bereich auf `Schlaf` wechselt"
-        }
-      },
-      "calculation_mode": {
-        "options": {
-          "any": "Beliebig",
-          "all": "Alle",
-          "majority": "Mehrheit"
-        }
-      },
-      "room_category": {
-        "options": {
-          "living_sedentary": "Wohnen / sitzende Nutzung",
-          "sleeping_rest": "Schlafen / Ruhe",
-          "hygiene_wet": "Bad / Feuchtraum",
-          "active_domestic": "Aktive Hausarbeit",
-          "circulation_transient": "Flur / Durchgang",
-          "service_storage": "Technik / Lager",
-          "unconditioned": "Unbeheizt",
-          "manual": "Manuell"
+  "title": "Adaptive Areas",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Adaptive Area erstellen",
+        "description": "Wähle den Home-Assistant-Bereich aus, den Adaptive Areas verwalten soll.",
+        "data": {
+          "name": "Bereich"
         }
       }
     },
-    "services": {
-      "mark_cleaned": {
-        "name": "Bereich als gereinigt markieren",
-        "description": "Setzt den Reinigungswert der ausgewählten Bereiche auf 0 % und speichert den Reinigungszeitpunkt.",
-        "fields": {
-          "area_id": {"name": "Bereiche", "description": "Bereiche, die als gereinigt markiert werden sollen."}
-        }
-      },
-      "reset": {
-        "name": "Reinigungs-Tracker zurücksetzen",
-        "description": "Setzt den gespeicherten Reinigungs-Tracker-Zustand der ausgewählten Bereiche vollständig zurück.",
-        "fields": {
-          "area_id": {"name": "Bereiche", "description": "Bereiche, deren Tracker-Zustand zurückgesetzt werden soll."}
-        }
-      },
-      "set_score": {
-        "name": "Reinigungswert setzen",
-        "description": "Setzt den Reinigungswert der ausgewählten Bereiche und passt ihre kumulierte Anwesenheit entsprechend an.",
-        "fields": {
-          "area_id": {"name": "Bereiche", "description": "Bereiche, deren Reinigungswert gesetzt werden soll."},
-          "score": {"name": "Wert", "description": "Reinigungswert von 0 bis 100 %."}
-        }
-      }
-    },
-    "issues": {
-      "missing_area": {
-        "title": "Home-Assistant-Bereich fehlt",
-        "description": "Der Adaptive-Areas-Eintrag **{entry}** verweist auf einen Bereich oder ein Stockwerk, der bzw. das nicht mehr existiert. Konfiguriere oder entferne diesen Eintrag, nachdem du die betroffenen Automatisierungen geprüft hast. Adaptive Areas löscht oder erstellt den Bereich nicht automatisch neu."
-      },
-      "missing_entities": {
-        "title": "Konfigurierte Entitäten fehlen",
-        "description": "Der Adaptive-Areas-Eintrag **{entry}** enthält {count} nicht mehr vorhandene Entitätsreferenz(en) in {category_count} Konfigurationskategorie(n). Konfiguriere den Eintrag neu und wähle vorhandene Entitäten aus. Entitäten mit dem Zustand „Nicht verfügbar“ oder „Unbekannt“ gelten nicht als fehlend."
-      },
-      "no_presence_sources": {
-        "title": "Keine Anwesenheitsquelle für {entry}",
-        "description": "Adaptive Areas kann für diesen Bereich keine geeignete Anwesenheitsquelle finden. Prüfe die Bereichszuordnung und die Einstellungen zur Anwesenheitserkennung."
-      },
-      "environment_without_sources": {
-        "title": "Keine Umweltdaten für {entry}",
-        "description": "Area Climate ist aktiviert, kann in diesem Bereich aber keine verwertbaren Umweltdaten auswerten."
-      },
-      "invalid_entity_references": {
-        "title": "Ungültige Entitätszuordnung in {entry}",
-        "description": "{count} konfigurierte Entität(en) passen nicht zu der vorgesehenen Funktion. Prüfe die betroffenen Einstellungen."
-      },
-      "invalid_feature_configuration": {
-        "title": "Unvollständige Funktionskonfiguration in {entry}",
-        "description": "{count} Konfigurationsproblem(e) betreffen {feature_count} aktivierte Funktion(en). Prüfe die Integrationsoptionen."
-      },
-      "single_global_entry_migration": {
-        "title": "Migration der Adaptive-Areas-Konfiguration erforderlich",
-        "description": "Adaptive Areas muss bestehende Bereiche in einen zentralen Konfigurationseintrag überführen. Bereiche und Einstellungen bleiben erhalten. Status: {status}. Wähle „Beheben“ und bestätige, um die Migration zu starten."
-      }
-    },
-    "device": {
-        "global": {
-            "name": "Global"
-        },
-        "interior": {
-            "name": "Innen"
-        },
-        "exterior": {
-            "name": "Außen"
-        }
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits konfiguriert",
+      "invalid_area": "Der ausgewählte Bereich existiert nicht",
+      "no_more_areas": "Alle verfügbaren Bereiche sind bereits konfiguriert."
     }
+  },
+  "options": {
+    "step": {
+      "select_features": {
+        "title": "Funktionen auswählen",
+        "description": "Funktionen auswählen, die für diesen Bereich aktiviert werden sollen. Sofern Einstellungen für diese Funktion vorhanden sind, wird ein weiterer Menüeintrag zum Konfigurieren der Funktion angezeigt.",
+        "data": {
+          "light": "Zukünftige Lichtsteuerung aktivieren",
+          "fan_groups": "Lüftergruppen",
+          "climate_control": "Klimasteuerung",
+          "media_player_groups": "Media-Player-Gruppen erstellen",
+          "light_groups": "Lichtgruppen",
+          "cover_groups": "Abdeckungsgruppen",
+          "area_aware_media_player": "Bereichsabhängiger Media Player",
+          "aggregates": "Aggregierte Sensoren",
+          "health": "Bereichsgesundheit",
+          "presence_hold": "Anwesenheitshalteschalter",
+          "ble_trackers": "BLE-Tracker-Überwachung",
+          "switch_groups": "Schaltergruppen",
+          "wasp_in_a_box": "Wasp in a Box",
+          "environment": "Bereichsklima",
+          "room_usage": "Reinigungs-Tracker"
+        }
+      },
+      "show_menu": {
+        "title": "Adaptive Areas Optionen",
+        "description": "Adaptive Areas führt standardmäßig eine einfache Anwesenheitserkennung durch. Das volle Potential von Adaptive Areas wird erst durch Verwendung der erweiterten Statusverfolgung und Anpassung der Anwesenheitsverfolgung freigeschaltet! Die Einstellungen werden erst durch `Speichern und beenden` gespeichert.",
+        "menu_options": {
+          "area_config": "Allgemeine Bereichsoptionen",
+          "secondary_states": "Erweiterte Statusverfolgung",
+          "presence_tracking": "Anwesenheitsverfolgung",
+          "select_features": "Funktionen auswählen",
+          "finish": "Speichern und beenden",
+          "feature_conf_health": "Bereichsgesundheit konfigurieren",
+          "feature_conf_fan_groups": "Lüftergruppen konfigurieren",
+          "feature_conf_climate_control": "Klimasteuerung konfigurieren",
+          "feature_conf_light_groups": "Lichtgruppen konfigurieren",
+          "feature_conf_area_aware_media_player": "Bereichsabhängigen Media Player konfigurieren",
+          "feature_conf_aggregates": "Aggregierte Sensoren konfigurieren",
+          "feature_conf_presence_hold": "Anwesenheitshalteschalter konfigurieren",
+          "feature_conf_ble_trackers": "BLE-Tracker-Überwachung konfigurieren",
+          "feature_conf_wasp_in_a_box": "Wasp in a Box konfigurieren",
+          "feature_conf_switch_groups": "Schaltergruppen konfigurieren",
+          "feature_conf_environment": "Bereichsklima konfigurieren",
+          "feature_conf_room_usage": "Reinigungs-Tracker konfigurieren"
+        }
+      },
+      "feature_conf_health": {
+        "title": "Bereichsgesundheit",
+        "description": "Gesundheits-, Sicherheits- und Problemklassen von Binärsensoren auswählen, die in einer Bereichsgesundheitsentität zusammengefasst werden.",
+        "data": {
+          "health_binary_sensor_device_classes": "Zu verfolgende Geräteklassen"
+        }
+      },
+      "feature_conf_light_groups": {
+        "title": "Lichtgruppen",
+        "description": "Adaptive Areas erstellt diese 4 (plus 1 globale) Lichtgruppen (wenn ihnen Lichter zugewiesen werden). Dies sind standardmäßig einfache Lichtgruppen, die jedoch automatisch gesteuert werden können, wenn sie Bereichszuständen zugewiesen sind und der Lichtsteuerungsschalter eingeschaltet wird (wird mit Aktivieren dieser Funktion erstellt). Alle Lichter werden ausgeschaltet, wenn ein Bereich freigegeben wird. Zusätzliche Zustände können durch Konfigurieren von `Erweiterte Statusverfolgung` freigeschaltet werden.",
+        "data": {
+          "overhead_lights": "Deckenleuchten",
+          "overhead_lights_activation": "Deckenleuchten automatisch einschalten während",
+          "overhead_lights_brightness": "Helligkeitsverhalten der Deckenleuchten",
+          "overhead_lights_states": "In welchen Zuständen sollen Deckenleuchten eingeschaltet werden",
+          "overhead_lights_state_rules": "Zustandsregeln",
+          "overhead_lights_state_rules_rule_1": "Regel 1",
+          "overhead_lights_state_rules_rule_2": "Regel 2",
+          "overhead_lights_state_rules_rule_3": "Regel 3",
+          "overhead_lights_blocking_states": "In welchen Zuständen sollen Deckenleuchten blockiert werden",
+          "overhead_lights_require_dark": "Deckenleuchten nur bei Dunkelheit einschalten",
+          "overhead_lights_act_on": "Wann sollen die Deckenleuchten gesteuert werden?",
+          "overhead_lights_turn_off_when_bright": "Deckenleuchten bei Helligkeit ausschalten",
+          "sleep_lights": "Schlaflichter",
+          "sleep_lights_activation": "Schlaflichter automatisch einschalten während",
+          "sleep_lights_brightness": "Helligkeitsverhalten der Schlaflichter",
+          "sleep_lights_states": "In welchen Zuständen sollen Schlaflichter eingeschaltet werden",
+          "sleep_lights_state_rules": "Zustandsregeln",
+          "sleep_lights_state_rules_rule_1": "Regel 1",
+          "sleep_lights_state_rules_rule_2": "Regel 2",
+          "sleep_lights_state_rules_rule_3": "Regel 3",
+          "sleep_lights_blocking_states": "In welchen Zuständen sollen Schlaflichter blockiert werden",
+          "sleep_lights_require_dark": "Schlaflichter nur bei Dunkelheit einschalten",
+          "sleep_lights_act_on": "Wann sollen Schlaflichter gesteuert werden?",
+          "sleep_lights_turn_off_when_bright": "Schlaflichter bei Helligkeit ausschalten",
+          "accent_lights": "Akzentlichter",
+          "accent_lights_activation": "Akzentlichter automatisch einschalten während",
+          "accent_lights_brightness": "Helligkeitsverhalten der Akzentlichter",
+          "accent_lights_states": "In welchen Zuständen sollen Akzentlichter eingeschaltet werden",
+          "accent_lights_state_rules": "Zustandsregeln",
+          "accent_lights_state_rules_rule_1": "Regel 1",
+          "accent_lights_state_rules_rule_2": "Regel 2",
+          "accent_lights_state_rules_rule_3": "Regel 3",
+          "accent_lights_blocking_states": "In welchen Zuständen sollen Akzentlichter blockiert werden",
+          "accent_lights_require_dark": "Akzentlichter nur bei Dunkelheit einschalten",
+          "accent_lights_act_on": "Wann sollen die Akzentlichter gesteuert werden?",
+          "accent_lights_turn_off_when_bright": "Akzentlichter bei Helligkeit ausschalten",
+          "task_lights": "Arbeitslichter",
+          "task_lights_activation": "Arbeitslichter automatisch einschalten während",
+          "task_lights_brightness": "Helligkeitsverhalten der Arbeitslichter",
+          "task_lights_states": "In welchen Zuständen sollen Arbeitslichter eingeschaltet werden",
+          "task_lights_state_rules": "Zustandsregeln",
+          "task_lights_state_rules_rule_1": "Regel 1",
+          "task_lights_state_rules_rule_2": "Regel 2",
+          "task_lights_state_rules_rule_3": "Regel 3",
+          "task_lights_blocking_states": "In welchen Zuständen sollen Arbeitslichter blockiert werden",
+          "task_lights_require_dark": "Arbeitslichter nur bei Dunkelheit einschalten",
+          "task_lights_act_on": "Wann sollen die Arbeitslichter gesteuert werden?",
+          "task_lights_turn_off_when_bright": "Arbeitslichter bei Helligkeit ausschalten"
+        },
+        "data_description": {
+          "overhead_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
+          "overhead_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
+          "overhead_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+          "overhead_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "overhead_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "overhead_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "overhead_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
+          "overhead_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
+          "overhead_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
+          "overhead_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
+          "sleep_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
+          "sleep_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
+          "sleep_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+          "sleep_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "sleep_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "sleep_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "sleep_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
+          "sleep_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
+          "sleep_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
+          "sleep_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
+          "accent_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
+          "accent_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
+          "accent_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+          "accent_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "accent_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "accent_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "accent_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
+          "accent_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
+          "accent_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
+          "accent_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird.",
+          "task_lights_activation": "Wählen Sie genau eine eindeutige Bedingung für das automatische Einschalten.",
+          "task_lights_brightness": "Bestimmt, ob Helligkeit ignoriert wird, nur das Einschalten verhindert, eingeschaltete Lichter aktiv ausgeschaltet werden oder beide Regeln gelten.",
+          "task_lights_states": "Konfigurieren Sie, welche Bereichszustände diese Lichtgruppe auslösen. Lichtgruppen werden eingeschaltet, während sich der Bereich in diesem Zustand befindet, und ausgeschaltet, wenn der Bereich diese Zustände verliert. Wenn das Licht nach einer längeren Zeitspanne eingeschaltet bleiben soll, muss auch der Zustand `erweitert` ausgewählt werden.",
+          "task_lights_state_rules_rule_1": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "task_lights_state_rules_rule_2": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "task_lights_state_rules_rule_3": "Regelblöcke: Innerhalb einer Regel gilt UND, zwischen Regeln gilt ODER. Leere Regeln werden ignoriert.",
+          "task_lights_blocking_states": "Bei einem dieser Raumzustände bleibt die Lichtgruppe aus und wird bei Bedarf ausgeschaltet.",
+          "task_lights_require_dark": "Verhindert das automatische Einschalten, solange der Bereich `hell` ist. Bereits eingeschaltete Lichter bleiben an.",
+          "task_lights_act_on": "Soll diese Lichtgruppe nur beim ersten Betreten eines Bereichs, nur bei Zustandsänderungen des Bereichs oder bei beidem gesteuert werden.",
+          "task_lights_turn_off_when_bright": "Bei aktiver Option werden die Lichter ausgeschaltet, sobald der Bereich `hell` wird."
+        }
+      },
+      "feature_conf_switch_groups": {
+        "title": "Schaltergruppen",
+        "description": "Erstellt bereichsverwaltete Schaltergruppen für Schlaf-/Aufgaben-Szenarien. Jede Gruppe kann festlegen, ob die Zustandsaktion Schalter ein- oder ausschaltet.",
+        "data": {
+          "sleep_switches": "Schlaf-Schalter",
+          "sleep_switches_states": "Zustände, in denen Schlaf-Schalter eingeschaltet sind",
+          "sleep_switches_act_on": "Wann sollen Schlaf-Schalter gesteuert werden?",
+          "sleep_switches_action": "Aktion für Schlaf-Schalter",
+          "task_switches": "Aufgaben-Schalter",
+          "task_switches_states": "Zustände, in denen Aufgaben-Schalter eingeschaltet sind",
+          "task_switches_act_on": "Wann sollen Aufgaben-Schalter gesteuert werden?",
+          "task_switches_action": "Aktion für Aufgaben-Schalter"
+        }
+      },
+      "feature_conf_presence_hold": {
+        "title": "Anwesenheitshalteschalter",
+        "description": "Erstellt einen Schalter, der einen Bereich als belegt markiert hält (während der Schalter eingeschaltet ist). Wenn der Schalter häufig eingeschaltet bleibt, kann ein Timeout definiert werden, nach dessen Ablauf der Schalter automatisch ausgeschaltet wird.",
+        "data": {
+          "presence_hold_timeout": "Zeit, nach der der Schalter automatisch ausgeschaltet wird. (0 = Timeout deaktiviert)."
+        }
+      },
+      "feature_conf_room_usage": {
+        "title": "Reinigungs-Tracker",
+        "description": "Erfasst die kumulierte Anwesenheit seit der letzten Reinigung und berechnet, wann die Reinigung fällig ist.",
+        "data": {
+          "presence_minutes_to_due": "Anwesenheitszeit bis zur fälligen Reinigung"
+        },
+        "data_description": {
+          "presence_minutes_to_due": "Kumulierte belegte Minuten, die einem Reinigungswert von 100 % entsprechen."
+        }
+      },
+      "feature_conf_area_aware_media_player": {
+        "title": "Funktion: Bereichsabhängiger Media Player",
+        "description": "Erstellt einen Media Player, der Wiedergabeaufrufe nur an Media Player in besetzten Bereichen weiterleitet. Dies ist nützlich, wenn TTS-Benachrichtigungen nur in belegten Bereichen abgespielt werden sollen. Diese Funktion ist unabhängig von `Media-Player-Gruppen`; nur Media-Player-Gruppen erstellen eine Gruppensteuerung im Raum. Diese Funktion verfügt über Konfigurationsoptionen in jedem Bereich. Achtung: der Media Player wird nur erstellt, wenn ein `globaler` Metabereich eingerichtet wurde.",
+        "data": {
+          "notification_devices": "Für die Übertragung verwendete Media Player",
+          "notification_states": "Benachrichtigungen nur in diesen Zuständen abspielen"
+        },
+        "data_description": {
+          "notification_states": "Benachrichtigungen werden nur abgespielt, wenn sich ein Bereich in einem dieser Zustände befindet. Die Verwendung von `Erweitert` stellt sicher, dass in Bereichen, die gerade erst passiert wurden, keine Benachrichtungen abgespielt werden."
+        }
+      },
+      "feature_conf_aggregates": {
+        "title": "Funktion: Aggregierte Sensoren",
+        "description": "Wenn mehrere `Sensoren` (oder `binäre Sensoren`) desselben Typs existieren, kann Adaptive Areas diese zu einer Einheit zusammenfassen, so dass Durchschnittswerte (oder Summen) von Sensoren oder der kombinierte Zustand von binären Sensoren berechnet wird. Dies ist auch dann nützlich, wenn derzeit nur ein Sensor jeder Art existiert, da der Aggregatssensor in Automatisierungen verwendet und in Zukunft erweitert werden kann, ohne Automatisierungen neu erstellen/anpassen zu müssen.",
+        "data": {
+          "aggregates_min_entities": "Mindestanzahl von Entitäten derselben Geräteklasse, die zum Erstellen von Aggregatsensoren erforderlich ist.",
+          "aggregates_binary_sensor_device_classes": "Zu aggregierende Geräteklassen für binäre Sensoren.",
+          "aggregates_sensor_device_classes": "Zu aggregierende Geräteklassen für Sensoren.",
+          "aggregates_illuminance_threshold": "Beleuchtungsstärkeschwelle für diesen Bereich",
+          "aggregates_illuminance_threshold_hysteresis": "Hysterese für Beleuchtungsstärkeschwellensensor"
+        },
+        "data_description": {
+          "aggregates_illuminance_threshold": "Adaptive Areas erstellt einen binären `Licht` Sensor, der erkennt, wenn die Gesamtbeleuchtungsstärke des Bereichs diesen Schwellenwert überschreitet. Erfordert, dass die Geräteklasse `Beleuchtungsstärke` für den aggregierten Sensor ausgewählt ist. Zum Deaktivieren auf 0 setzen.",
+          "aggregates_illuminance_threshold_hysteresis": "Hysterese definiert, wie empfindlich der Sensor auf Änderungen reagiert. Ein Wert von 0 bewirkt, dass der Sensorzustand jedes Mal umschaltet, wenn die Beleuchtungsstärke den festgelegten Schwellenwert überschreitet. Positive Werte bedeuten, dass der Sensor nur dann den Zustand ändert, wenn der Schwellenwert um einen bestimmten Betrag überschritten wird (ausgedrückt als Prozentsatz des zuvor festgelegten Schwellenwertes). Das Erhöhen dieses Werts kann nützlich sein, wenn der Sensor als Lichtsensor für seinen eigenen Bereich verwenden werden soll."
+        }
+      },
+      "feature_conf_fan_groups": {
+        "title": "Funktion: Lüftergruppen",
+        "description": "Alle Lüfter Entitäten eines Bereichs gruppieren. Mit dieser Funktion lassen sich Lüfter automatisch steuern – abhängig vom Status eines Bereichs und dem Wert eines Aggregatsensors (z. B. Temperatur). Wird ein definierter Schwellenwert überschritten, schaltet sich der Lüfter ein; fällt der Wert darunter, wird der Lüfter wieder ausgeschaltet. Für die Lüftersteuerung muss die Funktion `Aggregierte Sensoren` aktiviert und die passende Gerätekategorien ausgewählt sein.",
+        "data": {
+          "required_state": "Erforderlicher Zustand",
+          "tracked_device_class": "Überwachte Gerätekategorie",
+          "setpoint": "Schwellwert"
+        },
+        "data_description": {
+          "required_state": "Zustand, den der Bereich haben muss, damit die Lüftergruppe eingeschaltet wird.",
+          "tracked_device_class": "Gerätekategorien, deren aggregierte Werte überwacht werden sollen.",
+          "setpoint": "Wert, den der überwachte Aggregatsensor mindestens erreichen muss, damit die Lüftergruppe eingeschaltet wird."
+        }
+      },
+      "feature_conf_environment": {
+        "title": "Bereichsklima",
+        "description": "Bewertet Bereichstemperatur, Luftfeuchtigkeit, Luftqualität und – bei Innenbereichen – Komfort, Schimmelrisiko, Lüftung und Kühlung. Gefundene Fähigkeiten: {temperature_count} Temperatur-, {humidity_count} Feuchte- und {window_count} Fensterquellen.",
+        "data": {
+          "room_category": "Bereichskategorie",
+          "area_temperature_sensor": "Bereichstemperatursensor",
+          "area_humidity_sensor": "Bereichsluftfeuchtigkeitssensor",
+          "outdoor_temperature_entity": "Außentemperaturquelle (optional)",
+          "outdoor_humidity_entity": "Außenluftfeuchtequelle (optional)",
+          "surface_temperature_entity": "Temperatur einer kühlen Oberfläche (optional)",
+          "relevant_windows": "Relevante Fenster (automatisch, wenn leer)",
+          "passive_cooling_temperature_difference": "Mindesttemperaturdifferenz für passive Kühlung",
+          "humidity_warning_duration": "Warnzeit bei hoher Luftfeuchtigkeit"
+        },
+        "data_description": {
+          "room_category": "Legt bei Innenbereichen den Bereichszweck für die kategoriespezifische thermische Einordnung fest. Bei Manuell wird die Referenztemperatur über die erzeugte numerische Entität eingestellt.",
+          "area_temperature_sensor": "Autoritative Temperaturquelle dieses Bereichs. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar; die Geräteklasse dient nur als automatischer Vorschlag.",
+          "area_humidity_sensor": "Autoritative Quelle für relative Luftfeuchtigkeit dieses Bereichs. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar; die Geräteklasse dient nur als automatischer Vorschlag.",
+          "outdoor_temperature_entity": "Eine explizite Außenquelle auswählen, wenn die automatische Erkennung über Außenbereiche nicht eindeutig ist.",
+          "outdoor_humidity_entity": "Wird zusammen mit der Außentemperatur zum Vergleich von Feuchtegehalt und Enthalpie verwendet. Leer lassen für automatische Erkennung aus Außenbereichen.",
+          "surface_temperature_entity": "Optionale Messung einer kühlen Oberfläche. Jeder Sensor des aktuellen Home-Assistant-Bereichs ist auswählbar.",
+          "relevant_windows": "Nur Fenstersensoren werden automatisch erkannt. Türen oder Öffnungen nur auswählen, wenn sie den Bereich tatsächlich belüften."
+        }
+      },
+      "feature_conf_climate_control": {
+        "title": "Funktion: Klimasteuerung > Auswahl der Entität",
+        "description": "Wähle die Klimaentität die anhand des Bereichszustands gesteuert werden soll.",
+        "data": {
+          "entity_id": "Klimaentität"
+        },
+        "data_description": {
+          "entity_id": "Klimaentität die gesteuert werden soll"
+        }
+      },
+      "feature_conf_climate_control_select_presets": {
+        "title": "Funktion: Klimasteuerung > Zuweisung von Presets",
+        "description": "Klimaentität steuern, indem Bereichszustände definierten Presets zugewiesen werden. `Schlaf` hat Vorrang vor `Erweitert`, `Erweitert` vor `Belegt`. Weise einem Bereichszustand ein leeres Preset zu, um Preset-Änderungen für diesen Zustand zu deaktivieren.",
+        "data": {
+          "preset_clear": "Frei",
+          "preset_occupied": "Belegt",
+          "preset_sleep": "Schlaf",
+          "preset_extended": "Erweitert",
+          "climate_occupancy_threshold": "Belegt-Voreinstellung anwenden nach ... Minuten"
+        },
+        "data_description": {
+          "preset_clear": "Preset, das beim Zustand `Frei` gesetzt wird",
+          "preset_occupied": "Preset, das beim Zustand `Belegt` gesetzt wird",
+          "preset_sleep": "Preset, das beim Zustand `Schlaf` gesetzt wird",
+          "preset_extended": "Preset, das beim Zustand `Erweitert` gesetzt wird",
+          "climate_occupancy_threshold": "Verhindert, dass kurzes Betreten eines Raumes sofort die Belegt-Voreinstellung anwendet."
+        }
+      },
+      "feature_conf_ble_trackers": {
+        "title": "BLE-Tracker-Integration",
+        "description": "Verfolgt Sensoren von BLE-Trackern und erstellt einen entsprechenden `occupancy`-Binärsensor für den Bereich, der aktiviert wird, wenn der BLE-Tracker-Sensor einen Zustand hat, der dem Namen oder der ID des Bereichs entspricht. **Diese Funktion führt _KEIN_ BLE-Tracking selbst durch.**",
+        "data": {
+          "ble_tracker_entities": "Zu verfolgende BLE-Tracker Entitäten."
+        },
+        "data_description": {
+          "ble_tracker_entities": "BLE-Tracker wie room-assistant, Bermuda und ESPresence erstellen Sensoren, die ihren Zustand je nach Bereich ändern, dem sich das Gerät näher befand."
+        }
+      },
+      "feature_conf_wasp_in_a_box": {
+        "title": "Wasp in a Box",
+        "description": "Wenn eine Wespe erkannt wird, ist sie in der Box. Wird die Box geschlossen, bleibt die Wespe darin. Bleibt die Box geschlossen und die Wespe bewegt sich nicht, wird angenommen, dass sie noch in der Box ist. Öffnet sich die Box und die Wespe bewegt sich nicht, gilt sie als entkommen (nicht mehr in der Box). Diese Funktion überwacht die `Tür`-Aggregatssensoren als Box und die `Bewegung`-Aggregatssensoren als Wespe. Ein neuer Binärsensor wird erstellt und automatisch auf Anwesenheit geprüft.",
+        "data": {
+          "delay": "Verzögerung",
+          "wasp_timeout": "Inaktivitäts-Timeout",
+          "wasp_device_classes": "Gerätekategorien der Wespe"
+        },
+        "data_description": {
+          "delay": "Wartezeit, bevor nach einer Wespe gesucht wird, nachdem sich der Zustand der Box geändert hat. Auf 0 setzen, um die Funktion zu deaktivieren.",
+          "wasp_timeout": "Wenn größer als 0, wird die Wespe nach dieser Zeitspanne der Inaktivität als abwesend betrachtet.",
+          "wasp_device_classes": "Wenn andere Aggregate als Wespe berücksichtigt werden sollen, bitte aus der Liste auswählen."
+        }
+      },
+      "secondary_states": {
+        "title": "Erweiterte Statusverfolgung",
+        "description": "Sekundäre Zustände für einen Adaptive Area aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
+        "data": {
+          "dark_entity": "Lichtsensor des Bereichs",
+          "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
+          "sleep_timeout": "Wie lange soll der Bereich warten, bevor sein Status im Schlafzustand freigegeben wird?",
+          "accent_entity": "Entität zur Verfolgung des akzentuierten Zustands eines Bereichs",
+          "extended_time": "Der Bereich wird nach einer so langen Belegung als `erweitert` markiert",
+          "extended_timeout": "Wie lange soll der Bereich warten, bevor sein Status freigegeben wird, wenn er sich im erweiterten Zustand befindet?",
+          "calculation_mode": "Berechnungsmethode für die erweiterte Statusverfolgung"
+        },
+        "data_description": {
+          "dark_entity": "Der Lichtsensor des Bereichs wird verwendet, um den Helligkeitsstatus eines Bereichs (hell/dunkel) zu verfolgen. Dieser wird von Funktionen wie Lichtgruppen verwendet, um Lichter je nach helligkeitsabhängig ein-/auszuschalten.\n\n**Die Verwendung von `Licht`-Sensoren im selben Bereich sollte vermieden werden, da dies zu einer Rückkopplung führen kann.** Es wird empfohlen, entweder `sun.sun` oder einen externen `Licht`-Sensor zu verwenden, der von den gesteuerten Lichtern nicht beeinflusst wird.",
+          "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
+          "sleep_timeout": "Wie lange soll der Bereich warten, bevor sein Status im Schlafzustand freigegeben wird?",
+          "accent_entity": "Entität zur Verfolgung des akzentuierten Zustands eines Bereichs",
+          "extended_time": "Der Bereich wird nach einer so langen Belegung als `erweitert` markiert",
+          "extended_timeout": "Wie lange soll der Bereich warten, bevor sein Status freigegeben wird, wenn er sich im erweiterten Zustand befindet?",
+          "calculation_mode": "Mode of calculating the meta-area secondary states from their children. 'Any' means if any area has the state, 'All' means all areas have to have the state and 'Majority' means >50% of the areas have to have the state."
+        }
+      },
+      "area_config": {
+        "title": "Grundlegende Bereichsoptionen",
+        "description": "Grundlegende Optionen des Bereichs konfigurieren. Die Bereichsart wird zur Zuweisung in die Metabereiche Innenbereich/Außenbereich/Global verwendet. Mithilfe der Optionen zum Ein-/Ausschließen von Entitäten kann genau festgelegt werden, welche Entitäten durch Adaptive Areas analysiert werden.",
+        "data": {
+          "include_entities": "Entitäten in die Analyse einschließen",
+          "exclude_entities": "Entitäten von der Analyse ausschließen",
+          "presence_control_entities": "Anwesenheitsfreigabe durch Entitäten",
+          "type": "Bereichsart (innen/außen)",
+          "reload_on_registry_change": "Bereich bei Registry-Update neu laden",
+          "ignore_diagnostic_entities": "Diagnose- und Konfigurationsentitäten ignorieren"
+        },
+        "data_description": {
+          "include_entities": "Adaptive Areas kann Entitäten aus anderen Bereichen berücksichtigen, einschließlich anderer Adaptive-Areas-Entitäten. Damit kann der binäre Anwesenheitssensor eines Bereichs auch als Anwesenheitssensor eines anderen Bereichs dienen.",
+          "exclude_entities": "Die hier aufgeführten Entitäten werden von Adaptive Areas vollständig ignoriert. Diese Option verwenden, wenn Entitäten die Daten verfälschen würden, wie z.B. Temperatursensoren von Geräten.",
+          "presence_control_entities": "Optional. Wenn Entitäten gesetzt sind, wird Bewegung im Raum nur ausgewertet, wenn mindestens eine dieser Entitäten aktiv ist. Die Entitäten setzen den Raum nicht selbst auf belegt.",
+          "type": "Durch die Definition einer Bereichsart können Metabereiche für den Innen- und Außenbereich erstellt werden.",
+          "reload_on_registry_change": "Diesen Adaptive Area automatisch neu laden, wenn ein Gerät oder eine Entität einem Bereich zugeordnet wird.",
+          "ignore_diagnostic_entities": "Adaptive Areas kann diagnostische und Konfigurationsentitäten ignorieren, die normalerweise nicht relevant sind."
+        }
+      },
+      "presence_tracking": {
+        "title": "Anwesenheitsverfolgung",
+        "description": "Konfigurieren, welche Domänen und binären Sensorgeräteklassen für die Anwesenheitsverfolgung verwendet werden. Adaptive Areas findet aktuell {presence_source_count} passende Quellen.",
+        "data": {
+          "presence_sensor_device_class": "Geräteklassen für Anwesenheitssensoren",
+          "presence_device_platforms": "Domänen zur Anwesenheitsverfolgung",
+          "keep_only_entities": "Bestätigende Entitäten",
+          "clear_timeout": "Timeout"
+        },
+        "data_description": {
+          "presence_device_platforms": "Binäre Sensoren sind die Standardquelle für die Anwesenheitsverfolgung. Es können aber bspw. auch Media Player verwendet werden.",
+          "presence_sensor_device_class": "Welche Geräteklassen von `binären Sensoren` sollen für die Anwesenheitsverfolgung verwendet werden. Übliche aber nicht standardmäßige Optionen sind Tür- und Feuchtigkeitssensoren.",
+          "keep_only_entities": "Entitäten auswählen, die lediglich als Bestätigung dienen und nur dann berücksichtigt werden, wenn der Bereich bereits belegt ist. Dies ist nützlich, um zu verhindern, dass überempfindliche Sensoren wie mmWave-Sensoren und BLE-Tracker die Anwesenheit eines Bereichs fälschlicherweise auslösen.",
+          "clear_timeout": "Wie lange soll seit dem letzten Anwesenheitsereignis gewartet werden, bevor der Bereich freigegeben wird?"
+        }
+      }
+    },
+    "error": {
+      "option_error": "Ungültige Option",
+      "malformed_input": "Diese Eingabe ist ungültig",
+      "light_ownership_conflict_overhead": "{light} ist bereits der Gruppe „Deckenleuchten“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+      "light_ownership_conflict_sleep": "{light} ist bereits der Gruppe „Schlaflichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+      "light_ownership_conflict_accent": "{light} ist bereits der Gruppe „Akzentlichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+      "light_ownership_conflict_task": "{light} ist bereits der Gruppe „Arbeitslichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+      "light_group_unresolved": "Die Lichtgruppe {light} konnte nicht aufgelöst werden, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
+      "light_entity_unknown": "{light} ist Home Assistant unbekannt, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
+      "no_entity_selected": "Keine Entität ausgewählt",
+      "invalid_entity": "Ungültige Entität ausgewählt",
+      "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi",
+      "excluded_primary_source": "Ein primärer Bereichsklimasensor kann nicht zugleich ausgeschlossen werden",
+      "invalid_primary_source": "Einen Sensor auswählen, der diesem Home-Assistant-Bereich zugeordnet ist",
+      "expected_illuminance_sensor": "Erwartet wird ein Helligkeitssensor (numerischer Lux-Sensor, Einheit lx).",
+      "unknown_illuminance_sensor": "Unbekannter Helligkeitssensor."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "area_state": {
+        "name": "Status",
+        "state": {
+          "off": "Frei",
+          "on": "Belegt"
+        },
+        "state_attributes": {
+          "areas": {
+            "name": "Bereiche"
+          },
+          "states": {
+            "name": "Zustände",
+            "state": {
+              "clear": "Frei",
+              "occupied": "Belegt",
+              "extended": "Erweitert",
+              "sleep": "Schlaf",
+              "dark": "Dunkel",
+              "bright": "Hell"
+            }
+          },
+          "active_sensors": {
+            "name": "Aktive Sensoren"
+          },
+          "last_active_sensors": {
+            "name": "Zuletzt aktive Sensoren"
+          },
+          "presence_sensors": {
+            "name": "Präsenzsensoren"
+          },
+          "type": {
+            "name": "Type",
+            "state": {
+              "interior": "Innen",
+              "exterior": "Außen"
+            }
+          },
+          "clear_timeout": {
+            "name": "Timeout"
+          },
+          "occupied_since": {
+            "name": "Belegt seit"
+          },
+          "last_activity": {
+            "name": "Letzte Aktivität"
+          },
+          "last_cleared": {
+            "name": "Zuletzt freigegeben"
+          },
+          "clear_at": {
+            "name": "Voraussichtlich frei um"
+          },
+          "configured_source_count": {
+            "name": "Konfigurierte Quellen"
+          },
+          "available_source_count": {
+            "name": "Verfügbare Quellen"
+          },
+          "active_source_count": {
+            "name": "Aktive Quellen"
+          },
+          "active_sources": {
+            "name": "Liste aktiver Quellen"
+          },
+          "last_active_sources": {
+            "name": "Zuletzt aktive Quellen"
+          },
+          "last_reason": {
+            "name": "Letzter Grund"
+          },
+          "last_transition": {
+            "name": "Letzter Übergang"
+          },
+          "active_states": {
+            "name": "Aktive Zustände"
+          }
+        }
+      },
+      "ble_tracker_monitor": {
+        "name": "BLE-Tracker Belegung"
+      },
+      "cleaning_due": {
+        "name": "Reinigung fällig",
+        "state": {
+          "off": "Nicht fällig",
+          "on": "Fällig"
+        },
+        "state_attributes": {
+          "cleaning_score": {
+            "name": "Reinigungswert"
+          },
+          "cleaning_state": {
+            "name": "Reinigungszustand"
+          },
+          "cumulative_presence_seconds": {
+            "name": "Kumulierte Anwesenheit"
+          },
+          "presence_minutes_since_cleaning": {
+            "name": "Anwesenheit seit Reinigung"
+          },
+          "presence_minutes_to_due": {
+            "name": "Anwesenheitszeit bis Fälligkeit"
+          },
+          "remaining_minutes_to_due": {
+            "name": "Restzeit bis Fälligkeit"
+          },
+          "overdue_minutes": {
+            "name": "Überfällige Zeit"
+          },
+          "current_occupancy_duration_seconds": {
+            "name": "Aktuelle Belegungsdauer"
+          },
+          "last_cleaned": {
+            "name": "Zuletzt gereinigt"
+          }
+        }
+      },
+      "health_problem": {
+        "name": "Umwelt",
+        "state": {
+          "off": "OK",
+          "on": "Problem"
+        }
+      },
+      "threshold_light": {
+        "name": "Licht (berechnet)"
+      },
+      "wasp_in_a_box": {
+        "name": "Wasp in a Box",
+        "state": {
+          "off": "Keine Wespe in der Box",
+          "on": "Wespe ist in der Box"
+        },
+        "state_attributes": {
+          "wasp": {
+            "name": "Wespe",
+            "state": {
+              "off": "Nicht gesehen",
+              "on": "Gesehen"
+            }
+          },
+          "box": {
+            "name": "Box",
+            "state": {
+              "off": "Geschlossen",
+              "on": "Offen"
+            }
+          }
+        }
+      }
+    },
+    "fan": {
+      "fan_group": {
+        "name": "Lüfter"
+      }
+    },
+    "cover": {
+      "cover_group_awning": {
+        "name": "Markisen"
+      },
+      "cover_group_blind": {
+        "name": "Jalousien"
+      },
+      "cover_group_curtain": {
+        "name": "Vorhänge"
+      },
+      "cover_group_damper": {
+        "name": "Klappen"
+      },
+      "cover_group_door": {
+        "name": "Türen"
+      },
+      "cover_group_garage": {
+        "name": "Garagentore"
+      },
+      "cover_group_gate": {
+        "name": "Tore"
+      },
+      "cover_group_shade": {
+        "name": "Rollos"
+      },
+      "cover_group_shutter": {
+        "name": "Rollladen"
+      },
+      "cover_group_window": {
+        "name": "Fenster"
+      },
+      "cover_group": {
+        "name": "Abdeckungen"
+      }
+    },
+    "light": {
+      "all_lights": {
+        "name": "Alle Lichter"
+      },
+      "overhead_lights": {
+        "name": "Deckenleuchten"
+      },
+      "task_lights": {
+        "name": "Arbeitslichter"
+      },
+      "accent_lights": {
+        "name": "Akzentlichter"
+      },
+      "sleep_lights": {
+        "name": "Schlaflichter"
+      }
+    },
+    "number": {
+      "environment_reference_temperature": {
+        "name": "Bereichsklima-Referenztemperatur"
+      }
+    },
+    "sensor": {
+      "environment": {
+        "name": "Bereichsklima",
+        "state": {
+          "on": "Problem erkannt",
+          "off": "Kein Problem"
+        },
+        "state_attributes": {
+          "notices": {
+            "name": "Hinweise"
+          },
+          "comfort": {
+            "name": "Komfort",
+            "state": {
+              "cold": "Kalt",
+              "cool": "Kühl",
+              "comfortable": "Angenehm",
+              "warm": "Warm",
+              "hot": "Heiß",
+              "very_hot": "Sehr heiß",
+              "not_applicable": "Für diese Bereichskategorie nicht anwendbar",
+              "unknown": "Unbekannt"
+            }
+          },
+          "temperature_state": {
+            "name": "Temperaturzustand",
+            "state": {
+              "cold": "Kalt",
+              "cool": "Kühl",
+              "comfortable": "Angenehm",
+              "warm": "Warm",
+              "hot": "Heiß",
+              "very_hot": "Sehr heiß",
+              "not_applicable": "Nicht anwendbar",
+              "unknown": "Unbekannt"
+            }
+          },
+          "humidity_comfort_state": {
+            "name": "Feuchtekomfortzustand",
+            "state": {
+              "very_dry": "Sehr trocken",
+              "dry": "Trocken",
+              "normal": "Normal",
+              "elevated": "Erhöht",
+              "high": "Hoch",
+              "very_high": "Sehr hoch",
+              "unknown": "Unbekannt"
+            }
+          },
+          "combined_comfort": {
+            "name": "Kombinierter Komfort",
+            "state": {
+              "comfortable": "Angenehm",
+              "temperature_cold": "Temperatur kalt",
+              "temperature_cool": "Temperatur kühl",
+              "temperature_warm": "Temperatur warm",
+              "temperature_hot": "Temperatur heiß",
+              "temperature_very_hot": "Temperatur sehr heiß",
+              "humidity_too_dry": "Luft zu trocken",
+              "humidity_too_high": "Luftfeuchte zu hoch",
+              "multiple_deviations": "Mehrere Abweichungen",
+              "not_applicable": "Nicht anwendbar",
+              "unknown": "Unbekannt"
+            }
+          },
+          "room_category": {
+            "name": "Bereichskategorie",
+            "state": {
+              "living_sedentary": "Wohnen / sitzende Nutzung",
+              "sleeping_rest": "Schlafen / Ruhe",
+              "hygiene_wet": "Bad / Feuchtraum",
+              "active_domestic": "Aktive Hausarbeit",
+              "circulation_transient": "Flur / Durchgang",
+              "service_storage": "Technik / Lager",
+              "unconditioned": "Unbeheizt",
+              "manual": "Manuell",
+              "unknown": "Unbekannt"
+            }
+          },
+          "thermal_profile": {
+            "name": "Thermisches Profil"
+          },
+          "humidity": {
+            "name": "Luftfeuchtigkeit",
+            "state": {
+              "very_dry": "Sehr trocken",
+              "dry": "Trocken",
+              "normal": "Normal",
+              "elevated": "Erhöht",
+              "high": "Hoch",
+              "very_high": "Sehr hoch",
+              "unknown": "Unbekannt"
+            }
+          },
+          "mould_risk": {
+            "name": "Schimmelrisiko-Indikator",
+            "state": {
+              "low": "Niedrig",
+              "elevated": "Erhöht",
+              "high": "Hoch",
+              "unknown": "Unbekannt"
+            }
+          },
+          "air_quality": {
+            "name": "Luftqualität",
+            "state": {
+              "good": "Gut",
+              "degraded": "Beeinträchtigt",
+              "poor": "Schlecht",
+              "critical": "Kritisch",
+              "unknown": "Unbekannt"
+            }
+          },
+          "pollutant_state": {
+            "name": "Schadstofflage",
+            "state": {
+              "good": "Gut",
+              "elevated": "Erhöht",
+              "poor": "Schlecht",
+              "critical": "Kritisch",
+              "unknown": "Unbekannt"
+            }
+          },
+          "ventilation": {
+            "name": "Lüftung",
+            "state": {
+              "not_required": "Nicht erforderlich",
+              "recommended": "Empfohlen",
+              "required": "Erforderlich",
+              "urgent": "Dringend erforderlich",
+              "ventilating": "Wird gelüftet",
+              "unknown": "Unbekannt"
+            }
+          },
+          "ventilation_demand": {
+            "name": "Lüftungsbedarf",
+            "state": {
+              "not_required": "Nicht erforderlich",
+              "recommended": "Empfohlen",
+              "required": "Erforderlich",
+              "urgent": "Dringend erforderlich",
+              "unknown": "Unbekannt"
+            }
+          },
+          "ventilation_strategy": {
+            "name": "Lüftungsstrategie",
+            "state": {
+              "none": "Keine",
+              "passive": "Passiv",
+              "mechanical": "Mechanisch",
+              "filtered_mechanical": "Gefiltert mechanisch",
+              "avoid_outdoor_air": "Außenluft vermeiden",
+              "unknown": "Unbekannt"
+            }
+          },
+          "air_cleaning_recommendation": {
+            "name": "Luftreinigungsempfehlung",
+            "state": {
+              "none": "Keine",
+              "recommended": "Empfohlen",
+              "strongly_recommended": "Dringend empfohlen",
+              "not_effective": "Für diesen Schadstoff nicht wirksam",
+              "unknown": "Unbekannt"
+            }
+          },
+          "ventilation_activity": {
+            "name": "Lüftungsaktivität",
+            "state": {
+              "inactive": "Inaktiv",
+              "ventilating": "Wird gelüftet"
+            }
+          },
+          "cooling": {
+            "name": "Kühlung",
+            "state": {
+              "not_required": "Nicht erforderlich",
+              "passive_recommended": "Passive Kühlung empfohlen",
+              "active_recommended": "Aktive Kühlung empfohlen",
+              "unknown": "Unbekannt"
+            }
+          },
+          "window_recommendation": {
+            "name": "Fensterempfehlung",
+            "state": {
+              "none": "Keine",
+              "open": "Öffnen",
+              "close": "Schließen",
+              "keep_closed": "Geschlossen halten"
+            }
+          },
+          "ventilation_fan_request": {
+            "name": "Lüfterbedarf",
+            "state": {
+              "none": "Keine",
+              "low": "Niedrig",
+              "high": "Hoch"
+            }
+          },
+          "circulation_fan_request": {
+            "name": "Umluftbedarf",
+            "state": {
+              "none": "Keine",
+              "low": "Niedrig",
+              "medium": "Mittel",
+              "high": "Hoch"
+            }
+          },
+          "available_capabilities": {
+            "name": "Verfügbare Messgrößen",
+            "state": {
+              "temperature": "Temperatur",
+              "humidity": "Luftfeuchtigkeit",
+              "co2": "CO₂",
+              "pm25": "PM2,5",
+              "pm10": "PM10",
+              "pm1": "PM1",
+              "voc": "VOC",
+              "voc_parts": "VOC-Anteil",
+              "aqi": "Luftqualitätsindex",
+              "co": "Kohlenmonoxid",
+              "no2": "Stickstoffdioxid",
+              "ozone": "Ozon",
+              "ventilation_fans": "Lüftungsventilatoren",
+              "windows": "Fenster",
+              "outdoor_temperature": "Außentemperatur",
+              "outdoor_humidity": "Außenluftfeuchtigkeit",
+              "surface_temperature": "Oberflächentemperatur",
+              "health": "Gesundheitswarnungen des Bereichs"
+            }
+          },
+          "dew_point": {
+            "name": "Taupunkttemperatur"
+          },
+          "temperature": {
+            "name": "Temperatur"
+          },
+          "relative_humidity": {
+            "name": "Relative Luftfeuchtigkeit"
+          },
+          "absolute_humidity": {
+            "name": "Absolute Luftfeuchtigkeit"
+          },
+          "humidity_ratio": {
+            "name": "Feuchteverhältnis"
+          },
+          "enthalpy": {
+            "name": "Enthalpie der feuchten Luft"
+          },
+          "humidex": {
+            "name": "Humidex-Hitzebelastungsindex"
+          },
+          "apparent_temperature": {
+            "name": "Humidex (Kompatibilitätsattribut)"
+          },
+          "surface_temperature": {
+            "name": "Oberflächentemperatur"
+          },
+          "surface_relative_humidity": {
+            "name": "Relative Oberflächenfeuchte"
+          },
+          "mould_quality": {
+            "name": "Qualität der Schimmelrisikobewertung",
+            "state": {
+              "surface_based": "Gemessene Oberflächentemperatur",
+              "room_air_estimate": "Schätzung aus der Raumluft",
+              "unknown": "Unbekannt"
+            }
+          },
+          "mould_warning_duration_seconds": {
+            "name": "Dauer der Schimmelrisikowarnung"
+          },
+          "outdoor_humidity_ratio": {
+            "name": "Feuchteverhältnis außen"
+          },
+          "outdoor_enthalpy": {
+            "name": "Enthalpie der Außenluft"
+          },
+          "moisture_ventilation": {
+            "name": "Entfeuchtung durch Lüften",
+            "state": {
+              "favorable": "Außenluft ist trockener",
+              "unfavorable": "Außenluft ist nicht trockener",
+              "unknown": "Unbekannt"
+            }
+          },
+          "air_exchange_suitability": {
+            "name": "Eignung des Luftaustauschs",
+            "state": {
+              "favorable": "Günstig",
+              "acceptable": "Akzeptabel",
+              "unfavorable": "Ungünstig",
+              "hazardous": "Gefährlich",
+              "unknown": "Unbekannt"
+            }
+          },
+          "pollutant_comparisons": {
+            "name": "Schadstoffvergleich innen/außen"
+          },
+          "outdoor_pollutant_measurements": {
+            "name": "Schadstoffmesswerte außen"
+          },
+          "outdoor_pollutant_assessments": {
+            "name": "Schadstoffquellen außen"
+          },
+          "indoor_pollutant_measurements": {
+            "name": "Schadstoffmesswerte innen"
+          },
+          "indoor_pollutant_assessments": {
+            "name": "Schadstoffbewertungen innen"
+          },
+          "dominant_indoor_pollutant": {
+            "name": "Dominanter Innenraumschadstoff",
+            "state": {
+              "co2": "CO₂",
+              "pm25": "PM2,5",
+              "pm10": "PM10",
+              "co": "Kohlenmonoxid",
+              "no2": "Stickstoffdioxid",
+              "ozone": "Ozon",
+              "voc": "VOC",
+              "unknown": "Unbekannt"
+            }
+          },
+          "pollutant_measurements": {
+            "name": "Schadstoffmesswerte"
+          },
+          "pollutant_assessments": {
+            "name": "Schadstoffbewertungen"
+          },
+          "indoor_source_entities": {
+            "name": "Innenraum-Quellentitäten"
+          },
+          "outdoor_source_entities": {
+            "name": "Außenluft-Quellentitäten"
+          },
+          "source_entities": {
+            "name": "Verwendete Entitäten"
+          },
+          "ignored_sources": {
+            "name": "Verworfene Entitäten"
+          },
+          "humidity_warning_duration_seconds": {
+            "name": "Dauer der hohen Luftfeuchtigkeit"
+          },
+          "context": {
+            "name": "Kontext"
+          },
+          "indoor_reason_codes": {
+            "name": "Innenraum-Grundcodes"
+          },
+          "mitigation_reason_codes": {
+            "name": "Maßnahmen-Grundcodes"
+          },
+          "reason_codes": {
+            "name": "Grundcodes",
+            "state": {
+              "health_alert": "Eine Gesundheitswarnung des Bereichs ist aktiv",
+              "very_high_co2": "CO₂ ist sehr hoch",
+              "high_co2": "CO₂ ist hoch",
+              "co2_hysteresis": "CO₂ liegt weiterhin über der Entwarnungsschwelle",
+              "high_pm25": "PM2,5 ist erhöht",
+              "high_pm10": "PM10 ist erhöht",
+              "high_co": "Kohlenmonoxid ist erhöht",
+              "high_no2": "Stickstoffdioxid ist erhöht",
+              "high_aqi": "Luftqualitätsindex ist erhöht",
+              "high_voc": "VOC-Wert ist erhöht",
+              "mould_risk_elevated": "Schimmelrisiko ist erhöht",
+              "mould_risk_high": "Schimmelrisiko ist hoch",
+              "high_humidity": "Luftfeuchtigkeit ist sehr hoch",
+              "prolonged_high_humidity": "Luftfeuchtigkeit ist anhaltend hoch",
+              "rapid_humidity_rise": "Luftfeuchtigkeit steigt schnell",
+              "humidity_persistent_65": "Luftfeuchtigkeit über 65 % hält an",
+              "humidity_high_70": "Luftfeuchtigkeit liegt über 70 %",
+              "outdoor_air_polluted": "Außenluft ist belastet",
+              "outdoor_air_cleaner": "Außenluft ist sauberer",
+              "outdoor_air_quality_unknown": "Außenluftqualität ist unbekannt",
+              "air_exchange_unfavorable": "Luftaustausch ist ungünstig",
+              "air_exchange_hazardous": "Luftaustausch ist gefährlich",
+              "no2_short_term_elevated": "NO₂-Einstundenwert ist erhöht",
+              "no2_short_term_critical": "NO₂-Einstundenwert ist kritisch",
+              "window_already_open": "Ein relevantes Fenster ist bereits offen",
+              "ventilation_should_stop": "Die laufende Lüftung soll beendet werden",
+              "window_should_remain_closed": "Das Fenster soll geschlossen bleiben",
+              "room_too_warm": "Der Raum ist zu warm",
+              "outdoor_air_cooler": "Die Außenluft ist kühler",
+              "passive_cooling_available": "Passive Kühlung ist möglich",
+              "outdoor_air_warmer": "Die Außenluft ist wärmer",
+              "active_cooling_recommended": "Aktive Kühlung wird empfohlen",
+              "outdoor_air_moisture_penalty": "Kühlere Außenluft bietet keinen Enthalpievorteil",
+              "outdoor_air_drier": "Die Außenluft enthält weniger Feuchtigkeit",
+              "outdoor_air_more_humid": "Die Außenluft enthält gleich viel oder mehr Feuchtigkeit",
+              "window_closed": "Ein relevantes Fenster ist geschlossen",
+              "ventilation_complete": "Der Lüftungsbedarf ist beendet",
+              "filtered_mechanical_preferred": "Gefilterte mechanische Lüftung wird bevorzugt",
+              "air_cleaning_preferred": "Luftreinigung wird bevorzugt"
+            }
+          }
+        }
+      },
+      "room_usage": {
+        "name": "Reinigungswert",
+        "state_attributes": {
+          "cumulative_presence_seconds": {
+            "name": "Kumulierte Anwesenheit"
+          },
+          "presence_minutes_to_due": {
+            "name": "Anwesenheitszeit bis Fälligkeit"
+          },
+          "current_occupancy_duration_seconds": {
+            "name": "Aktuelle Anwesenheitsdauer"
+          },
+          "last_cleaned": {
+            "name": "Zuletzt gereinigt"
+          }
+        }
+      }
+    },
+    "media_player": {
+      "media_player_group": {
+        "name": "Media Player"
+      },
+      "area_aware_media_player": {
+        "name": "Bereichsabhängiger Media Player"
+      }
+    },
+    "switch": {
+      "presence_hold": {
+        "name": "Anwesenheit halten"
+      },
+      "light_control": {
+        "name": "Lichtsteuerung"
+      },
+      "media_player_control": {
+        "name": "Media-Player-Gruppensteuerung"
+      },
+      "climate_control": {
+        "name": "Klimasteuerung"
+      },
+      "fan_control": {
+        "name": "Lüftersteuerung"
+      },
+      "task_switches": {
+        "name": "Aufgaben-Schalter"
+      },
+      "sleep_switches": {
+        "name": "Schlaf-Schalter"
+      },
+      "switch_group": {
+        "name": "Alle Schalter"
+      },
+      "switch_group_control": {
+        "name": "Schaltergruppensteuerung"
+      }
+    }
+  },
+  "selector": {
+    "area_type": {
+      "options": {
+        "interior": "Innen",
+        "exterior": "Außen"
+      }
+    },
+    "area_states": {
+      "options": {
+        "clear": "Frei",
+        "occupied": "Belegt",
+        "dark": "Dunkel",
+        "extended": "Erweitert",
+        "sleep": "Schlaf",
+        "accented": "Akzentmodus"
+      }
+    },
+    "light_activation": {
+      "options": {
+        "disabled": "Keine automatische Steuerung",
+        "occupied": "Bereich belegt",
+        "extended": "Erst nach längerer Belegung",
+        "sleep": "Schlafmodus",
+        "accented": "Akzentmodus"
+      }
+    },
+    "light_brightness": {
+      "options": {
+        "ignore": "Helligkeit ignorieren",
+        "require_dark": "Nur einschalten, wenn dunkel",
+        "turn_off": "Bei Helligkeit aktiv ausschalten",
+        "dark_on_bright_off": "Einschalten, wenn dunkel, und ausschalten, wenn hell"
+      }
+    },
+    "control_on": {
+      "options": {
+        "occupancy": "Wenn der Bereich von `Frei` auf `Belegt` wechselt",
+        "dark": "Wenn der Bereich zwischen `Hell` und `Dunkel` wechselt",
+        "extended": "Wenn der Bereich von `Belegt` auf `Erweitert` wechselt",
+        "sleep": "Wenn der Bereich auf `Schlaf` wechselt"
+      }
+    },
+    "calculation_mode": {
+      "options": {
+        "any": "Beliebig",
+        "all": "Alle",
+        "majority": "Mehrheit"
+      }
+    },
+    "room_category": {
+      "options": {
+        "living_sedentary": "Wohnen / sitzende Nutzung",
+        "sleeping_rest": "Schlafen / Ruhe",
+        "hygiene_wet": "Bad / Feuchtraum",
+        "active_domestic": "Aktive Hausarbeit",
+        "circulation_transient": "Flur / Durchgang",
+        "service_storage": "Technik / Lager",
+        "unconditioned": "Unbeheizt",
+        "manual": "Manuell"
+      }
+    }
+  },
+  "services": {
+    "mark_cleaned": {
+      "name": "Bereich als gereinigt markieren",
+      "description": "Setzt den Reinigungswert der ausgewählten Bereiche auf 0 % und speichert den Reinigungszeitpunkt.",
+      "fields": {
+        "area_id": {
+          "name": "Bereiche",
+          "description": "Bereiche, die als gereinigt markiert werden sollen."
+        }
+      }
+    },
+    "reset": {
+      "name": "Reinigungs-Tracker zurücksetzen",
+      "description": "Setzt den gespeicherten Reinigungs-Tracker-Zustand der ausgewählten Bereiche vollständig zurück.",
+      "fields": {
+        "area_id": {
+          "name": "Bereiche",
+          "description": "Bereiche, deren Tracker-Zustand zurückgesetzt werden soll."
+        }
+      }
+    },
+    "set_score": {
+      "name": "Reinigungswert setzen",
+      "description": "Setzt den Reinigungswert der ausgewählten Bereiche und passt ihre kumulierte Anwesenheit entsprechend an.",
+      "fields": {
+        "area_id": {
+          "name": "Bereiche",
+          "description": "Bereiche, deren Reinigungswert gesetzt werden soll."
+        },
+        "score": {
+          "name": "Wert",
+          "description": "Reinigungswert von 0 bis 100 %."
+        }
+      }
+    }
+  },
+  "issues": {
+    "missing_area": {
+      "title": "Home-Assistant-Bereich fehlt",
+      "description": "Der Adaptive-Areas-Eintrag **{entry}** verweist auf einen Bereich oder ein Stockwerk, der bzw. das nicht mehr existiert. Konfiguriere oder entferne diesen Eintrag, nachdem du die betroffenen Automatisierungen geprüft hast. Adaptive Areas löscht oder erstellt den Bereich nicht automatisch neu."
+    },
+    "missing_entities": {
+      "title": "Konfigurierte Entitäten fehlen",
+      "description": "Der Adaptive-Areas-Eintrag **{entry}** enthält {count} nicht mehr vorhandene Entitätsreferenz(en) in {category_count} Konfigurationskategorie(n). Konfiguriere den Eintrag neu und wähle vorhandene Entitäten aus. Entitäten mit dem Zustand „Nicht verfügbar“ oder „Unbekannt“ gelten nicht als fehlend."
+    },
+    "no_presence_sources": {
+      "title": "Keine Anwesenheitsquelle für {entry}",
+      "description": "Adaptive Areas kann für diesen Bereich keine geeignete Anwesenheitsquelle finden. Prüfe die Bereichszuordnung und die Einstellungen zur Anwesenheitserkennung."
+    },
+    "environment_without_sources": {
+      "title": "Keine Umweltdaten für {entry}",
+      "description": "Area Climate ist aktiviert, kann in diesem Bereich aber keine verwertbaren Umweltdaten auswerten."
+    },
+    "invalid_entity_references": {
+      "title": "Ungültige Entitätszuordnung in {entry}",
+      "description": "{count} konfigurierte Entität(en) passen nicht zu der vorgesehenen Funktion. Prüfe die betroffenen Einstellungen."
+    },
+    "invalid_feature_configuration": {
+      "title": "Unvollständige Funktionskonfiguration in {entry}",
+      "description": "{count} Konfigurationsproblem(e) betreffen {feature_count} aktivierte Funktion(en). Prüfe die Integrationsoptionen."
+    },
+    "single_global_entry_migration": {
+      "title": "Migration der Adaptive-Areas-Konfiguration erforderlich",
+      "description": "Adaptive Areas muss bestehende Bereiche in einen zentralen Konfigurationseintrag überführen. Bereiche und Einstellungen bleiben erhalten. Status: {status}. Wähle „Beheben“ und bestätige, um die Migration zu starten."
+    }
+  },
+  "device": {
+    "global": {
+      "name": "Global"
+    },
+    "interior": {
+      "name": "Innen"
+    },
+    "exterior": {
+      "name": "Außen"
+    }
+  }
 }

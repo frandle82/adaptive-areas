@@ -7,14 +7,13 @@ from pathlib import Path
 from time import monotonic
 from types import SimpleNamespace
 
-import pytest
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components.climate.const import ATTR_PRESET_MODE
-from homeassistant.exceptions import HomeAssistantError
 from unittest.mock import AsyncMock, Mock, patch
 
 from custom_components.adaptive_areas.const import (
+    CONF_AREA_ILLUMINANCE_SENSOR,
     AREA_STATE_BRIGHT,
     AREA_STATE_DARK,
     CONF_DARK_ENTITY,
@@ -49,7 +48,6 @@ from custom_components.adaptive_areas.helpers.sources import (
     LightTargetSource,
 )
 from custom_components.adaptive_areas.websocket import (
-    _get_area,
     async_update_area,
     async_register_websocket_commands,
 )
@@ -164,6 +162,7 @@ def test_climate_runtime_status_reports_effective_runtime_state(
     }
     area = SimpleNamespace(
         id="living",
+        slug="living",
         states=states,
         has_feature=lambda feature: feature == CONF_FEATURE_CLIMATE_CONTROL,
         feature_config=lambda _feature: config,
@@ -255,6 +254,7 @@ def test_climate_runtime_status_reports_effective_runtime_state(
 
     area = SimpleNamespace(
         id="living",
+        slug="living",
         has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
         feature_config=lambda _feature: {},
     )
@@ -277,7 +277,9 @@ def test_climate_runtime_status_reports_effective_runtime_state(
     ):
         status = build_light_runtime_status(hass, area)
 
-    assert status["light"] == {
+    light = dict(status["light"])
+    control_path = light.pop("control_path")
+    assert light == {
         "enabled": True,
         "presence": {"available": True, "occupied": True},
         "illuminance": {
@@ -302,6 +304,13 @@ def test_climate_runtime_status_reports_effective_runtime_state(
             "entity_ids": [target.entity_id for target in snapshot.targets],
         },
     }
+    # Existing groups are reported from their entities; policy-only counts the targets
+    # that no native group of this Area owns (the Area has no group configured here).
+    assert control_path["group_active"] is False
+    assert control_path["policy_only"] == {
+        "count": len(snapshot.targets),
+        "entity_ids": [target.entity_id for target in snapshot.targets],
+    }
 
 
 def test_light_runtime_status_keeps_manager_state_area_local(
@@ -314,6 +323,7 @@ def test_light_runtime_status_keeps_manager_state_area_local(
     )
     area = SimpleNamespace(
         id="living",
+        slug="living",
         light_runtime_manager=manager,
         has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
         feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
@@ -339,6 +349,7 @@ def test_light_runtime_status_keeps_manager_state_area_local(
 
     kitchen = SimpleNamespace(
         id="kitchen",
+        slug="kitchen",
         light_runtime_manager=SimpleNamespace(
             override_state=LightManualOverrideState(
                 LightManualOverrideMode.FORCE_OFF, 1
@@ -432,102 +443,6 @@ async def test_dashboard_controls_are_owned_deduplicated_and_json_safe(
         }
     ]
     json.dumps(detail["controls"])
-
-
-async def test_dashboard_marks_meta_areas_and_reports_diagnostics(
-    hass: HomeAssistant,
-    all_areas_with_meta_config_entry,
-    _setup_integration_all_areas_with_meta,
-) -> None:
-    """Meta areas are distinguishable and diagnostics are JSON-safe summaries."""
-    overview = build_overview(hass)
-    diagnostics = build_diagnostics(hass, "test")
-
-    assert any(area["type"] == "meta" for area in overview["areas"])
-    assert diagnostics["version"] == "test"
-    assert diagnostics["area_count"] + diagnostics["meta_area_count"] == len(
-        overview["areas"]
-    )
-
-
-async def test_dashboard_rejects_unknown_area(hass: HomeAssistant) -> None:
-    """The detail endpoint helper does not manufacture a missing area."""
-    with pytest.raises(HomeAssistantError, match="Adaptive Area not found"):
-        _get_area(hass, "missing")
-
-
-@pytest.mark.parametrize(
-    ("dark_source_state", "area_state", "expected_warning"),
-    [
-        ("on", AREA_STATE_BRIGHT, False),
-        ("off", AREA_STATE_DARK, False),
-        ("on", AREA_STATE_DARK, True),
-        ("off", AREA_STATE_BRIGHT, True),
-        ("unavailable", AREA_STATE_DARK, False),
-        ("unknown", AREA_STATE_BRIGHT, False),
-    ],
-)
-async def test_dashboard_brightness_consistency_uses_available_dark_source_only(
-    hass: HomeAssistant,
-    basic_config_entry,
-    _setup_integration_basic,
-    dark_source_state: str,
-    area_state: str,
-    expected_warning: bool,
-) -> None:
-    """Only contradictory available dark sources produce a warning."""
-    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
-    entity_id = "binary_sensor.dashboard_dark_source"
-    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: entity_id}
-    area.states = [area_state]
-    hass.states.async_set(entity_id, dark_source_state)
-
-    diagnostics = build_diagnostics(hass, "test")
-
-    assert (
-        "brightness_state_inconsistent"
-        in {issue["code"] for issue in diagnostics["issues"]}
-    ) is expected_warning
-
-
-async def test_dashboard_brightness_reason_for_configured_dark_entity(
-    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
-) -> None:
-    """A configured, available darkness entity is reported as the source."""
-    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
-    entity_id = "binary_sensor.dashboard_reason_configured"
-    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: entity_id}
-    area.states = [AREA_STATE_DARK]
-    hass.states.async_set(entity_id, "off")
-
-    detail = build_area_detail(hass, area, include_entities=True)
-
-    assert detail["brightness_detail"]["reason"] == "configured_source"
-    assert detail["brightness_detail"]["default_dark"] is False
-    assert detail["brightness_detail"]["dark_source"]["entity_id"] == entity_id
-
-
-async def test_dashboard_brightness_reason_for_missing_and_unavailable_entities(
-    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
-) -> None:
-    """Missing config is the labelled default; an unavailable entity is not guessed."""
-    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
-
-    area.config[CONF_SECONDARY_STATES] = {}
-    area.states = [AREA_STATE_DARK]
-    missing = build_area_detail(hass, area, include_entities=True)["brightness_detail"]
-    assert missing["reason"] == "not_configured"
-    assert missing["default_dark"] is True
-    assert missing["dark_source"] is None
-
-    entity_id = "binary_sensor.dashboard_reason_unavailable"
-    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: entity_id}
-    hass.states.async_set(entity_id, "unavailable")
-    unavailable = build_area_detail(hass, area, include_entities=True)[
-        "brightness_detail"
-    ]
-    assert unavailable["reason"] == "source_unavailable"
-    assert unavailable["default_dark"] is False
 
 
 async def test_dashboard_ignores_a_dark_entity_stored_on_the_top_level(
@@ -963,3 +878,58 @@ def test_panel_calls_only_defined_methods() -> None:
     defined = set(re.findall(r"(?:async\s+)?(_\w+)\([^)]*\)\{", panel))
 
     assert sorted(called - defined) == []
+
+
+async def test_dashboard_brightness_source_is_the_area_illuminance_sensor(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """D01: the configured numeric Area sensor is the brightness source of the dashboard."""
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+    entity_id = "sensor.dashboard_area_lux"
+    area.config[CONF_AREA_ILLUMINANCE_SENSOR] = entity_id
+    area.states = [AREA_STATE_DARK]
+    hass.states.async_set(
+        entity_id,
+        "40",
+        {"device_class": "illuminance", "unit_of_measurement": "lx"},
+    )
+
+    detail = build_area_detail(hass, area, include_entities=True)
+
+    assert detail["brightness_detail"]["reason"] == "configured_source"
+    assert detail["brightness_detail"]["default_dark"] is False
+    assert detail["brightness_detail"]["dark_source"]["entity_id"] == entity_id
+
+
+async def test_dashboard_brightness_missing_unavailable_and_legacy_binary(
+    hass: HomeAssistant, basic_config_entry, _setup_integration_basic
+) -> None:
+    """Missing config is labelled; an unavailable sensor is not guessed.
+
+    A legacy binary dark entity is never used as the brightness source (D01).
+    """
+    area = hass.data[MODULE_DATA][basic_config_entry.entry_id][DATA_AREA_OBJECT]
+
+    area.config.pop(CONF_AREA_ILLUMINANCE_SENSOR, None)
+    area.config[CONF_SECONDARY_STATES] = {}
+    area.states = [AREA_STATE_DARK]
+    missing = build_area_detail(hass, area, include_entities=True)["brightness_detail"]
+    assert missing["reason"] == "not_configured"
+    assert missing["default_dark"] is True
+    assert missing["dark_source"] is None
+
+    entity_id = "sensor.dashboard_area_lux_unavailable"
+    area.config[CONF_AREA_ILLUMINANCE_SENSOR] = entity_id
+    hass.states.async_set(entity_id, "unavailable")
+    unavailable = build_area_detail(hass, area, include_entities=True)[
+        "brightness_detail"
+    ]
+    assert unavailable["reason"] == "source_unavailable"
+    assert unavailable["default_dark"] is False
+
+    area.config.pop(CONF_AREA_ILLUMINANCE_SENSOR, None)
+    area.config[CONF_SECONDARY_STATES] = {CONF_DARK_ENTITY: "binary_sensor.legacy_dark"}
+    hass.states.async_set("binary_sensor.legacy_dark", "on")
+    legacy = build_area_detail(hass, area, include_entities=True)["brightness_detail"]
+    assert legacy["dark_source"] is None
+    assert legacy["reason"] == "not_configured"

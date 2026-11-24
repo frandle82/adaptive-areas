@@ -763,11 +763,15 @@ CONF_ID = "id"
 CONF_NAME, DEFAULT_NAME = "name", ""  # cv.string
 CONF_TYPE, DEFAULT_TYPE = "type", AREA_TYPE_INTERIOR  # cv.string
 CONF_ENABLED_FEATURES, DEFAULT_ENABLED_FEATURES = "features", {}  # cv.ensure_list
+# Configuration of disabled features, kept (inactive) until the feature is enabled again.
+CONF_RETAINED_FEATURES = "retained_features"
 CONF_SECONDARY_STATES, DEFAULT_AREA_STATES = "secondary_states", {}  # cv.ensure_list
 CONF_INCLUDE_ENTITIES = "include_entities"  # cv.entity_ids
 CONF_EXCLUDE_ENTITIES = "exclude_entities"  # cv.entity_ids
 CONF_AREA_TEMPERATURE_SENSOR = "area_temperature_sensor"
 CONF_AREA_HUMIDITY_SENSOR = "area_humidity_sensor"
+# Area brightness sensor (numeric lux). An Area property; "" uses the global light sensor.
+CONF_AREA_ILLUMINANCE_SENSOR = "area_illuminance_sensor"
 CONF_KEEP_ONLY_ENTITIES = "keep_only_entities"  # cv.entity_ids
 CONF_PRESENCE_CONTROL_ENTITIES = "presence_control_entities"  # cv.entity_ids
 (
@@ -794,7 +798,6 @@ ALL_PRESENCE_DEVICE_PLATFORMS = [
     [
         BinarySensorDeviceClass.MOTION,
         BinarySensorDeviceClass.OCCUPANCY,
-        BinarySensorDeviceClass.PRESENCE,
     ],
 )  # cv.ensure_list
 CONF_AGGREGATES_MIN_ENTITIES, DEFAULT_AGGREGATES_MIN_ENTITIES = (
@@ -929,9 +932,10 @@ CONF_WASP_IN_A_BOX_WASP_DEVICE_CLASSES, DEFAULT_WASP_IN_A_BOX_WASP_DEVICE_CLASSE
     [BinarySensorDeviceClass.MOTION, BinarySensorDeviceClass.OCCUPANCY],
 )  # cv.ensure_list
 
+# Dark is not a binary source any more: it derives from the numeric Area brightness
+# (helpers/brightness.py). The legacy key CONF_DARK_ENTITY is accepted and ignored.
 CONFIGURABLE_AREA_STATE_MAP = {
     AREA_STATE_SLEEP: CONF_SLEEP_ENTITY,
-    AREA_STATE_DARK: CONF_DARK_ENTITY,
     AREA_STATE_ACCENT: CONF_ACCENT_ENTITY,
 }
 
@@ -1762,6 +1766,9 @@ REGULAR_AREA_SCHEMA = vol.Schema(
             "", cv.entity_id
         ),
         vol.Optional(CONF_AREA_HUMIDITY_SENSOR, default=""): vol.Any("", cv.entity_id),
+        vol.Optional(CONF_AREA_ILLUMINANCE_SENSOR, default=""): vol.Any(
+            "", cv.entity_id
+        ),
         vol.Optional(CONF_PRESENCE_CONTROL_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
@@ -1805,6 +1812,7 @@ REGULAR_AREA_SCHEMA = vol.Schema(
         vol.Optional(
             CONF_CLEAR_TIMEOUT, default=DEFAULT_CLEAR_TIMEOUT
         ): cv.positive_int,
+        vol.Optional(CONF_RETAINED_FEATURES, default={}): dict,
         vol.Optional(CONF_ENABLED_FEATURES, default={}): FEATURES_SCHEMA,
         vol.Optional(CONF_SECONDARY_STATES, default={}): SECONDARY_STATES_SCHEMA,
     },
@@ -1815,6 +1823,7 @@ META_AREA_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_TYPE, default=AREA_TYPE_META): AREA_TYPE_META,
         vol.Optional(CONF_ENABLED_FEATURES, default={}): FEATURES_SCHEMA,
+        vol.Optional(CONF_RETAINED_FEATURES, default={}): dict,
         vol.Optional(CONF_EXCLUDE_ENTITIES, default=[]): cv.entity_ids,
         vol.Optional(
             CONF_RELOAD_ON_REGISTRY_CHANGE, default=DEFAULT_RELOAD_ON_REGISTRY_CHANGE
@@ -1870,7 +1879,7 @@ OPTIONS_PRESENCE_TRACKING_META = [
 ]
 
 OPTIONS_SECONDARY_STATES = [
-    (CONF_DARK_ENTITY, "", cv.entity_id),
+    (CONF_AREA_ILLUMINANCE_SENSOR, "", vol.Any("", cv.entity_id)),
     (CONF_ACCENT_ENTITY, "", cv.entity_id),
     (CONF_SLEEP_ENTITY, "", cv.entity_id),
     (CONF_SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT, int),

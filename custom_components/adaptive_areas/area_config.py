@@ -12,6 +12,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
 from custom_components.adaptive_areas.const import (
+    CONF_EXCLUDE_ENTITIES,
+    CONF_RETAINED_FEATURES,
+    CONF_AREA_ILLUMINANCE_SENSOR,
     AREA_TYPE_META,
     CONF_AREAS,
     CONF_ENABLED_FEATURES,
@@ -33,9 +36,12 @@ from custom_components.adaptive_areas.const import (
     META_AREA_SCHEMA,
     REGULAR_AREA_SCHEMA,
 )
+from custom_components.adaptive_areas.helpers.light_ownership import GROUP_MEMBER_KEYS
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
+    excluded_members_by_group,
     light_group_ownership_problem,
 )
+from custom_components.adaptive_areas.helpers.sources import is_illuminance_state
 from custom_components.adaptive_areas.migration import get_global_entries
 
 
@@ -208,6 +214,63 @@ def _new_unsupported_presence_platforms(
     )
 
 
+ILLUMINANCE_SENSOR_EXPECTED = "expected_illuminance_sensor"
+ILLUMINANCE_SENSOR_UNKNOWN = "unknown_illuminance_sensor"
+ILLUMINANCE_SENSOR_MESSAGES = {
+    ILLUMINANCE_SENSOR_EXPECTED: "Expected an illuminance sensor",
+    ILLUMINANCE_SENSOR_UNKNOWN: "Unknown illuminance sensor",
+}
+
+
+def illuminance_sensor_error(
+    hass: HomeAssistant, value: Any, stored: Any = ""
+) -> str | None:
+    """Return an error code for a new Area brightness sensor, or None when it is valid.
+
+    Only a changed value is checked: a stored sensor that is temporarily unavailable keeps
+    the other settings savable. Empty means: use the global light sensor (valid).
+    """
+    if not value or value == stored:
+        return None
+    if not isinstance(value, str) or not value.startswith("sensor."):
+        return ILLUMINANCE_SENSOR_EXPECTED
+    state = hass.states.get(value)
+    if state is None:
+        return ILLUMINANCE_SENSOR_UNKNOWN
+    if not is_illuminance_state(state):
+        return ILLUMINANCE_SENSOR_EXPECTED
+    return None
+
+
+def _with_retained_features(
+    current: Mapping[str, Any], updates: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Park the configuration of disabled features and restore it on re-enabling.
+
+    The enabled features keep their runtime meaning: a parked feature is inactive. A
+    feature enabled again with an empty configuration gets its parked settings back; a
+    submitted non-empty configuration replaces them. Nothing is deleted silently.
+    """
+    if CONF_ENABLED_FEATURES not in updates:
+        return dict(updates)
+    previous = current.get(CONF_ENABLED_FEATURES) or {}
+    submitted = dict(updates[CONF_ENABLED_FEATURES] or {})
+    retained = dict(current.get(CONF_RETAINED_FEATURES) or {})
+    for key, config in previous.items():
+        if key not in submitted:
+            retained[key] = config
+    for key in list(submitted):
+        if submitted[key] in (None, {}) and key in retained:
+            submitted[key] = retained.pop(key)
+        else:
+            retained.pop(key, None)
+    return {
+        **updates,
+        CONF_ENABLED_FEATURES: submitted,
+        CONF_RETAINED_FEATURES: retained,
+    }
+
+
 async def async_update_area(
     hass: HomeAssistant,
     area_id: str | ConfigEntry,
@@ -243,6 +306,15 @@ async def async_update_area(
     )
     if unsupported:
         return {CONF_ENABLED_FEATURES: "Unsupported feature selection"}
+    updates = _with_retained_features(current, updates)
+    if CONF_AREA_ILLUMINANCE_SENSOR in updates:
+        code = illuminance_sensor_error(
+            hass,
+            updates[CONF_AREA_ILLUMINANCE_SENSOR],
+            current.get(CONF_AREA_ILLUMINANCE_SENSOR, ""),
+        )
+        if code is not None:
+            return {CONF_AREA_ILLUMINANCE_SENSOR: ILLUMINANCE_SENSOR_MESSAGES[code]}
     if new_domains := _new_unsupported_presence_platforms(current, updates):
         return {
             CONF_PRESENCE_DEVICE_PLATFORMS: "Unsupported presence domain: "
@@ -259,6 +331,28 @@ async def async_update_area(
     # unrelated edits never fail on a light that Home Assistant no longer knows.
     # Refused saves leave the stored config untouched.
     submitted = updates.get(CONF_ENABLED_FEATURES) or {}
+    if CONF_FEATURE_LIGHT_GROUPS in submitted:
+        # A configured group member (also a nested native group) must not switch an
+        # excluded lamp through the group: refused at save, nothing is changed.
+        configured_groups = (
+            validated.get(CONF_ENABLED_FEATURES, {}).get(CONF_FEATURE_LIGHT_GROUPS)
+            or {}
+        )
+        members = [
+            str(item)
+            for key in GROUP_MEMBER_KEYS
+            for item in (configured_groups.get(key) or [])
+        ]
+        blocked = excluded_members_by_group(
+            hass, members, validated.get(CONF_EXCLUDE_ENTITIES) or []
+        )
+        if blocked:
+            member, hits = sorted(blocked.items())[0]
+            return {
+                CONF_ENABLED_FEATURES: (
+                    f"Group member {member} would switch excluded lights: {', '.join(hits)}"
+                )
+            }
     if CONF_FEATURE_LIGHT_GROUPS in submitted:
         own_groups = (
             validated.get(CONF_ENABLED_FEATURES, {}).get(CONF_FEATURE_LIGHT_GROUPS)

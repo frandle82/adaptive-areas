@@ -24,8 +24,12 @@ from custom_components.adaptive_areas.const import (
     AREA_STATE_BRIGHT,
     AREA_STATE_DARK,
     CONF_ACCENT_LIGHTS,
-    CONF_DARK_ENTITY,
-    CONF_SECONDARY_STATES,
+    CONF_FEATURE_LIGHT_GROUPS,
+    LIGHT_GROUP_ACTIVATION,
+    LIGHT_GROUP_ACTIVATION_DEFAULTS,
+    LIGHT_GROUP_ACTIVATION_DISABLED,
+    LightGroupCategory,
+    LIGHT_GROUP_CATEGORIES,
     CONF_ENABLED_FEATURES,
     CONF_OVERHEAD_LIGHTS,
     CONF_SLEEP_LIGHTS,
@@ -52,7 +56,15 @@ from custom_components.adaptive_areas.helpers.light_policy import (
     evaluate_light_policy,
     light_policy_config_from_feature,
 )
-from custom_components.adaptive_areas.helpers.sources import light_source_snapshot
+from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
+    group_is_blocked,
+    owned_automatic_lights,
+)
+from custom_components.adaptive_areas.helpers.sources import (
+    automatic_group_lights,
+    light_illuminance_entity_id,
+    light_source_snapshot,
+)
 
 _LIGHT_GROUPS = {
     CONF_OVERHEAD_LIGHTS: "Overhead",
@@ -83,13 +95,11 @@ def _status_of(source: dict[str, Any]) -> str:
 
 
 def _dark_source_id(area: AdaptiveArea) -> str | None:
-    """Return the configured darkness entity on the same path the Area logic reads.
+    """Return the numeric brightness sensor that the Area brightness is derived from.
 
-    The presence logic reads `secondary_states.dark_entity`; the dashboard must use
-    the same path, otherwise its consistency check never sees a configured source.
+    The same resolution as the Light decision and the Dark state (helpers/sources.py).
     """
-    secondary = area.config.get(CONF_SECONDARY_STATES) or {}
-    return secondary.get(CONF_DARK_ENTITY) or None
+    return light_illuminance_entity_id(area)
 
 
 def _brightness_reason(dark_source: dict[str, Any] | None) -> str:
@@ -438,12 +448,6 @@ def build_area_summary(
     groups = _light_groups(hass, area)
     presence_sources = area.get_presence_sensors()
     sources = _area_sources(area)
-    dark_source_id = _dark_source_id(area)
-    dark_source = (
-        _state_data(hass.states.get(dark_source_id), dark_source_id)
-        if dark_source_id
-        else None
-    )
     brightness_state = (
         AREA_STATE_BRIGHT
         if area.has_state(AREA_STATE_BRIGHT)
@@ -452,13 +456,9 @@ def build_area_summary(
     aggregate_warnings = sum(
         aggregate.get("source_count") == 0 for aggregate in aggregates
     )
+    # The dark state is derived from the same numeric source: no separate consistency case.
     secondary_state_warnings = 0
-    if dark_source and (
-        (dark_source["state"] == STATE_ON and brightness_state == AREA_STATE_DARK)
-        or (dark_source["state"] == "off" and brightness_state == AREA_STATE_BRIGHT)
-    ):
-        secondary_state_warnings = 1
-    warning_count = aggregate_warnings + secondary_state_warnings
+    warning_count = aggregate_warnings
     return {
         "id": str(area.id),
         "name": area.name,
@@ -773,6 +773,75 @@ def build_decision_trace(area: AdaptiveArea, limit: int = 20) -> dict[str, Any]:
     }
 
 
+def light_group_diagnostics(
+    hass: HomeAssistant, area: AdaptiveArea
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read-only view of the native light groups and of the policy-only share of targets.
+
+    Uses the existing group entities and their attributes, and the existing helpers that
+    decide which lights are group-owned. It computes no control decision of its own.
+    """
+    feature = area.feature_config(CONF_FEATURE_LIGHT_GROUPS) or {}
+    groups: list[dict[str, Any]] = []
+    for category in LIGHT_GROUP_CATEGORIES:
+        configured = [str(item) for item in (feature.get(category) or [])]
+        entity_id = f"light.adaptive_areas_light_groups_{area.slug}_{category}"
+        state = hass.states.get(entity_id)
+        activation = feature.get(
+            LIGHT_GROUP_ACTIVATION[category],
+            LIGHT_GROUP_ACTIVATION_DEFAULTS[category],
+        )
+        groups.append(
+            {
+                "category": category,
+                "activation": activation,
+                "configured_count": len(configured),
+                "entity_id": entity_id if state is not None else None,
+                "state": state.state if state is not None else None,
+                "members": (
+                    list(state.attributes.get("lights", []))
+                    if state is not None
+                    else []
+                ),
+                "members_resolved": state is not None,
+                "ownership_blocked": bool(
+                    state is not None and group_is_blocked(hass, entity_id, configured)
+                ),
+            }
+        )
+    all_entity_id = f"light.adaptive_areas_light_groups_{area.slug}_all_lights"
+    all_state = hass.states.get(all_entity_id)
+    all_members = [
+        str(item)
+        for category in LIGHT_GROUP_CATEGORIES
+        for item in (feature.get(category) or [])
+    ]
+    groups.append(
+        {
+            "category": LightGroupCategory.ALL,
+            "activation": None,
+            "configured_count": len(dict.fromkeys(all_members)),
+            "entity_id": all_entity_id if all_state is not None else None,
+            "state": all_state.state if all_state is not None else None,
+            "members": (
+                list(all_state.attributes.get("lights", []))
+                if all_state is not None
+                else []
+            ),
+            "members_resolved": all_state is not None,
+            "ownership_blocked": bool(
+                all_state is not None
+                and group_is_blocked(hass, all_entity_id, all_members)
+            ),
+        }
+    )
+    return groups, {
+        "group_owned_entity_ids": sorted(
+            automatic_group_lights(area) | owned_automatic_lights(hass)
+        ),
+    }
+
+
 def build_light_runtime_status(
     hass: HomeAssistant, area: AdaptiveArea
 ) -> dict[str, Any]:
@@ -822,6 +891,21 @@ def build_light_runtime_status(
     )
     diagnostics = light_policy_diagnostics(decision, override_mode, last_dispatched)
     light_feature = area.feature_config(CONF_FEATURE_LIGHT) or {}
+    groups, owned = light_group_diagnostics(hass, area)
+    group_owned = set(owned["group_owned_entity_ids"])
+    policy_only = [
+        target.entity_id
+        for target in snapshot.targets
+        if target.entity_id not in group_owned
+    ]
+    # ALL never switches on; only the individual groups count as active control.
+    group_active = any(
+        group["category"] != LightGroupCategory.ALL
+        and group["entity_id"] is not None
+        and group["activation"] != LIGHT_GROUP_ACTIVATION_DISABLED
+        and group["configured_count"] > 0
+        for group in groups
+    )
     return {
         "area_id": str(area.id),
         "light": {
@@ -868,6 +952,16 @@ def build_light_runtime_status(
                 "total": len(snapshot.targets),
                 "available": sum(target.available for target in snapshot.targets),
                 "entity_ids": [target.entity_id for target in snapshot.targets],
+            },
+            # Which path actually controls the lights. Policy-only is named as such and
+            # excludes every lamp that a native light group of an Area owns.
+            "control_path": {
+                "group_active": group_active,
+                "groups": groups,
+                "policy_only": {
+                    "count": len(policy_only),
+                    "entity_ids": policy_only,
+                },
             },
         },
     }
@@ -1013,20 +1107,7 @@ def build_diagnostics(hass: HomeAssistant, version: str | None) -> dict[str, Any
                         "message": "Aggregate has no sources.",
                     }
                 )
-        if detail["brightness_detail"]["dark_source"]:
-            source = detail["brightness_detail"]["dark_source"]
-            states = detail["active_states"]
-            if (source["state"] == STATE_ON and AREA_STATE_DARK in states) or (
-                source["state"] == "off" and AREA_STATE_BRIGHT in states
-            ):
-                issues.append(
-                    {
-                        "severity": "warning",
-                        "area_id": detail["id"],
-                        "code": "brightness_state_inconsistent",
-                        "message": "Dark source and area brightness state disagree.",
-                    }
-                )
+
         issues.extend(
             {
                 "severity": "warning",

@@ -37,6 +37,7 @@ from custom_components.adaptive_areas.helpers.light_override import (
 )
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
     conflicted_lights,
+    owned_automatic_lights,
 )
 from custom_components.adaptive_areas.helpers.light_policy import (
     LightPolicyAction,
@@ -199,8 +200,12 @@ class LightRuntimeManager:
                 # The policy never switches them (no double command for one physical light).
                 # Lights with a runtime ownership conflict are never a policy target either:
                 # no Area may switch a light that another Area also controls automatically.
-                group_lights = automatic_group_lights(self.area) | conflicted_lights(
-                    self.hass
+                # Exclusive ownership is Area-wide: a lamp that another Area's active group
+                # owns is never a policy target here either.
+                group_lights = (
+                    automatic_group_lights(self.area)
+                    | conflicted_lights(self.hass)
+                    | owned_automatic_lights(self.hass)
                 )
                 policy_snapshot = replace(
                     snapshot,
