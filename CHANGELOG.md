@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.7.0-rc.2 - 2026-11-24
+
+Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.
+
+Changes compared with 1.7.0-rc.1.
+
+### Fixed
+
+- Light control: explicitly configured light group members are honored, also when they are outside their Home Assistant area.
+- Light ownership: a physical light is controlled by one Area only, across Areas.
+- Light groups: an excluded lamp inside a nested Home Assistant light group is never switched through the group; such a configuration is refused on save.
+- Automatic light commands no longer trigger a manual override. A real manual action still does.
+- ALL group: its automatic OFF at final CLEAR is correct and never switches on.
+- Light diagnostics show the actual control path: group control, ALL, policy-only lamps and blocked configurations.
+
+### Added
+
+- Area illuminance sensor: one optional numeric sensor per Area (domain `sensor`, device class `illuminance` or unit `lx`). Dashboard, Options Flow and the save validation use the same rules.
+- The Area brightness classification is central: DARK and BRIGHT come from the Area sensor (or the global light sensor) and the configured light limits, with hysteresis. Without a configured limit the state is UNKNOWN; UNKNOWN is never read as dark or bright.
+
+### Changed
+
+- Feature visibility in the Area editor follows the local draft immediately. Nothing is saved until the regular save.
+- Disabling a feature keeps its configuration (inactive). Enabling it again restores the settings.
+- Presence domains: `binary_sensor` and `media_player` are the defaults. Device classes use the same selection as the domains; the default device classes are `motion` and `occupancy`.
+- Default vacancy delay (presence release) is one minute.
+
+### Compatibility
+
+- `area_illuminance_sensor` and `retained_features` are additive optional configuration keys.
+- No schema version increase and no migration is required.
+- Legacy `dark_entity` values remain stored but are no longer evaluated. Binary darkness sources must be replaced by a numeric illuminance sensor where the Dark state is needed.
+- Without configured brightness limits the brightness classification remains UNKNOWN.
+- A configured but unavailable Area illuminance sensor does not fall back to the global sensor.
+- Policy-only lamp control remains supported.
+
 ## 1.7.0-rc.1 - 2026-11-24
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.
