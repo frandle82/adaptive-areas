@@ -1,7 +1,9 @@
 """Adaptive Areas component for Home Assistant."""
 
 from collections.abc import Callable
+import inspect
 import logging
+from functools import partial
 from time import monotonic
 from typing import Any
 
@@ -366,6 +368,57 @@ def _sanitize_switch_groups_options(
     return cleaned_options, changed
 
 
+async def _async_rollback_setup(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    areas: list[Any],
+    *,
+    platforms: list[str],
+    tracked_listeners: list[Callable],
+    managers: list[Any],
+    error: BaseException,
+) -> None:
+    """Undo what a failed setup created, each resource exactly once.
+
+    Only resources that exist are touched: runtime managers that were returned, the platforms (attempted), the Areas and the
+    tracked listeners of this entry. Every step runs even if an earlier step fails.
+    A cleanup error is logged and added as a note to ``error``; the caller re-raises
+    the original setup error, so it is never replaced or hidden.
+    """
+    title = config_entry.title
+
+    async def _run(name: str, step: Callable[[], Any]) -> None:
+        try:
+            result = step()
+            if inspect.isawaitable(result):
+                await result
+        except Exception as cleanup_error:
+            _LOGGER.error(
+                "Adaptive Areas [%s]: cleanup of %s failed after setup error",
+                title,
+                name,
+                exc_info=cleanup_error,
+            )
+            error.add_note(f"Cleanup of {name} failed: {cleanup_error!r}")
+
+    for manager in managers:
+        await _run("runtime manager", manager.unload)
+    await _run(
+        "platforms",
+        partial(hass.config_entries.async_unload_platforms, config_entry, platforms),
+    )
+    for area in areas:
+        if area.room_usage is not None:
+            await _run(f"room usage of area {area.id}", area.room_usage.async_unload)
+        await _run(f"area {area.id}", area.unload)
+    for listener in tracked_listeners:
+        await _run("tracked listener", listener)
+    await _run(
+        "entry data",
+        partial(hass.data.get(MODULE_DATA, {}).pop, config_entry.entry_id, None),
+    )
+
+
 async def async_setup_entry(  # noqa: C901
     hass: HomeAssistant, config_entry: ConfigEntry
 ):
@@ -629,30 +682,45 @@ async def async_setup_entry(  # noqa: C901
             await hass.config_entries.async_forward_entry_setups(
                 config_entry, platforms
             )
-        except Exception:
-            await hass.config_entries.async_unload_platforms(config_entry, platforms)
-            for area in adaptive_areas:
-                if area.room_usage is not None:
-                    await area.room_usage.async_unload()
-                area.unload()
-            for tracked_listener in tracked_listeners:
-                tracked_listener()
-            hass.data[MODULE_DATA].pop(config_entry.entry_id, None)
+        except BaseException as err:
+            await _async_rollback_setup(
+                hass,
+                config_entry,
+                adaptive_areas,
+                platforms=platforms,
+                tracked_listeners=tracked_listeners,
+                managers=[],
+                error=err,
+            )
             raise
-        for adaptive_area in adaptive_areas:
-            if adaptive_area.room_usage is not None and adaptive_area.states:
-                await adaptive_area.room_usage.async_sync_presence_state(
-                    adaptive_area.is_occupied()
-                )
-            if adaptive_area.environment is not None:
-                adaptive_area.environment.async_activate()
-            if adaptive_area.is_meta():
-                # Child aggregate entities are registered with the platforms above.
-                # Refresh the Meta source list after that registration boundary.
-                await adaptive_area.load_entities()
-            manager = await LightRuntimeManager.async_create(adaptive_area)
-            if manager is not None:
-                adaptive_area.light_runtime_manager = manager
+        managers: list = []
+        try:
+            for adaptive_area in adaptive_areas:
+                if adaptive_area.room_usage is not None and adaptive_area.states:
+                    await adaptive_area.room_usage.async_sync_presence_state(
+                        adaptive_area.is_occupied()
+                    )
+                if adaptive_area.environment is not None:
+                    adaptive_area.environment.async_activate()
+                if adaptive_area.is_meta():
+                    # Child aggregate entities are registered with the platforms above.
+                    # Refresh the Meta source list after that registration boundary.
+                    await adaptive_area.load_entities()
+                manager = await LightRuntimeManager.async_create(adaptive_area)
+                if manager is not None:
+                    adaptive_area.light_runtime_manager = manager
+                    managers.append(manager)
+        except BaseException as err:
+            await _async_rollback_setup(
+                hass,
+                config_entry,
+                adaptive_areas,
+                platforms=platforms,
+                tracked_listeners=tracked_listeners,
+                managers=managers,
+                error=err,
+            )
+            raise
         _assign_generated_entities_to_areas(hass, config_entry, adaptive_areas)
         _LOGGER.debug(
             "Adaptive Areas [%s]: platform setup: %.0f ms",

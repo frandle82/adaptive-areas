@@ -13,12 +13,16 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.components.sun.const import STATE_ABOVE_HORIZON
-from homeassistant.const import STATE_OFF, STATE_ON, STATE_OPEN, STATE_PLAYING
+from homeassistant.const import STATE_ON, STATE_OPEN, STATE_PLAYING
 from homeassistant.core import (
     Event,
     EventStateChangedData,
     EventStateReportedData,
     callback,
+)
+from custom_components.adaptive_areas.helpers.light_origin import (
+    begin_area_signal,
+    end_area_signal,
 )
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
@@ -34,6 +38,10 @@ from custom_components.adaptive_areas.base.entities import BinaryAdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import (
     AdaptiveArea,
     AdaptiveMetaArea,
+)
+from custom_components.adaptive_areas.helpers.brightness import (
+    BrightnessState,
+    area_brightness,
 )
 from custom_components.adaptive_areas.helpers.meta_summary import meta_area_summary
 from custom_components.adaptive_areas.helpers.sources import (
@@ -65,6 +73,8 @@ from custom_components.adaptive_areas.const import (
     CONF_EXTENDED_TIMEOUT,
     CONF_KEEP_ONLY_ENTITIES,
     CONF_PRESENCE_CONTROL_ENTITIES,
+    CONF_GLOBAL_LIGHT_SENSOR,
+    CONF_GLOBAL_OPTIONS,
     CONF_SECONDARY_STATES,
     CONF_SECONDARY_STATES_CALCULATION_MODE,
     CONF_SLEEP_TIMEOUT,
@@ -185,7 +195,28 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                 )
             )
 
+        brightness_source = self._brightness_source_id()
+        if brightness_source and not self.area.is_meta():
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, [brightness_source], self._brightness_source_change
+                )
+            )
+
         self.async_on_remove(self._cleanup_timers)
+
+    def _brightness_source_id(self) -> str | None:
+        """Return the configured global brightness sensor (E2: no area fallback)."""
+        options = self.area.hass_config.options.get(CONF_GLOBAL_OPTIONS, {})
+        source = (
+            options.get(CONF_GLOBAL_LIGHT_SENSOR) if isinstance(options, dict) else None
+        )
+        return source if isinstance(source, str) and source else None
+
+    @callback
+    def _brightness_source_change(self, _event: Event[EventStateChangedData]) -> None:
+        """Recalculate the area state when the global brightness sensor changes."""
+        self._schedule_update()
 
     @callback
     def _cleanup_timers(self) -> None:
@@ -290,6 +321,10 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             configurable_state,
             configurable_state_entity,
         ) in CONFIGURABLE_AREA_STATE_MAP.items():
+            # DARK/BRIGHT come from the Lux configuration (helpers/brightness.py),
+            # never from a configured darkness entity (removed, stored values ignored).
+            if configurable_state == AreaStates.DARK:
+                continue
             secondary_state_entity = self.area.config.get(
                 CONF_SECONDARY_STATES, {}
             ).get(configurable_state_entity, None)
@@ -468,12 +503,16 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         if self._is_on_clear_timeout() and self._get_clear_timeout() == 0:
             self._update_state()
         if reason is not None:
-            async_dispatcher_send(
-                self.hass,
-                AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
-                self.area.id,
-                reason,
-            )
+            begin_area_signal(self.area)
+            try:
+                async_dispatcher_send(
+                    self.hass,
+                    AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
+                    self.area.id,
+                    reason,
+                )
+            finally:
+                end_area_signal(self.area)
 
     @callback
     def _update_state(self, extra: datetime | None = None) -> None:
@@ -601,12 +640,16 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             str(new_states),
             str(lost_states),
         )
-        async_dispatcher_send(
-            self.hass,
-            AdaptiveAreasEvents.AREA_STATE_CHANGED,
-            self.area.id,
-            states_tuple,
-        )
+        begin_area_signal(self.area)
+        try:
+            async_dispatcher_send(
+                self.hass,
+                AdaptiveAreasEvents.AREA_STATE_CHANGED,
+                self.area.id,
+                states_tuple,
+            )
+        finally:
+            end_area_signal(self.area)
 
     # Area state calculations
 
@@ -730,9 +773,13 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
 
         configurable_states = self._get_configured_secondary_states()
 
-        # Assume AreaStates.DARK if not configured
-        if AreaStates.DARK not in configurable_states:
+        # DARK/BRIGHT: one classification from the global sensor and the light Lux
+        # limits. UNKNOWN adds neither state (no default "dark").
+        brightness = area_brightness(self.hass, self.area)
+        if brightness.state == BrightnessState.DARK:
             states.append(AreaStates.DARK)
+        elif brightness.state == BrightnessState.BRIGHT:
+            states.append(AreaStates.BRIGHT)
 
         for configurable_state in configurable_states:
             configurable_state_entity = CONFIGURABLE_AREA_STATE_MAP[configurable_state]
@@ -755,17 +802,7 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             # light semantics: OFF means DARK and ON means BRIGHT.  Do not
             # interpret UNKNOWN/UNAVAILABLE as DARK; preserve the last valid
             # brightness state until the source becomes valid again.
-            if configurable_state in (AreaStates.DARK, AreaStates.DARK.value):
-                if entity_state == STATE_ON:
-                    state_to_add = AreaStates.BRIGHT
-                elif entity_state == STATE_OFF:
-                    state_to_add = AreaStates.DARK
-                elif entity_state in INVALID_STATES:
-                    if AreaStates.DARK in self.area.states:
-                        state_to_add = AreaStates.DARK
-                    elif AreaStates.BRIGHT in self.area.states:
-                        state_to_add = AreaStates.BRIGHT
-            elif entity_state in {
+            if entity_state in {
                 STATE_ON,
                 STATE_OPEN,
                 STATE_PLAYING,
@@ -782,10 +819,6 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
                     state_to_add,
                 )
                 states.append(AreaStates(state_to_add))
-
-        # Meta-state bright
-        if AreaStates.DARK in configurable_states and AreaStates.DARK not in states:
-            states.append(AreaStates.BRIGHT)
 
         return states
 

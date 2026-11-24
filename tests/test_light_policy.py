@@ -14,7 +14,6 @@ from custom_components.adaptive_areas.helpers.light_policy import (
     LightPolicyReason,
     evaluate_light_policy,
     light_policy_config_from_feature,
-    light_vacancy_delay_from_feature,
 )
 from custom_components.adaptive_areas.helpers.sources import (
     LightSourceSnapshot,
@@ -204,25 +203,6 @@ def test_policy_config_adapter_is_read_only_and_requires_a_complete_mapping() ->
         light_policy_config_from_feature({CONF_TURN_ON_BELOW: 100})
 
 
-@pytest.mark.parametrize("delay", [0, 30, 30.5])
-def test_vacancy_delay_adapter_accepts_optional_finite_seconds(delay) -> None:
-    """Delay remains separate from Lux policy while retaining zero."""
-    feature = {
-        CONF_TURN_ON_BELOW: 100,
-        CONF_TURN_OFF_ABOVE: 200,
-        CONF_VACANCY_DELAY: delay,
-    }
-    assert light_policy_config_from_feature(feature) == LightPolicyConfig(100, 200)
-    assert light_vacancy_delay_from_feature(feature) == float(delay)
-
-
-@pytest.mark.parametrize("delay", [-1, float("nan"), float("inf"), True, "30"])
-def test_vacancy_delay_adapter_rejects_invalid_values(delay) -> None:
-    """Delay validation never accepts invalid numeric lookalikes."""
-    with pytest.raises((TypeError, ValueError)):
-        light_vacancy_delay_from_feature({CONF_VACANCY_DELAY: delay})
-
-
 @pytest.mark.parametrize(
     ("illuminance", "expected"),
     [
@@ -265,3 +245,12 @@ def test_percentage_band_limits_are_inclusive_and_hold_inside(
         evaluate_light_policy(_snapshot(illuminance_value=illuminance), config).action
         is expected
     )
+
+
+def test_retired_vacancy_delay_is_tolerated_and_ignored() -> None:
+    """Old stored options with any vacancy_delay value still load; the value has no effect."""
+    for legacy in (None, 0, 30, "anything"):
+        policy = light_policy_config_from_feature(
+            {"turn_on_below": 100, "turn_off_above": 200, CONF_VACANCY_DELAY: legacy}
+        )
+        assert (policy.turn_on_below, policy.turn_off_above) == (100, 200)

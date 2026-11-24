@@ -374,6 +374,12 @@
     "error": {
       "option_error": "Invalid option",
       "malformed_input": "This field is invalid or required",
+      "light_ownership_conflict_overhead": "{light} is already assigned to the group \"Ceiling lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+      "light_ownership_conflict_sleep": "{light} is already assigned to the group \"Sleep lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+      "light_ownership_conflict_accent": "{light} is already assigned to the group \"Accent lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+      "light_ownership_conflict_task": "{light} is already assigned to the group \"Task lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+      "light_group_unresolved": "The light group {light} could not be resolved, so the ownership cannot be verified. Nothing was saved.",
+      "light_entity_unknown": "{light} is unknown to Home Assistant, so the ownership cannot be verified. Nothing was saved.",
       "no_entity_selected": "No entity was selected",
       "invalid_entity": "Invalid entity selected",
       "climate_no_preset_support": "Climate entity does not support preset modes",

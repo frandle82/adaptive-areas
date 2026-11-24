@@ -374,6 +374,12 @@
         "error": {
             "option_error": "Ungültige Option",
             "malformed_input": "Diese Eingabe ist ungültig",
+            "light_ownership_conflict_overhead": "{light} ist bereits der Gruppe „Deckenleuchten“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+            "light_ownership_conflict_sleep": "{light} ist bereits der Gruppe „Schlaflichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+            "light_ownership_conflict_accent": "{light} ist bereits der Gruppe „Akzentlichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+            "light_ownership_conflict_task": "{light} ist bereits der Gruppe „Arbeitslichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+            "light_group_unresolved": "Die Lichtgruppe {light} konnte nicht aufgelöst werden, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
+            "light_entity_unknown": "{light} ist Home Assistant unbekannt, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
             "no_entity_selected": "Keine Entität ausgewählt",
             "invalid_entity": "Ungültige Entität ausgewählt",
             "climate_no_preset_support": "Klimaentität unterstützt keine Preset Modi",

@@ -107,3 +107,50 @@ A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not 
 - Schaltlogik, Präsenzlogik, Dedupe- und Übersteuerungsregeln sind unverändert.
 - Die ursprünglichen Praxisprobleme (Bereich bleibt dunkel; Licht schaltet bei hell→dunkel nicht ein) sind **ungeklärt**. Ohne reale Diagnosedaten (siehe Konzept) ist die Ursache nicht bestätigt.
 - Prüfungen: Python 738 bestanden; Browser 378/378 bestanden.
+
+## Lichtsteuerung und eindeutige Gruppenzuordnung (lokal, 2026-11-24, nicht committet)
+
+Stand des Arbeitsbaums. Nicht committet, nicht veröffentlicht, nicht in einer Home-Assistant-Instanz geprüft.
+
+**Regeln**
+
+- Eine physische Lampe gehört höchstens einer individuellen Lichtgruppe an (Deckenleuchten, Schlaflichter, Akzentlichter, Arbeitslichter).
+- Eindeutig innerhalb einer Area und zwischen Areas, auch im GlobalEntry.
+- Verschachtelte HA-Lichtgruppen werden zu ihren physischen Mitgliedern aufgelöst.
+- Die ALL-Gruppe ist ausgenommen, sperrt nichts und schaltet nie automatisch EIN (nur CLEAR-AUS).
+- Betroffene Gruppen werden bei einem Konflikt als Ganzes von automatischen Aktionen ausgenommen.
+
+**Dashboard**
+
+- Bereits einer anderen individuellen Gruppe zugeordnete Lampen sind nicht wählbar und nennen Gruppe und ggf. Area des Besitzers.
+- Noch nicht gespeicherte Änderungen zählen sofort. Abbrechen ändert nichts.
+
+**Serverseitige Validierung (verbindlich)**
+
+- Options-Flow und Dashboard-Speichern (`adaptive_areas/update_area`) nutzen dieselbe Prüfung `light_group_ownership_problem` (`helpers/light_ownership_runtime.py`).
+- Die Prüfung läuft nur, wenn Lichtgruppen gespeichert werden. Unbezogene Änderungen scheitern nicht an einer inzwischen unbekannten Lampe.
+- Eine abgelehnte Speicherung lässt die bisherige gültige Konfiguration unverändert.
+- Fehlerschlüssel sind je Besitzer-Gruppe (`light_ownership_conflict_overhead|sleep|accent|task`), zusätzlich `light_entity_unknown` und `light_group_unresolved`. Die Texte stehen in `strings.json`, `translations/{en,de}.json` (Options-Flow) und `dashboard_texts/{en,de}.json` (Panel) und nennen Lampe und Area über Platzhalter. Gruppennamen sind lokalisiert (Deutsch: Deckenleuchten, Schlaflichter, Akzentlichter, Arbeitslichter).
+- Korrigiert in dieser Runde: Die Prüfung las GlobalEntry-Areas nicht (`light_group_configs_of_entry` übersprang den GlobalEntry). Dadurch wären Konflikte zwischen gespeicherten Areas weder beim Speichern noch zur Laufzeit gesehen worden.
+- Ungültige Bestandskonfigurationen werden nicht automatisch umgeschrieben. Die Laufzeit blockiert betroffene Gruppen und meldet die Diagnose.
+
+**Lichtsteuerung (Architektur)**
+
+- Einheitlicher automatischer Gruppen-Entscheidungsweg: `transition_decision` bzw. `initial_decision` (`helpers/light_transition.py`) → Dispatch → `_async_group_command` → Ausführung.
+- Eigenständiger Policy-only-Pfad (`helpers/light_runtime.py`). Lampen automatischer Gruppen sind nie Policy-Ziele.
+- Eigenerkennung über Kontext ist Area-weit (`_light_group_own_contexts`), weil die ALL-Weiterleitung Untergruppen verändert.
+- Keine Shadow-Simulation. Keine zusätzlichen Timer. Keine Retries (ein fehlgeschlagener Versuch wird für unveränderte Basis nicht wiederholt). Keine Deferred-Queue. Keine periodische Reconciliation. Keine Golden-Referenz.
+
+**Prüfungen (lokal, 2026-11-24)**
+
+- Python: 957 Tests bestanden, 0 fehlgeschlagen, 0 xfail, 0 Sammlungsfehler, keine Ausschlüsse.
+- Browser-Harness `tests/frontend/run.mjs`: 387/387 bestanden, Exit 0.
+- Ruff, Black und `git diff --check` ohne Befund. Frontend-Syntaxprüfung (`node --check`) bestanden.
+
+**Offen**
+
+- Reale Home-Assistant-Prüfung (Oberfläche, Fehlertexte im Options-Flow, Reload) ist nicht durchgeführt. Der Browser-Harness prüft das Panel gegen Fixtures, nicht gegen eine laufende Instanz.
+- Die Darstellung der Platzhalter im Home-Assistant-Options-Flow ist nicht in einer Instanz verifiziert.
+- Das Panel übersetzt Fehlercodes über `_errorText`; diese Übersetzung ist nicht im Browser-Harness abgedeckt.
+- Konfigurationen mit Doppelzuordnung aus früheren Ständen werden nicht bereinigt; sie werden nur als Laufzeit-Diagnose gemeldet.
+- Graphify-Graph ist aktualisiert (Working Tree, nur Code). Dokumentation und Bilder sind nicht semantisch erfasst.

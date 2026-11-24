@@ -815,7 +815,6 @@ def build_light_runtime_status(
         policy_config = None
     decision = evaluate_light_policy(snapshot, policy_config)
     manager = getattr(area, "light_runtime_manager", None)
-    vacancy = manager.vacancy_state if manager is not None else None
     override = manager.override_state if manager is not None else None
     last_dispatched = manager.last_dispatched_action if manager is not None else None
     override_mode = (
@@ -862,8 +861,8 @@ def build_light_runtime_status(
                 "mode": override_mode.value.upper(),
             },
             "vacancy": {
-                "pending": bool(vacancy and vacancy.pending),
-                "due_at": vacancy.due_at if vacancy and vacancy.pending else None,
+                "pending": False,
+                "due_at": None,
             },
             "targets": {
                 "total": len(snapshot.targets),

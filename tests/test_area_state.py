@@ -18,10 +18,13 @@ from homeassistant.helpers.entity_component import DATA_INSTANCES
 
 from custom_components.adaptive_areas.const import (
     ATTR_PRESENCE_SENSORS,
+    CONF_ENABLED_FEATURES,
+    CONF_FEATURE_LIGHT,
+    CONF_GLOBAL_LIGHT_SENSOR,
+    CONF_GLOBAL_OPTIONS,
     ATTR_STATES,
     CONF_ACCENT_ENTITY,
     CONF_CLEAR_TIMEOUT,
-    CONF_DARK_ENTITY,
     CONF_EXTENDED_TIME,
     CONF_KEEP_ONLY_ENTITIES,
     CONF_SECONDARY_STATES,
@@ -47,6 +50,16 @@ from tests.mocks import MockBinarySensor
 
 _LOGGER = logging.getLogger(__name__)
 
+# DARK and BRIGHT come from the global light sensor and the Lux limits (no dark entity).
+LUX_SENSOR = "sensor.test_global_lux"
+DARK_LUX = "50"  # at or below the turn-on limit (90 lx)
+BRIGHT_LUX = "150"  # above the turn-off limit (110 lx)
+
+
+async def _set_lux(hass: HomeAssistant, value: str) -> None:
+    hass.states.async_set(LUX_SENSOR, value, {"unit_of_measurement": "lx"})
+    await hass.async_block_till_done()
+
 
 # Fixtures
 
@@ -59,12 +72,18 @@ def mock_config_entry_secondary_states() -> MockConfigEntry:
         {
             CONF_SECONDARY_STATES: {
                 CONF_ACCENT_ENTITY: "binary_sensor.accent_sensor",
-                CONF_DARK_ENTITY: "binary_sensor.area_light_sensor",
                 CONF_SLEEP_ENTITY: "binary_sensor.sleep_sensor",
-            }
+            },
+            CONF_ENABLED_FEATURES: {
+                CONF_FEATURE_LIGHT: {"turn_on_below": 90.0, "turn_off_above": 110.0},
+            },
         }
     )
-    return MockConfigEntry(domain=DOMAIN, data=data)
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        options={CONF_GLOBAL_OPTIONS: {CONF_GLOBAL_LIGHT_SENSOR: LUX_SENSOR}},
+    )
 
 
 @pytest.fixture(name="keep_only_sensor_config_entry")
@@ -206,7 +225,6 @@ async def test_area_secondary_state_change(
 
     secondary_state_map = {
         secondary_states_sensors[0].entity_id: (AreaStates.SLEEP, None),
-        secondary_states_sensors[1].entity_id: (AreaStates.BRIGHT, AreaStates.DARK),
         secondary_states_sensors[2].entity_id: (AreaStates.ACCENT, None),
     }
 
@@ -250,8 +268,16 @@ async def test_area_secondary_state_change(
         assert_in_attribute(
             area_binary_sensor, ATTR_STATES, state_tuples[0], negate=True
         )
-        if state_tuples[1]:
-            assert_in_attribute(area_binary_sensor, ATTR_STATES, state_tuples[1])
+
+    # Brightness: the global light sensor is the only source of DARK and BRIGHT.
+    await _set_lux(hass, DARK_LUX)
+    area_binary_sensor = hass.states.get(area_sensor_entity_id)
+    assert_in_attribute(area_binary_sensor, ATTR_STATES, AreaStates.DARK)
+    assert_in_attribute(area_binary_sensor, ATTR_STATES, AreaStates.BRIGHT, negate=True)
+    await _set_lux(hass, BRIGHT_LUX)
+    area_binary_sensor = hass.states.get(area_sensor_entity_id)
+    assert_in_attribute(area_binary_sensor, ATTR_STATES, AreaStates.BRIGHT)
+    assert_in_attribute(area_binary_sensor, ATTR_STATES, AreaStates.DARK, negate=True)
 
 
 async def test_area_brightness_recovers_from_unavailable(
@@ -259,14 +285,16 @@ async def test_area_brightness_recovers_from_unavailable(
     secondary_states_sensors: list[MockBinarySensor],
     _setup_integration_secondary_states,
 ) -> None:
-    """A live brightness state replaces restored state after recovery."""
+    """A missing brightness reading is UNKNOWN; a valid reading after recovery classifies again.
+
+    The brightness memory is forgotten when the reading is missing (no remembered DARK or
+    BRIGHT, no guess). The lamps and states follow only a valid current reading.
+    """
     area_sensor_entity_id = (
         f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_kitchen_area_state"
     )
-    brightness_entity_id = secondary_states_sensors[1].entity_id
 
-    hass.states.async_set(brightness_entity_id, STATE_ON)
-    await hass.async_block_till_done()
+    await _set_lux(hass, BRIGHT_LUX)
     assert_in_attribute(
         hass.states.get(area_sensor_entity_id), ATTR_STATES, AreaStates.BRIGHT
     )
@@ -278,14 +306,13 @@ async def test_area_brightness_recovers_from_unavailable(
     )
 
     for invalid_state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-        hass.states.async_set(brightness_entity_id, invalid_state)
+        hass.states.async_set(LUX_SENSOR, invalid_state)
         await hass.async_block_till_done()
-        assert_in_attribute(
-            hass.states.get(area_sensor_entity_id), ATTR_STATES, AreaStates.BRIGHT
-        )
+        area_states = hass.states.get(area_sensor_entity_id).attributes[ATTR_STATES]
+        assert AreaStates.BRIGHT not in area_states
+        assert AreaStates.DARK not in area_states
 
-    hass.states.async_set(brightness_entity_id, STATE_OFF)
-    await hass.async_block_till_done()
+    await _set_lux(hass, DARK_LUX)
     assert_in_attribute(
         hass.states.get(area_sensor_entity_id), ATTR_STATES, AreaStates.DARK
     )
@@ -466,12 +493,15 @@ async def test_secondary_state_semantic_events_are_transition_only(
     secondary_states_sensors: list[MockBinarySensor],
     _setup_integration_secondary_states,
 ) -> None:
-    """Secondary state starts and ends publish deterministic public events once."""
+    """Secondary state starts and ends publish deterministic public events once.
+
+    Sleep and accent come from their binary sensors; dark and bright come from the light
+    sensor (lux), so each brightness change is a real transition.
+    """
     events = []
     hass.bus.async_listen(EVENT_ADAPTIVE_AREAS_AREA, events.append)
     expected = {
         secondary_states_sensors[0].entity_id: ("sleep_started", "sleep_ended"),
-        secondary_states_sensors[1].entity_id: ("dark_ended", "dark_started"),
         secondary_states_sensors[2].entity_id: ("accented_started", "accented_ended"),
     }
     for source_id, event_types in expected.items():
@@ -482,6 +512,13 @@ async def test_secondary_state_semantic_events_are_transition_only(
         hass.states.async_set(source_id, STATE_OFF)
         await hass.async_block_till_done()
         assert [event.data["event_type"] for event in events[-2:]] == list(event_types)
+
+    # Dark first, so that the following bright reading is a real transition.
+    await _set_lux(hass, DARK_LUX)
+    await _set_lux(hass, BRIGHT_LUX)
+    assert events[-1].data["event_type"] == "dark_ended"
+    await _set_lux(hass, DARK_LUX)
+    assert events[-1].data["event_type"] == "dark_started"
 
 
 async def test_extended_semantic_events(

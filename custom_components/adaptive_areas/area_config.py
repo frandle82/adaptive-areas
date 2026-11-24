@@ -15,6 +15,7 @@ from custom_components.adaptive_areas.const import (
     AREA_TYPE_META,
     CONF_AREAS,
     CONF_ENABLED_FEATURES,
+    CONF_FEATURE_LIGHT_GROUPS,
     CONF_GLOBAL_ENTRY,
     CONF_GLOBAL_OPTIONS,
     CONF_FEATURE_LIST,
@@ -31,6 +32,9 @@ from custom_components.adaptive_areas.const import (
     DOMAIN,
     META_AREA_SCHEMA,
     REGULAR_AREA_SCHEMA,
+)
+from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
+    light_group_ownership_problem,
 )
 from custom_components.adaptive_areas.migration import get_global_entries
 
@@ -205,9 +209,16 @@ def _new_unsupported_presence_platforms(
 
 
 async def async_update_area(
-    hass: HomeAssistant, area_id: str | ConfigEntry, updates: Mapping[str, Any]
+    hass: HomeAssistant,
+    area_id: str | ConfigEntry,
+    updates: Mapping[str, Any],
+    details: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, str]:
-    """Atomically update one logical Area and reload its container once."""
+    """Atomically update one logical Area and reload its container once.
+
+    Errors map a field to an error key. For light ownership conflicts, `details` (when given)
+    receives the placeholders of the message (lamp, owning group's Area) for that field.
+    """
     legacy_entry = area_id if isinstance(area_id, ConfigEntry) else None
     if legacy_entry is not None:
         entry = legacy_entry
@@ -243,6 +254,29 @@ async def async_update_area(
     # Identity belongs to the container key and is deliberately not panel-editable.
     validated.pop(CONF_ID, None)
     validated.pop(CONF_NAME, None)
+    # Same ownership rule as the options flow: a light belongs to one individual group only,
+    # within one Area and across all Areas. Checked only when the light groups are saved, so
+    # unrelated edits never fail on a light that Home Assistant no longer knows.
+    # Refused saves leave the stored config untouched.
+    submitted = updates.get(CONF_ENABLED_FEATURES) or {}
+    if CONF_FEATURE_LIGHT_GROUPS in submitted:
+        own_groups = (
+            validated.get(CONF_ENABLED_FEATURES, {}).get(CONF_FEATURE_LIGHT_GROUPS)
+            or {}
+        )
+        own_area_id = current.get(CONF_ID) or (
+            area_id if isinstance(area_id, str) else entry.unique_id
+        )
+        problem = light_group_ownership_problem(
+            hass, f"{entry.entry_id}/{own_area_id}", own_groups
+        )
+    else:
+        problem = None
+    if problem is not None:
+        key, error, placeholders = problem
+        if details is not None:
+            details[key] = placeholders
+        return {key: error}
     if legacy_entry is not None:
         hass.config_entries.async_update_entry(entry, options=validated)
     else:

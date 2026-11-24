@@ -313,8 +313,11 @@ async def websocket_create_area(hass, connection, msg):
 @websocket_api.async_response
 async def websocket_update_area(hass, connection, msg):
     """Persist a complete logical Area snapshot and reload the container once."""
-    errors = await async_update_area(hass, msg["area_id"], msg["options"])
-    connection.send_result(msg["id"], {"ok": not errors, "errors": errors})
+    details: dict[str, dict[str, str]] = {}
+    errors = await async_update_area(hass, msg["area_id"], msg["options"], details)
+    connection.send_result(
+        msg["id"], {"ok": not errors, "errors": errors, "details": details}
+    )
 
 
 @websocket_api.require_admin

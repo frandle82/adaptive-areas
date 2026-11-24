@@ -216,7 +216,14 @@ from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
 from custom_components.adaptive_areas.helpers.sources import area_entity_ids
+from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
+    light_group_ownership_problem,
+)
 from custom_components.adaptive_areas.migration import is_global_entry
+from custom_components.adaptive_areas.helpers.light_ownership import (
+    LIGHT_OWNERSHIP_ERRORS,
+    OWNERSHIP_CONFLICT_ERRORS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -248,6 +255,14 @@ def _remove_legacy_environmental_sensors(config: dict[str, Any]) -> dict[str, An
         enabled.pop(CONF_FEATURE_HEALTH, None)
         cleaned[CONF_ENABLED_FEATURES] = enabled
     return cleaned
+
+
+def _as_list(value) -> list:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return list(value)
 
 
 class ConfigBase:
@@ -616,6 +631,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
     """Handle a option flow for Adaptive Lighting."""
 
     area: AdaptiveArea
+    # Placeholders of the last light ownership conflict (lamp, owning group, owning area).
+    _ownership_placeholders: dict[str, str] | None = None
 
     def __init__(self):
         """Initialize options flow."""
@@ -1302,6 +1319,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                         [vol.Invalid("activation is blocked", path=[blockers_key])]
                     )
 
+            ownership = self._light_ownership_error(raw_input)
+            if ownership is not None:
+                key, message = ownership
+                raise vol.MultipleInvalid([vol.Invalid(message, path=[key])])
+
             return LIGHT_GROUP_FEATURE_SCHEMA(raw_input)
 
         return await self.do_feature_config(
@@ -1890,6 +1912,21 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
             user_input=user_input,
         )
 
+    def _light_ownership_error(self, raw_input):
+        """Return (group key, error key) if the saved light groups would break ownership.
+
+        Shared check with the panel save path (light_group_ownership_problem). Nothing is
+        changed here; the caller refuses the save.
+        """
+        own_key = f"{self.config_entry.entry_id}/{self.area.id}"
+        self._ownership_placeholders = None
+        problem = light_group_ownership_problem(self.hass, own_key, raw_input)
+        if problem is None:
+            return None
+        key, error, details = problem
+        self._ownership_placeholders = details
+        return key, error
+
     async def do_feature_config(
         self,
         *,
@@ -1928,7 +1965,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                     validated_input = CONFIGURABLE_FEATURES[name](user_input)
             except vol.MultipleInvalid as validation:
                 errors = {
-                    str(error.path[0]): "malformed_input" for error in validation.errors
+                    str(error.path[0]): (
+                        str(error.msg)
+                        if str(error.msg) in LIGHT_OWNERSHIP_ERRORS
+                        else "malformed_input"
+                    )
+                    for error in validation.errors
                 }
                 _LOGGER.debug("OptionsFlow: Found the following errors: %s", errors)
             except Exception as e:  # pylint: disable=broad-exception-caught
@@ -1986,4 +2028,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
                 selectors=selectors,
             ),
             errors=errors,
+            description_placeholders=(
+                self._ownership_placeholders
+                if any(error in OWNERSHIP_CONFLICT_ERRORS for error in errors.values())
+                else None
+            ),
         )

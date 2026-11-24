@@ -1367,13 +1367,14 @@ async function regression(browser) {
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 50, turn_off_above: 200, vacancy_delay: 30 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: ["sleep"], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); p._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
   await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
-  const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value, vacancy: f.elements.namedItem("light:vacancy_delay").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.querySelectorAll('aa-entity-picker[name=\"light_group:sleep_lights\"] input[type=hidden]')].map((o) => o.value) }; })()`);
-  check("L1 the central editor shows the stored 50/200 lx pair as threshold 125 and hysteresis 120 % and keeps light group settings", l1.threshold === "125" && l1.hysteresis === "120" && l1.vacancy === "30" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
+  const l1 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); return { threshold: f.elements.namedItem("light:threshold").value, hysteresis: f.elements.namedItem("light:hysteresis").value, overheadActivation: f.elements.namedItem("light_group:overhead_lights_activation").value, overheadBlocking: [...f.elements.namedItem("light_group:overhead_lights_blocking_states").selectedOptions].map((o) => o.value), sleepActivation: f.elements.namedItem("light_group:sleep_lights_activation").value, sleepLights: [...f.querySelectorAll('aa-entity-picker[name=\"light_group:sleep_lights\"] input[type=hidden]')].map((o) => o.value) }; })()`);
+  check("L1 the central editor shows the stored 50/200 lx pair as threshold 125 and hysteresis 120 % and keeps light group settings", l1.threshold === "125" && l1.hysteresis === "120" && l1.overheadActivation === "occupied" && JSON.stringify(l1.overheadBlocking) === JSON.stringify(["sleep"]) && l1.sleepActivation === "sleep" && JSON.stringify(l1.sleepLights) === JSON.stringify(["light.bed"]), JSON.stringify(l1));
   await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate = undefined; true`);
-  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "120"; f.elements.namedItem("light_group:overhead_lights_activation").value = "extended"; f.elements.namedItem("light:vacancy_delay").value = ""; f.requestSubmit(); return true; })()`);
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); f.elements.namedItem("light:threshold").value = "120"; f.elements.namedItem("light_group:overhead_lights_activation").value = "extended"; f.requestSubmit(); return true; })()`);
   await sleep(250);
   const l2 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate || null`);
-  check("L2 a changed threshold and group setting are sent; an empty vacancy delay is removed; untouched group settings are kept", l2?.features?.light?.turn_on_below === 48 && !("vacancy_delay" in (l2?.features?.light || {})) && l2?.features?.light?.turn_off_above === 192 && l2?.features?.light_groups?.overhead_lights_activation === "extended" && JSON.stringify(l2?.features?.light_groups?.sleep_lights) === JSON.stringify(["light.bed"]) && l2?.features?.light_groups?.sleep_lights_activation === "sleep", JSON.stringify(l2));
+  check("L2 a changed threshold and group setting are sent; the stored legacy vacancy_delay is kept untouched (no automatic migration); untouched group settings are kept", l2?.features?.light?.turn_on_below === 48 && l2?.features?.light?.vacancy_delay === 30 && l2?.features?.light?.turn_off_above === 192 && l2?.features?.light_groups?.overhead_lights_activation === "extended" && JSON.stringify(l2?.features?.light_groups?.sleep_lights) === JSON.stringify(["light.bed"]) && l2?.features?.light_groups?.sleep_lights_activation === "sleep", JSON.stringify(l2));
+
   await sleep(150);
   await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); const st = window.__h.hass.__state; st.config.areas[0].options.features.light.turn_on_below = 99; window.__h.hass.__state.lastAreaUpdate = undefined; return true; })()`);
   await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
@@ -2332,6 +2333,83 @@ async function regression(browser) {
   const overflow = await browser.evaluate(`document.documentElement.scrollWidth - document.documentElement.clientWidth`);
   check("R12 no horizontal overflow at 320 px", overflow <= 0, `overflow=${overflow}`);
   await browser.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  // S-series: one lamp, one individual light group (dashboard picker lock, step 4)
+  const lockStates = { ...states,
+    "light.ceiling": { state: "on", attributes: { friendly_name: "Ceiling" } },
+    "light.bed": { state: "off", attributes: { friendly_name: "Bed" } },
+    "light.desk": { state: "off", attributes: { friendly_name: "Desk" } },
+    "light.sofa": { state: "off", attributes: { friendly_name: "Sofa" } },
+    "light.group_wall": { state: "off", attributes: { friendly_name: "Wall group", entity_id: ["light.desk"] } } };
+  await browser.evaluate(mountCode({ admin: true, language: "en", states: lockStates }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas[0].options.features = JSON.parse(JSON.stringify({ light: { turn_on_below: 50, turn_off_above: 200 }, light_groups: { overhead_lights: ["light.ceiling"], overhead_lights_activation: "occupied", overhead_lights_blocking_states: [], overhead_lights_brightness: "require_dark", sleep_lights: ["light.bed"], sleep_lights_activation: "sleep", sleep_lights_blocking_states: [], sleep_lights_brightness: "ignore", accent_lights: [], accent_lights_activation: "disabled", accent_lights_blocking_states: [], accent_lights_brightness: "require_dark", task_lights: [], task_lights_activation: "disabled", task_lights_blocking_states: [], task_lights_brightness: "require_dark" } })); document.querySelector("adaptive-areas-panel")._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form] [data-light]") !== null`);
+  const pickerOption = (picker, id) => `(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const pk = f.querySelector('aa-entity-picker[name="light_group:${picker}_lights"]'); pk._open = true; pk._query = ""; pk._render(); const o = [...pk.shadowRoot.querySelectorAll('[role="option"]')].find((x) => x.querySelector(".option-id")?.textContent === "${id}"); return o ? { blocked: o.dataset.blocked === "true", owner: o.querySelector(".option-blocked")?.textContent || "", ariaDisabled: o.getAttribute("aria-disabled") } : null; })()`;
+  const s1 = await browser.evaluate(pickerOption("accent", "light.ceiling"));
+  check("S1 a lamp of the overhead group is locked in accent and names its group", s1?.blocked === true && s1?.ariaDisabled === "true" && s1?.owner === "Already assigned: Ceiling lights", JSON.stringify(s1));
+  const s2 = await browser.evaluate(pickerOption("overhead", "light.ceiling"));
+  check("S2 the group's own lamp stays selectable in its own group", s2 && s2.blocked === false, JSON.stringify(s2));
+  const s3 = await browser.evaluate(pickerOption("accent", "light.desk"));
+  check("S3 a free lamp is selectable", s3 && s3.blocked === false, JSON.stringify(s3));
+  // unsaved change: desk is added to overhead in the form only; accent must see it at once (nested group too)
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const pk = f.querySelector('aa-entity-picker[name="light_group:overhead_lights"]'); const input = document.createElement("input"); input.type = "hidden"; input.name = "light_group:overhead_lights"; input.value = "light.desk"; pk.appendChild(input); return true; })()`);
+  const s4 = await browser.evaluate(pickerOption("accent", "light.desk"));
+  const s5 = await browser.evaluate(pickerOption("accent", "light.group_wall"));
+  check("S4 an unsaved selection locks the lamp at once in other groups", s4?.blocked === true, JSON.stringify(s4));
+  check("S5 a group that contains the selected lamp is locked too (nested)", s5?.blocked === true && s5?.owner === "Already assigned: Ceiling lights", JSON.stringify(s5));
+  // cancelling changes nothing that is stored
+  const s6 = await browser.evaluate(`window.__h.hass.__state.lastAreaUpdate || null`);
+  check("S6 unsaved selections do not change the stored configuration", s6 === null, JSON.stringify(s6));
+  // releasing the unsaved selection frees the lamp again
+  await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const pk = f.querySelector('aa-entity-picker[name="light_group:overhead_lights"]'); pk.querySelectorAll('input[type="hidden"][value="light.desk"]').forEach((i) => i.remove()); return true; })()`);
+  const s7 = await browser.evaluate(pickerOption("accent", "light.desk"));
+  check("S7 removing the selection frees the lamp again", s7 && s7.blocked === false, JSON.stringify(s7));
+  // a blocked option is not selectable by click
+  const s8 = await browser.evaluate(`(() => { const f = document.querySelector("adaptive-areas-panel form[data-area-form]"); const pk = f.querySelector('aa-entity-picker[name="light_group:accent_lights"]'); pk._toggle("light.ceiling"); return pk.selected.length; })()`);
+  check("S8 a locked lamp cannot be added by activation", s8 === 0, String(s8));
+  // another Area's assignment is taken into account
+  await browser.evaluate(`(() => { const st = window.__h.hass.__state; st.config = JSON.parse(JSON.stringify(st.config)); st.config.areas.push({ id: "living_room", name: "Living room", options: { features: { light_groups: { overhead_lights: ["light.sofa"] } } } }); document.querySelector("adaptive-areas-panel")._data.config = JSON.parse(JSON.stringify(st.config)); return true; })()`);
+  const s9 = await browser.evaluate(pickerOption("accent", "light.sofa"));
+  check("S9 an assignment in another Area locks the lamp and names that Area", s9?.blocked === true && s9?.owner.includes("Living room"), JSON.stringify(s9));
+  // EM-series: localized ownership messages in the panel (German and English), rejected save
+  const E_GROUPS = { overhead: ["Deckenleuchten", "Ceiling lights"], sleep: ["Schlaflichter", "Sleep lights"], accent: ["Akzentlichter", "Accent lights"], task: ["Arbeitslichter", "Task lights"] };
+  await browser.evaluate(mountCode({ admin: true, language: "de", states: lockStates }));
+  await waitFor(browser, `${text()}.includes("Verbunden")`);
+  for (const [group, [de]] of Object.entries(E_GROUPS)) {
+    const msg = await browser.evaluate(`document.querySelector("adaptive-areas-panel")._errorText("light_ownership_conflict_${group}", { light: "light.ceiling", area: "Küche" })`);
+    check(`EM1 German ${group} message names the lamp, the Area and the localized group`, msg.includes("light.ceiling") && msg.includes("Küche") && msg.includes(de) && !msg.includes("{") && !msg.includes("_lights"), msg);
+  }
+  await browser.evaluate(mountCode({ admin: true, language: "en", states: lockStates }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  for (const [group, [, en]] of Object.entries(E_GROUPS)) {
+    const msg = await browser.evaluate(`document.querySelector("adaptive-areas-panel")._errorText("light_ownership_conflict_${group}", { light: "light.sofa", area: "Living room" })`);
+    check(`EM2 English ${group} message names the lamp, the Area and the localized group`, msg.includes("light.sofa") && msg.includes("Living room") && msg.includes(en) && !msg.includes("{") && !msg.includes("German"), msg);
+  }
+  const unknownCode = await browser.evaluate(`document.querySelector("adaptive-areas-panel")._errorText("no_such_code", {})`);
+  check("EM3 an unknown error code is shown as the code, not as an empty text", unknownCode === "no_such_code", String(unknownCode));
+  // rejected save: the server refuses, the form shows the localized text, the stored configuration stays unchanged
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
+  await browser.evaluate(`document.querySelector("adaptive-areas-panel [data-edit='kitchen']").click()`);
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel form[data-area-form]") !== null`);
+  const eBefore = await browser.evaluate(`JSON.stringify(document.querySelector("adaptive-areas-panel")._data.config.areas)`);
+  await browser.evaluate(`(() => { const h = window.__h.hass; window.__eorig = h.callWS.bind(h); h.callWS = (msg) => msg.type === "adaptive_areas/update_area" ? Promise.resolve({ ok: false, errors: { overhead_lights: "light_ownership_conflict_sleep" }, details: { overhead_lights: { light: "light.ceiling", area: "Living room" } } }) : window.__eorig(msg); document.querySelector("adaptive-areas-panel form[data-area-form]").requestSubmit(); return true; })()`);
+  await sleep(250);
+  const eForm = await browser.evaluate(`document.querySelector("adaptive-areas-panel")._errors.form || ""`);
+  check("EM4 a rejected save shows the localized ownership text with lamp and Area", eForm.includes("light.ceiling") && eForm.includes("Living room") && eForm.includes("Sleep lights") && !eForm.includes("{"), eForm);
+  const eAfter = await browser.evaluate(`JSON.stringify(document.querySelector("adaptive-areas-panel")._data.config.areas)`);
+  check("EM5 a rejected save leaves the stored configuration unchanged", eAfter === eBefore);
+  await browser.evaluate(`(() => { window.__h.hass.callWS = window.__eorig; document.querySelector("adaptive-areas-panel [data-cancel]")?.click(); return true; })()`);
+  await sleep(150);
+  // restore the state the following L-series steps expect
+  await browser.evaluate(mountCode({ admin: true, language: "en", states }));
+  await waitFor(browser, `${text()}.includes("Connected")`);
+  await clickByText(browser, "Area management");
+  await waitFor(browser, `document.querySelector("adaptive-areas-panel [data-edit='kitchen']") !== null`);
 }
 
 function stats(values) {

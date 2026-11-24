@@ -494,5 +494,13 @@
   "lxDispatchNotRecorded": "nicht erfasst",
   "lxDispatch_TURN_ON": "Einschalten ausgelöst (Service-Aufruf, nicht durch Zustand bestätigt)",
   "lxDispatch_TURN_OFF": "Ausschalten ausgelöst (Service-Aufruf, nicht durch Zustand bestätigt)",
-  "lxTargetIdsLabel": "Lichtziele"
+  "lxTargetIdsLabel": "Lichtziele",
+  "pickerAssignedTo": "Bereits zugeordnet: {group}",
+  "pickerAssignedToArea": "Bereits zugeordnet: {group} ({area})",
+  "light_ownership_conflict_overhead": "{light} ist bereits der Gruppe „Deckenleuchten“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+  "light_ownership_conflict_sleep": "{light} ist bereits der Gruppe „Schlaflichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+  "light_ownership_conflict_accent": "{light} ist bereits der Gruppe „Akzentlichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+  "light_ownership_conflict_task": "{light} ist bereits der Gruppe „Arbeitslichter“ von {area} zugeordnet. Eine Lampe darf nur einer individuellen Lichtgruppe zugeordnet sein. Nichts wurde gespeichert.",
+  "light_entity_unknown": "{light} ist Home Assistant unbekannt, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert.",
+  "light_group_unresolved": "Die Lichtgruppe {light} konnte nicht aufgelöst werden, daher lässt sich die Zuordnung nicht prüfen. Nichts wurde gespeichert."
 }

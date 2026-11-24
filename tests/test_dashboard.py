@@ -44,7 +44,6 @@ from custom_components.adaptive_areas.helpers.light_override import (
     LightManualOverrideMode,
     LightManualOverrideState,
 )
-from custom_components.adaptive_areas.helpers.light_vacancy import LightVacancyState
 from custom_components.adaptive_areas.helpers.sources import (
     LightSourceSnapshot,
     LightTargetSource,
@@ -308,10 +307,9 @@ def test_climate_runtime_status_reports_effective_runtime_state(
 def test_light_runtime_status_keeps_manager_state_area_local(
     hass: HomeAssistant,
 ) -> None:
-    """Override and vacancy values come only from the requested Area manager."""
+    """Override values come only from the requested Area manager; no light vacancy timer."""
     manager = SimpleNamespace(
         override_state=LightManualOverrideState(LightManualOverrideMode.FORCE_ON, 1),
-        vacancy_state=LightVacancyState(detected_at=10, due_at=40),
         last_dispatched_action=None,
     )
     area = SimpleNamespace(
@@ -330,7 +328,8 @@ def test_light_runtime_status_keeps_manager_state_area_local(
         status = build_light_runtime_status(hass, area)
 
     assert status["light"]["override"] == {"mode": "FORCE_ON"}
-    assert status["light"]["vacancy"] == {"pending": True, "due_at": 40}
+    # The light vacancy timer was removed: no light vacancy is ever pending.
+    assert status["light"]["vacancy"] == {"pending": False, "due_at": None}
     assert status["light"]["policy"] == {
         "decision": "NO_ACTION",
         "reason": "no_targets",
@@ -344,7 +343,6 @@ def test_light_runtime_status_keeps_manager_state_area_local(
             override_state=LightManualOverrideState(
                 LightManualOverrideMode.FORCE_OFF, 1
             ),
-            vacancy_state=LightVacancyState(),
             last_dispatched_action=None,
         ),
         has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
@@ -766,14 +764,15 @@ async def test_dashboard_empty_subscription_is_successful(hass: HomeAssistant) -
     connection.subscriptions[1]()
 
 
-def test_panel_keeps_vacancy_delay_and_renders_light_runtime_status() -> None:
-    """The static panel keeps zero-capable config inputs beside the status block."""
+def test_panel_has_no_light_vacancy_input_and_renders_light_runtime_status() -> None:
+    """The light vacancy input is gone; the runtime status block remains."""
     panel = Path(
         "custom_components/adaptive_areas/frontend/adaptive-areas-panel.js"
     ).read_text(encoding="utf-8")
 
-    assert 'name="${prefix}vacancy_delay"' in panel
-    assert 'light.vacancy_delay??""' in panel
+    # The light vacancy delay was removed: only the Area vacancy delay is authoritative.
+    assert 'name="${prefix}vacancy_delay"' not in panel
+    assert "light.vacancy_delay" not in panel
     assert "adaptive_areas/get_light_runtime_status" in panel
     assert "Aktueller Status" in _dashboard_texts()
 
@@ -795,7 +794,10 @@ def test_panel_light_control_configuration_is_area_scoped() -> None:
     assert "data-light-configuration" not in panel
     assert "await this._loadLightRuntime(area.area_id)" in panel
     # Light group values are written by the Light tab only, never by the Area form save.
-    assert "light_group:${key}" not in panel
+    # The only `light_group:${key}` lookup is the read-only ownership lock in
+    # _lightGroupBlockedBy; any other occurrence would be a new write path.
+    read_only_lookup = 'aa-entity-picker[name="light_group:${key}_lights"]'
+    assert panel.count("light_group:${key}") == panel.count(read_only_lookup)
     assert 'this._value(form,"turn_on_below")' not in panel
 
 

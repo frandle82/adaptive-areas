@@ -494,5 +494,13 @@
   "lxDispatchNotRecorded": "not recorded",
   "lxDispatch_TURN_ON": "Turn-on dispatched (service call, not confirmed by state)",
   "lxDispatch_TURN_OFF": "Turn-off dispatched (service call, not confirmed by state)",
-  "lxTargetIdsLabel": "Light targets"
+  "lxTargetIdsLabel": "Light targets",
+  "pickerAssignedTo": "Already assigned: {group}",
+  "pickerAssignedToArea": "Already assigned: {group} ({area})",
+  "light_ownership_conflict_overhead": "{light} is already assigned to the group \"Ceiling lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+  "light_ownership_conflict_sleep": "{light} is already assigned to the group \"Sleep lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+  "light_ownership_conflict_accent": "{light} is already assigned to the group \"Accent lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+  "light_ownership_conflict_task": "{light} is already assigned to the group \"Task lights\" of {area}. A light may belong to one individual light group only. Nothing was saved.",
+  "light_entity_unknown": "{light} is unknown to Home Assistant, so the ownership cannot be verified. Nothing was saved.",
+  "light_group_unresolved": "The light group {light} could not be resolved, so the ownership cannot be verified. Nothing was saved."
 }

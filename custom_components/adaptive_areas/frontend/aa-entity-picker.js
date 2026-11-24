@@ -51,6 +51,8 @@ button:focus-visible, input:focus-visible, [role="option"]:focus-visible { outli
 .list[hidden] { display: none; }
 [role="option"] { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 40px; padding: 6px 10px; cursor: pointer; }
 [role="option"][aria-selected="true"] { background: rgba(3, 169, 244, 0.14); }
+[role="option"][data-blocked="true"] { opacity: 0.65; cursor: not-allowed; }
+.option-blocked { display: block; font-size: 0.85em; color: var(--error-color, #b00020); }
 [role="option"][data-active="true"] { box-shadow: inset 3px 0 0 var(--primary-color, #03a9f4); }
 .mark { flex: none; width: 18px; text-align: center; }
 .option-text { min-width: 0; display: flex; flex-direction: column; }
@@ -253,7 +255,16 @@ class AaEntityPicker extends HTMLElement {
     this._render();
   }
 
+  /** Owner text when the candidate belongs to another individual group (else null). */
+  _blockedBy(entityId) {
+    const panel = this._panel();
+    return typeof panel?._lightGroupBlockedBy === "function"
+      ? panel._lightGroupBlockedBy(this, entityId)
+      : null;
+  }
+
   _toggle(entityId) {
+    if (this._blockedBy(entityId)) return;
     const t = this._panel()?._t || {};
     const label = this._entityLabel(entityId);
     const current = this.selected;
@@ -383,6 +394,15 @@ class AaEntityPicker extends HTMLElement {
       id.textContent = entityId;
       textBox.append(name, id);
       option.append(mark, textBox);
+      const blocked = this._blockedBy(entityId);
+      if (blocked) {
+        option.dataset.blocked = "true";
+        option.setAttribute("aria-disabled", "true");
+        const owner = document.createElement("span");
+        owner.className = "option-blocked";
+        owner.textContent = blocked;
+        textBox.append(owner);
+      }
       option.addEventListener("click", () => this._toggle(entityId));
       this._list.append(option);
       if (index === this._active) this._input.setAttribute("aria-activedescendant", option.id);

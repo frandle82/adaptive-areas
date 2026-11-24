@@ -1,7 +1,8 @@
 """Platform file for Adaptive Area's light entities."""
 
+import asyncio
 import logging
-from time import monotonic
+from collections import deque
 
 from homeassistant.components.group.light import FORWARDED_ATTRIBUTES, LightGroup
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
@@ -13,6 +14,7 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
 )
+from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -39,13 +41,39 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatures,
 )
 from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
+from custom_components.adaptive_areas.helpers.brightness import BrightnessState
+from custom_components.adaptive_areas.helpers.light_dispatch import Override
+from custom_components.adaptive_areas.helpers.light_executor import (
+    async_execute_light_entity_action,
+)
+from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
+    group_is_blocked,
+)
+from custom_components.adaptive_areas.helpers.light_transition import (
+    MODE_DARK_ON_BRIGHT_OFF,
+    MODE_IGNORE,
+    MODE_REQUIRE_DARK,
+    MODE_TURN_OFF,
+    AreaState,
+    GroupConfig,
+    TransitionAction,
+    initial_decision,
+    transition_decision,
+)
+from custom_components.adaptive_areas.helpers.light_origin import (
+    current_area_signal,
+    fail_request,
+    new_light_group_context,
+    run_with_signal,
+    track_executor_job,
+)
+from custom_components.adaptive_areas.helpers.sources import area_presence_available
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_group_feature_config,
 )
 from custom_components.adaptive_areas.util import cleanup_removed_entries
 
 _LOGGER = logging.getLogger(__name__)
-CONTROL_EVENT_GRACE_SECONDS = 2.0
 ATTR_MANUAL_OVERRIDE = "manual_override"
 
 
@@ -205,6 +233,13 @@ class AdaptiveLightGroup(AdaptiveEntity, LightGroup):
 class AreaLightGroup(AdaptiveLightGroup):
     """Adaptive Light Group."""
 
+    # Volatile decision state; the instance attributes set in __init__ shadow these defaults.
+    _decision_previous: AreaState | None = None
+    _decision_seq: int = 0
+    _initial_done: bool = False
+    _pending_action: str | None = None
+    _failed_action: str | None = None
+
     def __init__(self, area, entities, category=None, child_groups=None):
         """Initialize light group."""
 
@@ -219,10 +254,15 @@ class AreaLightGroup(AdaptiveLightGroup):
         self.turn_off_when_bright = False
 
         self.controlling = True
-        self.controlled = False
         self.manual_override = False
-        self._last_control_action_ts = 0.0
-        self._last_turn_on_ts = float("-inf")
+        # Volatile decision state: the previous decision input and the command sequence.
+        self._decision_previous: AreaState | None = None
+        self._decision_seq = 0
+        self._initial_done = False
+        # Volatile lifecycle guard: set while this instance is listening, cleared on removal.
+        # A reload creates a new instance, so a task of the old instance never sends a command.
+        self._active = False
+        self._clear_tasks: set[asyncio.Task] = set()
 
         self._icon = LIGHT_GROUP_DEFAULT_ICON
 
@@ -302,6 +342,7 @@ class AreaLightGroup(AdaptiveLightGroup):
 
         # Setup state change listeners
         await self._setup_listeners()
+        self._apply_initial_decision()
 
         await super().async_added_to_hass()
 
@@ -315,18 +356,30 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     async def _setup_listeners(self, _=None) -> None:
         """Set up listeners for area state chagne."""
+        self._active = True
+        self.async_on_remove(self._async_deactivate)
+        # Enabling the automation is a relevant event: the current state is evaluated.
+        self.async_on_remove(
+            async_track_state_change_event(
+                self.hass,
+                [
+                    f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{self.area.slug}_light_control"
+                ],
+                self._async_control_switch_changed,
+            )
+        )
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
                 EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED,
-                self.area_state_changed,
+                self._area_state_signal,
             )
         )
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
                 AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
-                self.area_presence_activity,
+                self._presence_activity_signal,
             )
         )
         self.async_on_remove(
@@ -337,6 +390,38 @@ class AreaLightGroup(AdaptiveLightGroup):
                 ],
                 self.group_state_changed,
             )
+        )
+
+    @callback
+    def _area_state_signal(self, area_id, states_tuple) -> None:
+        """Hand the dispatch's signal number to the same executor run the listener had.
+
+        The dispatcher runs area_state_changed in an executor thread (a plain method).
+        The number is read here, on the loop, so the worker cannot read a later one.
+        """
+        track_executor_job(
+            self.area,
+            self.hass.async_add_executor_job(
+                run_with_signal,
+                current_area_signal(self.area),
+                self.area_state_changed,
+                area_id,
+                states_tuple,
+            ),
+        )
+
+    @callback
+    def _presence_activity_signal(self, area_id, reason) -> None:
+        """Presence-activity counterpart of _area_state_signal (same executor run)."""
+        track_executor_job(
+            self.area,
+            self.hass.async_add_executor_job(
+                run_with_signal,
+                current_area_signal(self.area),
+                self.area_presence_activity,
+                area_id,
+                reason,
+            ),
         )
 
     # State Change Handling
@@ -351,22 +436,6 @@ class AreaLightGroup(AdaptiveLightGroup):
                 self.area.id,
             )
             return
-
-        automatic_control = self.is_control_enabled()
-
-        if not automatic_control:
-            self.logger.debug(
-                "%s: Automatic control for light group is disabled, skipping...",
-                self.name,
-            )
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger="area_state_changed",
-                decision="no_action",
-                outcome="skipped",
-                reason_codes=["control_disabled"],
-            )
-            return False
 
         self.logger.debug("%s: Light group detected area state change", self.name)
 
@@ -390,26 +459,51 @@ class AreaLightGroup(AdaptiveLightGroup):
                 reason_codes=["control_disabled"],
             )
             return False
-        return self._evaluate_secondary_control("presence_activity")
+        return self._apply_decision_event("presence_activity")
 
     def state_change_primary(self, states_tuple):
-        """Handle primary state change."""
-        new_states, _ = states_tuple
-
-        if self.turn_off_when_bright and AreaStates.BRIGHT in new_states:
-            self.logger.debug(
-                "%s: Parent group turning off due to dark->bright transition and turn_off_when_bright.",
-                self.name,
-            )
-            return self._turn_off(force=True)
-
-        # If area clear
+        """Handle the ALL group on the shared decision path (vacancy OFF only, never ON)."""
+        new_states, _lost_states = states_tuple
         if AreaStates.CLEAR in new_states:
-            self.logger.debug("%s: Area is clear, should turn off lights!", self.name)
+            # CLEAR ends a manual override before the decision; a vacancy OFF stays allowed.
             self.reset_control()
-            return self._turn_off()
+        return self._apply_decision_event("area_state_changed")
 
-        return False
+    def _transition_mode(self) -> str:
+        """Map the configured brightness flags to a transition mode."""
+        if self.require_dark and self.turn_off_when_bright:
+            return MODE_DARK_ON_BRIGHT_OFF
+        if self.require_dark:
+            return MODE_REQUIRE_DARK
+        if self.turn_off_when_bright:
+            return MODE_TURN_OFF
+        return MODE_IGNORE
+
+    def _brightness_state(self) -> BrightnessState:
+        if self.area.has_state(AreaStates.BRIGHT):
+            return BrightnessState.BRIGHT
+        if self.area.has_state(AreaStates.DARK):
+            return BrightnessState.DARK
+        return BrightnessState.UNKNOWN
+
+    @callback
+    @callback
+    def _async_control_switch_changed(self, event) -> None:
+        """Re-evaluate the current state when the automation is switched on."""
+        new_state = event.data.get("new_state")
+        if new_state is not None and new_state.state == STATE_ON and self._active:
+            self._apply_decision_event("automation_enabled")
+
+    @callback
+    def _async_deactivate(self) -> None:
+        """Stop this instance: a pending automatic OFF is cancelled and never sent.
+
+        A call already handed to Home Assistant cannot be recalled here; it finishes.
+        """
+        self._active = False
+        for task in list(self._clear_tasks):
+            task.cancel()
+        self._clear_tasks.clear()
 
     def state_change_secondary(self, states_tuple):
         """Re-evaluate a light group after every area state transition."""
@@ -429,100 +523,11 @@ class AreaLightGroup(AdaptiveLightGroup):
 
         if AreaStates.CLEAR in new_states:
             self.reset_control()
+            # The ALL group owns the CLEAR OFF; this only records the new decision input.
+            self._decision_previous = self._current_area_state()
             return False
 
-        return self._evaluate_secondary_control("area_state_changed")
-
-    def _evaluate_secondary_control(self, trigger: str) -> bool:
-        """Evaluate current room conditions using the existing control policy."""
-        if trigger == "presence_activity" and (
-            self.manual_override or not self.controlling
-        ):
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="no_action",
-                outcome="skipped",
-                reason_codes=["manual_override_active"],
-            )
-            return False
-
-        if self.activation == LIGHT_GROUP_ACTIVATION_DISABLED:
-            self.logger.debug("%s: Automatic activation is disabled.", self.name)
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="no_action",
-                outcome="skipped",
-                reason_codes=["activation_disabled"],
-            )
-            return False
-
-        if not self.area.is_occupied():
-            self.logger.debug("%s: Area is not occupied.", self.name)
-            self.controlled = True
-            return self._turn_off(trigger=trigger)
-
-        active_blockers = self._active_blocking_states()
-        if active_blockers:
-            self.logger.debug(
-                "%s: Blocking room states active: %s.", self.name, active_blockers
-            )
-            self.controlled = True
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_off",
-                outcome="considered",
-                reason_codes=["blocking_state_active"],
-                target_count=len(self._entity_ids),
-            )
-            return self._turn_off(trigger=trigger)
-
-        activation_matches = (
-            self.activation == LIGHT_GROUP_ACTIVATION_OCCUPIED
-            or self.area.has_state(self.activation)
-        )
-        if not activation_matches:
-            self.logger.debug("%s: Activation condition is not active.", self.name)
-            self.controlled = True
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_off",
-                outcome="considered",
-                reason_codes=["activation_state_not_matched"],
-                target_count=len(self._entity_ids),
-            )
-            return self._turn_off(trigger=trigger)
-
-        if self.area.has_state(AreaStates.BRIGHT):
-            if self.turn_off_when_bright:
-                self.logger.debug("%s: Area is bright; turning group off.", self.name)
-                self.controlled = True
-                return self._turn_off(force=True, trigger=trigger)
-
-            if self.require_dark:
-                self.logger.debug(
-                    "%s: Area is bright; preserving group state because dark-on is enabled.",
-                    self.name,
-                )
-                self.area.trace_decision(
-                    feature="light_groups",
-                    trigger=trigger,
-                    decision="no_action",
-                    outcome="skipped",
-                    reason_codes=["darkness_requirement_not_met"],
-                    target_count=len(self._entity_ids),
-                )
-                return False
-
-        if self.manual_override:
-            self._set_manual_override(False)
-
-        self.logger.debug("%s: Controlling room state is active.", self.name)
-        self.controlled = True
-        return self._turn_on(trigger=trigger)
+        return self._apply_decision_event("area_state_changed")
 
     def relevant_states(self):
         """Return relevant states and remove irrelevant ones (opinionated)."""
@@ -546,6 +551,25 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     # Light Handling
 
+    def _remember_own_context(self, context) -> None:
+        """Remember the context of an automatic call of this Area (bounded, Area-wide).
+
+        The memory belongs to the Area, not to one group: a lamp shared by two groups of the
+        same Area changes the state of both, and that change is the Area's own automation.
+        """
+        ids = getattr(self.area, "_light_group_own_contexts", None)
+        if ids is None:
+            ids = deque(maxlen=64)
+            self.area._light_group_own_contexts = ids
+        ids.append(context.id)
+
+    def _is_own_context(self, context) -> bool:
+        """Return whether a state change carries the context of one of this group's calls."""
+        ids = getattr(self.area, "_light_group_own_contexts", None) or ()
+        return context.id in ids or (
+            context.parent_id is not None and context.parent_id in ids
+        )
+
     def _all_target_lights_on(self) -> bool:
         """Only skip activation when every member is actually on."""
         return bool(self._entity_ids) and all(
@@ -553,134 +577,209 @@ class AreaLightGroup(AdaptiveLightGroup):
             for entity_id in self._entity_ids
         )
 
-    def _turn_on(self, trigger: str = "area_state_changed"):
-        """Turn on light if it's not already on and if we're controlling it."""
-        if not self.controlling:
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_on",
-                outcome="skipped",
-                reason_codes=["manual_override_active"],
-                target_count=len(self._entity_ids),
-            )
-            return False
-
-        if self._all_target_lights_on():
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_on",
-                outcome="skipped",
-                reason_codes=["already_on"],
-                target_count=len(self._entity_ids),
-            )
-            return False
-
-        if self.require_dark and self.area.has_state(AreaStates.BRIGHT):
-            self.logger.debug(
-                "%s: Area is bright and this group requires darkness, skipping turn-on.",
-                self.name,
-            )
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_on",
-                outcome="skipped",
-                reason_codes=["darkness_requirement_not_met"],
-                target_count=len(self._entity_ids),
-            )
-            return False
-
-        if monotonic() - self._last_turn_on_ts <= CONTROL_EVENT_GRACE_SECONDS:
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_on",
-                outcome="skipped",
-                reason_codes=["control_action_in_progress"],
-                target_count=len(self._entity_ids),
-            )
-            return False
-
-        self.controlled = True
-        self._last_control_action_ts = monotonic()
-
-        self._last_turn_on_ts = self._last_control_action_ts
-        service_data = {ATTR_ENTITY_ID: self.entity_id}
-        try:
-            self.hass.services.call(LIGHT_DOMAIN, SERVICE_TURN_ON, service_data)
-        except Exception as err:
-            self._last_turn_on_ts = float("-inf")
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_on",
-                outcome="failed",
-                reason_codes=["action_failed"],
-                target_count=len(self._entity_ids),
-                exception_class=type(err).__name__,
-            )
-            raise
-        self.area.trace_decision(
-            feature="light_groups",
-            trigger=trigger,
-            decision="turn_on",
-            outcome="executed",
-            reason_codes=["activation_state_matched", "action_executed"],
-            target_count=len(self._entity_ids),
+    def _current_area_state(self) -> AreaState:
+        """Decision input of this group now. Unknown presence stays unknown, never vacancy."""
+        return AreaState(
+            occupied=(
+                self.area.is_occupied() if area_presence_available(self.area) else None
+            ),
+            brightness=self._brightness_state(),
+            activation_matches=(
+                self.category == LightGroupCategory.ALL
+                or self.activation == LIGHT_GROUP_ACTIVATION_OCCUPIED
+                or self.area.has_state(self.activation)
+            ),
+            blocked=bool(self._active_blocking_states()),
+            controlling=bool(self.controlling) and self.is_control_enabled(),
+            override=Override.FORCE_OFF if self.manual_override else Override.NONE,
         )
 
+    def _group_config(self) -> GroupConfig:
+        """Return the configured behaviour of this group for the shared decision path."""
+        if self.category == LightGroupCategory.ALL:
+            # The ALL group has no activation or blocker of its own: vacancy OFF only.
+            return GroupConfig(
+                mode=self._transition_mode(), activation_enabled=True, allow_on=False
+            )
+        return GroupConfig(
+            mode=self._transition_mode(),
+            activation_enabled=self.activation != LIGHT_GROUP_ACTIVATION_DISABLED,
+        )
+
+    def _apply_decision_event(self, trigger: str) -> bool:
+        """Shared automatic path for a relevant event of a secondary group.
+
+        An effective blocker ends a manual override first. The decision compares the current
+        decision input with the previous one, so identical inputs never send a second command.
+        """
+        if self._active_blocking_states() and self.manual_override:
+            self._set_manual_override(False)
+        current = self._current_area_state()
+        if (
+            trigger not in ("presence_activity", "automation_enabled")
+            and current != self._decision_previous
+        ):
+            # A new decision input supersedes a command still pending for the old one and
+            # re-allows a command that failed earlier (the same action is decided again).
+            self._supersede_pending()
+        if trigger in ("presence_activity", "automation_enabled"):
+            # Activity restores the desired state of the current valid input (a partly
+            # switched group is completed). Duplicates are held back by the pending marker.
+            decision = initial_decision(self._group_config(), current)
+        else:
+            decision = transition_decision(
+                self._group_config(), self._decision_previous, current
+            )
+        self._decision_previous = current
+        return self._dispatch_decision(decision, trigger)
+
+    def _supersede_pending(self) -> None:
+        """Invalidate a pending command and the failure memory (a new decision input)."""
+        self._decision_seq += 1
+        self._pending_action = None
+        self._failed_action = None
+
+    def _apply_initial_decision(self) -> None:
+        """Once per instance (setup or reload): decide from the current valid state only."""
+        if self._initial_done:
+            return
+        self._initial_done = True
+        current = self._current_area_state()
+        decision = initial_decision(self._group_config(), current)
+        self._decision_previous = current
+        self._dispatch_decision(decision, "initial")
+
+    def _dispatch_decision(self, decision, trigger: str) -> bool:
+        """Hand one decision to the loop; NO_ACTION is traced and sends nothing."""
+        if decision.action is TransitionAction.NO_ACTION:
+            self.area.trace_decision(
+                feature="light_groups",
+                trigger=trigger,
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=[decision.reason.value],
+                target_count=len(self._entity_ids),
+            )
+            return False
+        self.hass.loop.call_soon_threadsafe(
+            self._async_schedule_command, decision.action, trigger
+        )
         return True
 
-    def _turn_off(self, force: bool = False, trigger: str = "area_state_changed"):
-        """Turn off light if it's not already off and we're controlling it."""
+    @callback
+    def _async_schedule_command(self, action, trigger: str) -> None:
+        """Register one command on the loop: a new sequence number and a pending marker.
+
+        A command of the same action that is still pending is not duplicated. A different
+        action is a new decision and supersedes the older one, which then sends nothing.
+        """
+        if not self._active:
+            return
+        if self._pending_action == action.value or self._failed_action == action.value:
+            # A failed command is not repeated by a later event for the same action.
+            self.area.trace_decision(
+                feature="light_groups",
+                trigger=trigger,
+                decision=(
+                    "turn_on" if action is TransitionAction.TURN_ON else "turn_off"
+                ),
+                outcome="skipped",
+                reason_codes=[
+                    (
+                        "command_pending"
+                        if self._pending_action == action.value
+                        else "failed_not_retried"
+                    )
+                ],
+                target_count=len(self._entity_ids),
+            )
+            return
+        if self._failed_action and self._failed_action != action.value:
+            self._failed_action = None
+        self._decision_seq += 1
+        seq = self._decision_seq
+        self._pending_action = action.value
+        task = self.hass.async_create_task(
+            self._async_group_command(action, seq, trigger), eager_start=False
+        )
+        self._clear_tasks.add(task)
+        task.add_done_callback(self._clear_tasks.discard)
+
+    async def _async_group_command(self, action, seq: int, trigger: str) -> None:
+        """Run one scheduled command and release its pending marker afterwards."""
+        try:
+            await self._run_group_command(action, seq, trigger)
+        finally:
+            if self._pending_action == action.value:
+                self._pending_action = None
+
+    async def _run_group_command(self, action, seq: int, trigger: str) -> None:
+        """Send at most one automatic call for one decision; a failure is never retried.
+
+        Stale decisions (a later decision replaced this one, or the instance was removed),
+        disabled automation, a new manual override, a conflicted group and an already fully
+        on group are checked immediately before the call.
+        """
+        turn_on = action is TransitionAction.TURN_ON
+        service = SERVICE_TURN_ON if turn_on else SERVICE_TURN_OFF
+        decision_name = "turn_on" if turn_on else "turn_off"
+
+        def trace(
+            outcome: str, reason: str, exception_class: str | None = None
+        ) -> None:
+            self.area.trace_decision(
+                feature="light_groups",
+                trigger=trigger,
+                decision=decision_name,
+                outcome=outcome,
+                reason_codes=[reason],
+                target_count=len(self._entity_ids),
+                **({"exception_class": exception_class} if exception_class else {}),
+            )
+
+        if (
+            not self._active
+            or seq != self._decision_seq
+            or self.hass.states.get(self.entity_id) is None
+        ):
+            trace("skipped", "stale_decision")
+            return
+        if not self.is_control_enabled() or not self.controlling:
+            trace("skipped", "control_disabled")
+            return
         if self.manual_override:
-            self.logger.debug(
-                "%s: Manual override active, ignoring turn off.", self.name
-            )
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_off",
-                outcome="skipped",
-                reason_codes=["manual_override_active"],
-                target_count=len(self._entity_ids),
-            )
-            return False
+            trace("skipped", "manual_override_active")
+            return
+        if group_is_blocked(self.hass, self.entity_id, self._entity_ids):
+            trace("skipped", "ownership_conflict")
+            return
+        if turn_on and self._all_target_lights_on():
+            trace("skipped", "already_on")
+            return
+        if not turn_on and not self.is_on:
+            # Already off (for example switched off by the user): an OFF is not needed.
+            trace("skipped", "already_off")
+            return
 
-        if not force and not self.controlling:
-            return False
-
-        if not force and not self.is_on:
-            return False
-
-        self._last_turn_on_ts = float("-inf")
-        self._last_control_action_ts = monotonic()
-        service_data = {ATTR_ENTITY_ID: self.entity_id}
-        try:
-            self.hass.services.call(LIGHT_DOMAIN, SERVICE_TURN_OFF, service_data)
-        except Exception as err:
-            self.area.trace_decision(
-                feature="light_groups",
-                trigger=trigger,
-                decision="turn_off",
-                outcome="failed",
-                reason_codes=["action_failed"],
-                target_count=len(self._entity_ids),
-                exception_class=type(err).__name__,
-            )
-            raise
-        self.area.trace_decision(
-            feature="light_groups",
-            trigger=trigger,
-            decision="turn_off",
-            outcome="executed",
-            reason_codes=["action_executed"],
-            target_count=len(self._entity_ids),
+        group_context = new_light_group_context(
+            self.area,
+            service=service,
+            target=self.entity_id,
+            group=str(self.category),
         )
-
-        return True
+        self._remember_own_context(group_context)
+        try:
+            await async_execute_light_entity_action(
+                self.hass, self.entity_id, service, context=group_context
+            )
+        except Exception as err:  # noqa: BLE001 - reported, not retried
+            fail_request(self.area, group_context.id)
+            self._failed_action = action.value
+            trace("failed", "action_failed", type(err).__name__)
+            self.logger.warning("%s: automatic %s failed: %s", self.name, service, err)
+            return
+        self._failed_action = None
+        trace("executed", "action_executed")
 
     # Control Release
 
@@ -718,16 +817,17 @@ class AreaLightGroup(AdaptiveLightGroup):
         )
         self.schedule_update_ha_state()
 
-    def handle_manual_group_state_change(self, new_state=None) -> bool:
-        """Handle manual on/off changes common to parent and child groups."""
-        within_control_grace = (
-            monotonic() - self._last_control_action_ts
-        ) <= CONTROL_EVENT_GRACE_SECONDS
+    def handle_manual_group_state_change(self, new_state=None, own=False) -> bool:
+        """Handle manual on/off changes common to parent and child groups.
 
-        if self.controlled or within_control_grace:
-            self.controlled = False
+        `own` is True when the change was caused by this group's own service call, decided
+        by the call's context (not by a time window).
+        """
+        if own:
             self.logger.debug("%s: Group controlled by us.", self.name)
             return True
+        # A user's change overtakes any automatic command that is still planned.
+        self._supersede_pending()
 
         self.logger.debug("%s: Group controlled by something else.", self.name)
 
@@ -736,16 +836,19 @@ class AreaLightGroup(AdaptiveLightGroup):
             self.controlling = True
             return True
 
-        if new_state == STATE_OFF and self.manual_override:
-            self._set_manual_override(False)
+        if new_state == STATE_OFF and self.area.is_occupied():
+            # A complete manual switch-off during occupation is a deliberate decision: the
+            # override stays until CLEAR or an effective blocker ends it. Presence activity,
+            # brightness and activation changes do not switch the group on again meanwhile.
+            self._set_manual_override(True)
             self.controlling = True
             return True
 
         return False
 
-    def handle_group_state_change_secondary(self, new_state=None):
+    def handle_group_state_change_secondary(self, new_state=None, own=False):
         """Handle group state change for secondary area state events."""
-        if self.handle_manual_group_state_change(new_state):
+        if self.handle_manual_group_state_change(new_state, own=own):
             return
 
         # If it was manually controlled in a way we do not override, stop controlling.
@@ -801,12 +904,18 @@ class AreaLightGroup(AdaptiveLightGroup):
                     return False
 
                 new_state = origin_event.data["new_state"].state
+            else:
+                # A service call (user or automation) changed the group itself: its own new
+                # state is the decision input.
+                group_new = event.data.get("new_state")
+                new_state = group_new.state if group_new else None
 
+            own = self._is_own_context(origin_event.context)
             if self.category == LightGroupCategory.ALL:
-                self.handle_manual_group_state_change(new_state)
+                self.handle_manual_group_state_change(new_state, own=own)
                 self.handle_group_state_change_primary()
             else:
-                self.handle_group_state_change_secondary(new_state)
+                self.handle_group_state_change_secondary(new_state, own=own)
 
         # Update attribute
         self._attr_extra_state_attributes["controlling"] = self.controlling

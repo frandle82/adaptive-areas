@@ -30,9 +30,24 @@ from homeassistant.helpers.device_registry import (
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
+from custom_components.adaptive_areas.helpers.light_ownership import (
+    expand_members,
+    resolve_group_tree,
+)
 from custom_components.adaptive_areas.const import (
+    CONF_ACCENT_LIGHTS,
+    CONF_ACCENT_LIGHTS_ACTIVATION,
     CONF_EXCLUDE_ENTITIES,
     CONF_FEATURE_LIGHT,
+    CONF_FEATURE_LIGHT_GROUPS,
+    CONF_OVERHEAD_LIGHTS,
+    CONF_OVERHEAD_LIGHTS_ACTIVATION,
+    CONF_SLEEP_LIGHTS,
+    CONF_SLEEP_LIGHTS_ACTIVATION,
+    CONF_TASK_LIGHTS,
+    CONF_TASK_LIGHTS_ACTIVATION,
+    LIGHT_GROUP_ACTIVATION_DEFAULTS,
+    LIGHT_GROUP_ACTIVATION_DISABLED,
     CONF_GLOBAL_LIGHT_SENSOR,
     CONF_GLOBAL_OPTIONS,
     CONF_ID,
@@ -222,11 +237,60 @@ def area_entity_ids(
     return result
 
 
+_AUTOMATIC_GROUPS = (
+    (CONF_OVERHEAD_LIGHTS, CONF_OVERHEAD_LIGHTS_ACTIVATION),
+    (CONF_SLEEP_LIGHTS, CONF_SLEEP_LIGHTS_ACTIVATION),
+    (CONF_ACCENT_LIGHTS, CONF_ACCENT_LIGHTS_ACTIVATION),
+    (CONF_TASK_LIGHTS, CONF_TASK_LIGHTS_ACTIVATION),
+)
+
+
+def automatic_group_lights(area: AdaptiveArea) -> frozenset[str]:
+    """Physical lights that an actively automated light group of this Area controls.
+
+    Only groups whose activation is not disabled count. Members that cannot be resolved
+    are included as well: an unclear owner must never receive an uncontrolled policy call.
+    """
+    groups = area.feature_config(CONF_FEATURE_LIGHT_GROUPS) or {}
+    listed: list[str] = []
+    for member_key, activation_key in _AUTOMATIC_GROUPS:
+        activation = groups.get(
+            activation_key, LIGHT_GROUP_ACTIVATION_DEFAULTS[member_key]
+        )
+        if activation == LIGHT_GROUP_ACTIVATION_DISABLED:
+            continue
+        value = groups.get(member_key) or []
+        if isinstance(value, str):
+            value = [value]
+        listed.extend(str(item) for item in value)
+    if not listed:
+        return frozenset()
+    states = area.hass.states
+    registry = async_get_entity_registry(area.hass)
+
+    def attributes_of(entity_id: str):
+        state = states.get(entity_id)
+        return None if state is None else state.attributes
+
+    members, unresolved, unknown = resolve_group_tree(
+        listed,
+        attributes_of,
+        lambda entity_id: registry.async_get(entity_id) is not None,
+    )
+    return (
+        frozenset(expand_members(listed, members))
+        | frozenset(unresolved)
+        | frozenset(unknown)
+    )
+
+
 def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
     """Resolve read-only Light inputs for one regular Area with the new feature."""
     if area.is_meta() or not area.has_feature(CONF_FEATURE_LIGHT):
         return None
 
+    # The target list stays complete: the group automation and the policy use it. The
+    # policy excludes automatically controlled group lights at execution (light_runtime).
     target_ids = sorted(
         area_entity_ids(
             area.hass,
@@ -257,10 +321,7 @@ def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
         else None
     )
     presence_source_entity_ids = tuple(sorted(set(area.get_presence_sensors())))
-    presence_available = any(
-        _state_available(area.hass.states.get(entity_id))
-        for entity_id in presence_source_entity_ids
-    )
+    presence_available = area_presence_available(area)
     return LightSourceSnapshot(
         area_id=area.id,
         targets=targets,
@@ -269,8 +330,25 @@ def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
         illuminance_value=_numeric_state_value(illuminance_state),
         presence_source_entity_ids=presence_source_entity_ids,
         presence_available=presence_available,
-        presence_state=area.is_occupied() if presence_available else None,
+        presence_state=shared_presence_state(area) if presence_available else None,
     )
+
+
+def area_presence_available(area: AdaptiveArea) -> bool:
+    """Return True when at least one presence source of the Area has a usable state."""
+    return any(
+        _state_available(area.hass.states.get(entity_id))
+        for entity_id in sorted(set(area.get_presence_sensors()))
+    )
+
+
+def shared_presence_state(area: AdaptiveArea) -> bool:
+    """Return the Area occupancy that Policy and light groups both read.
+
+    The value is the Area state `occupied` after its update. It is only meaningful
+    together with area_presence_available(); callers must check availability first.
+    """
+    return area.is_occupied()
 
 
 def _state_available(state: State | None) -> bool:

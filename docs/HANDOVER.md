@@ -323,3 +323,9 @@ Die folgenden Punkte stammen aus Praxistests des Benutzers in einer realen Home-
 - Nicht committet. Geändert: `dashboard.py`, `helpers/light_runtime.py` (nur lesende Eigenschaft `last_dispatched_action`), Panel, DE/EN-Texte, Tests (`test_dashboard.py`, `test_brightness_diagnostics.py`, `test_light_override_sequence.py`, `run.mjs`), `docs/specifications/brightness-diagnostics-concept.md`.
 - Ursprüngliche Praxisprobleme: weiterhin **ungeklärt**. Benötigte Daten: siehe `docs/specifications/brightness-diagnostics-concept.md`, Abschnitt 7.
 - Datenschutz: Entitäts-IDs und Grenzwerte erscheinen nur im Admin-Laufzeitstatus (Endpunkt admin-only) und in der Admin-Detailansicht. Für Nicht-Administratoren bleibt die Quelle ausgeblendet.
+
+## Lichtsteuerung und eindeutige Gruppenzuordnung (2026-11-24, lokal, nicht committet)
+
+- Stand, Regeln und Prüfungen: `docs/CURRENT_STATE.md`, Abschnitt „Lichtsteuerung und eindeutige Gruppenzuordnung“.
+- Gemeinsame Speicherprüfung: `helpers/light_ownership_runtime.py` (`light_group_ownership_problem`), genutzt von `area_config.py` (Dashboard) und `config_flow.py` (Options-Flow).
+- Nächster Schritt: reale Home-Assistant-Prüfung nach dem Smoke-Testplan, danach Commit-Freigabe (Approval Gate 3 bleibt geschlossen).

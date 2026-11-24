@@ -79,6 +79,7 @@ def light_policy_config_from_feature(
     if not feature_config:
         return None
     keys = {CONF_TURN_ON_BELOW, CONF_TURN_OFF_ABOVE}
+    # CONF_VACANCY_DELAY is a retired legacy key: tolerated for old options, never used.
     if not keys <= set(feature_config) or set(feature_config) - (
         keys | {CONF_VACANCY_DELAY}
     ):
@@ -87,20 +88,6 @@ def light_policy_config_from_feature(
         turn_on_below=feature_config[CONF_TURN_ON_BELOW],
         turn_off_above=feature_config[CONF_TURN_OFF_ABOVE],
     )
-
-
-def light_vacancy_delay_from_feature(
-    feature_config: Mapping[str, object],
-) -> float | None:
-    """Return the optional validated vacancy delay without mutating feature data."""
-    if CONF_VACANCY_DELAY not in feature_config:
-        return None
-    delay = feature_config[CONF_VACANCY_DELAY]
-    if isinstance(delay, bool) or not isinstance(delay, (int, float)):
-        raise TypeError("Vacancy delay must be a finite non-negative number")
-    if not isfinite(delay) or delay < 0:
-        raise ValueError("Vacancy delay must be a finite non-negative number")
-    return float(delay)
 
 
 def evaluate_light_policy(

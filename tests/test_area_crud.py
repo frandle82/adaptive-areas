@@ -45,6 +45,12 @@ class _Connection:
         self.result = result
 
 
+def _register_lights(hass, *entity_ids: str) -> None:
+    """Known lights: light groups are only saved when every listed light is known to HA."""
+    for entity_id in entity_ids:
+        hass.states.async_set(entity_id, "off", {"friendly_name": entity_id})
+
+
 async def _call(hass, command: str, **data):
     """Invoke one registered production command."""
     connection = _Connection()
@@ -177,6 +183,9 @@ async def test_update_area_light_groups_preserves_full_feature_configuration(
     hass,
 ) -> None:
     """A Light Groups update changes one current key without losing other options."""
+    _register_lights(
+        hass, "light.overhead", "light.sleep", "light.accent", "light.task"
+    )
     area = async_get_area_registry(hass).async_create("Wohnzimmer")
     flow = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -286,6 +295,7 @@ async def test_update_area_light_groups_preserves_full_feature_configuration(
 
 async def test_update_area_climate_control_preserves_area_configuration(hass) -> None:
     """A Climate update changes one key without losing the Area configuration."""
+    _register_lights(hass, "light.overhead")
     area_registry = async_get_area_registry(hass)
     living = area_registry.async_create("Wohnzimmer")
     kitchen = area_registry.async_create("Küche")
@@ -684,8 +694,9 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             CONF_TURN_OFF_ABOVE: 150.25,
             CONF_VACANCY_DELAY: -1,
         }
-        before_invalid = dict(entry.options)
-        assert not (
+        # The retired vacancy delay has no effect any more, so a legacy value is no longer
+        # rejected on write; thresholds stay validated (approved behaviour change).
+        assert (
             await _call(
                 hass,
                 "adaptive_areas/update_area",
@@ -693,8 +704,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
                 options={CONF_ENABLED_FEATURES: invalid_features},
             )
         )["ok"]
-        assert entry.options == before_invalid
-        assert reload.await_count == 6
+        assert reload.await_count == 7
 
         living_features[CONF_FEATURE_LIGHT].pop(CONF_VACANCY_DELAY)
         assert (
@@ -705,7 +715,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
                 options={CONF_ENABLED_FEATURES: living_features},
             )
         )["ok"]
-        assert reload.await_count == 7
+        assert reload.await_count == 8
 
         before_invalid = dict(entry.options)
         living_features[CONF_FEATURE_LIGHT] = {CONF_TURN_ON_BELOW: 100}
@@ -718,7 +728,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
             )
         )["ok"]
         assert entry.options == before_invalid
-        assert reload.await_count == 7
+        assert reload.await_count == 8
 
         living_features[CONF_FEATURE_LIGHT] = {}
         assert (
@@ -729,7 +739,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
                 options={CONF_ENABLED_FEATURES: living_features},
             )
         )["ok"]
-        assert reload.await_count == 8
+        assert reload.await_count == 9
         assert (
             entry.options[CONF_AREAS][living.id][CONF_ENABLED_FEATURES][
                 CONF_FEATURE_LIGHT
@@ -751,7 +761,7 @@ async def test_light_feature_crud_is_configuration_only(hass, monkeypatch) -> No
                 },
             )
         )["ok"]
-        assert reload.await_count == 9
+        assert reload.await_count == 10
 
     assert (
         CONF_FEATURE_LIGHT
@@ -882,6 +892,7 @@ async def test_light_policy_save_payload_keeps_climate_presence_and_other_areas(
     hass,
 ) -> None:
     """The Light tab sends the full feature map; only the light policy changes."""
+    _register_lights(hass, "light.overhead")
     living, kitchen, entry = await _setup_two_areas_with_full_config(hass)
     before = deepcopy(entry.options[CONF_AREAS][living.id])
     kitchen_before = deepcopy(entry.options[CONF_AREAS][kitchen.id])
@@ -931,6 +942,7 @@ async def test_area_form_save_payload_keeps_light_and_climate_configuration(
     hass,
 ) -> None:
     """The Area form sends a full snapshot; light and climate must survive it."""
+    _register_lights(hass, "light.overhead")
     living, kitchen, entry = await _setup_two_areas_with_full_config(hass)
     before = deepcopy(entry.options[CONF_AREAS][living.id])
     kitchen_before = deepcopy(entry.options[CONF_AREAS][kitchen.id])
