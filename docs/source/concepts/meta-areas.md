@@ -41,4 +41,6 @@ Many Adaptive Areas features are fully compatible with meta-areas, allowing you 
 
 Meta-Areas are powerful when used as part of a layered automation approach — where individual areas handle local actions, and meta-areas coordinate behaviors across your entire smart home.
 
+A Meta-Area's dark and bright state follows its child Areas. It is dark when any child Area is dark. It is bright only when every child Area is bright. A child with unknown brightness, or a child without a state, never makes the Meta-Area bright.
+
 The existing Meta-Area presence entity also publishes child summaries. These include child, occupied, clear, dark, sleeping, extended, and accented Area counts. Cleaning-enabled children are summarized through due, soon-due, and overdue counts and Area lists plus a deterministic most-due result. Global, Interior, Exterior, and floor Meta-Areas all use their existing child hierarchy; no summary entity is added.

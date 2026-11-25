@@ -10,6 +10,7 @@ Behaviour change (not yet released). Policy-only lamp control was removed.
 - Manual operation of ungrouped lamps is unchanged.
 - The Light diagnosis in the dashboard shows the automatic group control path. The policy-only lamp list, the policy decision and the dispatch fields are gone from the status payload.
 - Brightness limits, the brightness classification and the UNKNOWN behaviour are unchanged.
+- Fixed: a Meta-Area was always reported BRIGHT, even when a child Area was DARK. Its DARK and BRIGHT now follow the child Areas: DARK when any child is DARK, BRIGHT only when every child is BRIGHT. A child with unknown brightness, or a missing child state, no longer makes the Meta-Area BRIGHT. Automatic light control is not changed by this.
 
 ## 1.7.0-rc.2 - 2026-11-24
 

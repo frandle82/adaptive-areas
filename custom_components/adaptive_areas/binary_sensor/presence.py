@@ -1210,6 +1210,8 @@ class MetaAreaStateBinarySensor(AreaStateBinarySensor):
 
         child_areas: list[str] = self.area.get_child_areas()
         states_list: list[AreaStates] = []
+        # One state list per child that reports states; a child without states is unknown.
+        child_state_lists: list[list[str]] = []
 
         for area_slug in child_areas:
             area_entity_id: str = (
@@ -1223,6 +1225,7 @@ class MetaAreaStateBinarySensor(AreaStateBinarySensor):
                 continue
 
             states_list.extend(area_state.attributes[ATTR_STATES])
+            child_state_lists.append(area_state.attributes[ATTR_STATES])
 
         state_counter = Counter(states_list)
         child_area_count: int = len(child_areas)
@@ -1247,8 +1250,15 @@ class MetaAreaStateBinarySensor(AreaStateBinarySensor):
                 states.append(AreaStates(secondary_state))
                 continue
 
-        # Meta-state bright
-        if AreaStates.DARK not in states:
+        # DARK/BRIGHT follow the child Areas: DARK when any child is DARK; BRIGHT only when
+        # every child reports BRIGHT. Missing or UNKNOWN children never make a Meta-Area BRIGHT.
+        if any(AreaStates.DARK in child for child in child_state_lists):
+            states.append(AreaStates.DARK)
+        elif (
+            child_area_count > 0
+            and len(child_state_lists) == child_area_count
+            and all(AreaStates.BRIGHT in child for child in child_state_lists)
+        ):
             states.append(AreaStates.BRIGHT)
 
         return states

@@ -2,6 +2,14 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Light-Architektur, 2026-11-25, Phase 5 und 6)
+
+- Light-Refactoring in Phasen: 21722ff (Repairs), 811e18f (Policy-Pfad entfernt), a7c3a55 (Kontextregister), c06b180 (Gruppenbefehle nativ).
+- Phase 5: Meta-Area-Helligkeit wird aus den Kindbereichen abgeleitet (DARK bei einem DARK-Kind, BRIGHT nur wenn alle Kinder BRIGHT, sonst UNKNOWN). Details und Tests: [CURRENT_STATE.md](CURRENT_STATE.md).
+- Phase 6 (Helligkeitsschwellen): Ergebnis und Architekturentscheidung siehe [DECISIONS.md](DECISIONS.md) und [CURRENT_STATE.md](CURRENT_STATE.md).
+- Keine Änderung an `_decision_previous`, `_all_target_lights_on`, `_supersede_pending`, `_failed_action`, Ownership-Prüfung oder Kontextregister.
+- Graphify-Graph ist veraltet (built_at_commit cd14275); nicht neu erzeugt.
+
 ## Fortsetzungspunkt (aktuell, 2026-11-22, rc.14)
 
 - Präsenzdiagnose: `presence.evaluation` in der nativen Diagnose (Home Assistant: Einstellungen → Geräte & Dienste → Adaptive Areas → Bereich → Diagnose herunterladen). Keine Entity-IDs im Export. Details: [CURRENT_STATE.md](CURRENT_STATE.md).
