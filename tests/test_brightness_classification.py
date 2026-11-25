@@ -10,7 +10,7 @@ from custom_components.adaptive_areas.helpers.brightness import (
     BrightnessTracker,
     classify_brightness,
 )
-from custom_components.adaptive_areas.helpers.light_policy import LightPolicyConfig
+from custom_components.adaptive_areas.helpers.brightness import LightPolicyConfig
 
 CFG = LightPolicyConfig(90.0, 110.0)
 SRC = "sensor.global_lux"

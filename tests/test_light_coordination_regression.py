@@ -385,3 +385,74 @@ async def test_target_single_turn_on_per_light_per_cycle(probe_devices) -> None:
         == f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA.value}_overhead_lights"
     ]
     assert len(group_calls) <= 1
+
+
+async def test_member_recovery_from_unavailable_is_not_manual(probe_devices) -> None:
+    """An unavailable member that comes back is a state report, not a manual action."""
+    seen: list[bool] = []
+
+    async def _unavailable(hass):
+        hass.states.async_set(LIGHT, "unavailable")
+        await _settle(hass)
+
+    async def _back_on(hass):
+        hass.states.async_set(LIGHT, STATE_ON)
+        await _settle(hass)
+
+    async def _record(hass):
+        seen.append(_group_manual_flag(hass))
+
+    await run_probe(
+        probe_devices,
+        _entry(),
+        [_dark, _occupy, _unavailable, _back_on, _record],
+    )
+    assert seen == [False]
+
+
+async def test_foreign_on_without_user_context_sets_the_override_but_no_off(
+    probe_devices,
+) -> None:
+    """Variant that is documented, not proven as a manual wish: a foreign ON in an occupied Area.
+
+    HA does not reliably tell a physical switch from another automation without a user id, so the
+    group rule treats a foreign change in an occupied Area as manual. The ON never sends an OFF.
+    """
+    seen: list[bool] = []
+
+    async def _foreign_on(hass):
+        await hass.services.async_call(
+            "light", "turn_on", {ATTR_ENTITY_ID: LIGHT}, blocking=True
+        )
+        await _settle(hass)
+
+    async def _record(hass):
+        seen.append(_group_manual_flag(hass))
+
+    rows = await run_probe(
+        probe_devices,
+        _entry(),
+        [_bright, _occupy, _foreign_on, _record],
+    )
+    assert seen == [True]
+    foreign_calls = rows[2]["calls"]
+    assert not any(service == "turn_off" for service, _ in foreign_calls)
+
+
+async def test_unchanged_state_report_sets_no_override(probe_devices) -> None:
+    """A state report that does not change the member's state is not a manual change."""
+    seen: list[bool] = []
+
+    async def _report_on_again(hass):
+        hass.states.async_set(LIGHT, STATE_ON)
+        await _settle(hass)
+
+    async def _record(hass):
+        seen.append(_group_manual_flag(hass))
+
+    await run_probe(
+        probe_devices,
+        _entry(),
+        [_dark, _occupy, _report_on_again, _record],
+    )
+    assert seen == [False]

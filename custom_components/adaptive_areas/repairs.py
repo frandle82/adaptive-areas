@@ -65,7 +65,7 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     MetaAreaType,
 )
-from custom_components.adaptive_areas.helpers.light_policy import (
+from custom_components.adaptive_areas.helpers.brightness import (
     light_policy_config_from_feature,
 )
 from custom_components.adaptive_areas.helpers.environment import (

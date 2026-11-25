@@ -20,10 +20,6 @@ from homeassistant.core import (
     EventStateReportedData,
     callback,
 )
-from custom_components.adaptive_areas.helpers.light_origin import (
-    begin_area_signal,
-    end_area_signal,
-)
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
@@ -503,16 +499,12 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
         if self._is_on_clear_timeout() and self._get_clear_timeout() == 0:
             self._update_state()
         if reason is not None:
-            begin_area_signal(self.area)
-            try:
-                async_dispatcher_send(
-                    self.hass,
-                    AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
-                    self.area.id,
-                    reason,
-                )
-            finally:
-                end_area_signal(self.area)
+            async_dispatcher_send(
+                self.hass,
+                AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
+                self.area.id,
+                reason,
+            )
 
     @callback
     def _update_state(self, extra: datetime | None = None) -> None:
@@ -640,16 +632,12 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             str(new_states),
             str(lost_states),
         )
-        begin_area_signal(self.area)
-        try:
-            async_dispatcher_send(
-                self.hass,
-                AdaptiveAreasEvents.AREA_STATE_CHANGED,
-                self.area.id,
-                states_tuple,
-            )
-        finally:
-            end_area_signal(self.area)
+        async_dispatcher_send(
+            self.hass,
+            AdaptiveAreasEvents.AREA_STATE_CHANGED,
+            self.area.id,
+            states_tuple,
+        )
 
     # Area state calculations
 

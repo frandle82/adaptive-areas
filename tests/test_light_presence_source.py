@@ -151,23 +151,14 @@ def _distinct_inputs(hass: HomeAssistant) -> list[tuple[bool, bool | None, bool]
 
 
 async def _signal(hass: HomeAssistant, area, states: list[str], lost=()) -> None:
-    """Update the Area state and send the signal, as the presence update does."""
-    from custom_components.adaptive_areas.helpers.light_origin import (
-        begin_area_signal,
-        end_area_signal,
-    )
-
+    """Update the Area state and send the state signal, as the presence update does."""
     area.states = list(states)
-    begin_area_signal(area)
-    try:
-        async_dispatcher_send(
-            hass,
-            AdaptiveAreasEvents.AREA_STATE_CHANGED,
-            area.id,
-            (set(states), set(lost)),
-        )
-    finally:
-        end_area_signal(area)
+    async_dispatcher_send(
+        hass,
+        AdaptiveAreasEvents.AREA_STATE_CHANGED,
+        area.id,
+        (set(states), set(lost)),
+    )
     await hass.async_block_till_done()
 
 

@@ -35,7 +35,7 @@ from homeassistant.const import (
 )
 from homeassistant.helpers import config_validation as cv
 
-from custom_components.adaptive_areas.helpers.light_policy import (
+from custom_components.adaptive_areas.helpers.brightness import (
     CONF_TURN_OFF_ABOVE,
     CONF_TURN_ON_BELOW,
     CONF_VACANCY_DELAY,

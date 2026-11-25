@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from collections import deque
 
 from homeassistant.components.group.light import FORWARDED_ATTRIBUTES, LightGroup
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
@@ -64,12 +63,8 @@ from custom_components.adaptive_areas.helpers.light_transition import (
     transition_decision,
 )
 from custom_components.adaptive_areas.helpers.light_origin import (
-    request_for_context,
-    current_area_signal,
-    fail_request,
     new_light_group_context,
-    run_with_signal,
-    track_executor_job,
+    request_for_context,
 )
 from custom_components.adaptive_areas.helpers.sources import area_presence_available
 from custom_components.adaptive_areas.helpers.light_groups import (
@@ -424,14 +419,14 @@ class AreaLightGroup(AdaptiveLightGroup):
             async_dispatcher_connect(
                 self.hass,
                 EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED,
-                self._area_state_signal,
+                self.area_state_changed,
             )
         )
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
                 AdaptiveAreasEvents.AREA_PRESENCE_ACTIVITY,
-                self._presence_activity_signal,
+                self.area_presence_activity,
             )
         )
         self.async_on_remove(
@@ -442,38 +437,6 @@ class AreaLightGroup(AdaptiveLightGroup):
                 ],
                 self.group_state_changed,
             )
-        )
-
-    @callback
-    def _area_state_signal(self, area_id, states_tuple) -> None:
-        """Hand the dispatch's signal number to the same executor run the listener had.
-
-        The dispatcher runs area_state_changed in an executor thread (a plain method).
-        The number is read here, on the loop, so the worker cannot read a later one.
-        """
-        track_executor_job(
-            self.area,
-            self.hass.async_add_executor_job(
-                run_with_signal,
-                current_area_signal(self.area),
-                self.area_state_changed,
-                area_id,
-                states_tuple,
-            ),
-        )
-
-    @callback
-    def _presence_activity_signal(self, area_id, reason) -> None:
-        """Presence-activity counterpart of _area_state_signal (same executor run)."""
-        track_executor_job(
-            self.area,
-            self.hass.async_add_executor_job(
-                run_with_signal,
-                current_area_signal(self.area),
-                self.area_presence_activity,
-                area_id,
-                reason,
-            ),
         )
 
     # State Change Handling
@@ -603,31 +566,17 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     # Light Handling
 
-    def _remember_own_context(self, context) -> None:
-        """Remember the context of an automatic call of this Area (bounded, Area-wide).
-
-        The memory belongs to the Area, not to one group: a lamp shared by two groups of the
-        same Area changes the state of both, and that change is the Area's own automation.
-        """
-        ids = getattr(self.area, "_light_group_own_contexts", None)
-        if ids is None:
-            ids = deque(maxlen=64)
-            self.area._light_group_own_contexts = ids
-        ids.append(context.id)
-
     def _is_own_context(self, context) -> bool:
-        """Return whether a state change carries a call of this Area's own automation.
+        """Return whether a state change belongs to a call of this Area's own automation.
 
-        Own automation is the group calls of this Area and its policy calls. Both are
-        registered requests of the Area (light_origin); a policy-owned light that a
-        disabled group mirrors is therefore not a manual change.
+        A registered group call (light_origin) is the only own automation. The change's Context
+        or its parent must be one of those calls. A user id, a time window or a guess decides nothing.
         """
-        ids = getattr(self.area, "_light_group_own_contexts", None) or ()
         candidates = [context.id]
         if context.parent_id is not None:
             candidates.append(context.parent_id)
         return any(
-            candidate in ids or request_for_context(self.area, candidate) is not None
+            request_for_context(self.area, candidate) is not None
             for candidate in candidates
         )
 
@@ -828,13 +777,11 @@ class AreaLightGroup(AdaptiveLightGroup):
             target=self.entity_id,
             group=str(self.category),
         )
-        self._remember_own_context(group_context)
         try:
             await async_execute_light_entity_action(
                 self.hass, self.entity_id, service, context=group_context
             )
         except Exception as err:  # noqa: BLE001 - reported, not retried
-            fail_request(self.area, group_context.id)
             self._failed_action = action.value
             trace("failed", "action_failed", type(err).__name__)
             self.logger.warning("%s: automatic %s failed: %s", self.name, service, err)

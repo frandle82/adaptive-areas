@@ -6,7 +6,7 @@ group path (see test_brightness_classification.py and test_light_sensor_recovery
 
 import pytest
 
-from custom_components.adaptive_areas.helpers.light_policy import (
+from custom_components.adaptive_areas.helpers.brightness import (
     CONF_TURN_OFF_ABOVE,
     CONF_TURN_ON_BELOW,
     CONF_VACANCY_DELAY,
