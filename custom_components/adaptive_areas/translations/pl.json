@@ -221,7 +221,6 @@
         "title": "Zaawansowane śledzenie stanu obszaru",
         "description": "Możesz włączyć stan drugorzędny dla Adaptive Area, przypisując mu encję. Stany drugorzędne są używane przez funkcje włączające oświetlenie tylko wtedy, gdy jest ciemno, włączające urządzenia klimatyzacyjne dopiero po upływie dłuższego czasu lub niewysyłające powiadomień do obszaru, gdy jest on w trybie uśpienia.",
         "data": {
-          "dark_entity": "Sensor oświetlenia obszaru",
           "sleep_entity": "Encja stanu uśpienia",
           "sleep_timeout": "Wyłączenie opóźnienia (uśpienie)",
           "accent_entity": "Encja stanu oświetlenia akcentującego",
@@ -230,7 +229,6 @@
           "calculation_mode": "Tryb obliczania stanu drugorzędnego"
         },
         "data_description": {
-          "dark_entity": "Sensor oświetlenia w danym obszarze będzie używany do śledzenia statusu `jasno`/`ciemno` w danym obszarze, wykorzystywanego przez funkcje grupy oświetlenia do włączania/wyłączania oświetlenia zgodnie ze poziomem jasności w pomieszczeniu.\n\n**Należy unikać używania sensora `oświetlenia` w tym samym obszarze, ponieważ może to powodować pętlę sprzężenia zwrotnego.** Zaleca się użycie `sun.sun` lub zewnętrznego sensora `oświetlenia`, na który nie będzie miało wpływu sterowane oświetlenie.",
           "sleep_entity": "Encja służąca do śledzenia stanu `uśpienia` w danym obszarze",
           "sleep_timeout": "Jak długo obszar ma czekać przed skasowaniem stanu, gdy jest w stanie uśpienia?",
           "accent_entity": "Encja służąca do śledzenia stanu `zakcentowania` w danym obszarze",

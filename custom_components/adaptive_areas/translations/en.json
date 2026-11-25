@@ -316,7 +316,6 @@
         "title": "Advanced area state tracking",
         "description": "You can enable secondary states for an Adaptive Area by assigning an entity to it. Secondary states are used by features for turning lights on only when it's dark, changing climate presets after an `extended` period, or suppressing notifications while an area is in `sleep`.",
         "data": {
-          "dark_entity": "Area's light sensor",
           "sleep_entity": "Sleep state entity",
           "sleep_timeout": "Clear timeout (Sleep)",
           "accent_entity": "Accented state entity",
@@ -325,7 +324,6 @@
           "calculation_mode": "Secondary state calculation mode"
         },
         "data_description": {
-          "dark_entity": "The area's light sensor will be used to track an area `bright`/`dark` status which is used by features such as Light groups to turn on/off your lights according to the room brightness state.\n\n**Avoid using a `light` sensor in the same area as it may cause a feedback loop.** It is recommended to use either `sun.sun` or an exterior `light` sensor that won't be affected by the lights being controlled.",
           "sleep_entity": "Entity used to track area sleep state",
           "sleep_timeout": "How long area will wait before clearing the state when on sleep state",
           "accent_entity": "Entity used to track area accented state",

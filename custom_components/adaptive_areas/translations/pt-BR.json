@@ -171,7 +171,6 @@
                 "title": "Rastreamento avançado do estado da área",
                 "description": "Você pode ativar estados secundários para uma Área Mágica atribuindo uma entidade a ela. Os estados secundários são usados por recursos para acender as luzes somente quando está escuro ou apenas ligar dispositivos climáticos após um período de tempo “prolongado” ou não enviar notificações para uma área se ela estiver em “suspensão”.",
                 "data": {
-                    "dark_entity": "Sensor de luz da área",
                     "sleep_entity": "Entidade do estado de dormir",
                     "sleep_timeout": "Tempo limite para marcar como desocupado (Dormir)",
                     "accent_entity": "Entidade de estado acentuado",
@@ -180,7 +179,6 @@
                     "calculation_mode": "Modo de cálculo de estado secundário"
                 },
                 "data_description": {
-                    "dark_entity": "O sensor de luz da área será usado para rastrear o status `claro`/`escuro` de uma área que é usado por recursos como grupos de luz para ligar/desligar suas luzes de acordo com o estado de brilho da sala.\n\n**Evite usar um sensor de `luz` na mesma área, pois pode causar um ciclo de feedback.** É recomendado usar `sun.sun` ou um sensor de `luz` externo que não será afetado pelas luzes sendo controlado.",
                     "extended_time": "A área será marcada como \"estendida\" após ser ocupada por tanto tempo",
                     "accent_entity": "Entidade usada para rastrear estado acentuado de área",
                     "sleep_entity": "Entidade usada para rastrear o estado de dormir da área",

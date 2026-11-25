@@ -171,7 +171,6 @@
                 "title": "Geavanceerde tracking van gebiedsstatus",
                 "description": "U kunt secundaire staten inschakelen voor een Adaptive Area door er een entiteit aan toe te wijzen. Secundaire statussen worden gebruikt door functies om lampen alleen aan te zetten als het donker is of om klimaatapparaten pas aan te zetten na een 'langere' tijdsperiode of om geen meldingen naar een gebied te sturen als het in de 'slaapstand' staat.",
                 "data": {
-                    "dark_entity": "De lichtsensor van Area",
                     "sleep_entity": "Entiteit die wordt gebruikt om de slaapstatus van het gebied bij te houden",
                     "sleep_timeout": "Hoe lang het gebied zal wachten voordat de status wordt gewist wanneer deze zich in de slaapstand bevindt",
                     "accent_entity": "Entiteit die wordt gebruikt om de status met gebiedsaccenten bij te houden",
@@ -179,7 +178,6 @@
                     "extended_timeout": "Hoe lang het gebied zal wachten voordat de status wordt gewist wanneer deze zich in de uitgebreide status bevindt"
                 },
                 "data_description": {
-                    "dark_entity": "De lichtsensor van het gebied wordt gebruikt om de status 'helder'/'donker' van het gebied bij te houden. Deze wordt gebruikt door functies zoals Lichtgroepen om uw verlichting aan/uit te zetten op basis van de helderheidsstatus van de kamer.\n\n**Vermijd het gebruik van een 'licht'-sensor in hetzelfde gebied, omdat dit een feedbacklus kan veroorzaken.** Het wordt aanbevolen om 'sun.sun' of een externe 'licht'-sensor te gebruiken die niet wordt beïnvloed door de lichten gecontroleerd wordt."
                 }
             },
             "area_config": {

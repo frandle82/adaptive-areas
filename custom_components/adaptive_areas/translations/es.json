@@ -171,7 +171,6 @@
                 "title": "Seguimiento avanzado del estado del área",
                 "description": "Puede habilitar estados secundarios para un Área Mágica asignándole una entidad. Los estados secundarios son utilizados por funciones para encender las luces solo cuando está oscuro o solo encender dispositivos climáticos después de un período de tiempo \"extendido\" o no enviar notificaciones a un área si está en \"suspensión\".",
                 "data": {
-                    "dark_entity": "Sensor de luz del área",
                     "sleep_entity": "Entidad utilizada para rastrear el estado de sueño del área",
                     "sleep_timeout": "¿Cuánto tiempo esperará el área antes de borrar el estado cuando esté en estado de suspensión?",
                     "accent_entity": "Entidad utilizada para rastrear el estado acentuado del área",
@@ -179,7 +178,6 @@
                     "extended_timeout": "¿Cuánto tiempo esperará el área antes de borrar el estado cuando esté en estado extendido?"
                 },
                 "data_description": {
-                    "dark_entity": "El sensor de luz del área se utilizará para rastrear el estado \"brillante\"/\"oscuro\" de un área que es utilizado por funciones como grupos de luces para encender/apagar las luces de acuerdo con el estado de brillo de la habitación.\n\n**Evite usar un sensor de \"luz\" en la misma área, ya que puede causar un circuito de retroalimentación. ** Se recomienda usar \"sun.sun\" o un sensor de \"luz\" exterior que no se verá afectado por las luces. siendo controlado."
                 }
             },
             "area_config": {

@@ -316,7 +316,6 @@
         "title": "Erweiterte Statusverfolgung",
         "description": "Sekundäre Zustände für einen Adaptive Area aktivieren. Sekundäre Zustände werden von Funktionen verwendet, um Lichter nur dann einzuschalten, wenn es dunkel ist, Klimaentitäten erst nach einer `längeren` Zeitspanne einzuschalten oder keine Benachrichtigungen an einen Bereich zu senden, wenn dieser im `Ruhezustand` ist.",
         "data": {
-          "dark_entity": "Lichtsensor des Bereichs",
           "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
           "sleep_timeout": "Wie lange soll der Bereich warten, bevor sein Status im Schlafzustand freigegeben wird?",
           "accent_entity": "Entität zur Verfolgung des akzentuierten Zustands eines Bereichs",
@@ -325,7 +324,6 @@
           "calculation_mode": "Berechnungsmethode für die erweiterte Statusverfolgung"
         },
         "data_description": {
-          "dark_entity": "Der Lichtsensor des Bereichs wird verwendet, um den Helligkeitsstatus eines Bereichs (hell/dunkel) zu verfolgen. Dieser wird von Funktionen wie Lichtgruppen verwendet, um Lichter je nach helligkeitsabhängig ein-/auszuschalten.\n\n**Die Verwendung von `Licht`-Sensoren im selben Bereich sollte vermieden werden, da dies zu einer Rückkopplung führen kann.** Es wird empfohlen, entweder `sun.sun` oder einen externen `Licht`-Sensor zu verwenden, der von den gesteuerten Lichtern nicht beeinflusst wird.",
           "sleep_entity": "Entität zur Überwachung des Schlafzustands eines Bereichs",
           "sleep_timeout": "Wie lange soll der Bereich warten, bevor sein Status im Schlafzustand freigegeben wird?",
           "accent_entity": "Entität zur Verfolgung des akzentuierten Zustands eines Bereichs",

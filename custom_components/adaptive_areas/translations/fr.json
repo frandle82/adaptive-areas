@@ -171,7 +171,6 @@
                 "title": "Suivi avancé de l'état de la pièce",
                 "description": "Vous pouvez activer les états secondaires pour une Pièce Magique en lui assignant une entité. Les états secondaires sont utilisés par les fonctionnalités pour allumer les lumières uniquement lorsqu'il fait sombre ou pour allumer uniquement les appareils de climatisation après une période `extended` ou pour ne pas envoyer de notifications à une pièce si elle est en mode `sleep`.",
                 "data": {
-                    "dark_entity": "Capteur de luminosité de la pièce",
                     "sleep_entity": "Entité d'état de sommeil",
                     "sleep_timeout": "Réinitialiser le délai (Sommeil)",
                     "accent_entity": "Entité d'état accentué",
@@ -180,7 +179,6 @@
                     "calculation_mode": "Mode de calcul de l'état secondaire"
                 },
                 "data_description": {
-                    "dark_entity": "Le capteur de luminosité de la pièce sera utilisé pour suivre l'état `clair`/`sombre` de la pièce, qui est utilisé par des fonctionnalités telles que les groupes de lumières pour allumer/éteindre vos lumières en fonction de la luminosité de la pièce.\n\n**Évitez d'utiliser un capteur `light` dans la même pièce, car cela peut entraîner une boucle de rétroaction.** Il est recommandé d'utiliser soit `sun.sun` soit un capteur de lumière extérieur qui ne sera pas affecté par les lumières contrôlées.",
                     "sleep_timeout": "Durée pendant laquelle la zone attendra avant de réinitialiser l'état lorsqu'elle est en état de sommeil.",
                     "extended_timeout": "Durée pendant laquelle la zone attendra avant de réinitialiser l'état lorsqu'elle est en état étendu.",
                     "sleep_entity": "Entité utilisée pour suivre l'état de sommeil de la zone",
