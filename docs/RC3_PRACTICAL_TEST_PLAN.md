@@ -39,7 +39,7 @@ Pass criterion: every case behaves as expected. A deviation blocks RC.3 unless i
 | 15 | External automation | automation switches the group | External command | override, no counter-command | none | as set externally |
 | 16 | Blocker (sleep) | blocker active | Occupation | no ON; blocker OFF per rule | `turn_off` if on | off |
 | 17 | ALL-OFF on clear | area occupied, then clear | Vacancy | one OFF from the ALL group | `turn_off` on the ALL group | off |
-| 18 | Shared lamp (two areas) | lamp in two area groups | Save or reload | rejected on save; on reload diagnosed, no command | none | unchanged |
+| 18 | Shared lamp (two areas), and runtime membership change | lamp in two area groups, or a native group whose members change | Save or reload (shared lamp); membership change of a native group without a configuration change | rejected on save; on reload or after a membership change diagnosed, no automatic command to the conflicted lamp or to its group; manual service calls still work; removing the membership restores regular control | none (automatic) | unchanged; manual change possible |
 | 19 | Ungrouped lamp | lamp in no group | Occupation | no automatic command | none | manual only |
 | 20 | Migrated 1.6.18 configuration without Lux limits | legacy `dark_entity` | Start | repair shown, no invented limits | none | off |
 | 21 | No brightness source | no sensor, no global lux | Occupation, `require_dark` | no ON, repair shown | none | off |

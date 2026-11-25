@@ -2,6 +2,13 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase 8.1, 2026-11-25)
+
+- Commits: 7738c9e (translation keys), 400a8a4 (mode matrix and meta lifecycle), c4ebf07 (docs), 5d99d98 (dynamic group membership). Keine Versionsänderung, kein Release, kein Push.
+- Dynamische Gruppenmitgliedschaft ist abgedeckt: `tests/test_light_dynamic_membership.py` (8 Tests).
+- Graphify: isolierte Neuerstellung nur mit AST-Code, ohne semantische Dokumentschicht (siehe Abschlussbericht). Der bestehende Graph in `graphify-out/` bleibt unverändert, Übernahme nicht freigegeben.
+- Release-Ablauf für RC.3: CHANGELOG „Unreleased“ in „1.7.0-rc.3 - <Datum>“ umbenennen (Commit), dann Workflow „Create Release“ mit `1.7.0-rc.3` und Typ `prerelease`. Der Workflow ändert nur das Manifest und pusht einen `chore(release)`-Commit nach `main`. Hassfest und HACS laufen in `validation.yaml` und sind lokal nicht ausgeführt.
+
 ## Fortsetzungspunkt (Light-Architektur, 2026-11-25, Phase 5 und 6)
 
 - Light-Refactoring in Phasen: 21722ff (Repairs), 811e18f (Policy-Pfad entfernt), a7c3a55 (Kontextregister), c06b180 (Gruppenbefehle nativ).
