@@ -6,7 +6,8 @@ Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchi
 
 - Light-Refactoring in Phasen: 21722ff (Repairs), 811e18f (Policy-Pfad entfernt), a7c3a55 (Kontextregister), c06b180 (Gruppenbefehle nativ).
 - Phase 5: Meta-Area-Helligkeit wird aus den Kindbereichen abgeleitet (DARK bei einem DARK-Kind, BRIGHT nur wenn alle Kinder BRIGHT, sonst UNKNOWN). Details und Tests: [CURRENT_STATE.md](CURRENT_STATE.md).
-- Phase 6 (Helligkeitsschwellen): Ergebnis und Architekturentscheidung siehe [DECISIONS.md](DECISIONS.md) und [CURRENT_STATE.md](CURRENT_STATE.md).
+- Phase 6 (Helligkeitsschwellen, Commit 9d032d2): Variante B, siehe [DECISIONS.md](DECISIONS.md).
+- Phase 7 (Regression, RC.3-Vorbereitung): Modus- und Upgrade-Matrix bestanden; beide Produktentscheidungen (UNKNOWN je Modus, Meta-Area-Aggregation) sind verbindlich und abgeschlossen, siehe [DECISIONS.md](DECISIONS.md). RC.3-Praxistest: [RC3_PRACTICAL_TEST_PLAN.md](RC3_PRACTICAL_TEST_PLAN.md).
 - Keine Änderung an `_decision_previous`, `_all_target_lights_on`, `_supersede_pending`, `_failed_action`, Ownership-Prüfung oder Kontextregister.
 - Graphify-Graph ist veraltet (built_at_commit cd14275); nicht neu erzeugt.
 

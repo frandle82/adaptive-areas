@@ -1,4 +1,6 @@
 # Lichtautomatik: prozentuale Hysterese (Implementierungsplan)
+> Historischer Plan. `helpers/light_policy.py` wurde in Phase 3 entfernt; das Schwellenmodell liegt in `helpers/brightness.py`.
+
 
 Status: Entscheidungen festgelegt (DECIDED / CLOSED, 2026-11-22, siehe `docs/DECISIONS.md`). Umsetzung in Phase B. Die Abschnitte 3 und 6 sind durch die Entscheidung ersetzt.
 

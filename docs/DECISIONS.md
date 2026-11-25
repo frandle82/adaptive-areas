@@ -52,3 +52,11 @@ Record a new decision here only after it is accepted. Include context, decision,
 - The public entity is kept unchanged: entity id, unique id, activation conditions, ON/OFF meaning, the native implementation. No migration, no removal, no change to its meaning.
 - Documentation drift corrected: the threshold entity is not an input of the Area states, and `dark`/`bright` are no longer configured from a binary sensor.
 - Public entities are treated as potentially used by external automations; this decision does not claim that such automations exist.
+
+## Phase 7: UNKNOWN and Meta-Area decisions (decided, closed)
+
+- UNKNOWN brightness, decided and closed: the four modes keep their distinct tasks. `ignore`: no brightness condition. `require_dark`: DARK is a necessary condition to switch on. `turn_off`: brightness is not a necessary condition to switch on; BRIGHT may trigger OFF. `dark_on_bright_off`: DARK is necessary to switch on; BRIGHT may trigger OFF.
+- On a new occupation with UNKNOWN brightness: `ignore` and `turn_off` switch on when a switch is needed; `require_dark` and `dark_on_bright_off` do not switch on automatically. Activation, blockers, override, ownership and the actual need to switch still apply. A sensor outage alone never sends a command. UNKNOWN is neither DARK nor BRIGHT. The event-dependent BRIGHT semantics of `turn_off` and the rules for sensor recovery and CLEAR are unchanged.
+- The difference to 1.6.18 is intended and accepted. The code is not changed to match 1.6.18.
+- Meta-Area brightness, decided and closed: at least one relevant DARK child gives DARK; all relevant children BRIGHT give BRIGHT; no DARK and at least one UNKNOWN give UNKNOWN; no relevant children give UNKNOWN. A relevant child without a brightness source is UNKNOWN and is never ignored or treated as BRIGHT. A BRIGHT child together with other relevant UNKNOWN children gives UNKNOWN. Exactly one relevant BRIGHT child gives BRIGHT (test `test_exactly_one_relevant_bright_child_is_bright`).
+- Public illuminance threshold entity: unchanged, Variant B (see above).

@@ -63,16 +63,23 @@ If the area's brightness is `dark` (from the illuminance sensor and the Light Lu
 !!! note
     ✅ If the area becomes dark while already occupied, lights will turn on immediately.
 
-#### Dark State Behavior Matrix
+#### Brightness Mode Matrix
 
-| Area State | Dark Configured? | Dark State | Lights Will… |
-|------------|-----------------|------------|--------------|
-| `occupied` | ❌ No           | N/A        | Turn on      |
-| `occupied` | ✅ Yes          | `off`      | Do nothing   |
-| `occupied` | ✅ Yes          | `on`       | Turn on      |
-| `clear`    | ❌ No           | N/A        | Turn off     |
-| `clear`    | ✅ Yes          | `off`      | Turn off     |
-| `clear`    | ✅ Yes          | `on`       | Turn off     |
+The brightness mode of each group decides what an occupied Area does. Brightness is `dark`, `bright` or `unknown` (see [Area states](../concepts/area-states.md#secondary-states)). `unknown` is never treated as dark or bright.
+
+| Mode | Area `occupied`, brightness `dark` | Area `occupied`, `bright` | Area `occupied`, `unknown` |
+|------|------------------------------------|---------------------------|----------------------------|
+| `ignore` | Turn on | Turn on | Turn on |
+| `require_dark` | Turn on | Do nothing | Do nothing |
+| `turn_off` | Turn on | Turn off | Turn on |
+| `dark_on_bright_off` | Turn on | Turn off | Do nothing |
+
+The vacancy OFF is the same in every mode: when the Area becomes `clear`, the ALL group turns the lights off.
+
+!!! note
+    Decided behaviour for `unknown`: `ignore` and `turn_off` switch on when occupied; `require_dark` and `dark_on_bright_off` do not switch on automatically. A sensor outage alone never sends a command. `unknown` is never treated as dark or bright.
+
+    `dark_on_bright_off` and `require_dark` turn on only with a known `dark` reading. `turn_off` turns on when occupied unless the Area is `bright`. A missing brightness source is an incomplete configuration, reported by a repair.
 
 ### 💡 Automatically Turning Off Lights
 

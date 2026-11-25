@@ -49,3 +49,33 @@ Test-only harness for the shipped panel (`tests/frontend/`). See `tests/frontend
 - Baseline measurements: `node tests/frontend/run.mjs --measure`.
 - Fixtures are generated from the real backend: `ADAPTIVE_AREAS_WRITE_FIXTURES=1 .tox/ha-stable/bin/pytest tests/test_frontend_fixtures.py`.
 - Not covered: the real Home Assistant frontend, theme engine and translation loader; a live instance.
+
+## Light regression mapping (RC.3)
+
+Where each light requirement is checked. "Gap" names what is not covered by an automated test.
+
+| Requirement | Test file | Test functions (examples) | Gap |
+|---|---|---|---|
+| Ownership: exclusive physical group assignment | `tests/test_light_ownership.py`, `tests/test_light_ownership_runtime.py` | `test_same_light_in_two_areas_is_a_conflict`, `test_no_area_switches_the_shared_lamp_automatically` | – |
+| Cross-area group assignment | `tests/test_light_cross_area_policy.py`, `tests/test_light_multi_area_distinct.py` | `test_all_group_of_the_other_area_never_switches_the_owned_lamp`, `test_each_area_switches_only_its_own_lamp` | – |
+| Nested groups | `tests/test_light_nested_groups.py`, `tests/test_light_ownership.py` | `test_nested_group_that_switches_an_excluded_lamp_is_not_controlled`, `test_cyclic_group_references_terminate` | – |
+| Dynamic group membership at runtime (membership changed after setup, no configuration change) | – | – | No automated test. Runtime checks run on the configured membership at evaluation time; a runtime membership change is not tested. |
+| Invalid stored configuration | `tests/test_light_ownership_runtime.py`, `tests/test_light_ownership_options.py` | `test_stored_shared_lamp_is_detected_by_the_runtime_check`, `test_stored_shared_lamp_is_diagnosed_by_the_ownership_check` | – |
+| ALL group is OFF only | `tests/test_light_unified_all.py`, `tests/test_light_clear_cutover.py` | `test_occupation_never_switches_the_all_group_on`, `test_occupied_to_clear_sends_exactly_one_automatic_off` | – |
+| Override by external state change | `tests/test_light_manual_override_origin.py`, `tests/test_light_unified_secondary.py` | `test_user_action_is_manual`, `test_manual_full_off_holds_against_presence_activity` | – |
+| Automatic calls are not overrides (own, forwarded, ALL-OFF, initial, reload) | `tests/test_light_manual_override_origin.py` | `test_automatic_group_on_and_off_are_not_manual`, `test_initial_occupied_evaluation_is_not_manual`, `test_reload_then_automatic_cycle_is_not_manual` | – |
+| Foreign ON without user context: override, no OFF | `tests/test_light_coordination_regression.py` | `test_foreign_on_without_user_context_sets_the_override_but_no_off`, `test_unchanged_state_report_sets_no_override` | – |
+| Native context propagation (registry of 256 IDs) | `tests/test_light_origin_registry.py` | `test_newest_group_contexts_stay_recognised_and_older_ones_are_dropped` | – |
+| Direct native service calls, correct target | `tests/service_faults.py` users: `tests/test_light_clear_cutover.py`, `tests/test_light_presence_activity.py` | `test_group_forward_is_not_a_second_automatic_decision` | – |
+| No redundant commands | `tests/test_light_pending_commands.py`, `tests/test_light_unified_secondary.py` | `test_identical_pending_commands_are_sent_once`, `test_repeated_identical_occupation_sends_no_second_on` | – |
+| No stale commands after new occupation | `tests/test_light_pending_commands.py` | `test_superseded_pending_command_is_dropped` | – |
+| No automatic retry of a failed command | `tests/test_light_clear_cutover.py`, `tests/test_light_unified_all.py` | `test_failed_automatic_off_is_not_retried`, `test_failed_all_off_is_not_retried_by_an_identical_event` | – |
+| New relevant input allows a new decision | `tests/test_light_unified_secondary.py` | `test_failed_call_allows_new_action_after_relevant_input_change` | – |
+| Setup, partial failure, rollback | `tests/test_setup_rollback.py` | `test_failed_platform_setup_releases_listeners_and_areas_then_retry_works` | – |
+| Reload and unload | `tests/test_light_lifecycle_brightness.py`, `tests/test_light_multi_area_distinct.py`, `tests/test_meta_area_hierarchy_regression.py` | `test_reload_after_on_sends_no_second_on`, `test_unload_releases_integration_event_listeners`, `test_reload_does_not_duplicate_meta_entities_or_events` | – |
+| Four brightness modes against the transition table | `tests/test_light_mode_matrix.py`, `tests/test_light_transition.py` | `test_mode_matches_transition_table`, `test_mode_transition_table` | – |
+| UNKNOWN never switches a light by itself | `tests/test_light_sensor_recovery.py`, `tests/test_light_unified_secondary.py` | `test_unknown_band_without_previous_state_is_not_dark`, `test_unknown_brightness_blocks_on_for_require_dark` | – |
+| Exact limits, zero lux, band initialisation | `tests/test_light_sensor_recovery.py`, `tests/test_brightness_threshold_comparison.py` | `test_exact_turn_on_boundary_is_dark`, `test_initial_band_reading_is_off_native_and_unknown_central` | – |
+| Configured area sensor outage: no global fallback | `tests/test_light_sensor_recovery.py` | `test_configured_area_sensor_outage_does_not_fall_back_to_global` | – |
+| Repairs for incomplete brightness configuration | `tests/test_repairs_brightness.py`, `tests/test_repairs_brightness_flow.py`, `tests/test_light_lifecycle_brightness.py` | `test_repair_is_created_at_setup_and_resolved_after_correction` | – |
+| Meta-Area aggregation and events | `tests/test_meta_area_brightness.py`, `tests/test_meta_area_brightness_lifecycle.py`, `tests/test_meta_area_hierarchy_regression.py` | `test_meta_brightness_matrix`, `test_exactly_one_relevant_bright_child_is_bright`, `test_dark_child_propagates_to_every_meta_area_that_contains_it` | – |

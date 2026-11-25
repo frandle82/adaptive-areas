@@ -306,7 +306,7 @@ Quelle: `binary_sensor/presence.py`.
 | Environment | Messwertkarte | `get_area` | `environment.*` | obj | optional | alle | `null` = „Keine Daten“ | `env.*` | Vorhanden; Felder noch zu prüfen |
 | Cleaning | Fälligkeit | `get_overview` / `get_area` | `cleaning.cleaning_state`, `due`, `remaining_minutes_to_due` | str/bool/int | optional | alle | `null` → ausblenden | `cleaning.*` | Vorhanden |
 | Room Usage | Nutzung | `get_overview` / `get_area` | `room_usage` (Felder im Code zu prüfen) | obj | optional | alle | `null` → ausblenden | `roomusage.*` | Vorhanden; Felder noch zu prüfen |
-| Lichtsteuerung | Runtime | `get_light_runtime_status` | Entscheidung, Override, Präsenz, Verfügbarkeit | enum | optional | Admin | Fehler → lokale Meldung | `light.runtime.*` | Vorhanden |
+| Lichtsteuerung | Runtime | `get_light_runtime_status` | `light.presence`, `light.illuminance`, `light.thresholds`, `light.override` (`mode`, `groups`), `light.control_path` (`group_active`, `groups`); seit Phase 2 ohne Policy- und Dispatch-Felder | enum | optional | Admin | Fehler → lokale Meldung | `light.runtime.*` | Vorhanden |
 | Klimasteuerung | Runtime | `get_climate_runtime_status` | Automatik, Bereichszustand, Entscheidung, `current_preset`, `configured_preset` | enum/str | optional | Admin | Fehler → lokale Meldung | `climate.runtime.*` | Vorhanden |
 | Diagnose | Issues, Aggregation | `get_diagnostics` | Dashboard-Diagnose | obj | immer | Admin | – | `diag.*` | Vorhanden |
 | Decision Trace | Timeline | `get_decision_trace` | §4.2 | obj | optional | Admin | leer → „Keine Einträge“ | `trace.*` | **Neu** |

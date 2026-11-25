@@ -54,7 +54,7 @@ Ergänzungen dürfen keine Zustände erfinden: Jede Anzeige muss aus dem Backend
 
 ## 5. Dedupe und Übersteuerung
 
-Belegte Ereignisfolge (`tests/test_light_override_sequence.py`):
+Belegte Ereignisfolge (historisch; `tests/test_light_override_sequence.py` wurde in Phase 2 entfernt, die Abdeckung liegt in `tests/test_light_unified_secondary.py` und `tests/test_light_coordination_regression.py`):
 1. Automatisches Einschalten wird gesendet.
 2. Manuelles Ausschalten setzt `FORCE_OFF`.
 3. Solange der Bereich besetzt ist, wird ein erneutes Einschalten blockiert, unabhängig von Sensoränderungen.

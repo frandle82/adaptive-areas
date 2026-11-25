@@ -202,7 +202,7 @@ Uses the Home Assistant registries that the frontend already holds (`hass.entiti
 
 ## 15. Light and climate in the central editor (Schritte 6.4 and 6.5, 2026-11-20)
 
-Backend keys, verified against `const.py` and `helpers/light_policy.py`:
+Backend keys, verified against `const.py` and `helpers/brightness.py` (the threshold model moved there in Phase 3; `light_policy.py` was removed):
 
 | Area | Backend key | Editor | Rule |
 |---|---|---|---|

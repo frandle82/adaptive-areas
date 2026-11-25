@@ -12,6 +12,11 @@ Behaviour change (not yet released). Policy-only lamp control was removed.
 - Brightness limits, the brightness classification and the UNKNOWN behaviour are unchanged.
 - Fixed: a Meta-Area was always reported BRIGHT, even when a child Area was DARK. Its DARK and BRIGHT now follow the child Areas: DARK when any child is DARK, BRIGHT only when every child is BRIGHT. A child with unknown brightness, or a missing child state, no longer makes the Meta-Area BRIGHT. Automatic light control is not changed by this.
 
+- Changed: Meta-Areas now publish `dark_started` and `dark_ended` on the `adaptive_areas_area_event` bus event when their derived brightness changes. Automations that listen to this event for Meta-Areas will see these events for the first time. No new event types.
+- Changed: without a brightness source (no illuminance sensor, no global lux sensor, no Lux limits) the `require_dark` and `dark_on_bright_off` modes no longer switch lights on. 1.6.18 still switched them on in the differential test without any brightness source. A repair reports the missing configuration.
+- Changed (decided): with `turn_off`, an occupied Area whose brightness is `unknown` switches its group on, as `ignore` does. UNKNOWN is neither DARK nor BRIGHT, so no OFF is sent. `require_dark` and `dark_on_bright_off` do not switch on from `unknown`. 1.6.18 switched a `turn_off` group off in this case. The difference is intended and is not a return to 1.6.18 behaviour.
+- Changed: a group already off no longer receives a redundant `turn_off` when the Area becomes occupied while bright.
+
 ## 1.7.0-rc.2 - 2026-11-24
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.
