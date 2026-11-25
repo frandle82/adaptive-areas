@@ -34,7 +34,7 @@ Area states go beyond basic presence (`occupied`/`clear`) and allow secondary st
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| **Area light sensor** | `entity` | – | Binary sensor of type `light` or `sun.sun`. Used to determine whether the area is `dark`. Recommended: `sun.sun` or an exterior light sensor to avoid feedback loops. |
+| **Area illuminance sensor** | `entity` | – | Numeric illuminance sensor (lux). Used with the Light Lux limits to determine whether the area is `dark` or `bright`. Binary sensors are not accepted. Without it, the global lux sensor is used. |
 | **Accented state entity** | `entity` | – | Sets the area to `accented` when this entity is `on`. |
 | **Sleep state entity** | `entity` | – | Sets the area to `sleep` when this entity is `on`. |
 | **Extended state time required** | `int (minutes)` | `5` | Time after which the area enters the `extended` state if still occupied. |

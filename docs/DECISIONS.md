@@ -43,3 +43,12 @@ Record a new decision here only after it is accepted. Include context, decision,
 - Configured limits stay effective while the Light feature is disabled (parked configuration).
 - No default limits exist in the code. Without configured limits the classification is UNKNOWN. UNKNOWN is never read as DARK or BRIGHT.
 - The hysteresis band is kept. No new limits were introduced.
+
+## Public illuminance threshold entity and central brightness (Phase 6, variant B)
+
+- Two functions are kept apart. The central classification (`helpers/brightness.py`: DARK, BRIGHT, UNKNOWN from the Light Lux limits and the numeric Area illuminance sensor, then the global sensor) is the only source for Area brightness and light control. The public `light` threshold entity (`threshold.py`, native `ThresholdSensor`) is informational.
+- Evidence: the threshold entity has no internal consumer. Light control, secondary states and the dashboard do not read it. Its configuration (Aggregation feature: `aggregates_illuminance_threshold`, hysteresis in percent) and its source (single illuminance sensor or the aggregate) differ from the Light Lux limits and the Area brightness source.
+- Semantics differ, so there is no consolidation: the native entity switches ON strictly above `threshold + h` and OFF strictly below `threshold - h`, with an initial OFF inside the band and an unknown state when the reading is unavailable. The central classification switches DARK at `<= turn_on_below` and BRIGHT at `>= turn_off_above` (both inclusive), keeps the band only with a known previous state, and is UNKNOWN otherwise. `tests/test_brightness_threshold_comparison.py` pins the differences at the upper boundary (660) and the lower boundary (540).
+- The public entity is kept unchanged: entity id, unique id, activation conditions, ON/OFF meaning, the native implementation. No migration, no removal, no change to its meaning.
+- Documentation drift corrected: the threshold entity is not an input of the Area states, and `dark`/`bright` are no longer configured from a binary sensor.
+- Public entities are treated as potentially used by external automations; this decision does not claim that such automations exist.

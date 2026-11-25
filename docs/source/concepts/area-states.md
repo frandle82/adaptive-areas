@@ -31,7 +31,7 @@ In addition to presence, Adaptive Areas tracks a set of **secondary states** tha
 
 | Secondary State | Triggered by...             |
 |-----------------|-----------------------------|
-| `dark`/`bright` | Area Light Sensor           |
+| `dark`/`bright` | Area illuminance sensor (lux) and the Light Lux limits; never a binary sensor |
 | `sleep`         | Sleep Entity                |
 | `accented`      | Accent Entity               |
 | `extended`      | Automatically, after area stays occupied for longer than `Extended Time` seconds |

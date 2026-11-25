@@ -55,7 +55,7 @@ Adaptive Areas can automatically turn lights on or off based on:
 
 ### 🌒 The `dark` State
 
-If a `dark` sensor is configured:
+If the area's brightness is `dark` (from the illuminance sensor and the Light Lux limits; `unknown` never counts as dark):
 
 - Lights turn on only when the area is both **occupied** _and_ **dark**.
 - Otherwise, lights turn on anytime the area becomes occupied.
