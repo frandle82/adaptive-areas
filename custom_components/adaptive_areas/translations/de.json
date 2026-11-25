@@ -1182,6 +1182,34 @@
       "title": "Unvollständige Funktionskonfiguration in {entry}",
       "description": "{count} Konfigurationsproblem(e) betreffen {feature_count} aktivierte Funktion(en). Prüfe die Integrationsoptionen."
     },
+    "brightness_limits_missing": {
+      "title": "Helligkeitsschwelle fehlt in {entry}",
+      "description": "Helligkeitsabhängige Lichter können Tag und Nacht nicht unterscheiden, weil keine Helligkeitsschwelle gesetzt ist. Öffnen Sie im Adaptive-Areas-Dashboard die Lichteinstellungen dieses Bereichs und setzen Sie die Helligkeitsschwelle (lx) und die Hysterese (%). Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
+    "brightness_limits_missing_and_source": {
+      "title": "Helligkeitsquelle und Schwelle fehlen in {entry}",
+      "description": "Helligkeitsabhängige Lichter können Tag und Nacht nicht unterscheiden: Es sind weder eine Helligkeitsquelle noch eine Helligkeitsschwelle gesetzt. Setzen Sie im Adaptive-Areas-Dashboard den Helligkeitssensor dieses Bereichs oder den globalen Lux-Sensor in den globalen Einstellungen. Öffnen Sie im Adaptive-Areas-Dashboard die Lichteinstellungen dieses Bereichs und setzen Sie die Helligkeitsschwelle (lx) und die Hysterese (%). Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
+    "brightness_limits_invalid": {
+      "title": "Helligkeitsschwelle ungültig in {entry}",
+      "description": "Die Helligkeitsschwelle dieses Bereichs ist ungültig, daher können helligkeitsabhängige Lichter nicht schalten. Öffnen Sie im Adaptive-Areas-Dashboard die Lichteinstellungen dieses Bereichs und setzen Sie die Helligkeitsschwelle (lx) und die Hysterese (%). Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
+    "brightness_limits_invalid_and_source": {
+      "title": "Helligkeitsquelle und Schwelle ungültig in {entry}",
+      "description": "Die Helligkeitsschwelle dieses Bereichs ist ungültig, und es ist keine Helligkeitsquelle gesetzt. Setzen Sie im Adaptive-Areas-Dashboard den Helligkeitssensor dieses Bereichs oder den globalen Lux-Sensor in den globalen Einstellungen. Öffnen Sie im Adaptive-Areas-Dashboard die Lichteinstellungen dieses Bereichs und setzen Sie die Helligkeitsschwelle (lx) und die Hysterese (%). Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
+    "brightness_limits_legacy": {
+      "title": "Alter Dunkel-Sensor wird nicht mehr genutzt in {entry}",
+      "description": "Dieser Bereich verwendet noch den alten Dunkel-Sensor. Adaptive Areas liest ihn nicht mehr, daher können helligkeitsabhängige Lichter nicht schalten. Öffnen Sie im Adaptive-Areas-Dashboard die Lichteinstellungen dieses Bereichs und setzen Sie die Helligkeitsschwelle (lx) und die Hysterese (%). Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
+    "brightness_limits_legacy_and_source": {
+      "title": "Alter Dunkel-Sensor wird nicht mehr genutzt in {entry}, keine Helligkeitsquelle",
+      "description": "Dieser Bereich verwendet noch den alten Dunkel-Sensor, der nicht mehr gelesen wird, und es ist keine Helligkeitsquelle gesetzt. Setzen Sie im Adaptive-Areas-Dashboard den Helligkeitssensor dieses Bereichs oder den globalen Lux-Sensor in den globalen Einstellungen. Öffnen Sie im Adaptive-Areas-Dashboard die Lichteinstellungen dieses Bereichs und setzen Sie die Helligkeitsschwelle (lx) und die Hysterese (%). Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
+    "brightness_source_missing": {
+      "title": "Helligkeitssensor fehlt in {entry}",
+      "description": "Helligkeitsabhängige Lichter benötigen eine Helligkeitsquelle, aber es ist keine gesetzt. Setzen Sie im Adaptive-Areas-Dashboard den Helligkeitssensor dieses Bereichs oder den globalen Lux-Sensor in den globalen Einstellungen. Betroffen: Lichter mit Modus „nur bei Dunkelheit“, „bei Helligkeit aus“ oder „bei Helligkeit ausschalten“."
+    },
     "single_global_entry_migration": {
       "title": "Migration der Adaptive-Areas-Konfiguration erforderlich",
       "description": "Adaptive Areas muss bestehende Bereiche in einen zentralen Konfigurationseintrag überführen. Bereiche und Einstellungen bleiben erhalten. Status: {status}. Wähle „Beheben“ und bestätige, um die Migration zu starten."

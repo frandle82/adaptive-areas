@@ -331,7 +331,35 @@
         "no_presence_sources": {"title": "Sin fuente de presencia para {entry}", "description": "Adaptive Areas no encuentra una fuente de presencia adecuada para esta área. Revisa la asignación del área y los ajustes de detección de presencia."},
         "environment_without_sources": {"title": "Sin datos ambientales para {entry}", "description": "Area Climate está activado, pero no puede evaluar ningún dato ambiental utilizable en esta área."},
         "invalid_entity_references": {"title": "Asignación de entidad no válida en {entry}", "description": "{count} entidad(es) configurada(s) no corresponden a la función prevista. Revisa los ajustes afectados."},
-        "invalid_feature_configuration": {"title": "Configuración de función incompleta en {entry}", "description": "{count} problema(s) de configuración afectan a {feature_count} función(es) activada(s). Revisa las opciones de la integración."}
+        "brightness_limits_missing": {
+      "title": "Umbral de brillo ausente en {entry}",
+      "description": "Las luces que dependen del brillo no pueden distinguir el día de la noche porque no hay umbral de brillo. En el panel de Adaptive Areas, abra los ajustes de iluminación de esta área y defina el umbral de brillo (lx) y la histéresis (%). Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "brightness_limits_missing_and_source": {
+      "title": "Fuente y umbral de brillo ausentes en {entry}",
+      "description": "Las luces que dependen del brillo no pueden distinguir el día de la noche porque no hay umbral de brillo. Además, no hay ninguna fuente de brillo configurada. Defina en el panel de Adaptive Areas el sensor de iluminancia de esta área o el sensor de lux global en los ajustes globales. En el panel de Adaptive Areas, abra los ajustes de iluminación de esta área y defina el umbral de brillo (lx) y la histéresis (%). Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "brightness_limits_invalid": {
+      "title": "Umbral de brillo no válido en {entry}",
+      "description": "El umbral de brillo de esta área no es válido, así que las luces que dependen del brillo no pueden encenderse ni apagarse. En el panel de Adaptive Areas, abra los ajustes de iluminación de esta área y defina el umbral de brillo (lx) y la histéresis (%). Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "brightness_limits_invalid_and_source": {
+      "title": "Fuente y umbral de brillo no válidos en {entry}",
+      "description": "El umbral de brillo de esta área no es válido, así que las luces que dependen del brillo no pueden encenderse ni apagarse. Además, no hay ninguna fuente de brillo configurada. Defina en el panel de Adaptive Areas el sensor de iluminancia de esta área o el sensor de lux global en los ajustes globales. En el panel de Adaptive Areas, abra los ajustes de iluminación de esta área y defina el umbral de brillo (lx) y la histéresis (%). Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "brightness_limits_legacy": {
+      "title": "El sensor antiguo de oscuridad ya no se usa en {entry}",
+      "description": "Esta área sigue usando el antiguo sensor de oscuridad, que Adaptive Areas ya no lee. Por eso las luces que dependen del brillo no pueden conmutar. En el panel de Adaptive Areas, abra los ajustes de iluminación de esta área y defina el umbral de brillo (lx) y la histéresis (%). Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "brightness_limits_legacy_and_source": {
+      "title": "El sensor antiguo de oscuridad ya no se usa y no hay fuente de brillo en {entry}",
+      "description": "Esta área sigue usando el antiguo sensor de oscuridad, que Adaptive Areas ya no lee. Por eso las luces que dependen del brillo no pueden conmutar. Además, no hay ninguna fuente de brillo configurada. Defina en el panel de Adaptive Areas el sensor de iluminancia de esta área o el sensor de lux global en los ajustes globales. En el panel de Adaptive Areas, abra los ajustes de iluminación de esta área y defina el umbral de brillo (lx) y la histéresis (%). Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "brightness_source_missing": {
+      "title": "Falta el sensor de brillo en {entry}",
+      "description": "Las luces que dependen del brillo necesitan una fuente de brillo, pero no hay ninguna configurada. Defina en el panel de Adaptive Areas el sensor de iluminancia de esta área o el sensor de lux global en los ajustes globales. Afectadas: luces con el modo «solo con oscuridad», «apagar con luz» o «apagar al haber luz»."
+    },
+    "invalid_feature_configuration": {"title": "Configuración de función incompleta en {entry}", "description": "{count} problema(s) de configuración afectan a {feature_count} función(es) activada(s). Revisa las opciones de la integración."}
     },
     "device": {
         "global": {

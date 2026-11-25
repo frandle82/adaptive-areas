@@ -454,3 +454,33 @@ async def test_unknown_presence_never_switches_the_group_on(hass) -> None:
     )
     for step in per:
         assert _auto(step, "turn_on") == []
+
+
+async def test_failed_call_allows_new_action_after_relevant_input_change(
+    hass, monkeypatch
+) -> None:
+    """After a failed ON, unchanged input stays silent; a new occupation attempts again."""
+    from custom_components.adaptive_areas.helpers import light_executor
+
+    attempts: list[str] = []
+    original = light_executor.async_execute_light_entity_action
+
+    async def failing_once(hass_, entity_id, service, *, context):
+        if entity_id == OVERHEAD and service == "turn_on":
+            attempts.append(entity_id)
+            if len(attempts) == 1:
+                raise RuntimeError("service unavailable")
+        return await original(hass_, entity_id, service, context=context)
+
+    monkeypatch.setattr(
+        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
+        failing_once,
+    )
+    await _run(
+        hass,
+        _entry_with(LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK),
+        [_dark, _occupy, _occupy, _free, _occupy],
+    )
+    # 1st occupation fails, the repeated identical input stays silent,
+    # the new occupation after a clear is a new relevant input and tries again.
+    assert attempts == [OVERHEAD, OVERHEAD]

@@ -1032,6 +1032,34 @@
       "title": "Invalid entity assignment in {entry}",
       "description": "{count} configured entity reference(s) do not match their intended function. Check the affected settings."
     },
+    "brightness_limits_missing": {
+      "title": "Brightness threshold missing in {entry}",
+      "description": "Brightness-dependent lights cannot tell day from night because no brightness threshold is set. In the Adaptive Areas dashboard, open the lighting settings of this Area and set the brightness threshold (lx) and the hysteresis (%). Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
+    "brightness_limits_missing_and_source": {
+      "title": "Brightness source and threshold missing in {entry}",
+      "description": "Brightness-dependent lights cannot tell day from night: no brightness source and no brightness threshold are set. Set the illuminance sensor of this Area, or the global lux sensor in the global settings, in the Adaptive Areas dashboard. In the Adaptive Areas dashboard, open the lighting settings of this Area and set the brightness threshold (lx) and the hysteresis (%). Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
+    "brightness_limits_invalid": {
+      "title": "Brightness threshold invalid in {entry}",
+      "description": "The brightness threshold of this Area is not valid, so brightness-dependent lights cannot switch. In the Adaptive Areas dashboard, open the lighting settings of this Area and set the brightness threshold (lx) and the hysteresis (%). Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
+    "brightness_limits_invalid_and_source": {
+      "title": "Brightness source and threshold invalid in {entry}",
+      "description": "The brightness threshold of this Area is not valid, and no brightness source is set. Set the illuminance sensor of this Area, or the global lux sensor in the global settings, in the Adaptive Areas dashboard. In the Adaptive Areas dashboard, open the lighting settings of this Area and set the brightness threshold (lx) and the hysteresis (%). Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
+    "brightness_limits_legacy": {
+      "title": "Former dark sensor no longer used in {entry}",
+      "description": "This Area still uses the former dark sensor. Adaptive Areas no longer reads it, so brightness-dependent lights cannot switch. In the Adaptive Areas dashboard, open the lighting settings of this Area and set the brightness threshold (lx) and the hysteresis (%). Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
+    "brightness_limits_legacy_and_source": {
+      "title": "Former dark sensor no longer used in {entry}, no brightness source",
+      "description": "This Area still uses the former dark sensor, which is no longer read, and no brightness source is set. Set the illuminance sensor of this Area, or the global lux sensor in the global settings, in the Adaptive Areas dashboard. In the Adaptive Areas dashboard, open the lighting settings of this Area and set the brightness threshold (lx) and the hysteresis (%). Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
+    "brightness_source_missing": {
+      "title": "Brightness sensor missing in {entry}",
+      "description": "Brightness-dependent lights need a brightness source, but none is set. Set the illuminance sensor of this Area, or the global lux sensor in the global settings, in the Adaptive Areas dashboard. Affected: lights set to require dark, dark on bright off, or turn off when bright."
+    },
     "invalid_feature_configuration": {
       "title": "Incomplete feature configuration in {entry}",
       "description": "{count} configuration problem(s) affect {feature_count} enabled feature(s). Check the integration options."

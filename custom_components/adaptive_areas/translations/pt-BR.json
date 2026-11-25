@@ -478,7 +478,35 @@
         "no_presence_sources": {"title": "Sem fonte de presença para {entry}", "description": "O Adaptive Areas não encontra uma fonte de presença adequada para esta área. Verifique a atribuição da área e as configurações de detecção de presença."},
         "environment_without_sources": {"title": "Sem dados ambientais para {entry}", "description": "O Area Climate está ativado, mas não consegue avaliar dados ambientais utilizáveis nesta área."},
         "invalid_entity_references": {"title": "Atribuição de entidade inválida em {entry}", "description": "{count} entidade(s) configurada(s) não correspondem à função pretendida. Verifique as configurações afetadas."},
-        "invalid_feature_configuration": {"title": "Configuração de recurso incompleta em {entry}", "description": "{count} problema(s) de configuração afetam {feature_count} recurso(s) ativado(s). Verifique as opções da integração."}
+        "brightness_limits_missing": {
+      "title": "Limite de brilho ausente em {entry}",
+      "description": "As luzes que dependem do brilho não conseguem distinguir dia de noite, pois nenhum limite de brilho está definido. No painel do Adaptive Areas, abra as configurações de iluminação desta área e defina o limite de brilho (lx) e a histerese (%). Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "brightness_limits_missing_and_source": {
+      "title": "Fonte e limite de brilho ausentes em {entry}",
+      "description": "As luzes que dependem do brilho não conseguem distinguir dia de noite, pois nenhum limite de brilho está definido. Além disso, nenhuma fonte de brilho está configurada. No painel do Adaptive Areas, defina o sensor de iluminância desta área ou o sensor de lux global nas configurações gerais. No painel do Adaptive Areas, abra as configurações de iluminação desta área e defina o limite de brilho (lx) e a histerese (%). Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "brightness_limits_invalid": {
+      "title": "Limite de brilho inválido em {entry}",
+      "description": "O limite de brilho desta área é inválido, por isso as luzes que dependem do brilho não podem ligar ou desligar. No painel do Adaptive Areas, abra as configurações de iluminação desta área e defina o limite de brilho (lx) e a histerese (%). Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "brightness_limits_invalid_and_source": {
+      "title": "Fonte e limite de brilho inválidos em {entry}",
+      "description": "O limite de brilho desta área é inválido, por isso as luzes que dependem do brilho não podem ligar ou desligar. Além disso, nenhuma fonte de brilho está configurada. No painel do Adaptive Areas, defina o sensor de iluminância desta área ou o sensor de lux global nas configurações gerais. No painel do Adaptive Areas, abra as configurações de iluminação desta área e defina o limite de brilho (lx) e a histerese (%). Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "brightness_limits_legacy": {
+      "title": "O antigo sensor de escuridão não é mais usado em {entry}",
+      "description": "Esta área ainda usa o antigo sensor de escuridão, que o Adaptive Areas não lê mais. Por isso as luzes que dependem do brilho não podem alternar. No painel do Adaptive Areas, abra as configurações de iluminação desta área e defina o limite de brilho (lx) e a histerese (%). Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "brightness_limits_legacy_and_source": {
+      "title": "O antigo sensor de escuridão não é mais usado e não há fonte de brilho em {entry}",
+      "description": "Esta área ainda usa o antigo sensor de escuridão, que o Adaptive Areas não lê mais. Por isso as luzes que dependem do brilho não podem alternar. Além disso, nenhuma fonte de brilho está configurada. No painel do Adaptive Areas, defina o sensor de iluminância desta área ou o sensor de lux global nas configurações gerais. No painel do Adaptive Areas, abra as configurações de iluminação desta área e defina o limite de brilho (lx) e a histerese (%). Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "brightness_source_missing": {
+      "title": "Sensor de brilho ausente em {entry}",
+      "description": "As luzes que dependem do brilho precisam de uma fonte de brilho, mas nenhuma está configurada. No painel do Adaptive Areas, defina o sensor de iluminância desta área ou o sensor de lux global nas configurações gerais. Afetadas: luzes com o modo «somente no escuro», «desligar com claridade» ou «desligar quando claro»."
+    },
+    "invalid_feature_configuration": {"title": "Configuração de recurso incompleta em {entry}", "description": "{count} problema(s) de configuração afetam {feature_count} recurso(s) ativado(s). Verifique as opções da integração."}
     },
     "selector": {
         "calculation_mode": {

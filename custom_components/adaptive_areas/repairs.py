@@ -15,6 +15,17 @@ from homeassistant.helpers.entity_registry import async_get as async_get_entity_
 from homeassistant.helpers.floor_registry import async_get as async_get_floor_registry
 
 from custom_components.adaptive_areas.const import (
+    CONF_DARK_ENTITY,
+    CONF_FEATURE_LIGHT,
+    CONF_FEATURE_LIGHT_GROUPS,
+    CONF_GLOBAL_LIGHT_SENSOR,
+    CONF_GLOBAL_OPTIONS,
+    CONF_RETAINED_FEATURES,
+    CONF_SECONDARY_STATES,
+    LIGHT_GROUP_BRIGHTNESS,
+    LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+    LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+    LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
     AREA_TYPE_META,
     CONF_ACCENT_ENTITY,
     CONF_ACCENT_LIGHTS,
@@ -54,6 +65,9 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     MetaAreaType,
 )
+from custom_components.adaptive_areas.helpers.light_policy import (
+    light_policy_config_from_feature,
+)
 from custom_components.adaptive_areas.helpers.environment import (
     POLLUTANT_NAMES,
     get_environment_source_capabilities,
@@ -68,6 +82,8 @@ ISSUE_NO_PRESENCE_SOURCES = "no_presence_sources"
 ISSUE_ENVIRONMENT_WITHOUT_SOURCES = "environment_without_sources"
 ISSUE_INVALID_ENTITIES = "invalid_entity_references"
 ISSUE_INVALID_FEATURE_CONFIGURATION = "invalid_feature_configuration"
+ISSUE_BRIGHTNESS_CONFIGURATION = "brightness_configuration"
+ISSUE_BRIGHTNESS_SOURCE_MISSING = "brightness_source_missing"
 ISSUE_SINGLE_GLOBAL_ENTRY_MIGRATION = "single_global_entry_migration"
 
 REPAIR_ISSUE_CATEGORIES = (
@@ -77,10 +93,22 @@ REPAIR_ISSUE_CATEGORIES = (
     ISSUE_ENVIRONMENT_WITHOUT_SOURCES,
     ISSUE_INVALID_ENTITIES,
     ISSUE_INVALID_FEATURE_CONFIGURATION,
+    ISSUE_BRIGHTNESS_CONFIGURATION,
+)
+# One brightness issue per entry; its translation key depends on the reasons.
+BRIGHTNESS_ISSUE_TRANSLATION_KEYS = (
+    "brightness_limits_missing",
+    "brightness_limits_missing_and_source",
+    "brightness_limits_invalid",
+    "brightness_limits_invalid_and_source",
+    "brightness_limits_legacy",
+    "brightness_limits_legacy_and_source",
+    "brightness_source_missing",
 )
 REPAIR_ISSUE_TRANSLATION_KEYS = (
-    *REPAIR_ISSUE_CATEGORIES,
+    *(c for c in REPAIR_ISSUE_CATEGORIES if c != ISSUE_BRIGHTNESS_CONFIGURATION),
     ISSUE_SINGLE_GLOBAL_ENTRY_MIGRATION,
+    *BRIGHTNESS_ISSUE_TRANSLATION_KEYS,
 )
 
 
@@ -403,6 +431,58 @@ def get_environment_summary(
     }
 
 
+BRIGHTNESS_DEPENDENT_MODES = frozenset(
+    {
+        LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK,
+        LIGHT_GROUP_BRIGHTNESS_DARK_ON_BRIGHT_OFF,
+        LIGHT_GROUP_BRIGHTNESS_TURN_OFF,
+    }
+)
+
+
+def get_brightness_configuration_problems(
+    config: dict[str, Any], global_light_sensor: str | None = None
+) -> list[str]:
+    """Return missing or invalid brightness inputs of active brightness-dependent groups.
+
+    Reports only: no sensor is selected and no limit is invented. Groups with mode ignore
+    or without lights need nothing. A configured but temporarily unavailable sensor is not a
+    configuration problem and is not reported here.
+    """
+    groups = _feature_config(config, CONF_FEATURE_LIGHT_GROUPS)
+    needs_brightness = any(
+        groups.get(category)
+        and groups.get(LIGHT_GROUP_BRIGHTNESS[category]) in BRIGHTNESS_DEPENDENT_MODES
+        for category in LIGHT_GROUP_BRIGHTNESS
+    )
+    if not needs_brightness:
+        return []
+
+    light = _feature_config(config, CONF_FEATURE_LIGHT)
+    if not light:
+        retained = config.get(CONF_RETAINED_FEATURES) or {}
+        light = retained.get(CONF_FEATURE_LIGHT) if isinstance(retained, dict) else None
+        light = light if isinstance(light, dict) else {}
+
+    reasons: list[str] = []
+    if "turn_on_below" not in light and "turn_off_above" not in light:
+        legacy = config.get(CONF_SECONDARY_STATES) or {}
+        if isinstance(legacy, dict) and legacy.get(CONF_DARK_ENTITY):
+            reasons.append("legacy_dark_entity_without_limits")
+        else:
+            reasons.append("missing_brightness_limits")
+    else:
+        try:
+            light_policy_config_from_feature(light)
+        except TypeError, ValueError:
+            reasons.append("invalid_brightness_limits")
+
+    area_sensor = config.get(CONF_AREA_ILLUMINANCE_SENSOR)
+    if not area_sensor and not global_light_sensor:
+        reasons.append("missing_light_sensor")
+    return reasons
+
+
 def get_feature_configuration_summary(config_entry: ConfigEntry) -> dict[str, Any]:
     """Return stable structural problems for enabled features."""
     config = _combined_config(config_entry)
@@ -441,6 +521,46 @@ def config_entry_area_exists(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     return async_get_area_registry(hass).async_get_area(area_id) is not None
 
 
+def _configured_global_light_sensor(hass: HomeAssistant) -> str | None:
+    """Return the global light sensor configured in any entry's global options, if any."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        options = entry.options.get(CONF_GLOBAL_OPTIONS) or {}
+        sensor = (
+            options.get(CONF_GLOBAL_LIGHT_SENSOR) if isinstance(options, dict) else None
+        )
+        if sensor:
+            return str(sensor)
+    return None
+
+
+def get_brightness_configuration_summary(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> dict[str, Any]:
+    """Return the brightness configuration reasons of one entry (no entity IDs)."""
+    reasons = get_brightness_configuration_problems(
+        _combined_config(config_entry), _configured_global_light_sensor(hass)
+    )
+    return {"reasons": reasons}
+
+
+def brightness_translation_key(reasons: list[str]) -> str | None:
+    """Map brightness reasons to one translation key, or None when nothing is wrong."""
+    if not reasons:
+        return None
+    limit_parts = {
+        "invalid_brightness_limits": "limits_invalid",
+        "legacy_dark_entity_without_limits": "limits_legacy",
+        "missing_brightness_limits": "limits_missing",
+    }
+    limit = next((limit_parts[r] for r in limit_parts if r in reasons), None)
+    if limit is None:
+        return ISSUE_BRIGHTNESS_SOURCE_MISSING
+    key = f"brightness_{limit}"
+    if "missing_light_sensor" in reasons:
+        key += "_and_source"
+    return key
+
+
 def get_repair_summary(
     hass: HomeAssistant, config_entry: ConfigEntry
 ) -> dict[str, Any]:
@@ -453,6 +573,9 @@ def get_repair_summary(
         "presence": get_presence_source_summary(hass, config_entry),
         "environment": get_environment_summary(hass, config_entry),
         "feature_configuration": get_feature_configuration_summary(config_entry),
+        "brightness_configuration": get_brightness_configuration_summary(
+            hass, config_entry
+        ),
     }
 
 
@@ -525,6 +648,27 @@ async def async_evaluate_config_entry(
             },
         ),
     )
+    brightness_issue_id = _issue_id(
+        ISSUE_BRIGHTNESS_CONFIGURATION, config_entry.entry_id
+    )
+    brightness_key = (
+        None
+        if summary["missing_area"]
+        else brightness_translation_key(summary["brightness_configuration"]["reasons"])
+    )
+    if brightness_key is not None:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            brightness_issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=brightness_key,
+            translation_placeholders={"entry": config_entry.title},
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, brightness_issue_id)
+
     for category, active, placeholders in issue_details:
         issue_id = _issue_id(category, config_entry.entry_id)
         if active:

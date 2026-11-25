@@ -479,6 +479,34 @@
     "no_presence_sources": {"title": "Brak źródła obecności dla {entry}", "description": "Adaptive Areas nie może znaleźć odpowiedniego źródła obecności dla tego obszaru. Sprawdź przypisanie obszaru i ustawienia wykrywania obecności."},
     "environment_without_sources": {"title": "Brak danych środowiskowych dla {entry}", "description": "Area Climate jest włączone, ale nie może ocenić żadnych użytecznych danych środowiskowych w tym obszarze."},
     "invalid_entity_references": {"title": "Nieprawidłowe przypisanie encji w {entry}", "description": "{count} skonfigurowanych encji nie pasuje do przewidzianej funkcji. Sprawdź odpowiednie ustawienia."},
+    "brightness_limits_missing": {
+      "title": "Brak progu jasności w {entry}",
+      "description": "Oświetlenie zależne od jasności nie potrafi odróżnić dnia od nocy, ponieważ nie ustawiono progu jasności. W panelu Adaptive Areas otwórz ustawienia oświetlenia tego obszaru i ustaw próg jasności (lx) oraz histerezę (%). Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
+    "brightness_limits_missing_and_source": {
+      "title": "Brak źródła i progu jasności w {entry}",
+      "description": "Oświetlenie zależne od jasności nie potrafi odróżnić dnia od nocy, ponieważ nie ustawiono progu jasności. Ponadto nie skonfigurowano żadnego źródła jasności. W panelu Adaptive Areas ustaw czujnik natężenia oświetlenia tego obszaru lub globalny czujnik lux w ustawieniach ogólnych. W panelu Adaptive Areas otwórz ustawienia oświetlenia tego obszaru i ustaw próg jasności (lx) oraz histerezę (%). Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
+    "brightness_limits_invalid": {
+      "title": "Nieprawidłowy próg jasności w {entry}",
+      "description": "Próg jasności tego obszaru jest nieprawidłowy, dlatego oświetlenie zależne od jasności nie może się przełączać. W panelu Adaptive Areas otwórz ustawienia oświetlenia tego obszaru i ustaw próg jasności (lx) oraz histerezę (%). Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
+    "brightness_limits_invalid_and_source": {
+      "title": "Nieprawidłowe źródło i próg jasności w {entry}",
+      "description": "Próg jasności tego obszaru jest nieprawidłowy, dlatego oświetlenie zależne od jasności nie może się przełączać. Ponadto nie skonfigurowano żadnego źródła jasności. W panelu Adaptive Areas ustaw czujnik natężenia oświetlenia tego obszaru lub globalny czujnik lux w ustawieniach ogólnych. W panelu Adaptive Areas otwórz ustawienia oświetlenia tego obszaru i ustaw próg jasności (lx) oraz histerezę (%). Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
+    "brightness_limits_legacy": {
+      "title": "Stary czujnik ciemności nie jest już używany w {entry}",
+      "description": "Ten obszar nadal używa starego czujnika ciemności, którego Adaptive Areas już nie odczytuje. Dlatego oświetlenie zależne od jasności nie może się przełączać. W panelu Adaptive Areas otwórz ustawienia oświetlenia tego obszaru i ustaw próg jasności (lx) oraz histerezę (%). Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
+    "brightness_limits_legacy_and_source": {
+      "title": "Stary czujnik ciemności nie jest już używany i brak źródła jasności w {entry}",
+      "description": "Ten obszar nadal używa starego czujnika ciemności, którego Adaptive Areas już nie odczytuje. Dlatego oświetlenie zależne od jasności nie może się przełączać. Ponadto nie skonfigurowano żadnego źródła jasności. W panelu Adaptive Areas ustaw czujnik natężenia oświetlenia tego obszaru lub globalny czujnik lux w ustawieniach ogólnych. W panelu Adaptive Areas otwórz ustawienia oświetlenia tego obszaru i ustaw próg jasności (lx) oraz histerezę (%). Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
+    "brightness_source_missing": {
+      "title": "Brak czujnika jasności w {entry}",
+      "description": "Oświetlenie zależne od jasności potrzebuje źródła jasności, ale żadnego nie skonfigurowano. W panelu Adaptive Areas ustaw czujnik natężenia oświetlenia tego obszaru lub globalny czujnik lux w ustawieniach ogólnych. Dotyczy: świateł w trybie „tylko w ciemności”, „wyłącz przy jasności” lub „wyłącz, gdy jasno”."
+    },
     "invalid_feature_configuration": {"title": "Niepełna konfiguracja funkcji w {entry}", "description": "{count} problemów konfiguracji dotyczy {feature_count} włączonych funkcji. Sprawdź opcje integracji."}
   },
   "device": {

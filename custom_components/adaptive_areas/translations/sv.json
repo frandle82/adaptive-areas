@@ -3,6 +3,34 @@
     "no_presence_sources": {"title": "Ingen närvarokälla för {entry}", "description": "Adaptive Areas hittar ingen lämplig närvarokälla för detta område. Kontrollera områdestilldelningen och inställningarna för närvarodetektering."},
     "environment_without_sources": {"title": "Inga miljödata för {entry}", "description": "Area Climate är aktiverat men kan inte utvärdera några användbara miljödata i detta område."},
     "invalid_entity_references": {"title": "Ogiltig entitetstilldelning i {entry}", "description": "{count} konfigurerade entiteter passar inte den avsedda funktionen. Kontrollera de berörda inställningarna."},
+    "brightness_limits_missing": {
+      "title": "Ljusstyrkegräns saknas i {entry}",
+      "description": "Ljus som styrs av ljusstyrka kan inte skilja dag från natt, eftersom ingen ljusstyrkegräns är inställd. Öppna belysningsinställningarna för området i Adaptive Areas-instrumentpanelen och ställ in ljusstyrkegränsen (lx) och hysteresen (%). Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
+    "brightness_limits_missing_and_source": {
+      "title": "Ljuskälla och ljusstyrkegräns saknas i {entry}",
+      "description": "Ljus som styrs av ljusstyrka kan inte skilja dag från natt, eftersom ingen ljusstyrkegräns är inställd. Dessutom finns ingen ljuskälla inställd. Ställ in områdets ljussensor eller den globala lux-sensorn i de allmänna inställningarna i Adaptive Areas-instrumentpanelen. Öppna belysningsinställningarna för området i Adaptive Areas-instrumentpanelen och ställ in ljusstyrkegränsen (lx) och hysteresen (%). Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
+    "brightness_limits_invalid": {
+      "title": "Ogiltig ljusstyrkegräns i {entry}",
+      "description": "Ljusstyrkegränsen för detta område är ogiltig, så ljus som styrs av ljusstyrka kan inte tändas eller släckas. Öppna belysningsinställningarna för området i Adaptive Areas-instrumentpanelen och ställ in ljusstyrkegränsen (lx) och hysteresen (%). Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
+    "brightness_limits_invalid_and_source": {
+      "title": "Ogiltig ljuskälla och ljusstyrkegräns i {entry}",
+      "description": "Ljusstyrkegränsen för detta område är ogiltig, så ljus som styrs av ljusstyrka kan inte tändas eller släckas. Dessutom finns ingen ljuskälla inställd. Ställ in områdets ljussensor eller den globala lux-sensorn i de allmänna inställningarna i Adaptive Areas-instrumentpanelen. Öppna belysningsinställningarna för området i Adaptive Areas-instrumentpanelen och ställ in ljusstyrkegränsen (lx) och hysteresen (%). Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
+    "brightness_limits_legacy": {
+      "title": "Den gamla mörkerssensorn används inte längre i {entry}",
+      "description": "Området använder fortfarande den gamla mörkerssensorn, som Adaptive Areas inte längre läser. Därför kan ljus som styrs av ljusstyrka inte växla. Öppna belysningsinställningarna för området i Adaptive Areas-instrumentpanelen och ställ in ljusstyrkegränsen (lx) och hysteresen (%). Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
+    "brightness_limits_legacy_and_source": {
+      "title": "Den gamla mörkerssensorn används inte längre och ingen ljuskälla finns i {entry}",
+      "description": "Området använder fortfarande den gamla mörkerssensorn, som Adaptive Areas inte längre läser. Därför kan ljus som styrs av ljusstyrka inte växla. Dessutom finns ingen ljuskälla inställd. Ställ in områdets ljussensor eller den globala lux-sensorn i de allmänna inställningarna i Adaptive Areas-instrumentpanelen. Öppna belysningsinställningarna för området i Adaptive Areas-instrumentpanelen och ställ in ljusstyrkegränsen (lx) och hysteresen (%). Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
+    "brightness_source_missing": {
+      "title": "Ljussensor saknas i {entry}",
+      "description": "Ljus som styrs av ljusstyrka behöver en ljuskälla, men ingen är inställd. Ställ in områdets ljussensor eller den globala lux-sensorn i de allmänna inställningarna i Adaptive Areas-instrumentpanelen. Berörda: ljus i läget ”endast i mörker”, ”släck vid ljus” eller ”släck när ljust”."
+    },
     "invalid_feature_configuration": {"title": "Ofullständig funktionskonfiguration i {entry}", "description": "{count} konfigurationsproblem påverkar {feature_count} aktiverade funktioner. Kontrollera integrationsalternativen."}
   }
 }
