@@ -89,13 +89,26 @@ async def test_single_relevant_child_dark_makes_meta_dark(hass) -> None:
     assert AreaStates.BRIGHT not in states
 
 
-async def test_single_relevant_child_bright_alone_is_unknown(hass) -> None:
-    """One BRIGHT child with all others missing is not enough: the Meta-Area is UNKNOWN."""
+async def test_bright_child_with_unknown_siblings_is_unknown(hass) -> None:
+    """A BRIGHT child together with other relevant UNKNOWN children is UNKNOWN."""
     meta = _meta(hass)
     children = meta.get_child_areas()
     _set_all(hass, children, None)
     _report(hass, children[0], [AreaStates.BRIGHT])
     assert _brightness(await _recalc(hass, meta)) == set()
+
+
+async def test_exactly_one_relevant_bright_child_is_bright(hass) -> None:
+    """With exactly one relevant child, reporting BRIGHT makes the Meta-Area BRIGHT."""
+    meta = _meta(hass)
+    only = meta.get_child_areas()[0]
+    _report(hass, only, [AreaStates.BRIGHT])
+    original = meta.get_child_areas
+    meta.get_child_areas = lambda: [only]  # type: ignore[method-assign]
+    try:
+        assert _brightness(await _recalc(hass, meta)) == {AreaStates.BRIGHT}
+    finally:
+        meta.get_child_areas = original  # type: ignore[method-assign]
 
 
 async def test_no_relevant_children_is_unknown(hass) -> None:
