@@ -23,13 +23,20 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from custom_components.adaptive_areas.helpers.brightness import BrightnessState
-from custom_components.adaptive_areas.helpers.light_dispatch import Override
 
 MODE_IGNORE = "ignore"
 MODE_REQUIRE_DARK = "require_dark"
 MODE_TURN_OFF = "turn_off"
 MODE_DARK_ON_BRIGHT_OFF = "dark_on_bright_off"
 MODES = (MODE_IGNORE, MODE_REQUIRE_DARK, MODE_TURN_OFF, MODE_DARK_ON_BRIGHT_OFF)
+
+
+class Override(StrEnum):
+    """Confirmed manual override state for one target."""
+
+    NONE = "none"
+    FORCE_ON = "force_on"
+    FORCE_OFF = "force_off"
 
 
 class TransitionAction(StrEnum):

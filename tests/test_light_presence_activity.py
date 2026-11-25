@@ -64,13 +64,12 @@ def activity_group(hass: HomeAssistant, monkeypatch):
     return group
 
 
-def _record_calls(monkeypatch) -> AsyncMock:
-    """Record the automatic group calls (entity, service) made by the shared executor."""
+def _record_calls(monkeypatch, hass) -> AsyncMock:
+    """Record the automatic group calls (hass, entity, service) and send none to Home Assistant."""
+    from tests.service_faults import install_group_command_fault
+
     recorder = AsyncMock(return_value=True)
-    monkeypatch.setattr(
-        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
-        recorder,
-    )
+    install_group_command_fault(monkeypatch, hass, recorder)
     return recorder
 
 
@@ -88,7 +87,7 @@ async def test_activity_activation(activity_group, activation, active, monkeypat
     group.activation = activation
     if active:
         group.area.states.append(activation)
-    recorder = _record_calls(monkeypatch)
+    recorder = _record_calls(monkeypatch, group.hass)
     expected = activation == "occupied" or (active and activation != "disabled")
     group.area_presence_activity("kitchen", "motion_detected")
     await group.hass.async_block_till_done()
@@ -118,7 +117,7 @@ async def test_activity_brightness(
         AreaStates.OCCUPIED,
         AreaStates.BRIGHT if bright else AreaStates.DARK,
     ]
-    recorder = _record_calls(monkeypatch)
+    recorder = _record_calls(monkeypatch, group.hass)
     group.area_presence_activity("kitchen", "motion_detected")
     await group.hass.async_block_till_done()
     assert _services(recorder).count("turn_on") == int(expected)
@@ -140,7 +139,7 @@ async def test_activity_guards(activity_group, monkeypatch, guard):
         group.is_control_enabled.return_value = False
     elif guard == "all":
         group.category = LightGroupCategory.ALL
-    recorder = _record_calls(monkeypatch)
+    recorder = _record_calls(monkeypatch, group.hass)
     group.area_presence_activity(
         "other" if guard == "other_area" else "kitchen", "motion_detected"
     )
@@ -160,7 +159,7 @@ async def test_partial_group_and_dedup(activity_group, monkeypatch):
     marker of a command that is still running.
     """
     group = activity_group
-    recorder = _record_calls(monkeypatch)
+    recorder = _record_calls(monkeypatch, group.hass)
     # A real vacancy first (the decision input of the previous state), then the occupation.
     group.area.states = []
     group.area_state_changed("kitchen", ([AreaStates.CLEAR], [AreaStates.OCCUPIED]))

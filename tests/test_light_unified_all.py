@@ -97,10 +97,10 @@ async def test_failed_all_off_is_not_retried_by_an_identical_event(
     hass, monkeypatch
 ) -> None:
     """A failing ALL OFF is attempted once; an identical later clear event does not retry."""
-    from custom_components.adaptive_areas.helpers import light_executor
+    from tests.service_faults import install_group_command_fault, native_group_command
 
     attempts: list[str] = []
-    original = light_executor.async_execute_light_entity_action
+    original = native_group_command(hass)
 
     async def failing(hass_, entity_id, service, *, context):
         if entity_id == ALL_GROUP and service == "turn_off":
@@ -108,10 +108,7 @@ async def test_failed_all_off_is_not_retried_by_an_identical_event(
             raise RuntimeError("service unavailable")
         return await original(hass_, entity_id, service, context=context)
 
-    monkeypatch.setattr(
-        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
-        failing,
-    )
+    install_group_command_fault(monkeypatch, hass, failing)
     await _run(hass, _entry(), [_dark, _occupy, _free, _free])
     assert attempts == [ALL_GROUP]
 
@@ -120,10 +117,10 @@ async def test_failed_all_off_then_new_occupation_and_clear_tries_again(
     hass, monkeypatch
 ) -> None:
     """After a failure, a new relevant change (occupation, then CLEAR) is a new decision."""
-    from custom_components.adaptive_areas.helpers import light_executor
+    from tests.service_faults import install_group_command_fault, native_group_command
 
     attempts: list[str] = []
-    original = light_executor.async_execute_light_entity_action
+    original = native_group_command(hass)
 
     async def failing_once(hass_, entity_id, service, *, context):
         if entity_id == ALL_GROUP and service == "turn_off":
@@ -132,10 +129,7 @@ async def test_failed_all_off_then_new_occupation_and_clear_tries_again(
                 raise RuntimeError("service unavailable")
         return await original(hass_, entity_id, service, context=context)
 
-    monkeypatch.setattr(
-        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
-        failing_once,
-    )
+    install_group_command_fault(monkeypatch, hass, failing_once)
     await _run(hass, _entry(), [_dark, _occupy, _free, _occupy, _free])
     assert len(attempts) == 2
 

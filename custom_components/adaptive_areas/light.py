@@ -43,15 +43,12 @@ from custom_components.adaptive_areas.const import (
 )
 from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
 from custom_components.adaptive_areas.helpers.brightness import BrightnessState
-from custom_components.adaptive_areas.helpers.light_dispatch import Override
-from custom_components.adaptive_areas.helpers.light_executor import (
-    async_execute_light_entity_action,
-)
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
     excluded_members_by_group,
     group_is_blocked,
 )
 from custom_components.adaptive_areas.helpers.light_transition import (
+    Override,
     MODE_DARK_ON_BRIGHT_OFF,
     MODE_IGNORE,
     MODE_REQUIRE_DARK,
@@ -778,8 +775,12 @@ class AreaLightGroup(AdaptiveLightGroup):
             group=str(self.category),
         )
         try:
-            await async_execute_light_entity_action(
-                self.hass, self.entity_id, service, context=group_context
+            await self.hass.services.async_call(
+                LIGHT_DOMAIN,
+                service,
+                {ATTR_ENTITY_ID: self.entity_id},
+                blocking=True,
+                context=group_context,
             )
         except Exception as err:  # noqa: BLE001 - reported, not retried
             self._failed_action = action.value

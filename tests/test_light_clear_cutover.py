@@ -140,10 +140,10 @@ async def test_group_forward_is_not_a_second_automatic_decision(hass) -> None:
 
 async def test_failed_automatic_off_is_not_retried(hass, monkeypatch) -> None:
     """A failing automatic OFF is attempted once; no retry follows."""
-    from custom_components.adaptive_areas.helpers import light_executor
+    from tests.service_faults import install_group_command_fault, native_group_command
 
     attempts: list[str] = []
-    original = light_executor.async_execute_light_entity_action
+    original = native_group_command(hass)
 
     async def failing(hass_, entity_id, service, *, context):
         attempts.append(entity_id)
@@ -151,10 +151,7 @@ async def test_failed_automatic_off_is_not_retried(hass, monkeypatch) -> None:
             raise RuntimeError("service unavailable")
         return await original(hass_, entity_id, service, context=context)
 
-    monkeypatch.setattr(
-        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
-        failing,
-    )
+    install_group_command_fault(monkeypatch, hass, failing)
     await _run(hass, _entry(), [_dark, _occupy, _free])
     assert attempts.count(ALL_GROUP) == 1
 

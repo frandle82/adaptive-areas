@@ -90,6 +90,14 @@ Light groups are tied to area states:
 - `Sleep Lights` set to **occupancy only**: will turn on when you enter a bedroom at night, but not if `sleep` state activates while already inside.
 - `Accent Lights` set to **state only**: will turn on whenever the `extended` state is activated, even if already inside.
 
+## ✋ Manual Override and Ungrouped Lamps
+
+- **Only group lamps are controlled automatically.** A lamp that is in no light group is never switched by Adaptive Areas, even when brightness limits are set. To keep automatic control for such a lamp, add it to an individual light group of the Area.
+- **A manual change overrides the automation.** An override is an external intervention in the automatic control. It is not proof of a human action: a physical switch or another automation can set it too.
+- **Commands of Adaptive Areas never set an override**, including the group's own commands, their forwarding to members, the automatic all-off at clear, initialisation, restoration after a restart or an outage, and a change that only reports the same state.
+- **A change from outside** (switch, other automation, unknown origin) sets the override while the Area is occupied. An external ON is not read as a wish to switch off.
+- **CLEAR ends the override**, as before. Brightness and blocker rules are unchanged.
+
 ## 🧠 Usage Examples
 
 ### 🛋️ TV ambiance with accent lights

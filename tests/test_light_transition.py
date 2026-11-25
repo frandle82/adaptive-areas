@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 from custom_components.adaptive_areas.helpers.brightness import BrightnessState
-from custom_components.adaptive_areas.helpers.light_dispatch import Override
+from custom_components.adaptive_areas.helpers.light_transition import Override
 from custom_components.adaptive_areas.helpers.light_transition import (
     execute_once,
     initial_decision,

@@ -194,10 +194,10 @@ async def test_repeated_identical_occupation_sends_no_second_on(hass) -> None:
 
 async def test_failed_automatic_call_is_not_retried(hass, monkeypatch) -> None:
     """A failing automatic ON is attempted once; the same unchanged input sends no retry."""
-    from custom_components.adaptive_areas.helpers import light_executor
+    from tests.service_faults import install_group_command_fault, native_group_command
 
     attempts: list[str] = []
-    original = light_executor.async_execute_light_entity_action
+    original = native_group_command(hass)
 
     async def failing(hass_, entity_id, service, *, context):
         if entity_id == OVERHEAD and service == "turn_on":
@@ -205,10 +205,7 @@ async def test_failed_automatic_call_is_not_retried(hass, monkeypatch) -> None:
             raise RuntimeError("service unavailable")
         return await original(hass_, entity_id, service, context=context)
 
-    monkeypatch.setattr(
-        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
-        failing,
-    )
+    install_group_command_fault(monkeypatch, hass, failing)
     await _run(
         hass,
         _entry_with(LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK),
@@ -460,10 +457,10 @@ async def test_failed_call_allows_new_action_after_relevant_input_change(
     hass, monkeypatch
 ) -> None:
     """After a failed ON, unchanged input stays silent; a new occupation attempts again."""
-    from custom_components.adaptive_areas.helpers import light_executor
+    from tests.service_faults import install_group_command_fault, native_group_command
 
     attempts: list[str] = []
-    original = light_executor.async_execute_light_entity_action
+    original = native_group_command(hass)
 
     async def failing_once(hass_, entity_id, service, *, context):
         if entity_id == OVERHEAD and service == "turn_on":
@@ -472,10 +469,7 @@ async def test_failed_call_allows_new_action_after_relevant_input_change(
                 raise RuntimeError("service unavailable")
         return await original(hass_, entity_id, service, context=context)
 
-    monkeypatch.setattr(
-        "custom_components.adaptive_areas.light.async_execute_light_entity_action",
-        failing_once,
-    )
+    install_group_command_fault(monkeypatch, hass, failing_once)
     await _run(
         hass,
         _entry_with(LIGHT_GROUP_BRIGHTNESS_REQUIRE_DARK),
