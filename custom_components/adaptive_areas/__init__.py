@@ -84,7 +84,6 @@ from custom_components.adaptive_areas.helpers.area import (
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
-from custom_components.adaptive_areas.helpers.light_runtime import LightRuntimeManager
 from custom_components.adaptive_areas.repairs import (
     async_evaluate_config_entry,
     async_evaluate_single_global_entry_migration,
@@ -375,12 +374,11 @@ async def _async_rollback_setup(
     *,
     platforms: list[str],
     tracked_listeners: list[Callable],
-    managers: list[Any],
     error: BaseException,
 ) -> None:
     """Undo what a failed setup created, each resource exactly once.
 
-    Only resources that exist are touched: runtime managers that were returned, the platforms (attempted), the Areas and the
+    Only resources that exist are touched: the platforms (attempted), the Areas and the
     tracked listeners of this entry. Every step runs even if an earlier step fails.
     A cleanup error is logged and added as a note to ``error``; the caller re-raises
     the original setup error, so it is never replaced or hidden.
@@ -401,8 +399,6 @@ async def _async_rollback_setup(
             )
             error.add_note(f"Cleanup of {name} failed: {cleanup_error!r}")
 
-    for manager in managers:
-        await _run("runtime manager", manager.unload)
     await _run(
         "platforms",
         partial(hass.config_entries.async_unload_platforms, config_entry, platforms),
@@ -689,11 +685,9 @@ async def async_setup_entry(  # noqa: C901
                 adaptive_areas,
                 platforms=platforms,
                 tracked_listeners=tracked_listeners,
-                managers=[],
                 error=err,
             )
             raise
-        managers: list = []
         try:
             for adaptive_area in adaptive_areas:
                 if adaptive_area.room_usage is not None and adaptive_area.states:
@@ -706,10 +700,6 @@ async def async_setup_entry(  # noqa: C901
                     # Child aggregate entities are registered with the platforms above.
                     # Refresh the Meta source list after that registration boundary.
                     await adaptive_area.load_entities()
-                manager = await LightRuntimeManager.async_create(adaptive_area)
-                if manager is not None:
-                    adaptive_area.light_runtime_manager = manager
-                    managers.append(manager)
         except BaseException as err:
             await _async_rollback_setup(
                 hass,
@@ -717,7 +707,6 @@ async def async_setup_entry(  # noqa: C901
                 adaptive_areas,
                 platforms=platforms,
                 tracked_listeners=tracked_listeners,
-                managers=managers,
                 error=err,
             )
             raise
@@ -781,8 +770,6 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     )
 
     for area in areas:
-        if manager := getattr(area, "light_runtime_manager", None):
-            manager.unload()
         if area.room_usage is not None:
             await area.room_usage.async_unload()
         area.unload()

@@ -38,9 +38,6 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     AreaStates,
 )
-from custom_components.adaptive_areas.helpers import (
-    light_runtime as light_runtime_module,
-)
 from custom_components.adaptive_areas.helpers.brightness import area_brightness
 from tests.const import DEFAULT_MOCK_AREA
 from tests.helpers import (
@@ -60,29 +57,6 @@ LOG: list[str] = []
 PROBE_USER: list[str] = []
 CURRENT_ENTRY: list[str] = []
 CALLS: list[tuple[str, str]] = []
-
-
-ORIGINAL_EVAL = light_runtime_module.evaluate_light_policy
-
-
-def _instrument() -> None:
-    """Record policy evaluations and dispatch results. Logging only, no behaviour change."""
-    original_eval = ORIGINAL_EVAL
-
-    def logged_eval(snapshot, policy):
-        decision = original_eval(snapshot, policy)
-        LOG.append(
-            f"policy {decision.action.value}/{decision.reason.value} "
-            f"occupied={snapshot.presence_state} lux={snapshot.illuminance_value}"
-        )
-        return decision
-
-    light_runtime_module.evaluate_light_policy = logged_eval
-
-
-def _uninstrument() -> None:
-    """Restore the original module function (no module reload: class identity stays)."""
-    light_runtime_module.evaluate_light_policy = ORIGINAL_EVAL
 
 
 def _entry(
@@ -158,6 +132,23 @@ async def _free(hass):
     await _settle(hass)
 
 
+def _overhead_group_state(hass: HomeAssistant):
+    return hass.states.get(
+        f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA.value}_overhead_lights"
+    )
+
+
+def _group_manual_flag(hass: HomeAssistant) -> bool:
+    """Manual override of the overhead group, read from its state attribute (no policy runtime)."""
+    state = _overhead_group_state(hass)
+    return state is not None and state.attributes.get("manual_override") is True
+
+
+def _group_override_label(hass: HomeAssistant) -> str:
+    """Return the override label: force_off after a manual change, otherwise none."""
+    return "force_off" if _group_manual_flag(hass) else "none"
+
+
 async def _block(hass):
     hass.states.async_set(SLEEP, STATE_ON)
     await _settle(hass)
@@ -169,10 +160,7 @@ async def _manual_off_no_user(hass):
         "light", "turn_off", {ATTR_ENTITY_ID: LIGHT}, blocking=True
     )
     await _settle(hass)
-    area = hass.data[MODULE_DATA][CURRENT_ENTRY[0]][DATA_AREA_OBJECT]
-    LOG.append(
-        f"override after no-user off: {area.light_runtime_manager.override_state.mode.value}"
-    )
+    LOG.append(f"override after no-user off: {_group_override_label(hass)}")
 
 
 async def _manual_off(hass):
@@ -185,11 +173,8 @@ async def _manual_off(hass):
         context=Context(user_id=PROBE_USER[0]),
     )
     await _settle(hass)
-    area = hass.data[MODULE_DATA][CURRENT_ENTRY[0]][DATA_AREA_OBJECT]
-    LOG.append(
-        f"override after manual off: {area.light_runtime_manager.override_state.mode.value}"
-    )
-    LOG.append(f"group manual_override: {area.light_runtime_manager is not None}")
+    LOG.append(f"override after manual off: {_group_override_label(hass)}")
+    LOG.append(f"group manual_override: {_group_manual_flag(hass)}")
 
 
 CONTROL_SWITCH = (
@@ -209,7 +194,6 @@ async def _enable_group_control(hass: HomeAssistant) -> None:
 async def run_probe(hass: HomeAssistant, entry: MockConfigEntry, steps) -> list[dict]:
     """Run the steps with the real integration; return the calls and policy log per step."""
     hass.bus.async_listen(EVENT_CALL_SERVICE, _on_call)
-    _instrument()
     CURRENT_ENTRY[:] = [entry.entry_id]
     await init_integration(hass, [entry])
     await _enable_group_control(hass)
@@ -236,8 +220,7 @@ async def run_probe(hass: HomeAssistant, entry: MockConfigEntry, steps) -> list[
             )
     finally:
         await shutdown_integration(hass, [entry])
-        _uninstrument()
-    return results
+        return results
 
 
 @pytest.fixture(name="probe_devices")
@@ -341,13 +324,18 @@ async def test_characterise_manual_off_with_user_context(probe_devices) -> None:
     assert not any(service == "turn_on" for service, _ in final_dark["calls"])
 
 
-async def test_characterise_change_without_user_context_is_not_override(
+async def test_change_without_user_context_on_a_group_member_is_manual(
     probe_devices,
 ) -> None:
-    """Current: a change without user context is not recognised as manual (no override)."""
+    """Group rule: any ON/OFF change of a group member that the group did not command is manual.
+
+    The user id is not needed: a change without user context (physical switch, other automation)
+    sets the group override (force_off after an OFF). The former policy rule for ungrouped lamps
+    no longer exists, so this is the only automatic path.
+    """
     rows = await _run_named(probe_devices, "S8b")
     manual = next(row for row in rows if row["step"] == "_manual_off_no_user")
-    assert "override after no-user off: none" in manual["policy"]
+    assert "override after no-user off: force_off" in manual["policy"]
 
 
 # ---------------------------------------------------------------------------
@@ -365,24 +353,27 @@ async def test_target_no_contradictory_calls_in_one_cycle(probe_devices) -> None
     )
 
 
-async def test_regression_policy_reevaluates_after_occupancy(probe_devices) -> None:
-    """Presence race fix: after the Area becomes occupied, the policy evaluates with occupied=True.
+async def test_regression_group_reevaluates_after_occupancy(probe_devices) -> None:
+    """Presence race fix: after the Area becomes occupied the group decides with occupied=True.
 
-    Before the fix the policy ran on the source event and read occupied=False, then never
-    ran again. It now runs on the Area state signal, which is sent after the presence update.
+    The decision runs on the Area state signal, which is sent after the presence update. The
+    dark occupied group therefore switches on in the occupation step.
     """
     rows = await _run_named(probe_devices, "S1")
     occupy = next(row for row in rows if row["step"] == "_occupy")
-    assert any("occupied=True" in entry for entry in occupy["policy"])
+    assert any(
+        service == "turn_on"
+        and target
+        == f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA.value}_overhead_lights"
+        for service, target in occupy["calls"]
+    )
 
 
 async def test_target_single_turn_on_per_light_per_cycle(probe_devices) -> None:
     """Each decision cycle sends at most one automatic turn_on call to the group entity.
 
-    The member list that Home Assistant forwards to is not a second decision: a group call
-    is forwarded to its members by Home Assistant itself. The earlier xfail counted that
-    forward as a duplicate; the fault (policy and group both commanding the same lamp) is
-    fixed, because the policy never targets a group lamp (see test_light_ownership_runtime).
+    Home Assistant forwards a group call to its members itself; that forward is not a second
+    decision. Ungrouped lamps receive no automatic command (policy-only was removed).
     """
     rows = await _run_named(probe_devices, "S1")
     calls = _calls_of(rows, "_occupy")
@@ -394,14 +385,3 @@ async def test_target_single_turn_on_per_light_per_cycle(probe_devices) -> None:
         == f"light.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA.value}_overhead_lights"
     ]
     assert len(group_calls) <= 1
-
-
-async def test_rule_unknown_origin_sets_no_override(probe_devices) -> None:
-    """Decided rule: a change without user id is unknown_origin and sets no FORCE_* override.
-
-    Physical switches and other automations are not classified as manual until a reliable
-    signal exists. This is a deliberate rule, not a fault.
-    """
-    rows = await _run_named(probe_devices, "S8b")
-    manual = next(row for row in rows if row["step"] == "_manual_off_no_user")
-    assert "override after no-user off: none" in manual["policy"]

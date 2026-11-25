@@ -352,8 +352,8 @@ async def test_successful_call_is_issued_once_and_no_call_without_action() -> No
 # -- Single owner per physical light (deterministic rule) --
 
 
-def test_light_in_a_group_is_owned_by_the_group_not_the_policy() -> None:
-    owner = light_owner("light.a", {"light.a", "light.b"}, {"overhead": ["light.a"]})
+def test_light_in_a_group_is_owned_by_the_group() -> None:
+    owner = light_owner("light.a", {"overhead": ["light.a"]})
     assert (owner.owner, owner.groups, owner.reason) == (
         "group",
         ("overhead",),
@@ -361,21 +361,18 @@ def test_light_in_a_group_is_owned_by_the_group_not_the_policy() -> None:
     )
 
 
-def test_light_only_in_policy_targets_is_owned_by_the_policy() -> None:
-    owner = light_owner("light.b", {"light.a", "light.b"}, {"overhead": ["light.a"]})
-    assert owner.owner == "policy"
+def test_light_outside_every_group_has_no_automatic_owner() -> None:
+    """Policy-only is removed: a lamp in no group is never an automatic target."""
+    owner = light_owner("light.b", {"overhead": ["light.a"]})
+    assert owner.owner == "none"
 
 
 def test_light_in_several_groups_of_one_area_is_reported() -> None:
-    owner = light_owner(
-        "light.a", set(), {"overhead": ["light.a"], "sleep": ["light.a"]}
-    )
+    owner = light_owner("light.a", {"overhead": ["light.a"], "sleep": ["light.a"]})
     assert owner.owner == "group"
     assert owner.groups == ("overhead", "sleep")
     assert owner.reason == "multiple_groups_same_area"
 
 
 def test_light_outside_both_is_not_automatic() -> None:
-    assert (
-        light_owner("light.z", {"light.a"}, {"overhead": ["light.a"]}).owner == "none"
-    )
+    assert light_owner("light.z", {"overhead": ["light.a"]}).owner == "none"

@@ -2,25 +2,52 @@
   "area_id": "kitchen",
   "light": {
     "enabled": true,
-    "presence": {"available": true, "occupied": true},
-    "illuminance": {"configured": true, "entity_id": "sensor.lux", "available": true, "value": 40},
-    "thresholds": {"turn_on_below": 90, "turn_off_above": 110},
-    "policy": {"decision": "NO_ACTION", "reason": "no_targets", "blocked_by": null, "duplicate": false},
-    "dispatch": {"recorded": false, "last_action": null},
-    "override": {"mode": "NONE"},
-    "vacancy": {"pending": false, "due_at": null},
-    "targets": {"total": 0, "available": 0, "entity_ids": []},
+    "presence": {
+      "available": true,
+      "occupied": true
+    },
+    "illuminance": {
+      "configured": true,
+      "entity_id": "sensor.lux",
+      "available": true,
+      "value": 40
+    },
+    "thresholds": {
+      "turn_on_below": 90,
+      "turn_off_above": 110
+    },
+    "override": {
+      "mode": "NONE",
+      "groups": []
+    },
     "control_path": {
       "group_active": true,
       "groups": [
-        {"category": "accent_lights", "activation": "occupied", "configured_count": 1,
-         "entity_id": "light.adaptive_areas_light_groups_kitchen_accent_lights", "state": "on",
-         "members": ["light.accent_lamp"], "members_resolved": true, "ownership_blocked": false},
-        {"category": "all_lights", "activation": null, "configured_count": 1,
-         "entity_id": "light.adaptive_areas_light_groups_kitchen_all_lights", "state": "on",
-         "members": ["light.accent_lamp"], "members_resolved": true, "ownership_blocked": false}
-      ],
-      "policy_only": {"count": 0, "entity_ids": []}
+        {
+          "category": "accent_lights",
+          "activation": "occupied",
+          "configured_count": 1,
+          "entity_id": "light.adaptive_areas_light_groups_kitchen_accent_lights",
+          "state": "on",
+          "members": [
+            "light.accent_lamp"
+          ],
+          "members_resolved": true,
+          "ownership_blocked": false
+        },
+        {
+          "category": "all_lights",
+          "activation": null,
+          "configured_count": 1,
+          "entity_id": "light.adaptive_areas_light_groups_kitchen_all_lights",
+          "state": "on",
+          "members": [
+            "light.accent_lamp"
+          ],
+          "members_resolved": true,
+          "ownership_blocked": false
+        }
+      ]
     }
   }
 }

@@ -207,10 +207,10 @@ async def test_all_group_switches_off_configured_lamp_at_clear(
         await shutdown_integration(hass, [])
 
 
-async def test_diagnosis_shows_group_control_not_policy_only(
+async def test_diagnosis_shows_group_control_path(
     hass: HomeAssistant,
 ) -> None:
-    """D07: an active native group is shown as the control path; the lamp is not policy-only."""
+    """D07: an active native group is shown as the control path; no policy-only share exists."""
     from custom_components.adaptive_areas.dashboard import build_light_runtime_status
     from custom_components.adaptive_areas.helpers.area import iter_runtime_areas
 
@@ -222,6 +222,6 @@ async def test_diagnosis_shows_group_control_not_policy_only(
         accent = next(g for g in control["groups"] if g["category"] == "accent_lights")
         assert accent["entity_id"] == ACCENT_GROUP
         assert accent["members"] == [LAMP]
-        assert LAMP not in control["policy_only"]["entity_ids"]
+        assert "policy_only" not in control
     finally:
         await shutdown_integration(hass, [])

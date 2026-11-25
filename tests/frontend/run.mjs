@@ -912,21 +912,13 @@ async function regression(browser) {
   check("DG3 an unavailable darkness entity is not guessed: the last valid state remains", bdg3.includes("unavailable; the last valid state remains"), "");
   check("DG4 the aggregation threshold is marked as a separate configuration", bdg3.includes("separate from the percentage hysteresis"), "");
   const lrRun = (light) => browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._data.lightRuntime = { area_id: "kitchen", light: ${JSON.stringify(light)} }; p._requests = p._requests || {}; p._requests.lightRuntime = false; p._errors.lightRuntime = null; return p._lightRuntimeStatus(p._t).replace(/\\s+/g, " "); })()`);
-  const base = { enabled: true, presence: { available: true, occupied: true }, illuminance: { configured: true, entity_id: "sensor.global_lux", available: true, value: 85 }, thresholds: { turn_on_below: 90, turn_off_above: 110 }, policy: { decision: "TURN_ON", reason: "occupied_and_dark", blocked_by: null, duplicate: false }, dispatch: { recorded: true, last_action: null }, override: { mode: "NONE" }, vacancy: { pending: false, due_at: null }, targets: { total: 2, available: 2, entity_ids: ["light.a", "light.b"] } };
-  const lrc1 = await lrRun({ ...base, policy: { ...base.policy, blocked_by: "force_off" } });
-  check("LR1 a policy wish blocked by manual switch-off is shown as blocked, not as dispatched", lrc1.includes("Blocked: manually switched off") && lrc1.includes("none since the last neutral evaluation"), lrc1.slice(-400));
-  const lrc2 = await lrRun({ ...base, policy: { ...base.policy, duplicate: true }, dispatch: { recorded: true, last_action: "TURN_ON" } });
-  check("LR2 a repeated action is shown as suppressed, and the dispatched action is labelled as not confirmed by state", lrc2.includes("Suppressed: the same action was already dispatched") && lrc2.includes("not confirmed by state"), lrc2.slice(-400));
-  const lrc3 = await lrRun({ ...base, dispatch: { recorded: false, last_action: null } });
-  check("LR3 without a runtime record the dispatched action is not recorded, never claimed as successful", lrc3.includes("not recorded") && !lrc3.includes("Turn-on dispatched"), lrc3.slice(-300));
+  const base = { enabled: true, presence: { available: true, occupied: true }, illuminance: { configured: true, entity_id: "sensor.global_lux", available: true, value: 85 }, thresholds: { turn_on_below: 90, turn_off_above: 110 }, override: { mode: "NONE", groups: [] }, control_path: { group_active: false, groups: [] } };
   const lrc4 = await lrRun({ ...base, illuminance: { configured: false, entity_id: null, available: false, value: null } });
   check("LR4 a missing global light sensor is named as missing, not as a value", lrc4.includes("No global light sensor configured"), lrc4.slice(-300));
-  const lrc5 = await lrRun({ ...base, targets: { total: 2, available: 0, entity_ids: ["light.a", "light.b"] } });
-  check("LR5 unavailable light targets are listed with their entity IDs and the available count", lrc5.includes("0 / 2") && lrc5.includes("light.a, light.b"), lrc5.slice(-300));
   const lrc6 = await lrRun({ ...base, thresholds: { turn_on_below: null, turn_off_above: null } });
   check("LR6 missing limits are shown as not configured", lrc6.includes("not configured"), lrc6.slice(-300));
-  const lrc7 = await lrRun({ ...base, override: { mode: "FORCE_ON" } });
-  check("LR7 the override mode is shown with its label", lrc7.includes("Manually on"), lrc7.slice(-300));
+  const lrc7 = await lrRun({ ...base, override: { mode: "MANUAL", groups: ["light.adaptive_areas_light_groups_kitchen_overhead_lights"] } });
+  check("LR7 the group override is shown with its label", lrc7.includes("Manually set"), lrc7.slice(-300));
   // PCT: percentage hysteresis edge cases (formula T ± T·H/200, no intermediate rounding, legacy only when a one-decimal preview cannot reproduce the stored limits)
   const pctOpen = async (on, off) => {
     await browser.evaluate(mountCode({ admin: true, language: "en", states }));
@@ -1204,12 +1196,6 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.length > 40`);
   await sleep(120);
-  const a1 = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._data.lightRuntime = { area_id: "kitchen", light: { enabled: true, presence: { available: true, occupied: true }, illuminance: { configured: true, available: true, value: 12 }, policy: { decision: "TURN_ON", reason: "occupied_and_dark" }, override: { mode: "NONE" }, vacancy: { pending: false, due_at: null }, targets: { total: 3, available: 2 } } }; return p._lightRuntimeStatus(p._t).replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim(); })()`);
-  check("A1 lighting analysis shows the backend decision and reason in English, not hard-coded German", a1.includes("Turn on") && a1.includes("The Area is occupied and dark.") && a1.includes("12 lx") && a1.includes("2 / 3") && !a1.includes("Einschalten") && !a1.includes("Nicht belegt"), a1);
-  const a2 = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._data.lightRuntime = { area_id: "kitchen", light: { enabled: true, presence: { available: false, occupied: null }, illuminance: { configured: false, available: false, value: null }, policy: { decision: "NO_ACTION", reason: "presence_unavailable" }, override: { mode: "FORCE_ON" }, vacancy: { pending: true, due_at: null }, targets: { total: 0, available: 0 } } }; return p._lightRuntimeStatus(p._t).replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim(); })()`);
-  check("A2 unknown presence is shown as unknown, not as 'Not occupied'; unconfigured illuminance is named", a2.includes("Unknown") && !a2.includes("Not occupied") && a2.includes("Not configured") && a2.includes("Manually on") && a2.includes("Turn-off pending") && a2.includes("Presence data is unavailable."), a2);
-  const a3 = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._data.lightRuntime = { area_id: "kitchen", light: { enabled: true, presence: { available: true, occupied: false }, illuminance: { configured: false, available: false, value: null }, policy: { decision: "HOLD", reason: "brand_new_reason_code" }, override: { mode: "NONE" }, vacancy: { pending: false, due_at: null }, targets: { total: 1, available: 1 } } }; return p._lightRuntimeStatus(p._t).replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim(); })()`);
-  check("A3 an unknown reason code is shown neutrally, not as a raw code", a3.includes("Reason recorded, not translated.") && !a3.includes("brand_new_reason_code"), a3);
   const a4 = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._data.lightRuntime = { area_id: "kitchen", light: { enabled: false } }; return p._lightRuntimeStatus(p._t).replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim(); })()`);
   check("A4 a disabled light automation is named as not activated, not as a fault", a4.includes("not activated for this Area") && !a4.includes("unavailable"), a4);
   await browser.evaluate(`window.__h.hass.__emitConnection("disconnected")`);
@@ -1222,8 +1208,6 @@ async function regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "de", states }));
   await waitFor(browser, `${text()}.length > 40`);
   await sleep(120);
-  const a6 = await browser.evaluate(`(() => { const p = document.querySelector("adaptive-areas-panel"); p._data.lightRuntime = { area_id: "kitchen", light: { enabled: true, presence: { available: true, occupied: true }, illuminance: { configured: true, available: true, value: 12 }, policy: { decision: "TURN_ON", reason: "occupied_and_dark" }, override: { mode: "NONE" }, vacancy: { pending: false, due_at: null }, targets: { total: 3, available: 2 } } }; return p._lightRuntimeStatus(p._t).replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim(); })()`);
-  check("A6 German lighting analysis uses the German decision and reason texts", a6.includes("Einschalten") && a6.includes("Der Bereich ist belegt und dunkel.") && a6.includes("Begründung"), a6);
 
   await browser.evaluate(mountCode({ admin: true, language: "en", states }));
   await waitFor(browser, `${text()}.length > 40`);
@@ -2483,14 +2467,11 @@ async function d07Regression(browser) {
       const render = (mutate) => { const c = JSON.parse(JSON.stringify(f)); mutate(c.light); p._data.lightRuntime = c; return p._lightRuntimeStatus(t); };
       const base = render(() => {});
       const blocked = render((l) => { l.control_path.groups[0].ownership_blocked = true; });
-      const policy = render((l) => { l.control_path.group_active = false; l.control_path.groups = []; l.control_path.policy_only = { count: 1, entity_ids: ["light.policy_lamp"] }; });
-      return { t: { control: t.lxControlPathLabel, active: t.lxGroupActive, reasonGroup: t.lxReasonGroupControlled, noTargets: t[\"lxReason_no_targets\"], blocked: t.lxGroupOwnershipBlocked, policyLabel: t.lxPolicyOnlyLabel }, base, blocked, policy };
+      return { t: { control: t.lxControlPathLabel, active: t.lxGroupActive, blocked: t.lxGroupOwnershipBlocked }, base, blocked };
     })()`);
     const t = out.t;
     check(`D07 ${language}: control path section shows the group control and its lamp`, out.base.includes(t.control) && out.base.includes(t.active) && out.base.includes("light.accent_lamp"), language);
-    check(`D07 ${language}: a group that controls the lamps does not show the no-targets text`, !out.base.includes(t.noTargets) && out.base.includes(t.reasonGroup), language);
     check(`D07 ${language}: ownership block of a group is shown`, out.blocked.includes(t.blocked), language);
-    check(`D07 ${language}: policy-only lamps are named when present`, out.policy.includes(t.policyLabel) && out.policy.includes("light.policy_lamp"), language);
   }
 }
 

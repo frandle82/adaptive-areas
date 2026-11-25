@@ -284,17 +284,6 @@ async def test_group_command_does_not_bypass_the_block(hass: HomeAssistant) -> N
     _no_automatic_call_to(per, LIGHT)
 
 
-async def test_policy_only_lamp_stays_controllable(hass: HomeAssistant) -> None:
-    """Unaffected: a policy-only lamp of an Area with a shared lamp is still switched by policy."""
-    entries = {
-        "a": _area_entry("a", [LIGHT, POLICY_LAMP], [LIGHT]),
-        "b": _area_entry("b", [LIGHT], [LIGHT]),
-    }
-    per = await _run(hass, entries, [_dark, _occupy("a")])
-    assert POLICY_LAMP in _targets(per[1])
-    assert LIGHT not in _targets(per[1])
-
-
 async def test_partly_conflicted_group_is_suppressed_as_one_unit(
     hass: HomeAssistant,
 ) -> None:

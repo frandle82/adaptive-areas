@@ -97,17 +97,6 @@ def _override(hass: HomeAssistant) -> bool:
     return bool(hass.states.get(GROUP).attributes.get("manual_override"))
 
 
-async def test_policy_mirror_is_not_manual(hass: HomeAssistant) -> None:
-    """Default (disabled) accent group: the Area policy switches the lamp; no override."""
-    await _setup(hass, activation=None)
-    try:
-        await _occupy(hass)
-        assert hass.states.get(LAMP).state == STATE_ON
-        assert _override(hass) is False
-    finally:
-        await shutdown_integration(hass, [])
-
-
 async def test_automatic_group_on_and_off_are_not_manual(hass: HomeAssistant) -> None:
     """Occupied group: automatic ON and automatic OFF (vacancy) set no override."""
     await _setup(hass, activation=LIGHT_GROUP_ACTIVATION_OCCUPIED)

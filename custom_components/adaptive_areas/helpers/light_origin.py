@@ -47,7 +47,7 @@ class OwnRequest:
 
     context_id: str
     signal_id: int | None
-    source: str  # "group" or "policy"
+    source: str  # "group" (the only automatic source since policy-only was removed)
     service: str
     target: str
     group: str | None = None
@@ -196,26 +196,6 @@ def new_light_group_context(
         service=service,
         target=target,
         group=group,
-    )
-    return _register(area, request, context)
-
-
-@_locked
-def new_policy_context(
-    area: Any,
-    signal_id: int | None,
-    *,
-    service: str = "",
-    target: str = "",
-) -> Context:
-    """Context for one policy dispatch, registered as a pending request of its signal."""
-    context = Context()
-    request = OwnRequest(
-        context_id=context.id,
-        signal_id=signal_id,
-        source="policy",
-        service=service,
-        target=target,
     )
     return _register(area, request, context)
 

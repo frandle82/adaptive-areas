@@ -39,13 +39,8 @@ from custom_components.adaptive_areas.dashboard import (
 )
 
 from custom_components.adaptive_areas.switch.climate_control import ClimateControlSwitch
-from custom_components.adaptive_areas.helpers.light_override import (
-    LightManualOverrideMode,
-    LightManualOverrideState,
-)
 from custom_components.adaptive_areas.helpers.sources import (
     LightSourceSnapshot,
-    LightTargetSource,
 )
 from custom_components.adaptive_areas.websocket import (
     async_update_area,
@@ -135,10 +130,10 @@ async def test_dashboard_detail_handles_minimal_area(
     } <= set(hass.data["websocket_api"])
 
 
-def test_light_runtime_status_is_read_only_and_handles_disabled_and_partial_policy(
+def test_light_runtime_status_is_read_only_and_handles_disabled_and_missing_source(
     hass: HomeAssistant,
 ) -> None:
-    """The form DTO reads a fresh source snapshot without requiring a manager."""
+    """The form DTO reads a fresh snapshot and reports no policy fields (policy-only removed)."""
     disabled = SimpleNamespace(
         id="disabled",
         has_feature=lambda _feature: False,
@@ -147,6 +142,28 @@ def test_light_runtime_status_is_read_only_and_handles_disabled_and_partial_poli
         "area_id": "disabled",
         "light": {"enabled": False},
     }
+    area = SimpleNamespace(
+        id="living",
+        slug="living",
+        has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
+        feature_config=lambda _feature: {},
+    )
+    with patch(
+        "custom_components.adaptive_areas.dashboard.light_source_snapshot",
+        return_value=None,
+    ):
+        status = build_light_runtime_status(hass, area)
+
+    light = status["light"]
+    assert light["enabled"] is True
+    assert light["presence"] == {"available": False, "occupied": None}
+    assert light["illuminance"]["configured"] is False
+    assert light["thresholds"] == {"turn_on_below": None, "turn_off_above": None}
+    assert light["override"] == {"mode": "NONE", "groups": []}
+    assert light["control_path"]["group_active"] is False
+    for removed in ("policy", "dispatch", "vacancy", "targets"):
+        assert removed not in light
+    assert "policy_only" not in light["control_path"]
 
 
 def test_climate_runtime_status_reports_effective_runtime_state(
@@ -259,17 +276,13 @@ def test_climate_runtime_status_reports_effective_runtime_state(
         feature_config=lambda _feature: {},
     )
     snapshot = LightSourceSnapshot(
-        "living",
-        (
-            LightTargetSource("light.available", True),
-            LightTargetSource("light.off", False),
-        ),
-        None,
-        False,
-        None,
-        ("binary_sensor.presence",),
-        True,
-        True,
+        area_id="living",
+        illuminance_entity_id="sensor.living_lux",
+        illuminance_available=True,
+        illuminance_value=42.0,
+        presence_source_entity_ids=("binary_sensor.presence",),
+        presence_available=True,
+        presence_state=True,
     )
     with patch(
         "custom_components.adaptive_areas.dashboard.light_source_snapshot",
@@ -277,97 +290,16 @@ def test_climate_runtime_status_reports_effective_runtime_state(
     ):
         status = build_light_runtime_status(hass, area)
 
-    light = dict(status["light"])
-    control_path = light.pop("control_path")
-    assert light == {
-        "enabled": True,
-        "presence": {"available": True, "occupied": True},
-        "illuminance": {
-            "configured": False,
-            "entity_id": None,
-            "available": False,
-            "value": None,
-        },
-        "thresholds": {"turn_on_below": None, "turn_off_above": None},
-        "policy": {
-            "decision": "NO_ACTION",
-            "reason": "policy_not_configured",
-            "blocked_by": None,
-            "duplicate": False,
-        },
-        "dispatch": {"recorded": False, "last_action": None},
-        "override": {"mode": "NONE"},
-        "vacancy": {"pending": False, "due_at": None},
-        "targets": {
-            "total": 2,
-            "available": 1,
-            "entity_ids": [target.entity_id for target in snapshot.targets],
-        },
+    light = status["light"]
+    assert light["presence"] == {"available": True, "occupied": True}
+    assert light["illuminance"] == {
+        "configured": True,
+        "entity_id": "sensor.living_lux",
+        "available": True,
+        "value": 42.0,
     }
-    # Existing groups are reported from their entities; policy-only counts the targets
-    # that no native group of this Area owns (the Area has no group configured here).
-    assert control_path["group_active"] is False
-    assert control_path["policy_only"] == {
-        "count": len(snapshot.targets),
-        "entity_ids": [target.entity_id for target in snapshot.targets],
-    }
-
-
-def test_light_runtime_status_keeps_manager_state_area_local(
-    hass: HomeAssistant,
-) -> None:
-    """Override values come only from the requested Area manager; no light vacancy timer."""
-    manager = SimpleNamespace(
-        override_state=LightManualOverrideState(LightManualOverrideMode.FORCE_ON, 1),
-        last_dispatched_action=None,
-    )
-    area = SimpleNamespace(
-        id="living",
-        slug="living",
-        light_runtime_manager=manager,
-        has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
-        feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
-    )
-    snapshot = LightSourceSnapshot(
-        "living", (), "sensor.lux", True, 120, (), False, None
-    )
-    with patch(
-        "custom_components.adaptive_areas.dashboard.light_source_snapshot",
-        return_value=snapshot,
-    ):
-        status = build_light_runtime_status(hass, area)
-
-    assert status["light"]["override"] == {"mode": "FORCE_ON"}
-    # The light vacancy timer was removed: no light vacancy is ever pending.
-    assert status["light"]["vacancy"] == {"pending": False, "due_at": None}
-    assert status["light"]["policy"] == {
-        "decision": "NO_ACTION",
-        "reason": "no_targets",
-        "blocked_by": None,
-        "duplicate": False,
-    }
-
-    kitchen = SimpleNamespace(
-        id="kitchen",
-        slug="kitchen",
-        light_runtime_manager=SimpleNamespace(
-            override_state=LightManualOverrideState(
-                LightManualOverrideMode.FORCE_OFF, 1
-            ),
-            last_dispatched_action=None,
-        ),
-        has_feature=lambda feature: feature == CONF_FEATURE_LIGHT,
-        feature_config=lambda _feature: {"turn_on_below": 100, "turn_off_above": 200},
-    )
-    with patch(
-        "custom_components.adaptive_areas.dashboard.light_source_snapshot",
-        return_value=snapshot,
-    ):
-        kitchen_status = build_light_runtime_status(hass, kitchen)
-
-    assert kitchen_status["area_id"] == "kitchen"
-    assert kitchen_status["light"]["override"] == {"mode": "FORCE_OFF"}
-    assert kitchen_status["light"]["vacancy"] == {"pending": False, "due_at": None}
+    assert light["control_path"]["group_active"] is False
+    assert "policy" not in light and "targets" not in light
 
 
 async def test_dashboard_area_update_validates_then_reloads_once(
@@ -809,7 +741,7 @@ def test_panel_light_groups_uses_current_runtime_configuration() -> None:
 
 
 def test_panel_exposes_final_light_control_labels() -> None:
-    """The Light tab keeps user-facing German labels for its current mappings."""
+    """The Light tab keeps user-facing German labels for its current mappings (policy-only labels removed)."""
     for label in (
         "Lichtsteuerung",
         "Bereich",
@@ -825,11 +757,7 @@ def test_panel_exposes_final_light_control_labels() -> None:
         "Schlaflichter",
         "Akzentlichter",
         "Arbeitslichter",
-        "Zustand beibehalten",
-        "Keine automatische Aktion",
-        "Manuell eingeschaltet",
-        "Manuell ausgeschaltet",
-        "Nicht aktiv",
+        "Manuell gesetzt (native Lichtgruppe)",
         "Bei Belegung",
     ):
         assert label in _dashboard_texts()

@@ -29,7 +29,6 @@ from custom_components.adaptive_areas.const import (
     MODULE_DATA,
     LightGroupCategory,
 )
-from custom_components.adaptive_areas.helpers.light_runtime import LightRuntimeManager
 from custom_components.adaptive_areas.light import AreaLightGroup
 from tests import test_light_coordination_regression as regression
 from tests.const import MockAreaIds
@@ -185,37 +184,6 @@ async def test_repeated_setup_unload_cycles_evaluate_once_per_event(hass) -> Non
         await shutdown_integration(hass, [entry])
 
 
-async def test_failing_entry_rolls_back_and_the_other_entry_still_reacts(
-    hass, monkeypatch
-) -> None:
-    """A failing Area fails its entry; the healthy Area still evaluates and sends one call."""
-    healthy = _entry(MockAreaIds.KITCHEN)
-    await init_integration(hass, [healthy], areas=[MockAreaIds.KITCHEN])
-    try:
-        await regression._enable_group_control(hass)
-        real_create = LightRuntimeManager.async_create.__func__
-
-        async def fail_for_living_room(cls, area):
-            if str(area.id) == "living_room":
-                raise RuntimeError("injected failure for living_room")
-            return await real_create(cls, area)
-
-        monkeypatch.setattr(
-            LightRuntimeManager, "async_create", classmethod(fail_for_living_room)
-        )
-        failing = _entry(MockAreaIds.LIVING_ROOM, light="light.living_lamp")
-        assert await _attempt_setup(hass, failing) is not ConfigEntryState.LOADED
-        await _lamp_off(hass)
-        area = _area(hass, healthy)
-        before = _evaluations(area, "turn_on")
-        calls_before = len(CALLS)
-        await _set_motion(hass, STATE_ON)
-        assert _evaluations(area, "turn_on") - before == 1
-        assert _automatic_on_overhead(calls_before) == 1
-    finally:
-        await shutdown_integration(hass, [healthy])
-
-
 async def test_unload_of_one_entry_keeps_the_other_reacting(hass) -> None:
     """Unloading an entry deactivates its instance; the same entry set up again evaluates normally."""
     entry = _entry(MockAreaIds.KITCHEN)
@@ -239,37 +207,6 @@ async def test_unload_of_one_entry_keeps_the_other_reacting(hass) -> None:
         assert old_group._active is False
     finally:
         await shutdown_integration(hass, [entry])
-
-
-async def test_setup_after_partial_failure_evaluates_once_per_event(
-    hass, monkeypatch
-) -> None:
-    """A failed entry set up again after the failure evaluates once per event, not twice."""
-    healthy = _entry(MockAreaIds.KITCHEN)
-    await init_integration(hass, [healthy], areas=[MockAreaIds.KITCHEN])
-    try:
-        real_create = LightRuntimeManager.async_create.__func__
-        fail = {"on": True}
-
-        async def flaky(cls, area):
-            if fail["on"] and str(area.id) == "living_room":
-                raise RuntimeError("injected failure for living_room")
-            return await real_create(cls, area)
-
-        monkeypatch.setattr(LightRuntimeManager, "async_create", classmethod(flaky))
-        second = _entry(MockAreaIds.LIVING_ROOM, light="light.living_lamp")
-        assert await _attempt_setup(hass, second) is not ConfigEntryState.LOADED
-        fail["on"] = False
-        assert await hass.config_entries.async_setup(second.entry_id)
-        await hass.async_block_till_done()
-        living = _area(hass, second)
-        assert living.light_runtime_manager is not None
-        before = _evaluations(living, "turn_on")
-        await _set_motion(hass, STATE_ON)
-        assert _evaluations(living, "turn_on") - before <= 1
-        await shutdown_integration(hass, [second])
-    finally:
-        await shutdown_integration(hass, [healthy])
 
 
 async def test_repeated_cycles_do_not_grow_the_listener_count(hass) -> None:

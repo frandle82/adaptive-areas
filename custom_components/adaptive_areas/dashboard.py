@@ -41,27 +41,15 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
     AreaStates,
 )
+from custom_components.adaptive_areas.light import ATTR_MANUAL_OVERRIDE
 from custom_components.adaptive_areas.helpers.area import (
     generated_entities_for_area,
     iter_runtime_areas,
 )
-from custom_components.adaptive_areas.helpers.light_override import (
-    LightManualOverrideMode,
-    LightManualOverrideState,
-    apply_manual_override,
-)
-from custom_components.adaptive_areas.helpers.light_policy import (
-    LightPolicyAction,
-    LightPolicyDecision,
-    evaluate_light_policy,
-    light_policy_config_from_feature,
-)
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
     group_is_blocked,
-    owned_automatic_lights,
 )
 from custom_components.adaptive_areas.helpers.sources import (
-    automatic_group_lights,
     light_illuminance_entity_id,
     light_source_snapshot,
 )
@@ -111,35 +99,6 @@ def _brightness_reason(dark_source: dict[str, Any] | None) -> str:
     if not dark_source.get("available"):
         return "source_unavailable"
     return "configured_source"
-
-
-def light_policy_diagnostics(
-    decision: LightPolicyDecision,
-    override_mode: LightManualOverrideMode,
-    last_dispatched: LightPolicyAction | None,
-) -> dict[str, Any]:
-    """Explain a policy decision: blocked by override, duplicate, or allowed.
-
-    Uses the same rules as the runtime (`apply_manual_override` and the dispatch
-    dedupe). It only reads state and never changes the runtime.
-    """
-    if decision.action not in (LightPolicyAction.TURN_ON, LightPolicyAction.TURN_OFF):
-        return {"blocked_by": None, "duplicate": False}
-    allowed = apply_manual_override(
-        override_state=LightManualOverrideState(mode=override_mode),
-        decision=decision,
-    ).allowed
-    if not allowed:
-        blocked = (
-            "force_on"
-            if override_mode is LightManualOverrideMode.FORCE_ON
-            else "force_off"
-        )
-        return {"blocked_by": blocked, "duplicate": False}
-    return {
-        "blocked_by": None,
-        "duplicate": last_dispatched is decision.action,
-    }
 
 
 def _state_data(state: State | None, entity_id: str) -> dict[str, Any]:
@@ -775,8 +734,8 @@ def build_decision_trace(area: AdaptiveArea, limit: int = 20) -> dict[str, Any]:
 
 def light_group_diagnostics(
     hass: HomeAssistant, area: AdaptiveArea
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Read-only view of the native light groups and of the policy-only share of targets.
+) -> list[dict[str, Any]]:
+    """Read-only view of the native light groups of one Area.
 
     Uses the existing group entities and their attributes, and the existing helpers that
     decide which lights are group-owned. It computes no control decision of its own.
@@ -835,70 +794,27 @@ def light_group_diagnostics(
             ),
         }
     )
-    return groups, {
-        "group_owned_entity_ids": sorted(
-            automatic_group_lights(area) | owned_automatic_lights(hass)
-        ),
-    }
+    return groups
 
 
 def build_light_runtime_status(
     hass: HomeAssistant, area: AdaptiveArea
 ) -> dict[str, Any]:
-    """Build a read-only snapshot for the Light section of one Area form."""
+    """Build a read-only snapshot of the Light section of one Area form.
+
+    Shows the presence and brightness inputs, the thresholds and the automatic group control
+    (native light groups, see control_path). Lights that belong to no group are not controlled
+    automatically and are therefore not listed as a control path.
+    """
     if not area.has_feature(CONF_FEATURE_LIGHT):
         return {"area_id": str(area.id), "light": {"enabled": False}}
 
-    snapshot = light_source_snapshot(area)
-    if snapshot is None:
-        return {
-            "area_id": str(area.id),
-            "light": {
-                "enabled": True,
-                "presence": {"available": False, "occupied": None},
-                "illuminance": {
-                    "configured": False,
-                    "entity_id": None,
-                    "available": False,
-                    "value": None,
-                },
-                "thresholds": {"turn_on_below": None, "turn_off_above": None},
-                "policy": {
-                    "decision": "NO_ACTION",
-                    "reason": "policy_not_configured",
-                    "blocked_by": None,
-                    "duplicate": False,
-                },
-                "dispatch": {"recorded": False, "last_action": None},
-                "override": {"mode": "NONE"},
-                "vacancy": {"pending": False, "due_at": None},
-                "targets": {"total": 0, "available": 0, "entity_ids": []},
-            },
-        }
-
-    try:
-        policy_config = light_policy_config_from_feature(
-            area.feature_config(CONF_FEATURE_LIGHT)
-        )
-    except ValueError:
-        policy_config = None
-    decision = evaluate_light_policy(snapshot, policy_config)
-    manager = getattr(area, "light_runtime_manager", None)
-    override = manager.override_state if manager is not None else None
-    last_dispatched = manager.last_dispatched_action if manager is not None else None
-    override_mode = (
-        override.mode if override is not None else LightManualOverrideMode.NONE
-    )
-    diagnostics = light_policy_diagnostics(decision, override_mode, last_dispatched)
     light_feature = area.feature_config(CONF_FEATURE_LIGHT) or {}
-    groups, owned = light_group_diagnostics(hass, area)
-    group_owned = set(owned["group_owned_entity_ids"])
-    policy_only = [
-        target.entity_id
-        for target in snapshot.targets
-        if target.entity_id not in group_owned
-    ]
-    # ALL never switches on; only the individual groups count as active control.
+    thresholds = {
+        "turn_on_below": light_feature.get("turn_on_below"),
+        "turn_off_above": light_feature.get("turn_off_above"),
+    }
+    groups = light_group_diagnostics(hass, area)
     group_active = any(
         group["category"] != LightGroupCategory.ALL
         and group["entity_id"] is not None
@@ -906,65 +822,56 @@ def build_light_runtime_status(
         and group["configured_count"] > 0
         for group in groups
     )
+    manual_groups = [
+        group["entity_id"]
+        for group in groups
+        if group["entity_id"] is not None
+        and _group_manual_override(hass, group["entity_id"])
+    ]
+    snapshot = light_source_snapshot(area)
+    if snapshot is None:
+        presence = {"available": False, "occupied": None}
+        illuminance = {
+            "configured": False,
+            "entity_id": None,
+            "available": False,
+            "value": None,
+        }
+    else:
+        presence = {
+            "available": snapshot.presence_available,
+            "occupied": snapshot.presence_state,
+        }
+        illuminance = {
+            "configured": snapshot.illuminance_entity_id is not None,
+            "entity_id": snapshot.illuminance_entity_id,
+            "available": snapshot.illuminance_available,
+            "value": snapshot.illuminance_value,
+        }
     return {
         "area_id": str(area.id),
         "light": {
             "enabled": True,
-            "presence": {
-                "available": snapshot.presence_available,
-                "occupied": snapshot.presence_state,
-            },
-            "illuminance": {
-                "configured": snapshot.illuminance_entity_id is not None,
-                "entity_id": snapshot.illuminance_entity_id,
-                "available": snapshot.illuminance_available,
-                "value": snapshot.illuminance_value,
-            },
-            "thresholds": {
-                "turn_on_below": light_feature.get("turn_on_below"),
-                "turn_off_above": light_feature.get("turn_off_above"),
-            },
-            "policy": {
-                "decision": decision.action.value.upper(),
-                "reason": decision.reason.value,
-                "blocked_by": diagnostics["blocked_by"],
-                "duplicate": diagnostics["duplicate"],
-            },
-            # Only the integration's own dispatch record: a service call was issued.
-            # It is not confirmed by the light's state. `recorded` False means no
-            # runtime manager exists, so nothing can be said.
-            "dispatch": {
-                "recorded": manager is not None,
-                "last_action": (
-                    last_dispatched.value.upper()
-                    if last_dispatched is not None
-                    else None
-                ),
-            },
+            "presence": presence,
+            "illuminance": illuminance,
+            "thresholds": thresholds,
+            # A group is overridden after a manual change of its members (CLEAR ends it).
             "override": {
-                "mode": override_mode.value.upper(),
+                "mode": "MANUAL" if manual_groups else "NONE",
+                "groups": manual_groups,
             },
-            "vacancy": {
-                "pending": False,
-                "due_at": None,
-            },
-            "targets": {
-                "total": len(snapshot.targets),
-                "available": sum(target.available for target in snapshot.targets),
-                "entity_ids": [target.entity_id for target in snapshot.targets],
-            },
-            # Which path actually controls the lights. Policy-only is named as such and
-            # excludes every lamp that a native light group of an Area owns.
             "control_path": {
                 "group_active": group_active,
                 "groups": groups,
-                "policy_only": {
-                    "count": len(policy_only),
-                    "entity_ids": policy_only,
-                },
             },
         },
     }
+
+
+def _group_manual_override(hass: HomeAssistant, entity_id: str) -> bool:
+    """Return whether a native light group reports a manual override."""
+    state = hass.states.get(entity_id)
+    return state is not None and state.attributes.get(ATTR_MANUAL_OVERRIDE) is True
 
 
 def build_climate_runtime_status(

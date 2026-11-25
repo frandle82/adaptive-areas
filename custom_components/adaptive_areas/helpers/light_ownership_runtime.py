@@ -4,7 +4,7 @@ Product rule: a physical light is an automatically controlled member of at most 
 The options flow refuses new conflicts. A configuration stored before that rule can still
 contain one, so the automatic paths ask this module on every command:
 
-- Policy targets never contain a conflicted light.
+- A conflicted light is never controlled automatically.
 - A light group with a conflicted member is suppressed as one unit. It is never split into
   its physical members, and no replacement call goes to its other members.
 
@@ -212,34 +212,6 @@ def excluded_members_by_group(
         if hit:
             result[item] = hit
     return result
-
-
-def owned_automatic_lights(hass: HomeAssistant) -> frozenset[str]:
-    """Physical lights that an active automatic group of ANY stored Area controls.
-
-    Exclusive ownership is Area-wide: a lamp of Area A's HA area that Area B's active
-    group owns is never a policy-only target of Area A. Groups with a disabled activation
-    own nothing. Unresolvable members are included (an unclear owner is never a policy
-    target). This reuses the group member keys and the activation defaults of the runtime.
-    """
-    from custom_components.adaptive_areas.helpers.sources import (  # noqa: PLC0415
-        automatic_member_activations,
-    )
-
-    listed: list[str] = []
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        for groups in light_group_configs_of_entry(entry).values():
-            listed.extend(automatic_member_activations(groups))
-    if not listed:
-        return frozenset()
-    members, unresolved, unknown = resolve_group_tree(
-        sorted(set(listed)), _attributes_lookup(hass), lambda _entity_id: False
-    )
-    return (
-        frozenset(expand_members(sorted(set(listed)), members))
-        | frozenset(unresolved)
-        | frozenset(unknown)
-    )
 
 
 def conflicted_lights(hass: HomeAssistant) -> frozenset[str]:

@@ -11,10 +11,7 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
 )
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
-from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import (
-    RegistryEntryDisabler,
-    RegistryEntryHider,
     async_get as async_get_entity_registry,
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -28,10 +25,8 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_LIGHT_GROUPS,
     CONF_GLOBAL_ENTRY,
     CONF_GLOBAL_LIGHT_SENSOR,
-    CONF_EXCLUDE_ENTITIES,
     CONF_GLOBAL_OPTIONS,
     CONF_ID,
-    CONF_INCLUDE_ENTITIES,
     CONF_NAME,
     CONF_PRESENCE_DEVICE_PLATFORMS,
     CONF_PRESENCE_SENSOR_DEVICE_CLASS,
@@ -93,76 +88,6 @@ def _entity(
         )
     hass.states.async_set(registry_entry.entity_id, state, attributes or {})
     return registry_entry
-
-
-def test_light_targets_reuse_area_entity_discovery_without_mutation(hass) -> None:
-    """Discover only enabled-Area lights across direct and device assignments."""
-    area, living, entry = _area(hass, "Wohnzimmer", {CONF_FEATURE_LIGHT: {}})
-    kitchen = async_get_area_registry(hass).async_create("Küche")
-    source_entry = MockConfigEntry(domain="test", data={})
-    source_entry.add_to_hass(hass)
-    device_registry = async_get_device_registry(hass)
-    living_device = device_registry.async_get_or_create(
-        config_entry_id=source_entry.entry_id,
-        identifiers={("test", "living_floor_lamp")},
-    )
-    device_registry.async_update_device(living_device.id, area_id=living.id)
-
-    ceiling = _entity(hass, source_entry, "light", "ceiling", area_id=living.id)
-    floor_lamp = _entity(
-        hass,
-        source_entry,
-        "light",
-        "floor_lamp",
-        area_id=living.id,
-        device_id=living_device.id,
-    )
-    unavailable = _entity(
-        hass,
-        source_entry,
-        "light",
-        "unavailable",
-        area_id=living.id,
-        state=STATE_UNAVAILABLE,
-    )
-    hidden = _entity(hass, source_entry, "light", "hidden", area_id=living.id)
-    async_get_entity_registry(hass).async_update_entity(
-        hidden.entity_id, hidden_by=RegistryEntryHider.USER
-    )
-    disabled = _entity(hass, source_entry, "light", "disabled", area_id=living.id)
-    async_get_entity_registry(hass).async_update_entity(
-        disabled.entity_id, disabled_by=RegistryEntryDisabler.USER
-    )
-    _entity(hass, source_entry, "light", "kitchen", area_id=kitchen.id)
-    _entity(hass, source_entry, "switch", "decorative_light", area_id=living.id)
-    _entity(hass, source_entry, "sensor", "lux", area_id=living.id)
-    own_light = _entity(hass, entry, "light", "adaptive_areas_own", area_id=living.id)
-
-    entities_before = set(async_get_entity_registry(hass).entities)
-    config_before = dict(area.config)
-    snapshot = light_source_snapshot(area)
-
-    assert snapshot is not None
-    assert snapshot.target_light_entity_ids == tuple(
-        sorted(
-            (
-                ceiling.entity_id,
-                floor_lamp.entity_id,
-                hidden.entity_id,
-                unavailable.entity_id,
-            )
-        )
-    )
-    assert {target.entity_id: target.available for target in snapshot.targets} == {
-        ceiling.entity_id: True,
-        floor_lamp.entity_id: True,
-        hidden.entity_id: True,
-        unavailable.entity_id: False,
-    }
-    assert disabled.entity_id not in snapshot.target_light_entity_ids
-    assert own_light.entity_id not in snapshot.target_light_entity_ids
-    assert set(async_get_entity_registry(hass).entities) == entities_before
-    assert area.config == config_before
 
 
 def test_light_snapshot_keeps_global_sources_and_presence_read_only(hass) -> None:
@@ -251,32 +176,3 @@ def test_light_snapshot_is_gated_by_new_feature_only(hass) -> None:
     assert light_source_snapshot(disabled) is None
     assert light_source_snapshot(legacy) is None
     assert light_source_snapshot(enabled) is not None
-
-
-def test_explicit_light_include_without_registry_entry_is_a_light_target(hass) -> None:
-    """A light.* selected in the panel but absent from the registry is a target.
-
-    Explicit includes are existing entities of the matching domain. Missing
-    states, other domains and excluded entities are not targets.
-    """
-    area, _living, _entry = _area(hass, "Diele", {CONF_FEATURE_LIGHT: {}})
-    hass.states.async_set("light.template_on", STATE_ON)
-    hass.states.async_set("light.template_unavailable", STATE_UNAVAILABLE)
-    hass.states.async_set("light.template_excluded", STATE_ON)
-    hass.states.async_set("switch.template_not_light", STATE_ON)
-    area.config[CONF_INCLUDE_ENTITIES] = [
-        "light.template_on",
-        "light.template_unavailable",
-        "light.template_excluded",
-        "light.template_missing",
-        "switch.template_not_light",
-    ]
-    area.config[CONF_EXCLUDE_ENTITIES] = ["light.template_excluded"]
-
-    snapshot = light_source_snapshot(area)
-
-    assert snapshot is not None
-    assert {target.entity_id: target.available for target in snapshot.targets} == {
-        "light.template_on": True,
-        "light.template_unavailable": False,
-    }

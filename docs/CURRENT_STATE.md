@@ -7,7 +7,7 @@
 
 ## Implementation direction
 
-The Dashboard 2.0 panel covers area configuration, light control (policy and runtime status, light groups) and climate control (feature toggle, climate configuration, runtime status). The panel has read endpoints and administrator-gated configuration mutation endpoints.
+The Dashboard 2.0 panel covers area configuration, light control (runtime status, light groups; policy-only control was removed in Phase 2, see below) and climate control (feature toggle, climate configuration, runtime status). The panel has read endpoints and administrator-gated configuration mutation endpoints.
 
 Dashboard 2.0 Phase E (see [ROADMAP.md](ROADMAP.md)) is implemented in the panel:
 
@@ -103,7 +103,7 @@ A failing Hassfest validation run on an unrecognised commit SHA (`d3ee6a4`, not 
 
 - Drei getrennte Helligkeitsmechanismen: (1) Bereichsstatus hell/dunkel über `secondary_states.dark_entity`; ohne Entität gilt der Standard „dunkel“. (2) Automatischer Schwellensensor mit eigener Aggregationsschwelle und Hysterese. (3) Lichtautomatik mit globalem Helligkeitssensor und `turn_on_below` / `turn_off_above`. Die Mechanismen sind nicht verbunden.
 - Korrigiert: Die Konsistenzprüfung in `dashboard.py` las `dark_entity` auf oberster Ebene und konnte nie auslösen. Jetzt derselbe Pfad wie die Bereichslogik (`secondary_states`).
-- Diagnose im Dashboard: Bereichsdetail zeigt den Grund des Bereichsstatus (konfigurierte Entität, Standardannahme, Entität nicht gefunden, nicht verfügbar). Lichtdiagnose zeigt Sensor, Grenzen, Policy-Entscheidung und Grund, Sperre durch Übersteuerung, Unterdrückung durch Dedupe, Präsenz, Lichtziele und die ausgelöste Aktion. Die ausgelöste Aktion ist nur der Service-Aufruf, nicht durch den Zustand bestätigt. Fehlt der Eintrag der Laufzeit, steht „nicht erfasst“.
+- Diagnose im Dashboard: Bereichsdetail zeigt den Grund des Bereichsstatus (konfigurierte Entität, Standardannahme, Entität nicht gefunden, nicht verfügbar). Lichtdiagnose zeigt Präsenz, Helligkeitsquelle, Grenzen, den Übersteuerungszustand je Gruppe und die Gruppen des Steuerpfads mit Aktivierung und aufgelösten Mitgliedern.
 - Schaltlogik, Präsenzlogik, Dedupe- und Übersteuerungsregeln sind unverändert.
 - Die ursprünglichen Praxisprobleme (Bereich bleibt dunkel; Licht schaltet bei hell→dunkel nicht ein) sind **ungeklärt**. Ohne reale Diagnosedaten (siehe Konzept) ist die Ursache nicht bestätigt.
 - Prüfungen: Python 738 bestanden; Browser 378/378 bestanden.
@@ -137,7 +137,7 @@ Commit `76bd329` enthält die Änderungen. Der Pre-Release `1.7.0-rc.1` ist vorb
 **Lichtsteuerung (Architektur)**
 
 - Einheitlicher automatischer Gruppen-Entscheidungsweg: `transition_decision` bzw. `initial_decision` (`helpers/light_transition.py`) → Dispatch → `_async_group_command` → Ausführung.
-- Eigenständiger Policy-only-Pfad (`helpers/light_runtime.py`). Lampen automatischer Gruppen sind nie Policy-Ziele.
+- Policy-only-Pfad entfernt (Variante B, Phase 2): nur konfigurierte individuelle Lichtgruppen werden automatisch gesteuert. Ungruppierte Lampen werden nicht automatisch geschaltet.
 - Eigenerkennung über Kontext ist Area-weit (`_light_group_own_contexts`), weil die ALL-Weiterleitung Untergruppen verändert.
 - Keine Shadow-Simulation. Keine zusätzlichen Timer. Keine Retries (ein fehlgeschlagener Versuch wird für unveränderte Basis nicht wiederholt). Keine Deferred-Queue. Keine periodische Reconciliation. Keine Golden-Referenz.
 
@@ -159,15 +159,15 @@ Commit `76bd329` enthält die Änderungen. Der Pre-Release `1.7.0-rc.1` ist vorb
 
 - Native group path: the Area decides when a configured light group switches (ON, OFF, NO_ACTION). Each automatic decision sends at most one service call to the group entity; Home Assistant forwards it to the lamps. The 1.6.18 time-based grace period is not restored; own calls are recognised by request context (`light_origin`).
 - Explicit group membership (B01): a configured, existing light is a group member even when the HA-Area lookup does not find it (`_configured_group_lights` in `light.py`). An explicit exclusion (`exclude_entities`) still wins. Ownership is exclusive across Areas.
-- Policy-only exclusion is Area-wide (B01): a lamp that an active automatic group of any Area owns is never a policy target (`owned_automatic_lights`, `light_runtime.py`).
-- Manual override (B02): a change caused by the Area's own automation (group call or policy call, registered in `light_origin`) is not manual. A real user action still sets the override (`test_light_manual_override_origin.py`).
-- Light diagnosis (D07): the runtime status has a `control_path` block (group entities with activation, configured and resolved members, ownership block, policy-only lamps). The panel shows it and no longer shows the no-targets text when a group controls the lamps.
+- Exclusive ownership is Area-wide (B01): a lamp that an active automatic group of any Area owns is controlled only by that group (`light_ownership_runtime.py`).
+- Manual override (B02): a change caused by the Area's own automation (group call, registered in `light_origin`) is not manual. A real user action still sets the override (`test_light_manual_override_origin.py`).
+- Light diagnosis (D07): the runtime status has a `control_path` block (group entities with activation, configured and resolved members, ownership block). The panel shows it. Ungrouped lamps are not listed as a control path.
 - Area brightness sensor (D01): the Area property `area_illuminance_sensor` (numeric lux sensor, device class illuminance or unit lx, domain sensor) is the first source of the Area brightness and of the Light decision. Priority: the Area sensor, then the global light sensor, then UNKNOWN. A configured but unavailable Area sensor is UNKNOWN and never falls back to the global sensor. The Dark state is derived from the numeric value and the Light limits (`helpers/brightness.py`). The binary secondary entity `dark_entity` is no longer a source: it is accepted and ignored, never converted to a lux sensor. Schema: one optional additive key; no schema version change, no migration. Validation on save refuses binary and non-illuminance entities.
 - Area form (D02, D03): the room-climate (`environment`) and climate-control sections are rendered always and shown or hidden from the local draft at once. No automatic save. Entries are kept in the DOM while a section is hidden.
 - Defaults (D04 to D06): presence domains `binary_sensor` and `media_player`; device classes `motion` and `occupancy` (the former default also included `presence`); release time 1 minute (stored in minutes).
 - Known open items: the device-class selector does not yet use the same component as the domain selector and has no shared error message below both (D05 UI). A feature that is disabled and then saved loses its stored configuration, as before; keeping it needs a storage decision (D02). Nested HA light groups and ownership conflicts between Areas are covered by existing tests but not by new ones. The Area brightness sensor is not in the Options Flow (the dashboard edits it); the Options Flow secondary-states step no longer offers the dark entity.
 - Verification (earlier state): backend 980 passed, coverage 91 % (8701 statements); browser harness 411/411; ruff, black, `git diff --check` and pre-commit passed.
-- Policy-only (open architecture decision, not implemented): a later simplification could build one automatic default group for lamps without an explicit group. Not implemented; the functional equivalence (manual operation, activation, brightness modes, existing configurations) must be shown first.
+- Policy-only: removed in Phase 2 (Variante B). No automatic default group exists. Ungrouped lamps are never switched automatically; manual operation is unchanged.
 
 ## Final state of the correction block (1.7.0-rc.1, working tree, not committed)
 
@@ -179,6 +179,6 @@ Commit `76bd329` enthält die Änderungen. Der Pre-Release `1.7.0-rc.1` ist vorb
 - B02: the origin of an automatic call is its registration in the request registry; a user context is never registered. A user switching the member lamp is a manual override; the ALL group's automatic OFF at CLEAR is not (`test_light_manual_override_origin.py`).
 - Verification: backend 996 passed (last full run, before the final frontend run), coverage 91 % (8787 statements). Ruff, Black, `git diff --check` and pre-commit passed. The browser harness last passed 416/416 after the D05 change. A later attempt to re-run it hung in the local headless Chrome and could not be completed in this session; a re-run is required before commit.
 - Open: the Options Flow does not offer the D02 retained configuration of disabled features in a separate view; the dashboard is the editor. The D02 browser persistence check (save, reopen, reload) is not yet in the harness; the backend checks cover it.
-- Policy-only: unchanged; still an open architecture decision.
+- Policy-only: removed in Phase 2 (Variante B). Open architecture point: the context simplification (Phase 3).
 
 - Brightness classification (final decision): see `docs/DECISIONS.md`, section "Brightness classification (final)". No default limits exist; without configured limits the state is UNKNOWN.

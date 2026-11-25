@@ -4,7 +4,6 @@ from collections.abc import AsyncGenerator
 import logging
 from typing import Any
 
-from unittest.mock import patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -197,25 +196,14 @@ async def setup_integration_light_groups_lux(
     hass: HomeAssistant,
     light_groups_lux_config_entry: MockConfigEntry,
 ) -> AsyncGenerator[Any]:
-    """Set up the Lux-configured light group test with an isolated light policy.
+    """Set up the Lux-configured light group test (real integration, no isolation patch).
 
-    Isolation boundary: `LightRuntimeManager.async_setup`. That method installs the
-    policy's state listeners and its first evaluation. It is replaced only while this
-    fixture is active, so the policy never dispatches. The brightness classification
-    (helpers/brightness.py) is not patched; it reads the global sensor directly.
+    The brightness classification (helpers/brightness.py) reads the global sensor directly.
     """
     # DARK reading: 50 lx is at or below the 90 lx turn-on limit.
     hass.states.async_set(GLOBAL_LUX_SENSOR, "50", {"unit_of_measurement": "lx"})
-
-    async def _inert_policy_setup(self) -> None:
-        """Keep the manager object, install no listeners, dispatch nothing."""
-
-    with patch(
-        "custom_components.adaptive_areas.helpers.light_runtime.LightRuntimeManager.async_setup",
-        _inert_policy_setup,
-    ):
-        await init_integration(hass, [light_groups_lux_config_entry])
-        yield
+    await init_integration(hass, [light_groups_lux_config_entry])
+    yield
     await shutdown_integration(hass, [light_groups_lux_config_entry])
 
 
@@ -449,7 +437,6 @@ async def test_light_group_basic(
     )
 
     assert area_brightness(hass, area).state is BrightnessState.DARK
-    assert area.light_runtime_manager.last_dispatched_action is None
 
     # Turn motion sensor off
     hass.states.async_set(mock_motion_sensor_entity_id, STATE_OFF)
@@ -553,17 +540,17 @@ async def test_sleep_activation_does_not_turn_on_in_clear_area(
     await shutdown_integration(hass, [light_groups_advanced_config_entry])
 
 
-async def test_light_group_turns_off_when_bright(
+async def test_light_group_turns_off_when_bright_and_leaves_ungrouped_lamp_alone(
     hass: HomeAssistant,
     entities_light_two: list[MockLight],
     entities_binary_sensor_motion_one: list[MockBinarySensor],
     entities_light_secondary_states: list[MockBinarySensor],
     _setup_integration_light_groups_advanced,
 ) -> None:
-    """Test that turn_off_when_bright actively turns the group's lights off.
+    """Test that turn_off_when_bright turns the group's lights off and leaves an ungrouped lamp alone.
 
-    The second lamp is in no group. Once the global light sensor is configured, the Area
-    policy controls such policy-only lamps as well, so it follows the policy (off when bright).
+    The second lamp is in no group. Policy-only control was removed: an ungrouped lamp is never
+    switched automatically, so it keeps the state the user set.
     """
     light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
     light_control_entity_id = (
@@ -602,7 +589,7 @@ async def test_light_group_turns_off_when_bright(
 
     light_group_state = hass.states.get(light_group_entity_id)
     assert_state(light_group_state, STATE_OFF)
-    assert hass.states.is_state(unconfigured_light_id, STATE_OFF)
+    assert hass.states.is_state(unconfigured_light_id, STATE_ON)
 
 
 async def test_light_group_turns_back_on_when_dark_again(
@@ -1045,3 +1032,69 @@ async def test_presence_activity_restores_partial_group(
     unsub_calls()
     unsub_events()
     await shutdown_integration(hass, [entry])
+
+
+async def test_ungrouped_lamp_is_not_switched_on_automatically(
+    hass: HomeAssistant,
+    entities_light_two: list[MockLight],
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    entities_light_secondary_states: list[MockBinarySensor],
+    _setup_integration_light_groups_advanced,
+) -> None:
+    """Policy-only was removed: a dark, occupied Area switches its group, never the ungrouped lamp."""
+    light_group_entity_id = f"{LIGHT_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_overhead_lights"
+    light_control_entity_id = (
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    )
+    motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
+    sleep_sensor_entity_id = entities_light_secondary_states[0].entity_id
+    unconfigured_light_id = entities_light_two[1].entity_id
+
+    hass.states.async_set(light_control_entity_id, STATE_ON)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: light_control_entity_id}
+    )
+    await hass.async_block_till_done()
+    await _set_brightness(hass, DARK_LUX)
+    hass.states.async_set(sleep_sensor_entity_id, STATE_OFF)
+    hass.states.async_set(motion_sensor_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+
+    assert_state(hass.states.get(light_group_entity_id), STATE_ON)
+    assert hass.states.is_state(unconfigured_light_id, STATE_OFF)
+
+
+async def test_user_switches_ungrouped_lamp_without_automatic_reaction(
+    hass: HomeAssistant,
+    entities_light_two: list[MockLight],
+    entities_binary_sensor_motion_one: list[MockBinarySensor],
+    entities_light_secondary_states: list[MockBinarySensor],
+    _setup_integration_light_groups_advanced,
+) -> None:
+    """A manual change of an ungrouped lamp is honoured and no automatic command follows it."""
+    light_control_entity_id = (
+        f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{DEFAULT_MOCK_AREA}_light_control"
+    )
+    motion_sensor_entity_id = entities_binary_sensor_motion_one[0].entity_id
+    unconfigured_light_id = entities_light_two[1].entity_id
+
+    hass.states.async_set(light_control_entity_id, STATE_ON)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: light_control_entity_id}
+    )
+    await _set_brightness(hass, DARK_LUX)
+    hass.states.async_set(motion_sensor_entity_id, STATE_ON)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: unconfigured_light_id},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert hass.states.is_state(unconfigured_light_id, STATE_ON)
+    await _set_brightness(hass, BRIGHT_LUX)
+    await hass.async_block_till_done()
+    # Bright turns the group off; the user's lamp is not switched by the automation either way.
+    assert hass.states.is_state(unconfigured_light_id, STATE_ON)

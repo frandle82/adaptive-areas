@@ -256,23 +256,21 @@ async def execute_once(decision: TransitionDecision, service_call) -> str:
 class LightOwner:
     """Deterministic owner of one physical light inside one Area."""
 
-    owner: str  # "group", "policy" or "none"
+    owner: str  # "group" or "none"
     groups: tuple[str, ...] = ()
     reason: str = ""
 
 
 def light_owner(
     light: str,
-    policy_targets: frozenset[str] | set[str],
     group_members: Mapping[str, Iterable[str]],
 ) -> LightOwner:
     """Decide which automatic path owns a physical light: exactly one path, never two.
 
     - In at least one configured group of this Area: the group owns it (its group
       configuration is decisive). Several groups of the same Area are allowed; they are
-      reported as ``multiple_groups_same_area``. The policy does not control such a light.
-    - Only in the policy target set (HA Area plus include, minus exclude): the policy owns it.
-    - Otherwise: no automatic owner.
+      reported as ``multiple_groups_same_area``.
+    - Otherwise: no automatic owner. A lamp outside every group is never switched automatically.
     Cross-Area ownership is an invalid configuration and is refused by the ownership check.
     """
     groups = tuple(
@@ -281,6 +279,4 @@ def light_owner(
     if groups:
         reason = "multiple_groups_same_area" if len(groups) > 1 else "group_member"
         return LightOwner("group", groups, reason)
-    if light in policy_targets:
-        return LightOwner("policy", (), "policy_target")
     return LightOwner("none", (), "not_a_target")

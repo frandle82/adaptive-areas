@@ -40,10 +40,6 @@ from custom_components.adaptive_areas.helpers.brightness import (
     BrightnessState,
     area_brightness,
 )
-from custom_components.adaptive_areas.helpers.light_policy import (
-    LightPolicyAction,
-    evaluate_light_policy,
-)
 from custom_components.adaptive_areas.helpers.sources import (
     light_illuminance_entity_id,
     light_source_snapshot,
@@ -119,10 +115,7 @@ async def test_area_sensor_is_used_before_global(hass) -> None:
     snapshot = light_source_snapshot(area)
     assert snapshot.illuminance_entity_id == AREA_LUX
     assert snapshot.illuminance_value == 40.0
-    assert (
-        evaluate_light_policy(snapshot, _policy(area)).action
-        is LightPolicyAction.TURN_ON
-    )
+    assert area_brightness(hass, area).state is BrightnessState.DARK
 
 
 async def test_global_sensor_is_used_without_area_sensor(hass) -> None:
@@ -142,10 +135,6 @@ async def test_unavailable_area_sensor_is_unknown_and_never_falls_back(hass) -> 
     assert snapshot.illuminance_entity_id == AREA_LUX
     assert snapshot.illuminance_available is False
     assert snapshot.illuminance_value is None
-    assert (
-        evaluate_light_policy(snapshot, _policy(area)).action
-        is not LightPolicyAction.TURN_ON
-    )
     result = area_brightness(hass, area)
     assert result.state is BrightnessState.UNKNOWN
 
@@ -175,14 +164,6 @@ async def test_sensor_change_drops_hysteresis_and_uses_new_sensor(hass) -> None:
     ] = "sensor.area_lux_b"
     result = area_brightness(hass, area)
     assert result.state is BrightnessState.UNKNOWN
-
-
-def _policy(area):
-    from custom_components.adaptive_areas.helpers.light_policy import (
-        light_policy_config_from_feature,
-    )
-
-    return light_policy_config_from_feature(area.feature_config(CONF_FEATURE_LIGHT))
 
 
 # --- Backend validation on save and the single Area field (real config entry) ---

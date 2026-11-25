@@ -89,30 +89,16 @@ _INACTIVE_TRACKER_STATES = frozenset(("not_home", "work", "school"))
 
 
 @dataclass(frozen=True, slots=True)
-class LightTargetSource:
-    """One discovered physical Light target and its current availability."""
-
-    entity_id: str
-    available: bool
-
-
-@dataclass(frozen=True, slots=True)
 class LightSourceSnapshot:
-    """Read-only inputs available to a future Light policy."""
+    """Read-only brightness and presence inputs of one regular Area."""
 
     area_id: str
-    targets: tuple[LightTargetSource, ...]
     illuminance_entity_id: str | None
     illuminance_available: bool
     illuminance_value: float | None
     presence_source_entity_ids: tuple[str, ...]
     presence_available: bool
     presence_state: bool | None
-
-    @property
-    def target_light_entity_ids(self) -> tuple[str, ...]:
-        """Return stable target IDs without exposing availability internals."""
-        return tuple(target.entity_id for target in self.targets)
 
 
 def device_belongs_to_area(
@@ -331,23 +317,6 @@ def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
     if area.is_meta() or not area.has_feature(CONF_FEATURE_LIGHT):
         return None
 
-    # The target list stays complete: the group automation and the policy use it. The
-    # policy excludes automatically controlled group lights at execution (light_runtime).
-    target_ids = sorted(
-        area_entity_ids(
-            area.hass,
-            area.hass_config,
-            area.config,
-            domain="light",
-        )
-    )
-    targets = tuple(
-        LightTargetSource(
-            entity_id=entity_id,
-            available=_state_available(area.hass.states.get(entity_id)),
-        )
-        for entity_id in target_ids
-    )
     illuminance_entity_id = light_illuminance_entity_id(area)
     illuminance_state = (
         area.hass.states.get(illuminance_entity_id)
@@ -358,7 +327,6 @@ def light_source_snapshot(area: AdaptiveArea) -> LightSourceSnapshot | None:
     presence_available = area_presence_available(area)
     return LightSourceSnapshot(
         area_id=area.id,
-        targets=targets,
         illuminance_entity_id=illuminance_entity_id,
         illuminance_available=_state_available(illuminance_state),
         illuminance_value=_numeric_state_value(illuminance_state),

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Behaviour change (not yet released). Policy-only lamp control was removed.
+
+- Automatic light control now runs only through explicitly configured individual light groups.
+- Lamps that are in no light group are no longer switched automatically, even when Lux limits are set. This is intended. To keep automatic control for such a lamp, add it to an individual light group of the Area (ceiling, sleep, accent or task lights). No default group is created automatically.
+- ALL stays OFF-only and exclusive group ownership is unchanged.
+- Manual operation of ungrouped lamps is unchanged.
+- The Light diagnosis in the dashboard shows the automatic group control path. The policy-only lamp list, the policy decision and the dispatch fields are gone from the status payload.
+- Brightness limits, the brightness classification and the UNKNOWN behaviour are unchanged.
+
 ## 1.7.0-rc.2 - 2026-11-24
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.

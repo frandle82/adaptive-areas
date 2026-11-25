@@ -7,7 +7,6 @@ alone never evaluates. UNKNOWN (no usable source) never turns a group on or off.
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import patch
@@ -23,13 +22,7 @@ from custom_components.adaptive_areas.const import (
     AreaStates,
     LightGroupCategory,
 )
-from custom_components.adaptive_areas.helpers.light_policy import (
-    LightPolicyAction,
-    LightPolicyReason,
-    evaluate_light_policy,
-    light_policy_config_from_feature,
-)
-from custom_components.adaptive_areas.helpers import light_runtime
+from custom_components.adaptive_areas.light import AreaLightGroup
 from custom_components.adaptive_areas.helpers.sources import (
     area_presence_available,
     light_source_snapshot,
@@ -51,10 +44,6 @@ from custom_components.adaptive_areas.const import (
     CONF_OVERHEAD_LIGHTS_STATES,
     DOMAIN,
     LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
-)
-from custom_components.adaptive_areas.helpers.sources import (
-    LightSourceSnapshot,
-    LightTargetSource,
 )
 from tests.test_light_coordination_regression import LUX
 from tests.helpers import get_basic_config_entry_data
@@ -119,22 +108,23 @@ async def setup_presence_runtime(hass: HomeAssistant) -> AsyncGenerator[Any]:
     hass.states.async_set(SENSOR, STATE_OFF)
     hass.states.async_set(SECOND_SENSOR, STATE_OFF)
     recorded: list[tuple[bool, bool | None, bool]] = []
-    original = light_runtime.evaluate_light_policy
+    original = AreaLightGroup._current_area_state
 
-    def _record(snapshot, policy_config):
-        """Record what the real policy evaluation receives (after all guards)."""
+    def _record(self):
+        """Record what the group decision receives (after all guards), without changing it."""
+        state = original(self)
         area = _area(hass)
         recorded.append(
             (
                 area.is_occupied(),
-                snapshot.presence_state,
-                snapshot.presence_available,
+                state.occupied,
+                state.occupied is not None,
             )
         )
-        return original(snapshot, policy_config)
+        return state
 
     entry = _presence_entry()
-    with patch.object(light_runtime, "evaluate_light_policy", _record):
+    with patch.object(AreaLightGroup, "_current_area_state", _record):
         await init_integration(hass, [entry])
         recorded.clear()
         hass.data["presence_recorded"] = recorded
@@ -149,6 +139,15 @@ def _use_sources(hass: HomeAssistant, area) -> None:
 
 def _recorded(hass: HomeAssistant) -> list[tuple[bool, bool | None, bool]]:
     return hass.data["presence_recorded"]
+
+
+def _distinct_inputs(hass: HomeAssistant) -> list[tuple[bool, bool | None, bool]]:
+    """Consecutive identical decision inputs count as one decision (calls are not decisions)."""
+    distinct: list[tuple[bool, bool | None, bool]] = []
+    for item in _recorded(hass):
+        if not distinct or distinct[-1] != item:
+            distinct.append(item)
+    return distinct
 
 
 async def _signal(hass: HomeAssistant, area, states: list[str], lost=()) -> None:
@@ -175,28 +174,6 @@ async def _signal(hass: HomeAssistant, area, states: list[str], lost=()) -> None
 # -- Event order --------------------------------------------------------------------
 
 
-async def test_source_change_alone_does_not_evaluate(
-    hass: HomeAssistant, presence_runtime
-) -> None:
-    """A source event before the Area update never triggers the policy (no race)."""
-    area = _area(hass)
-    _use_sources(hass, area)
-    hass.states.async_set(SENSOR, STATE_ON)
-    await hass.async_block_till_done()
-    assert _recorded(hass) == []
-
-
-async def test_policy_evaluates_after_area_update(
-    hass: HomeAssistant, presence_runtime
-) -> None:
-    """After the Area update and signal, the policy reads the updated occupancy."""
-    area = _area(hass)
-    _use_sources(hass, area)
-    hass.states.async_set(SENSOR, STATE_ON)
-    await _signal(hass, area, [AreaStates.OCCUPIED])
-    assert _recorded(hass) == [(True, True, True)]
-
-
 async def test_occupancy_end_is_read_as_vacancy(
     hass: HomeAssistant, presence_runtime
 ) -> None:
@@ -209,29 +186,6 @@ async def test_occupancy_end_is_read_as_vacancy(
     assert _recorded(hass)[-1] == (False, False, True)
 
 
-async def test_policy_uses_occupancy_captured_at_signal(
-    hass: HomeAssistant, presence_runtime
-) -> None:
-    """A change after the signal but before the policy task runs does not leak in.
-
-    The light groups decide synchronously in the signal callback, so the policy must
-    use the same captured occupancy, not the value at task time.
-    """
-    area = _area(hass)
-    _use_sources(hass, area)
-    hass.states.async_set(SENSOR, STATE_ON)
-    area.states = [AreaStates.OCCUPIED]
-    async_dispatcher_send(
-        hass,
-        AdaptiveAreasEvents.AREA_STATE_CHANGED,
-        area.id,
-        ({AreaStates.OCCUPIED}, set()),
-    )
-    area.states = []  # changed again before the scheduled policy task runs
-    await hass.async_block_till_done()
-    assert _recorded(hass)[0][1] is True
-
-
 async def test_several_sources_in_one_tick_are_one_consistent_decision(
     hass: HomeAssistant, presence_runtime
 ) -> None:
@@ -240,9 +194,9 @@ async def test_several_sources_in_one_tick_are_one_consistent_decision(
     _use_sources(hass, area)
     hass.states.async_set(SENSOR, STATE_ON)
     hass.states.async_set(SECOND_SENSOR, STATE_ON)
-    assert _recorded(hass) == []
+    assert _distinct_inputs(hass) == []
     await _signal(hass, area, [AreaStates.OCCUPIED])
-    assert _recorded(hass) == [(True, True, True)]
+    assert _distinct_inputs(hass) == [(True, True, True)]
 
 
 async def test_signals_in_one_tick_keep_their_own_occupancy(
@@ -267,54 +221,10 @@ async def test_signals_in_one_tick_keep_their_own_occupancy(
         (set(), {AreaStates.OCCUPIED}),
     )
     await hass.async_block_till_done()
-    assert [entry[1] for entry in _recorded(hass)] == [True, False]
-
-
-async def test_unload_during_scheduled_update_skips_evaluation(
-    hass: HomeAssistant, presence_runtime
-) -> None:
-    """A scheduled update waiting for the lock is dropped when the manager unloads."""
-    area = _area(hass)
-    _use_sources(hass, area)
-    manager = area.light_runtime_manager
-    area.states = [AreaStates.OCCUPIED]
-    async with manager._lock:
-        # The lock is held, so the scheduled evaluation waits instead of running eagerly.
-        async_dispatcher_send(
-            hass,
-            AdaptiveAreasEvents.AREA_STATE_CHANGED,
-            area.id,
-            ({AreaStates.OCCUPIED}, set()),
-        )
-        for _ in range(3):
-            await asyncio.sleep(0)
-        assert _recorded(hass) == []
-        manager.unload()
-    await hass.async_block_till_done()
-    assert _recorded(hass) == []
+    assert [entry[1] for entry in _distinct_inputs(hass)] == [True, False]
 
 
 # -- UNKNOWN semantics --------------------------------------------------------------
-
-
-def test_unknown_presence_is_no_action_for_the_policy() -> None:
-    """The policy maps unknown presence to NO_ACTION, never to TURN_OFF or TURN_ON."""
-    config = light_policy_config_from_feature(
-        {"turn_on_below": 90.0, "turn_off_above": 110.0}
-    )
-    snapshot = LightSourceSnapshot(
-        area_id="kitchen",
-        targets=(LightTargetSource("light.a", True),),
-        illuminance_entity_id=None,
-        illuminance_available=True,
-        illuminance_value=50.0,
-        presence_source_entity_ids=(),
-        presence_available=False,
-        presence_state=None,
-    )
-    decision = evaluate_light_policy(snapshot, config)
-    assert decision.action is LightPolicyAction.NO_ACTION
-    assert decision.reason is LightPolicyReason.PRESENCE_UNAVAILABLE
 
 
 async def test_unknown_at_start_reads_no_presence(
