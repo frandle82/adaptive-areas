@@ -1,21 +1,46 @@
 # Changelog
 
-## Unreleased
+## 1.7.0-rc.3 - 2026-11-25
 
-Behaviour change (not yet released). Policy-only lamp control was removed.
+Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.
 
-- Automatic light control now runs only through explicitly configured individual light groups.
-- Lamps that are in no light group are no longer switched automatically, even when Lux limits are set. This is intended. To keep automatic control for such a lamp, add it to an individual light group of the Area (ceiling, sleep, accent or task lights). No default group is created automatically.
-- ALL stays OFF-only and exclusive group ownership is unchanged.
-- Manual operation of ungrouped lamps is unchanged.
-- The Light diagnosis in the dashboard shows the automatic group control path. The policy-only lamp list, the policy decision and the dispatch fields are gone from the status payload.
-- Brightness limits, the brightness classification and the UNKNOWN behaviour are unchanged.
-- Fixed: a Meta-Area was always reported BRIGHT, even when a child Area was DARK. Its DARK and BRIGHT now follow the child Areas: DARK when any child is DARK, BRIGHT only when every child is BRIGHT. A child with unknown brightness, or a missing child state, no longer makes the Meta-Area BRIGHT. Automatic light control is not changed by this.
+Changes compared with 1.7.0-rc.2.
 
-- Changed: Meta-Areas now publish `dark_started` and `dark_ended` on the `adaptive_areas_area_event` bus event when their derived brightness changes. Automations that listen to this event for Meta-Areas will see these events for the first time. No new event types.
-- Changed: without a brightness source (no illuminance sensor, no global lux sensor, no Lux limits) the `require_dark` and `dark_on_bright_off` modes no longer switch lights on. 1.6.18 still switched them on in the differential test without any brightness source. A repair reports the missing configuration.
-- Changed (decided): with `turn_off`, an occupied Area whose brightness is `unknown` switches its group on, as `ignore` does. UNKNOWN is neither DARK nor BRIGHT, so no OFF is sent. `require_dark` and `dark_on_bright_off` do not switch on from `unknown`. 1.6.18 switched a `turn_off` group off in this case. The difference is intended and is not a return to 1.6.18 behaviour.
-- Changed: a group already off no longer receives a redundant `turn_off` when the Area becomes occupied while bright.
+### Changed
+
+- Automatic light control runs only through explicitly configured individual light groups (overhead, sleep, accent or task lights). The former policy-only control path is removed.
+- Lamps that are in no light group are never switched automatically by Adaptive Areas, even when Lux limits are set. Manual operation of these lamps is unchanged. To keep automatic control, add the lamp to an individual light group of its Area. No default group is created.
+- Automatic group commands are direct native Home Assistant light service calls with the group entity as target. The origin registry for automatic group calls is limited to the newest 256 context IDs.
+- A physical light belongs to at most one individual light group. Shared lamps are refused on save; a stored or runtime conflict blocks automatic control and is diagnosed, never repaired automatically. ALL groups stay OFF-only.
+- The dashboard light diagnosis shows the automatic control path (`control_path`) and the override state. The policy-only lamp list, the policy decision and the dispatch fields are removed from the status payload.
+- Brightness has one classification (DARK, BRIGHT, UNKNOWN) from the Lux limits and the numeric Area illuminance sensor, or the global lux sensor. UNKNOWN is neither DARK nor BRIGHT. The four brightness modes keep their tasks: `ignore`, `require_dark`, `turn_off`, `dark_on_bright_off`.
+- Decided: with `turn_off`, an occupied Area whose brightness is `unknown` switches its group on, as `ignore` does. `require_dark` and `dark_on_bright_off` do not switch on from `unknown`. A sensor outage alone never sends a command. 1.6.18 switched a `turn_off` group off in this case; the difference is intended.
+- Without any brightness source, `require_dark` and `dark_on_bright_off` do not switch lights on. A repair reports the missing configuration.
+- Meta-Areas: DARK when any relevant child is DARK; BRIGHT only when all relevant children are BRIGHT; otherwise UNKNOWN. A relevant child without a brightness source is UNKNOWN. Meta-Areas send no automatic light command.
+- Meta-Areas publish `dark_started` and `dark_ended` on the `adaptive_areas_area_event` bus event when their derived brightness changes. Automations that listen to this event for Meta-Areas will see these events for the first time. No new event types.
+- The public illuminance threshold entity is unchanged and informational. Area brightness and light control do not read it.
+- A group already off no longer receives a redundant `turn_off` when the Area becomes occupied while bright.
+
+### Fixed
+
+- Meta-Area brightness no longer reports BRIGHT regardless of its children. A child with unknown brightness, or a missing child state, no longer makes the Meta-Area BRIGHT.
+- Native repairs report incomplete brightness configuration (missing Lux limits, invalid limits, missing source, legacy `dark_entity` without limits). A repair disappears after the correction.
+- Dead translation keys for `dark_entity` were removed. The stored key is still accepted; no stored configuration changes.
+
+### Upgrade notes
+
+- Check the Light diagnosis and the repairs after the upgrade.
+- Lamps that were controlled through the former policy-only path must be added to an individual light group to stay under automatic control.
+- Check automations that read Meta-Area `dark` or `bright` states or listen to `adaptive_areas_area_event`.
+- Check `turn_off` groups in an Area with a sensor outage: they now switch on when occupied.
+- Backup before upgrading; rollback means restoring the backup or installing 1.7.0-rc.2 with its configuration.
+
+### Known limitations
+
+- A native light group whose members change at runtime is checked on every automatic command. The check is covered by an automated test with a modelled native group; the behaviour with a real `light.group` configuration entry is not covered.
+- The root cause of the original 1.6.18 report on a real Home Assistant OS installation is not proven.
+- Meta-Area brightness stays UNKNOWN while any relevant child has no brightness source (intended).
+- The practical acceptance on Home Assistant OS (30 cases, `docs/RC3_PRACTICAL_TEST_PLAN.md`) is pending.
 
 ## 1.7.0-rc.2 - 2026-11-24
 
