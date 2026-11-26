@@ -80,10 +80,46 @@ Where each light requirement is checked. "Gap" names what is not covered by an a
 | Repairs for incomplete brightness configuration | `tests/test_repairs_brightness.py`, `tests/test_repairs_brightness_flow.py`, `tests/test_light_lifecycle_brightness.py` | `test_repair_is_created_at_setup_and_resolved_after_correction` | – |
 | Meta-Area aggregation and events | `tests/test_meta_area_brightness.py`, `tests/test_meta_area_brightness_lifecycle.py`, `tests/test_meta_area_hierarchy_regression.py` | `test_meta_brightness_matrix`, `test_exactly_one_relevant_bright_child_is_bright`, `test_dark_child_propagates_to_every_meta_area_that_contains_it` | – |
 
-## GlobalEntry lifecycle (after RC.3)
+## GlobalEntry lifecycle (after RC.3, Phase F)
 
-`tests/test_global_entry_lifecycle.py` (21 tests, R01-R28 of the RC.3 field-test analysis) runs a real GlobalEntry with several Areas, the real registries and native light calls. 13 of them fail on unchanged 1.7.0-rc.3 (`2298f59`): R01, R02, R03, R04, R09/R10/R24, R11/R12, R13, R14, R16/R17, R20, R22, R23, R28. Covered elsewhere and not repeated: R19 (`tests/test_setup_rollback.py`), R25 (`tests/test_area_retained_features.py`), R26 (`tests/test_light_dynamic_membership.py`).
+`tests/test_global_entry_lifecycle.py` (35 tests) runs a real GlobalEntry with the real entity, device, area, floor and issue registries, the test light and binary sensor platforms and native `light`/`switch` service calls. Light assertions use the recorded `call_service` events: the call on the group entity and its native forwarding to the lamp. No internal decision function is called directly.
 
-Most older light tests use legacy single-Area entries and set the control switch through its default entity ID; they did not exercise the GlobalEntry paths. New lifecycle tests should use a GlobalEntry.
+Results: RC.3 = `2298f59`, Phase E = `8009f9d`, now = branch head. F = fails, P = passes.
 
-Verified 2026-11-26: full suite 1016 passed (RC.3 baseline 995), browser harness 404/404, ruff and black clean, JSON validation and `git diff --check` clean. `pre-commit run --files` reported every hook as "no files to check" and is not counted as passed. Hassfest and HACS were not run locally.
+| Req. | Test (file `test_global_entry_lifecycle.py` unless named) | Asserts | RC.3 | E | Now | Coverage |
+|---|---|---|---|---|---|---|
+| R01 | `test_r01_cold_start_controls_lights_without_registry_change` | setup before HA runs, START/STARTED, no entry reload, exactly one ON and one OFF on the group plus forwarding | F | P | P | full |
+| R02 | `test_r02_configured_members_outside_the_ha_area_create_groups` | groups live, one ON, forwarding to the lamp | F | P | P | full |
+| R03 | `test_r03_renamed_control_switch_is_the_switch_that_counts` | renamed switch enables/disables, survives reload, `control_switch` DTO | F | P | P | full |
+| R04 | `test_r04_suffixed_control_switch_never_reads_a_foreign_entity` | foreign ON entity at default ID ignored; real `_2` switch counts | F | P | P | full |
+| R05 | `test_r05_switch_registered_after_the_groups_enables_control` | restored-ON switch registers after the groups (event gate), one ON | P | P | P | full |
+| R06/R07 | R01, `test_dark_bright_dark_sequence_before_and_after_reload` | ON, OFF, ON with forwarding, twice around a reload | P | P | P | full |
+| R08 | `test_r08_device_assignment_after_setup_needs_no_initialisation` | control before assignment; registry IDs unchanged after the reload | P | P | P | full |
+| R09/R10/R24 | `test_r09_r10_r24_deleting_an_area_removes_only_its_generated_entities` | entities and device removed; lamps and other Area unchanged and working | F | P | P | full |
+| R11/R12 | `test_r11_r12_delete_last_area_and_create_it_again` | migrated entry stays LOADED; re-created IDs identical, no suffix | F | P | P | full |
+| R13 | `test_r13_bad_bad_og_and_floor_og_keep_their_entities` | three reload cycles, distinct ownership, control of "Bad OG" | F | P | P | full |
+| R14 | `test_r14_renaming_areas_and_floors_keeps_every_identity` | Area and floor rename, reload, restart (unload/setup), delete: entity ID, unique ID, registry ID, device ID, entry ID unchanged | F | F | P | full |
+| R15 | `test_r15_migration_of_bad_and_bad_og_keeps_identities`; `test_migration*.py` | migration COMPLETE, identical entity/unique IDs | P | P | P | full |
+| R16/R17 | `test_r16_r17_orphaned_area_devices_are_removed_ambiguous_entities_stay` | orphan device and entity removed, device-less entity kept | F | P | P | full |
+| R18 | `test_r18_repeated_reloads_send_one_command_per_event` | three reloads, one call per event, stable listener counts | P | P | P | full |
+| R19 | `tests/test_setup_rollback.py` | rollback of a failed platform setup | P | P | P | existing test |
+| R20 | `test_r20_failed_platform_unload_is_not_a_successful_unload` | FAILED_UNLOAD, runtime kept, deletion error, registry untouched | F | P | P | full |
+| R21 | `test_r21_deleting_a_meta_child_updates_meta_sources` | child list, presence sources, floor state | P | P | P | full |
+| R22 | `test_r22_reload_on_registry_change_is_a_local_area_option`, `test_registry_event_for_two_areas_reloads_once`, `test_global_light_sensor_comes_from_global_options` | local reload flag, one debounced reload, global light sensor from `global_options` | F | P | P | full |
+| R23 | `test_r23_own_registry_changes_cause_no_reload_loop` | no reload from own writes; own rename reloads once | F | P | P | full |
+| R24 | R09, `test_r24_orphaned_device_with_a_foreign_entity_is_left_alone` | foreign entity on an orphan device protects it | P | P | P | full |
+| R25 | `tests/test_area_retained_features.py` | parked feature settings | P | P | P | existing test |
+| R26 | `tests/test_light_dynamic_membership.py` | runtime membership conflicts (legacy entries) | P | P | P | existing test, partial for GlobalEntry |
+| R27 | `test_r27_unavailable_configured_lamp_keeps_its_group` | same registry entry after reload | P | P | P | full |
+| R28 | `test_r28_deleted_ha_area_keeps_other_areas_working` | entry LOADED, Area skipped with config and entities, Repair raised, other Area controls | F | P | P | full |
+| Phase F | `test_area_and_floor_with_the_same_slug_exist_independently`, `test_existing_area_keeps_its_ids_and_only_the_newcomer_changes` | no duplicate unique IDs, existing IDs unchanged, newcomer controls | F | F | P | full |
+| Phase F | `test_climate_*` (4) and `tests/test_environment.py::test_health_warning_has_highest_context_priority` | Health read, alert, rename, foreign default ID ignored, missing Health | F | F | P | full |
+| Phase F | `test_no_cleanup_during_an_unfinished_migration`, `test_no_cleanup_with_an_inconsistent_area_configuration`, `test_disabled_generated_entity_survives_reload_and_cleanup` | cleanup guards, disabled entity kept | P/P/P | F/P/P | P | full |
+| Phase F | `test_global_entry_offers_no_per_area_options_flow` | `supports_options` is False | F | F | P | full |
+| Section 10 | `test_outage_recovery_override_and_clear_in_a_global_entry`, `test_shared_lamp_in_a_global_entry_is_never_switched` (negative safety test) | outage and recovery send nothing, CLEAR one ALL-OFF, manual override holds, shared lamp never switched | P | P | P | full |
+
+Not covered automatically: a real Home Assistant restart with persisted storage (simulated by cold start and unload/setup), Hassfest and HACS validation.
+
+Most older light tests use legacy single-Area entries; new lifecycle tests should use a GlobalEntry.
+
+Verified 2026-11-26 on the branch head: see the Phase F report in [HANDOVER.md](HANDOVER.md).

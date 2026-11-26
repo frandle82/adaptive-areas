@@ -67,4 +67,7 @@ Record a new decision here only after it is accepted. Include context, decision,
 - Consumers of generated entities resolve the registered entity ID by unique ID; the light control switch is read as the Area's runtime object. No parallel registry.
 - Deleting an Area removes its generated entities and device during the following setup; devices of Areas no longer configured are removed the same way (one rule, idempotent). Device-less generated entities in a GlobalEntry and devices that also hold foreign entities are left unchanged.
 - A missing Home Assistant Area or floor skips that Area and raises `missing_area`; configuration and entities are kept.
-- Unchanged and still open: renaming a Home Assistant Area changes the slug and therefore the generated entity IDs (as in 1.6.18). Two Areas with identical slugs (for example an Area and a floor both named "Keller") collide in their unique IDs; not addressed.
+- Phase F: the slug of an Area is read back from its registered presence state entity, so renames keep all IDs; a new Area whose slug is taken uses its Area ID (then a type suffix, then a counter). No migration: existing registered IDs are reused as they are.
+- Phase F: Area Climate reads the registered Health sensor by unique ID, without fallback to a default ID.
+- Phase F: the per-Area options flow is not offered for the GlobalEntry (`async_supports_options_flow`).
+- Open, needs a decision: an Area and a floor with the same ID cannot both live in `options[areas]` (one key space). Lifting this needs a schema migration of the stored keys; not done.

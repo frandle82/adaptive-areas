@@ -19,6 +19,11 @@ Corrections after the RC.3 field test. Not verified on a Home Assistant instance
 - A failed platform unload is reported as failed; Area deletion then reports an error.
 - Deleting the last Area of a migrated GlobalEntry keeps the entry loaded.
 - Migration verification identifies Areas by device, not by name parts.
+- Area Climate reads the Area's actual Health sensor (`…_health_problem`, by unique ID). Before, it read `binary_sensor.adaptive_areas_health_<area>`, which never exists, so a Health alarm never raised `health_alert`. Areas with Area Climate and Area Health enabled now show this notice when the Health sensor is on.
+- Renaming a Home Assistant Area or floor no longer changes entity IDs or unique IDs. The Area keeps the ID part its registered entities already use. Before (also in 1.6.18), a rename replaced all entities of the Area, so automations lost them.
+- Two Areas whose names produce the same ID part (for example an Area and a floor both named "Keller", with different IDs) no longer share unique IDs. The Area added later uses its Area ID as ID part; existing Areas keep theirs.
+- The GlobalEntry no longer offers the per-Area "Configure" dialog, which failed with an error. Its Areas are configured in the Adaptive Areas panel; legacy entries keep their options flow.
+- Automatic removal of a removed Area's device and entities is skipped while a migration is unfinished or when the stored Area configuration is inconsistent.
 
 ### Added
 

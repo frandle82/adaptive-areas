@@ -2,6 +2,21 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase F, 2026-11-26)
+
+- Branch `fix/global-entry-lifecycle`, lokal, nicht gepusht. Die ersten beiden Commits des Branches (`280616a`, `866b50a`) sind einzeln nicht grün (bekannt, unverändert); alle späteren Commits sind einzeln grün. Squash-Merge empfohlen, nicht ausgeführt.
+- Phase F: Health-Eingang von Area Climate, stabile Slugs bei Umbenennung, Slug-Kollisionen, Schutzbedingungen der Bereinigung, Options Flow der GlobalEntry. Offene Entscheidung: Bereich und Etage mit identischer ID (gemeinsamer Schlüsselraum in `options[areas]`).
+- HAOS-Praxistest (zuerst mit einem eigens angelegten Testbereich; keine produktiven Bereiche löschen):
+  1. Vollständiges HA-Backup. Diagnose der GlobalEntry exportieren.
+  2. Liste aller `adaptive_areas`-Entitäten mit Entity-ID und Unique-ID sichern (Einstellungen → Entitäten, Filter Integration; oder `.storage/core.entity_registry` aus dem Backup). Bereiche und Etagen mit EG/OG-Namensteilen und gleichnamige Bereiche/Etagen notieren.
+  3. Update einspielen, HA vollständig neu starten. Entitätsliste vergleichen: keine geänderten Entity-/Unique-IDs, keine neuen `_2`; nur Entitäten bereits gelöschter Bereiche dürfen fehlen (im Log: „removing … entities of removed Area“). Die Liste der entfernten Entitäten prüfen.
+  4. Je Bereich mit Lichtgruppe: Dashboard Licht-Status → `control_switch` zeigt den tatsächlichen Schalter und `enabled`. Anwesenheit, Lux BRIGHT → DARK: genau ein Einschalten; DARK → BRIGHT (`dark_on_bright_off`): genau ein Ausschalten; erneut DARK: ein Einschalten (Logbuch/Traces). Keine Gerätezuordnung.
+  5. Integration zweimal neu laden und HA einmal neu starten; Schritt 4 jeweils wiederholen.
+  6. Testbereich umbenennen (HA-Bereich), danach Reload und Neustart: Entity-IDs unverändert, Gerätename neu.
+  7. Testbereich im Panel löschen: Gerät und Entitäten weg; Lampen, Sensoren und Fremd-Entitäten unverändert. Testbereich neu anlegen: dieselben Entity-IDs, keine Duplikate.
+  8. Area Climate mit Area Health: Health-Sensor des Bereichs auslösen (z. B. Wasser-Sensor) → Area-Climate-Hinweis `health_alert`.
+  9. Ergebnisse und Abweichungen mit Diagnose-Export dokumentieren.
+
 ## Fortsetzungspunkt (GlobalEntry-Lebenszyklus nach RC.3, 2026-11-26)
 
 - Branch `fix/global-entry-lifecycle` (lokal, nicht gepusht). Keine Versionsänderung, kein Tag, kein Release.
