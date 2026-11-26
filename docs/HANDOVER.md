@@ -7,6 +7,7 @@ Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchi
 - Branch `fix/global-entry-lifecycle`; Pull Request nach `main` (Squash-Merge vorgesehen, nicht ausgeführt). Keine Versionsänderung, kein Tag, kein Release.
 - Phase G: Meta-Area-ALL beim ersten Setup, Identität bei fehlenden Einzeleinträgen, weitere Schutzbedingungen der Bereinigung, R26 mit nativem Group-Helper, Fehlermeldung bei Bereichs-ID einer Etage. Entscheidung: keine Schema-Migration für RC.4. Wetter-Entität: ohne Laufzeitverbraucher, zurückgestellt.
 - Release Notes RC.4: `CHANGELOG.md` „Unreleased“.
+- Graphify: vollständiger isolierter Neuaufbau auf `d008bee` (Code-AST, semantische Extraktion von 69 Dokumenten und 11 Bildern, 9 lokale Knowledge-Dateien getrennt ausgewiesen), Konsistenz geprüft (eindeutige IDs, keine hängenden Kanten in `graph.json`, keine Datei mit verlorener semantischer Abdeckung) und übernommen. Sicherung des alten Graphen mit Prüfsummen unter `graphify-out/2026-11-26-before-phase-g-101482c/`. `graphify-out/` bleibt unversioniert; nichts im Repository hängt davon ab. Community-Namen sind aus dominantem Modul und zentralem Knoten abgeleitet.
 - HAOS-Abnahme (Installation erst nach Freigabe; destruktive Schritte nur mit eigens angelegtem Testbereich):
   1. Vollständiges HAOS-Backup.
   2. Diagnoseexport der GlobalEntry.
