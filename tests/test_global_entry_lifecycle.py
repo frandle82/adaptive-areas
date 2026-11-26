@@ -1308,3 +1308,80 @@ async def test_registry_event_for_two_areas_reloads_once(hass) -> None:
         await hass.async_block_till_done()
         await _advance(hass, 5)
         assert reload.call_count == 1
+
+
+async def test_outage_recovery_override_and_clear_in_a_global_entry(hass) -> None:
+    """Sensor outage, recovery, CLEAR with ALL-OFF and manual override, natively."""
+    from homeassistant.core import Context
+
+    hall = ar.async_get(hass).async_create("Hall")
+    (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    entry = _global_entry(
+        {hall.id: _area_config(hall.id, "Hall", lamp, motion, clear_timeout=0)}
+    )
+    await _setup(hass, entry)
+    await _enable(hass, _switch("hall"))
+    await _lux(hass, BRIGHT_LUX)
+    await _motion(hass, motion, STATE_ON)
+    calls = _record_calls(hass)
+    await _lux(hass, DARK_LUX)
+    assert calls == [("turn_on", [_group("hall")]), ("turn_on", [lamp])]
+
+    # A sensor outage alone, and its recovery to the same band, send nothing.
+    calls.clear()
+    hass.states.async_set(LUX, "unavailable")
+    await hass.async_block_till_done()
+    await _lux(hass, DARK_LUX)
+    assert calls == []
+
+    # CLEAR: the ALL group switches off once.
+    await _motion(hass, motion, "off")
+    await _advance(hass, 5)
+    assert _group_calls(calls, "turn_off", _group("hall", "all_lights")) == 1
+    assert hass.states.get(lamp).state == "off"
+
+    # Occupied again: ON. A user switches the lamp off: no automatic ON until CLEAR.
+    calls.clear()
+    await _motion(hass, motion, STATE_ON)
+    assert _group_calls(calls, "turn_on", _group("hall")) == 1
+    user = await hass.auth.async_create_user("phase-f")
+    await hass.services.async_call(
+        "light",
+        "turn_off",
+        {"entity_id": lamp},
+        blocking=True,
+        context=Context(user_id=user.id),
+    )
+    await hass.async_block_till_done()
+    calls.clear()
+    await _lux(hass, BRIGHT_LUX)
+    await _lux(hass, DARK_LUX)
+    assert not [c for c in calls if c[0] == "turn_on"]
+    assert hass.states.get(_group("hall")).attributes["manual_override"] is True
+
+
+async def test_shared_lamp_in_a_global_entry_is_never_switched(hass) -> None:
+    """Negative safety test: a stored shared lamp blocks both Areas' groups."""
+    areas = ar.async_get(hass)
+    hall = areas.async_create("Hall")
+    office = areas.async_create("Office")
+    (lamp, _spare), (m_hall, m_office) = await _devices(
+        hass, ["hall", "office"], {"hall": hall.id, "office": office.id}
+    )
+    # Stored directly: a save through the panel or options flow would refuse it.
+    entry = _global_entry(
+        {
+            hall.id: _area_config(hall.id, "Hall", lamp, m_hall),
+            office.id: _area_config(office.id, "Office", lamp, m_office),
+        }
+    )
+    await _setup(hass, entry)
+    await _enable(hass, _switch("hall"))
+    await _enable(hass, _switch("office"))
+    await _lux(hass, BRIGHT_LUX)
+    calls = _record_calls(hass)
+    await _motion(hass, m_hall, STATE_ON)
+    await _motion(hass, m_office, STATE_ON)
+    await _lux(hass, DARK_LUX)
+    assert ("turn_on", [lamp]) not in calls
+    assert hass.states.get(lamp).state == "off"
