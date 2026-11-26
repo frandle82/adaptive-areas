@@ -60,6 +60,8 @@ Area, floor or Meta ID. That device owns the Area's generated entities.
   are left unchanged.
 - An Area whose Home Assistant Area or floor was deleted is skipped; it keeps its
   configuration and entities, and a Repair issue is raised.
+- An Area and a floor with the same technical ID (for example both `keller`)
+  cannot both be configured; creating the second is refused.
 - The GlobalEntry has no "Configure" dialog; its Areas are configured in the
   Adaptive Areas panel.
 

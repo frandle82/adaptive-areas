@@ -70,4 +70,5 @@ Record a new decision here only after it is accepted. Include context, decision,
 - Phase F: the slug of an Area is read back from its registered presence state entity, so renames keep all IDs; a new Area whose slug is taken uses its Area ID (then a type suffix, then a counter). No migration: existing registered IDs are reused as they are.
 - Phase F: Area Climate reads the registered Health sensor by unique ID, without fallback to a default ID.
 - Phase F: the per-Area options flow is not offered for the GlobalEntry (`async_supports_options_flow`).
-- Open, needs a decision: an Area and a floor with the same ID cannot both live in `options[areas]` (one key space). Lifting this needs a schema migration of the stored keys; not done.
+- Decided for RC.4 (2026-11-26): no schema migration of `options[areas]`. An Area and a floor with the same technical ID cannot both be configured; creating such an Area is refused with an explicit message, nothing is overwritten. Different IDs with equal names or slugs are supported.
+- Global weather entity (2026-11-26): stored and shown since the GlobalEntry (`3777868`, after 1.6.18), never read at runtime, no documented function (classification D). Kept unchanged; product decision deferred.

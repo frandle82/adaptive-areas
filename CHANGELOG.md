@@ -23,7 +23,15 @@ Corrections after the RC.3 field test. Not verified on a Home Assistant instance
 - Renaming a Home Assistant Area or floor no longer changes entity IDs or unique IDs. The Area keeps the ID part its registered entities already use. Before (also in 1.6.18), a rename replaced all entities of the Area, so automations lost them.
 - Two Areas whose names produce the same ID part (for example an Area and a floor both named "Keller", with different IDs) no longer share unique IDs. The Area added later uses its Area ID as ID part; existing Areas keep theirs.
 - The GlobalEntry no longer offers the per-Area "Configure" dialog, which failed with an error. Its Areas are configured in the Adaptive Areas panel; legacy entries keep their options flow.
-- Automatic removal of a removed Area's device and entities is skipped while a migration is unfinished or when the stored Area configuration is inconsistent.
+- Automatic removal of a removed Area's device and entities is skipped while a migration is unfinished, when the stored Area configuration or the global options are incomplete or inconsistent, and when a device's ownership is ambiguous (several Area identifiers or several config entries).
+- A Meta Area's ALL light group exists on the first setup. Before, it appeared only after a second setup because the Meta Area read its children's groups from the registry before they were registered.
+- An Area keeps its identity when single generated entities were removed from the registry; any of its remaining entities carries the ID part.
+- Creating an Area whose ID belongs to a configured floor or Meta Area is refused with an explicit message.
+
+### Known limitations
+
+- An Area and a floor with the same technical ID cannot both be configured in the GlobalEntry (one key space in the stored configuration). No schema migration in RC.4.
+- The global weather entity is stored and shown in the panel but has no runtime consumer.
 
 ### Added
 

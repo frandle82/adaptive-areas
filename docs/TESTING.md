@@ -82,7 +82,7 @@ Where each light requirement is checked. "Gap" names what is not covered by an a
 
 ## GlobalEntry lifecycle (after RC.3, Phase F)
 
-`tests/test_global_entry_lifecycle.py` (35 tests) runs a real GlobalEntry with the real entity, device, area, floor and issue registries, the test light and binary sensor platforms and native `light`/`switch` service calls. Light assertions use the recorded `call_service` events: the call on the group entity and its native forwarding to the lamp. No internal decision function is called directly.
+`tests/test_global_entry_lifecycle.py` (44 tests) runs a real GlobalEntry with the real entity, device, area, floor and issue registries, the test light and binary sensor platforms and native `light`/`switch` service calls. Light assertions use the recorded `call_service` events: the call on the group entity and its native forwarding to the lamp. No internal decision function is called directly.
 
 Results: RC.3 = `2298f59`, Phase E = `8009f9d`, now = branch head. F = fails, P = passes.
 
@@ -109,13 +109,16 @@ Results: RC.3 = `2298f59`, Phase E = `8009f9d`, now = branch head. F = fails, P 
 | R23 | `test_r23_own_registry_changes_cause_no_reload_loop` | no reload from own writes; own rename reloads once | F | P | P | full |
 | R24 | R09, `test_r24_orphaned_device_with_a_foreign_entity_is_left_alone` | foreign entity on an orphan device protects it | P | P | P | full |
 | R25 | `tests/test_area_retained_features.py` | parked feature settings | P | P | P | existing test |
-| R26 | `tests/test_light_dynamic_membership.py` | runtime membership conflicts (legacy entries) | P | P | P | existing test, partial for GlobalEntry |
+| R26 | `test_r26_native_group_membership_change_in_a_global_entry`; `tests/test_light_dynamic_membership.py` (legacy, state-attribute model) | real native group helper, membership changed through its options flow, no Adaptive Areas write or device assignment: affected groups blocked incl. ALL-OFF, unaffected Area works, manual call works, dashboard marks exactly the affected groups, control returns after removal | P | P | P | full |
 | R27 | `test_r27_unavailable_configured_lamp_keeps_its_group` | same registry entry after reload | P | P | P | full |
 | R28 | `test_r28_deleted_ha_area_keeps_other_areas_working` | entry LOADED, Area skipped with config and entities, Repair raised, other Area controls | F | P | P | full |
 | Phase F | `test_area_and_floor_with_the_same_slug_exist_independently`, `test_existing_area_keeps_its_ids_and_only_the_newcomer_changes` | no duplicate unique IDs, existing IDs unchanged, newcomer controls | F | F | P | full |
 | Phase F | `test_climate_*` (4) and `tests/test_environment.py::test_health_warning_has_highest_context_priority` | Health read, alert, rename, foreign default ID ignored, missing Health | F | F | P | full |
 | Phase F | `test_no_cleanup_during_an_unfinished_migration`, `test_no_cleanup_with_an_inconsistent_area_configuration`, `test_disabled_generated_entity_survives_reload_and_cleanup` | cleanup guards, disabled entity kept | P/P/P | F/P/P | P | full |
 | Phase F | `test_global_entry_offers_no_per_area_options_flow` | `supports_options` is False | F | F | P | full |
+| Phase G | `test_meta_all_group_exists_on_the_first_setup`, `test_meta_without_lit_children_has_no_all_group` | first setup without registry entries: Meta ALL live with the children's groups as native members, never switched automatically, child ALL-OFF once, manual operation, reload without duplicates; no group without lit children | F | F | P (failed on `3acee62`) | full |
+| Phase G | `test_disabled_presence_entity_keeps_identity_on_rename`, `test_removed_presence_entity_does_not_change_the_identity`, `test_fallback_id_part_that_is_taken_gets_a_unique_one` | identity edge cases | – | – | P (the removed-entity case failed on `3acee62`) | full |
+| Phase G | `test_no_cleanup_without_global_options`, `test_no_cleanup_of_a_device_with_two_area_identifiers`, `test_area_with_the_id_of_a_configured_floor_is_refused` | cleanup guards, RC.4 key-space decision | – | – | P (all three failed on `3acee62`) | full |
 | Section 10 | `test_outage_recovery_override_and_clear_in_a_global_entry`, `test_shared_lamp_in_a_global_entry_is_never_switched` (negative safety test) | outage and recovery send nothing, CLEAR one ALL-OFF, manual override holds, shared lamp never switched | P | P | P | full |
 
 Not covered automatically: a real Home Assistant restart with persisted storage (simulated by cold start and unload/setup), Hassfest and HACS validation.
@@ -123,3 +126,6 @@ Not covered automatically: a real Home Assistant restart with persisted storage 
 Most older light tests use legacy single-Area entries; new lifecycle tests should use a GlobalEntry.
 
 Verified 2026-11-26 on the branch head: see the Phase F report in [HANDOVER.md](HANDOVER.md).
+
+Parallel runs: `-n 4` with and without `--cov` pass in the repository and in a separate worktree (Phase G, 1039 tests, 92 % coverage). Two earlier hangs followed aborted runs with leftover worker processes and were not reproducible; no lifecycle leak was found (listener counts are asserted in R18).
+On `3acee62` (end of Phase F) 7 of the 44 tests fail: the Meta ALL, removed-entity, two cleanup-guard and floor-ID tests, plus R14 and the slug-collision test, which compare identities from the first setup and therefore depend on the Meta ALL fix.

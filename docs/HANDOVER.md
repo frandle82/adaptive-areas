@@ -2,6 +2,33 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase G, RC.4-Vorbereitung, 2026-11-26)
+
+- Branch `fix/global-entry-lifecycle`; Pull Request nach `main` (Squash-Merge vorgesehen, nicht ausgeführt). Keine Versionsänderung, kein Tag, kein Release.
+- Phase G: Meta-Area-ALL beim ersten Setup, Identität bei fehlenden Einzeleinträgen, weitere Schutzbedingungen der Bereinigung, R26 mit nativem Group-Helper, Fehlermeldung bei Bereichs-ID einer Etage. Entscheidung: keine Schema-Migration für RC.4. Wetter-Entität: ohne Laufzeitverbraucher, zurückgestellt.
+- Release Notes RC.4: `CHANGELOG.md` „Unreleased“.
+- HAOS-Abnahme (Installation erst nach Freigabe; destruktive Schritte nur mit eigens angelegtem Testbereich):
+  1. Vollständiges HAOS-Backup.
+  2. Diagnoseexport der GlobalEntry.
+  3. Liste der Entity-IDs, Unique-IDs und Geräte von Adaptive Areas sichern.
+  4. Verwaiste und `unavailable` Entitäten notieren.
+  5. RC.4 installieren.
+  6. HA vollständig neu starten.
+  7. Automatische Registry-Bereinigung prüfen: Log „removing … entities of removed Area“; nur Entitäten bereits gelöschter Bereiche dürfen fehlen.
+  8. Alle EG- und OG-Bereiche: Entitäten vollständig, keine `_2`.
+  9. Meta-Area-ALL-Gruppen (Etagen, Interior, Global) vorhanden, Mitglieder = Gruppen der Kindbereiche; ein neu angelegter Testbereich mit Etage erzeugt die Etagen-ALL-Gruppe ohne zweiten Reload.
+  10. Dashboard Licht-Status: `control_switch` zeigt den tatsächlichen Schalter.
+  11. Arbeitszimmer: DARK → ON (genau ein Einschalten).
+  12. Arbeitszimmer: BRIGHT → OFF.
+  13. Arbeitszimmer: DARK → ON.
+  14. Mehrere Reloads ohne Gerätezuordnung, Schritte 11–13 wiederholen.
+  15. Vollständiger Neustart, Schritte 11–13 wiederholen.
+  16. Testbereich umbenennen: Entity-IDs unverändert.
+  17. Testbereich löschen und erneut anlegen: Entitäten und Gerät entfernt, danach dieselben IDs.
+  18. Automationen mit Adaptive-Areas-Entitäten unverändert funktionsfähig.
+  19. Area Climate mit Area Health: Health-Sensor auslösen → `health_alert`.
+  20. Übrige Punkte des Plans aus Phase E/F (unten).
+
 ## Fortsetzungspunkt (Phase F, 2026-11-26)
 
 - Branch `fix/global-entry-lifecycle`, lokal, nicht gepusht. Die ersten beiden Commits des Branches (`280616a`, `866b50a`) sind einzeln nicht grün (bekannt, unverändert); alle späteren Commits sind einzeln grün. Squash-Merge empfohlen, nicht ausgeführt.
