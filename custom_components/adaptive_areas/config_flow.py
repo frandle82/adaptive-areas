@@ -630,6 +630,16 @@ class ConfigFlow(config_entries.ConfigFlow, ConfigBase, domain=DOMAIN):
         """Get the options flow for this handler."""
         return OptionsFlowHandler()
 
+    @classmethod
+    @callback
+    def async_supports_options_flow(cls, config_entry) -> bool:
+        """Offer the per-Area options flow for legacy single-Area entries only.
+
+        The GlobalEntry holds many Areas and is configured in the Adaptive Areas panel;
+        the per-Area flow has no single Area to edit there.
+        """
+        return not is_global_entry(config_entry)
+
 
 class OptionsFlowHandler(config_entries.OptionsFlow, ConfigBase):
     """Handle a option flow for Adaptive Lighting."""
