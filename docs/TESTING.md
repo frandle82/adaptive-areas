@@ -79,3 +79,11 @@ Where each light requirement is checked. "Gap" names what is not covered by an a
 | Configured area sensor outage: no global fallback | `tests/test_light_sensor_recovery.py` | `test_configured_area_sensor_outage_does_not_fall_back_to_global` | – |
 | Repairs for incomplete brightness configuration | `tests/test_repairs_brightness.py`, `tests/test_repairs_brightness_flow.py`, `tests/test_light_lifecycle_brightness.py` | `test_repair_is_created_at_setup_and_resolved_after_correction` | – |
 | Meta-Area aggregation and events | `tests/test_meta_area_brightness.py`, `tests/test_meta_area_brightness_lifecycle.py`, `tests/test_meta_area_hierarchy_regression.py` | `test_meta_brightness_matrix`, `test_exactly_one_relevant_bright_child_is_bright`, `test_dark_child_propagates_to_every_meta_area_that_contains_it` | – |
+
+## GlobalEntry lifecycle (after RC.3)
+
+`tests/test_global_entry_lifecycle.py` (21 tests, R01-R28 of the RC.3 field-test analysis) runs a real GlobalEntry with several Areas, the real registries and native light calls. 13 of them fail on unchanged 1.7.0-rc.3 (`2298f59`): R01, R02, R03, R04, R09/R10/R24, R11/R12, R13, R14, R16/R17, R20, R22, R23, R28. Covered elsewhere and not repeated: R19 (`tests/test_setup_rollback.py`), R25 (`tests/test_area_retained_features.py`), R26 (`tests/test_light_dynamic_membership.py`).
+
+Most older light tests use legacy single-Area entries and set the control switch through its default entity ID; they did not exercise the GlobalEntry paths. New lifecycle tests should use a GlobalEntry.
+
+Verified 2026-11-26: full suite 1016 passed (RC.3 baseline 995), browser harness 404/404, ruff and black clean, JSON validation and `git diff --check` clean. `pre-commit run --files` reported every hook as "no files to check" and is not counted as passed. Hassfest and HACS were not run locally.

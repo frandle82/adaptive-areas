@@ -2,6 +2,21 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (GlobalEntry-Lebenszyklus nach RC.3, 2026-11-26)
+
+- Branch `fix/global-entry-lifecycle` (lokal, nicht gepusht). Keine Versionsänderung, kein Tag, kein Release.
+- Ursache des Praxisfehlers (automatisiert reproduziert, nicht auf HAOS bestätigt): Eigentümerzuordnung über Namensteile der Unique-ID. Details: [CURRENT_STATE.md](CURRENT_STATE.md), Regeln: [ARCHITECTURE.md](ARCHITECTURE.md) „Area identity and lifecycle“.
+- Tests: `tests/test_global_entry_lifecycle.py`, 13 davon schlagen auf RC.3 fehl.
+- Graphify: Graph auf `101482c`, Code danach wesentlich geändert (neues Modul `helpers/entity_identity.py`). Aktualisierung vorgeschlagen, nicht ausgeführt.
+- HAOS-Praxistest:
+  1. Vor dem Update: Diagnose der GlobalEntry exportieren; Liste der `adaptive_areas`-Entitäten mit Zustand `unavailable` notieren.
+  2. Update einspielen, HA neu starten. Prüfen: keine Entität eines Bereichs „… OG/EG“ fehlt; verwaiste Entitäten gelöschter Bereiche sind entfernt; keine neuen `_2`-Entitäten.
+  3. Je Bereich mit Lichtgruppe: Schalter „Light control“ an; Anwesenheit auslösen; Lux unter `turn_on_below` → genau ein Einschalten der Gruppe; Lux über `turn_off_above` (Modus `dark_on_bright_off`/`turn_off`) → genau ein Ausschalten. Ohne Gerätezuordnung.
+  4. Integration zweimal neu laden, Schritt 3 wiederholen.
+  5. Einen Testbereich anlegen und löschen: Entitäten und Gerät verschwinden aus Einstellungen → Entitäten/Geräte, andere Bereiche unverändert.
+  6. Dashboard Licht-Status: `control_switch` zeigt den tatsächlichen Schalter.
+  7. Optional: einen Lichtsteuerungsschalter umbenennen und Schritt 3 wiederholen.
+
 ## Fortsetzungspunkt (Phase 8.1, 2026-11-25)
 
 - Commits: 7738c9e (translation keys), 400a8a4 (mode matrix and meta lifecycle), c4ebf07 (docs), 5d99d98 (dynamic group membership). Keine Versionsänderung, kein Release, kein Push.

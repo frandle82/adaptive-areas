@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+Corrections after the RC.3 field test. Not verified on a Home Assistant instance yet.
+
+### Fixed
+
+- Generated entities belong to an Area through its Adaptive Areas device, identified by the stable Area ID. Before, name parts of unique IDs decided ownership: "Bad" owned the entities of "Bad OG", and a floor "OG" owned those of every "… OG" Area. A Meta Area's cleanup then removed its children's live entities, so every reload switched them between present and absent. This made light control appear to "work again" after a device assignment, which reloads the integration.
+- Explicitly configured light group members create their groups even when no light is assigned to the Home Assistant Area.
+- Light groups read the Area's actual light control switch. A renamed switch, or one that Home Assistant gave a suffix such as `_2`, enables and disables the automation; another entity with the default ID is never read.
+- Presence Hold, BLE tracker, Wasp in a Box, Meta child states, fan, media player and switch groups, the illuminance threshold source and the dashboard resolve generated entities through the entity registry instead of composed entity IDs.
+- Platform cleanup compares unique IDs, so renamed generated entities are no longer removed.
+- Deleting an Area removes its generated entities and its device from the registries. Physical devices, other Areas and entities of other integrations are not touched. Leftovers of Areas deleted with an earlier version are removed on the next setup; generated entities without an Area device are left unchanged.
+- A deleted Home Assistant Area or floor no longer stops the whole GlobalEntry. The other Areas run; the affected Area keeps its configuration and entities, and the `missing_area` Repair names the entry.
+- The GlobalEntry no longer raises a false `missing_area` Repair issue.
+- `reload_on_registry_change` and the registry reload references are read per Area.
+- Starting Home Assistant no longer reloads the GlobalEntry a second time.
+- A failed platform unload is reported as failed; Area deletion then reports an error.
+- Deleting the last Area of a migrated GlobalEntry keeps the entry loaded.
+- Migration verification identifies Areas by device, not by name parts.
+
+### Added
+
+- The dashboard light status reports the actual light control switch (`control_path.control_switch`: entity ID and whether it is on). A light group whose registry entry has no loaded entity is shown as not present.
+
 ## 1.7.0-rc.3 - 2026-11-25
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.

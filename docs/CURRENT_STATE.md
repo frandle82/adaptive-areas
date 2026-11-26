@@ -5,6 +5,13 @@
 - Integration version: read `custom_components/adaptive_areas/manifest.json`; do not copy it here.
 - Test baseline: the full suite passes with Home Assistant 2026.8.1 and with the CI-pinned Home Assistant 2026.10.4 (see [TESTING.md](TESTING.md)).
 
+## GlobalEntry lifecycle corrections (after RC.3 field test, 2026-11-26)
+
+- Root cause reproduced with real registries: ownership of generated entities by unique-ID name parts. With a floor "OG" and an Area "Bad OG" (or Areas "Bad" and "Bad OG") a Meta Area's or another Area's platform cleanup removed the live entities of "Bad OG"; each reload toggled them. A device assignment reloads the integration, which explains "light control works only after assigning a device". Fixed by device-based ownership (see [ARCHITECTURE.md](ARCHITECTURE.md)).
+- Also fixed: groups from configured members outside the Home Assistant Area; light control switch read through its composed ID; Area deletion left registry entries; per-Area `reload_on_registry_change` ignored; one missing Home Assistant Area failed the GlobalEntry; false `missing_area` Repair for the GlobalEntry; extra GlobalEntry reload at Home Assistant start; failed platform unload reported as success; last-Area deletion of a migrated entry failed setup; migration verification by name parts.
+- Found, not changed: Area Climate reads `binary_sensor.adaptive_areas_health_<slug>`, but the health entity is `..._health_problem`; the health input has never been read. Renaming an Area changes generated entity IDs (unchanged since 1.6.18). Identical slugs of an Area and a floor collide.
+- Not verified on a real Home Assistant instance. Test plan: [HANDOVER.md](HANDOVER.md).
+
 ## Implementation direction
 
 The Dashboard 2.0 panel covers area configuration, light control (runtime status, light groups; policy-only control was removed in Phase 2, see below) and climate control (feature toggle, climate configuration, runtime status). The panel has read endpoints and administrator-gated configuration mutation endpoints.

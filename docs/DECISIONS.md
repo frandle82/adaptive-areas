@@ -60,3 +60,11 @@ Record a new decision here only after it is accepted. Include context, decision,
 - The difference to 1.6.18 is intended and accepted. The code is not changed to match 1.6.18.
 - Meta-Area brightness, decided and closed: at least one relevant DARK child gives DARK; all relevant children BRIGHT give BRIGHT; no DARK and at least one UNKNOWN give UNKNOWN; no relevant children give UNKNOWN. A relevant child without a brightness source is UNKNOWN and is never ignored or treated as BRIGHT. A BRIGHT child together with other relevant UNKNOWN children gives UNKNOWN. Exactly one relevant BRIGHT child gives BRIGHT (test `test_exactly_one_relevant_bright_child_is_bright`).
 - Public illuminance threshold entity: unchanged, Variant B (see above).
+
+## GlobalEntry identity and lifecycle (after RC.3 field test, 2026-11-26)
+
+- Ownership of generated entities is the Area's Adaptive Areas device (stable Area ID). Unique-ID name parts are not used. No unique-ID or entity-ID migration.
+- Consumers of generated entities resolve the registered entity ID by unique ID; the light control switch is read as the Area's runtime object. No parallel registry.
+- Deleting an Area removes its generated entities and device during the following setup; devices of Areas no longer configured are removed the same way (one rule, idempotent). Device-less generated entities in a GlobalEntry and devices that also hold foreign entities are left unchanged.
+- A missing Home Assistant Area or floor skips that Area and raises `missing_area`; configuration and entities are kept.
+- Unchanged and still open: renaming a Home Assistant Area changes the slug and therefore the generated entity IDs (as in 1.6.18). Two Areas with identical slugs (for example an Area and a floor both named "Keller") collide in their unique IDs; not addressed.
