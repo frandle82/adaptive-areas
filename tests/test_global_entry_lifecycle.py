@@ -516,9 +516,6 @@ async def test_r14_renaming_areas_and_floors_keeps_every_identity(hass) -> None:
         }
     )
     await _setup(hass, entry)
-    # A Meta Area's ALL group exists only from the second setup on (its children's
-    # groups register after it loaded); unchanged since RC.3, compared from here.
-    await _reload(hass, entry)
     registry = er.async_get(hass)
     devices = dr.async_get(hass)
 
@@ -1022,7 +1019,6 @@ async def test_area_and_floor_with_the_same_slug_exist_independently(hass) -> No
         for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     ]
     assert len(unique_ids) == len(set(unique_ids))
-    await _reload(hass, entry)
     before = {
         e.entity_id: e.unique_id
         for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
@@ -1385,3 +1381,84 @@ async def test_shared_lamp_in_a_global_entry_is_never_switched(hass) -> None:
     await _lux(hass, DARK_LUX)
     assert ("turn_on", [lamp]) not in calls
     assert hass.states.get(lamp).state == "off"
+
+
+# Phase G: Meta Area ALL group on the first setup ---------------------------------
+
+
+async def test_meta_all_group_exists_on_the_first_setup(hass) -> None:
+    """A floor's ALL group is created by the very first setup, with native members.
+
+    On RC.3 and up to 3acee62 it appeared only from the second setup on: the Meta
+    Area read its children's light groups from the registry before they existed.
+    """
+    await _lux(hass, BRIGHT_LUX)
+    og = fr.async_get(hass).async_create("OG")
+    areas = ar.async_get(hass)
+    hall = areas.async_create("Hall", floor_id=og.floor_id)
+    office = areas.async_create("Office", floor_id=og.floor_id)
+    (lamp_h, lamp_o), (m_h, m_o) = await _devices(
+        hass, ["hall", "office"], {"hall": hall.id, "office": office.id}
+    )
+    entry = _global_entry(
+        {
+            hall.id: _area_config(hall.id, "Hall", lamp_h, m_h, clear_timeout=0),
+            office.id: _area_config(office.id, "Office", lamp_o, m_o),
+            og.floor_id: _meta_config(og.floor_id, "OG"),
+        }
+    )
+    assert not er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    calls = _record_calls(hass)
+    await _setup(hass, entry)
+    meta_all = _group("og", "all_lights")
+    assert _live(hass, meta_all)
+    members = set(hass.states.get(meta_all).attributes["entity_id"])
+    assert {
+        _group("hall"),
+        _group("hall", "all_lights"),
+        _group("office"),
+        _group("office", "all_lights"),
+    } <= members
+    assert not {lamp_h, lamp_o} & members
+
+    # The Meta group is never switched automatically; the child's ALL-OFF is.
+    await _enable(hass, _switch("hall"))
+    await _motion(hass, m_h, STATE_ON)
+    await _lux(hass, DARK_LUX)
+    await _motion(hass, m_h, "off")
+    await _advance(hass, 5)
+    assert not [c for c in calls if meta_all in c[1]]
+    assert _group_calls(calls, "turn_off", _group("hall", "all_lights")) == 1
+
+    # Manual operation of the Meta group still works natively.
+    await hass.services.async_call(
+        "light", "turn_on", {"entity_id": meta_all}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(lamp_o).state == STATE_ON
+
+    # Reload: same set of entities, no duplicates.
+    before = sorted(_registered(hass, entry))
+    await _reload(hass, entry)
+    assert sorted(_registered(hass, entry)) == before
+    assert not [e for e in before if e.rsplit("_", 1)[-1].isdigit()]
+
+
+async def test_meta_without_lit_children_has_no_all_group(hass) -> None:
+    """A Meta Area whose children have no light groups gets no ALL group."""
+    og = fr.async_get(hass).async_create("OG")
+    hall = ar.async_get(hass).async_create("Hall", floor_id=og.floor_id)
+    (_lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    config, _errors = validate_area_options(
+        {"type": "interior"}, {"include_entities": [motion]}
+    )
+    entry = _global_entry(
+        {
+            hall.id: {**config, "id": hall.id, "name": "Hall"},
+            og.floor_id: _meta_config(og.floor_id, "OG"),
+        }
+    )
+    await _setup(hass, entry)
+    await _reload(hass, entry)
+    assert hass.states.get(_group("og", "all_lights")) is None
+    assert entry.state is ConfigEntryState.LOADED
