@@ -1462,3 +1462,240 @@ async def test_meta_without_lit_children_has_no_all_group(hass) -> None:
     await _reload(hass, entry)
     assert hass.states.get(_group("og", "all_lights")) is None
     assert entry.state is ConfigEntryState.LOADED
+
+
+# Phase G: R26 dynamic native group membership in a GlobalEntry --------------------
+
+
+async def test_r26_native_group_membership_change_in_a_global_entry(hass) -> None:
+    """A real native light group (group helper) gains a lamp another Area owns.
+
+    Negative safety test with a shared lamp. Membership changes through the helper's
+    options, as a user would; the Adaptive Areas configuration is not written and no
+    device is assigned. Hall owns the native group NESTED (lamp_hall), Office owns
+    lamp_office, Dining owns lamp_dining and is never affected.
+    """
+    from homeassistant.core import Context
+
+    from custom_components.adaptive_areas.dashboard import (
+        build_light_runtime_status,
+    )
+
+    areas = ar.async_get(hass)
+    hall, office, dining = (areas.async_create(n) for n in ("Hall", "Office", "Dining"))
+    (lamp_h, lamp_o, lamp_d), (m_h, m_o, m_d) = await _devices(
+        hass,
+        ["hall", "office", "dining"],
+        {"hall": hall.id, "office": office.id, "dining": dining.id},
+    )
+    helper = MockConfigEntry(
+        domain="group",
+        title="Nested hall",
+        options={
+            "group_type": "light",
+            "name": "Nested hall",
+            "entities": [lamp_h],
+            "hide_members": False,
+            "all": False,
+        },
+    )
+    helper.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(helper.entry_id)
+    await hass.async_block_till_done()
+    nested = "light.nested_hall"
+    assert hass.states.get(nested).attributes["entity_id"] == [lamp_h]
+
+    entry = _global_entry(
+        {
+            hall.id: _area_config(hall.id, "Hall", nested, m_h, clear_timeout=0),
+            office.id: _area_config(office.id, "Office", lamp_o, m_o, clear_timeout=0),
+            dining.id: _area_config(dining.id, "Dining", lamp_d, m_d),
+        }
+    )
+    await _setup(hass, entry)
+    stored = dict(entry.options)
+    for slug in ("hall", "office", "dining"):
+        await _enable(hass, _switch(slug))
+    await _lux(hass, BRIGHT_LUX)
+    for motion in (m_h, m_o, m_d):
+        await _motion(hass, motion, STATE_ON)
+    calls = _record_calls(hass)
+    await _lux(hass, DARK_LUX)
+    for slug in ("hall", "office", "dining"):
+        assert _group_calls(calls, "turn_on", _group(slug)) == 1, slug
+
+    async def membership(members: list[str]) -> None:
+        """Change the members through the group helper's native options flow."""
+        flow = await hass.config_entries.options.async_init(helper.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            flow["flow_id"],
+            {"entities": members, "hide_members": False, "all": False},
+        )
+        assert result["type"] == "create_entry", result
+        await hass.async_block_till_done()
+        await _advance(hass, 5)
+
+    def blocked() -> dict[str, bool]:
+        return {
+            f"{area.slug}:{group['category']}": group["ownership_blocked"]
+            for area in get_runtime_areas_for_entry(hass, entry)
+            for group in build_light_runtime_status(hass, area)["light"][
+                "control_path"
+            ]["groups"]
+            if group["entity_id"] is not None
+        }
+
+    assert not any(blocked().values())
+
+    # Conflict: the native group now also switches the Office lamp.
+    await membership([lamp_h, lamp_o])
+    assert set(hass.states.get(nested).attributes["entity_id"]) == {lamp_h, lamp_o}
+    assert dict(entry.options) == stored
+    state = blocked()
+    assert state["hall:overhead_lights"] and state["hall:all_lights"]
+    assert state["office:overhead_lights"] and state["office:all_lights"]
+    assert not state["dining:overhead_lights"] and not state["dining:all_lights"]
+
+    calls.clear()
+    await _lux(hass, BRIGHT_LUX)
+    await _lux(hass, DARK_LUX)
+    # CLEAR in Office: its ALL-OFF would switch the shared lamp and is suppressed.
+    await _motion(hass, m_o, "off")
+    await _advance(hass, 5)
+    shared = {_group("hall"), _group("hall", "all_lights"), nested, lamp_o}
+    shared |= {_group("office"), _group("office", "all_lights")}
+    assert not [c for c in calls if set(c[1]) & shared], calls
+    assert _group_calls(calls, "turn_off", _group("dining")) == 1
+    assert _group_calls(calls, "turn_on", _group("dining")) == 1
+
+    # Manual operation stays possible.
+    user = await hass.auth.async_create_user("phase-g")
+    await hass.services.async_call(
+        "light",
+        "turn_on",
+        {"entity_id": lamp_o},
+        blocking=True,
+        context=Context(user_id=user.id),
+    )
+    assert hass.states.get(lamp_o).state == STATE_ON
+
+    # Conflict removed: control returns on the next relevant event.
+    await membership([lamp_h])
+    assert not any(blocked().values())
+    await _motion(hass, m_o, STATE_ON)
+    calls.clear()
+    await _lux(hass, BRIGHT_LUX)
+    await _lux(hass, DARK_LUX)
+    assert _group_calls(calls, "turn_on", _group("hall")) == 1
+    assert _group_calls(calls, "turn_on", _group("dining")) == 1
+    assert dict(entry.options) == stored
+
+
+# Phase G: identity edge cases -----------------------------------------------------
+
+
+async def _renamable_area(hass):
+    await _lux(hass, BRIGHT_LUX)
+    bad = ar.async_get(hass).async_create("Bad")
+    (lamp,), (motion,) = await _devices(hass, ["bad"], {"bad": bad.id})
+    entry = _global_entry({bad.id: _area_config(bad.id, "Bad", lamp, motion)})
+    await _setup(hass, entry)
+    return bad, entry, motion
+
+
+def _ids(hass, entry) -> dict:
+    return {
+        e.unique_id: e.entity_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    }
+
+
+async def test_disabled_presence_entity_keeps_identity_on_rename(hass) -> None:
+    """A disabled presence state entity still carries the Area's identity."""
+    bad, entry, _motion_id = await _renamable_area(hass)
+    er.async_get(hass).async_update_entity(
+        _presence("bad"), disabled_by=er.RegistryEntryDisabler.USER
+    )
+    before = _ids(hass, entry)
+    ar.async_get(hass).async_update(bad.id, name="Gästebad")
+    await hass.async_block_till_done()
+    await _advance(hass, 5)
+    await _reload(hass, entry)
+    assert _ids(hass, entry) == before
+
+
+async def test_removed_presence_entity_does_not_change_the_identity(hass) -> None:
+    """One missing registry entry is no reason for a new identity.
+
+    The presence entity is removed from the registry, the Area is renamed: the
+    other entities of its device still carry the slug, all IDs stay the same.
+    """
+    bad, entry, _motion_id = await _renamable_area(hass)
+    registry = er.async_get(hass)
+    before = _ids(hass, entry)
+    registry.async_remove(_presence("bad"))
+    await hass.async_block_till_done()
+    ar.async_get(hass).async_update(bad.id, name="Gästebad")
+    await hass.async_block_till_done()
+    await _advance(hass, 5)
+    await _reload(hass, entry)
+    assert _ids(hass, entry) == before
+    assert _live(hass, _presence("bad"))
+
+
+async def test_fallback_id_part_that_is_taken_gets_a_unique_one(hass) -> None:
+    """Name slug and Area ID of a newcomer are both taken: a type suffix is used."""
+    areas = ar.async_get(hass)
+    first = areas.async_create("Bad OG")  # bad_og
+    newcomer = areas.async_create("Bad-OG")  # bad_og_2, slug bad_og
+    third = areas.async_create("Bad OG 2")  # bad_og_2 as slug, other ID
+    assert newcomer.id == "bad_og_2" and third.id != newcomer.id
+    (l1, l2, l3), (m1, m2, m3) = await _devices(
+        hass, ["a", "b", "c"], {"a": first.id, "b": newcomer.id, "c": third.id}
+    )
+    entry = _global_entry(
+        {
+            first.id: _area_config(first.id, "Bad OG", l1, m1),
+            third.id: _area_config(third.id, "Bad OG 2", l3, m3),
+        }
+    )
+    await _setup(hass, entry)
+    before = _ids(hass, entry)
+    _created, errors = await async_create_area(
+        hass, newcomer.id, _area_config(newcomer.id, "Bad-OG", l2, m2)
+    )
+    assert errors == {}
+    slugs = {a.id: a.slug for a in get_runtime_areas_for_entry(hass, entry)}
+    assert slugs[first.id] == "bad_og" and slugs[third.id] == "bad_og_2"
+    assert slugs[newcomer.id] == "bad_og_area"
+    after = _ids(hass, entry)
+    assert {k: v for k, v in after.items() if k in before} == before
+    assert len(set(after.values())) == len(after)
+
+
+async def test_no_cleanup_without_global_options(hass) -> None:
+    """A GlobalEntry whose options lack the global structure removes nothing."""
+    entry, gone, orphan = await _orphan_fixture(hass)
+    options = dict(entry.options)
+    options.pop(CONF_GLOBAL_OPTIONS)
+    hass.config_entries.async_update_entry(entry, options=options)
+    await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None
+
+
+async def test_no_cleanup_of_a_device_with_two_area_identifiers(hass) -> None:
+    """A device that names two Areas has no unambiguous owner and stays."""
+    entry, gone, orphan = await _orphan_fixture(hass)
+    dr.async_get(hass).async_update_device(
+        gone.id,
+        new_identifiers={
+            area_device_identifier("gone"),
+            area_device_identifier("also_gone"),
+        },
+    )
+    await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None

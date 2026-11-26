@@ -10,6 +10,9 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ID, ATTR_NAME
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.util import slugify
 from homeassistant.helpers.area_registry import (
@@ -38,7 +41,17 @@ from custom_components.adaptive_areas.const import (
     DATA_AREAS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
+    AdaptiveAreasFeatureInfoBLETrackers,
+    AdaptiveAreasFeatureInfoClimateControl,
+    AdaptiveAreasFeatureInfoEnvironment,
+    AdaptiveAreasFeatureInfoFanGroups,
+    AdaptiveAreasFeatureInfoLightGroups,
+    AdaptiveAreasFeatureInfoMediaPlayerGroups,
+    AdaptiveAreasFeatureInfoPresenceHold,
     AdaptiveAreasFeatureInfoPresenceTracking,
+    AdaptiveAreasFeatureInfoRoomUsage,
+    AdaptiveAreasFeatureInfoWaspInABox,
+    LightGroupCategory,
     MetaAreaIcons,
     MetaAreaType,
 )
@@ -330,28 +343,59 @@ def transfer_area_devices_to_container(
     return [device.id for device in candidates]
 
 
+def _slug_templates() -> list[tuple[str, str, str]]:
+    """Return (domain, prefix, suffix) of generated unique IDs with a fixed form.
+
+    Only entities whose unique ID is fully known apart from the slug are listed, so
+    the slug can be cut out exactly. The presence state entity comes first: every
+    Area has one.
+    """
+    fixed: list[tuple[Any, str, str | None]] = [
+        (AdaptiveAreasFeatureInfoPresenceTracking, BINARY_SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoLightGroups, SWITCH_DOMAIN, None),
+        *(
+            (AdaptiveAreasFeatureInfoLightGroups, LIGHT_DOMAIN, str(category))
+            for category in LightGroupCategory
+        ),
+        (AdaptiveAreasFeatureInfoPresenceHold, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoBLETrackers, BINARY_SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoWaspInABox, BINARY_SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoClimateControl, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoFanGroups, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoMediaPlayerGroups, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoEnvironment, SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoRoomUsage, SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoRoomUsage, BINARY_SENSOR_DOMAIN, None),
+    ]
+    templates = []
+    for feature_info, domain, translation_key in fixed:
+        _default, unique_id = generated_ids(feature_info, domain, "\0", translation_key)
+        prefix, suffix = unique_id.split("\0")
+        templates.append((domain, prefix, suffix))
+    return templates
+
+
 def registered_area_slug(
     hass: HomeAssistant, config_entry_id: str, area_id: str
 ) -> str | None:
     """Return the slug an Area's registered entities already use, or None.
 
-    Every Area has one presence state entity; its unique ID carries the slug the
-    Area's generated IDs were created with. Reading it back from the Area's own device
-    keeps entity IDs and unique IDs stable when the Area or floor is renamed.
+    The unique IDs of the Area's own entities (found through its device) carry the
+    slug they were created with. Reading it back keeps entity IDs and unique IDs
+    stable when the Area or floor is renamed. One missing entity does not change the
+    identity: any entity of the device with a fixed unique-ID form is enough.
     """
-    _default, unique_id = generated_ids(
-        AdaptiveAreasFeatureInfoPresenceTracking, BINARY_SENSOR_DOMAIN, "\0"
-    )
-    prefix, suffix = unique_id.split("\0")
-    for entity in generated_entities_for_area_id(hass, config_entry_id, area_id):
-        uid = entity.unique_id
-        if (
-            entity.domain == BINARY_SENSOR_DOMAIN
-            and uid.startswith(prefix)
-            and uid.endswith(suffix)
-            and len(uid) > len(prefix) + len(suffix)
-        ):
-            return uid[len(prefix) : -len(suffix)]
+    entities = generated_entities_for_area_id(hass, config_entry_id, area_id)
+    for domain, prefix, suffix in _slug_templates():
+        for entity in entities:
+            uid = entity.unique_id
+            if (
+                entity.domain == domain
+                and uid.startswith(prefix)
+                and uid.endswith(suffix)
+                and len(uid) > len(prefix) + len(suffix)
+            ):
+                return uid[len(prefix) : -len(suffix)]
     return None
 
 

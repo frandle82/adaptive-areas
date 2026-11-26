@@ -50,6 +50,7 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_ROOM_USAGE,
     CONF_FEATURE_SWITCH_GROUPS,
     CONF_GLOBAL_ENTRY,
+    CONF_GLOBAL_OPTIONS,
     CONF_ID,
     CONF_MIGRATION,
     CONF_INCLUDE_ENTITIES,
@@ -188,6 +189,9 @@ def _remove_orphaned_area_devices(
     migration = config_entry.options.get(CONF_MIGRATION) or {}
     if migration and migration.get("migration_phase") != "complete":
         return
+    if not isinstance(config_entry.options.get(CONF_GLOBAL_OPTIONS), dict):
+        _LOGGER.warning("Adaptive Areas: incomplete GlobalEntry options; no cleanup")
+        return
     device_registry = async_get_device_registry(hass)
     entity_registry = async_get_entity_registry(hass)
     for device in async_entries_for_config_entry(
@@ -195,6 +199,22 @@ def _remove_orphaned_area_devices(
     ):
         area_id = area_id_from_device_identifiers(device.identifiers)
         if area_id is None or area_id in areas:
+            continue
+        # Ownership must be unambiguous: one Adaptive Areas Area identifier and this
+        # entry as the only config entry (older cores allowed several).
+        area_identifiers = [
+            identifier
+            for identifier in device.identifiers
+            if area_id_from_device_identifiers({identifier}) is not None
+        ]
+        if len(area_identifiers) != 1 or set(
+            getattr(device, "config_entries", None) or {config_entry.entry_id}
+        ) != {config_entry.entry_id}:
+            _LOGGER.warning(
+                "Adaptive Areas: device of removed Area %s has ambiguous ownership; "
+                "left unchanged",
+                area_id,
+            )
             continue
         entities = async_entries_for_device(
             entity_registry, device.id, include_disabled_entities=True
