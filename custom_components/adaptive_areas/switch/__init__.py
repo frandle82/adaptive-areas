@@ -13,7 +13,10 @@ from homeassistant.const import (
     STATE_ON,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -28,6 +31,7 @@ from custom_components.adaptive_areas.const import (
     LIGHT_GROUP_ACT_ON_OCCUPANCY_CHANGE,
     LIGHT_GROUP_ACT_ON_SLEEP_CHANGE,
     LIGHT_GROUP_ACT_ON_STATE_CHANGE,
+    SIGNAL_LIGHT_CONTROL_CHANGED,
     SWITCH_GROUP_ACTION,
     SWITCH_GROUP_ACTION_TURN_ON,
     SWITCH_GROUP_ACT_ON,
@@ -42,6 +46,9 @@ from custom_components.adaptive_areas.const import (
     SwitchGroupCategory,
 )
 from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.switch.base import SwitchBase
 from custom_components.adaptive_areas.switch.climate_control import ClimateControlSwitch
 from custom_components.adaptive_areas.switch.fan_control import FanControlSwitch
@@ -129,10 +136,42 @@ async def _async_setup_area(
 
 
 class LightControlSwitch(SwitchBase):
-    """Switch to enable/disable light control."""
+    """Switch to enable/disable light control.
+
+    While added to Home Assistant, the switch is the Area's `light_control_switch`.
+    The Area's light groups read it directly and get `SIGNAL_LIGHT_CONTROL_CHANGED`
+    when it is added or changes, so no consumer depends on its entity ID.
+    """
 
     feature_info = AdaptiveAreasFeatureInfoLightGroups()
     _attr_entity_category = EntityCategory.CONFIG
+
+    async def async_added_to_hass(self) -> None:
+        """Register on the Area once the restored state is known."""
+        await super().async_added_to_hass()
+        self.area.light_control_switch = self
+        self.async_on_remove(self._async_unregister)
+        async_dispatcher_send(self.hass, SIGNAL_LIGHT_CONTROL_CHANGED, self.area.id)
+
+    @callback
+    def _async_unregister(self) -> None:
+        """Release the Area reference; a newer instance keeps its own."""
+        if getattr(self.area, "light_control_switch", None) is self:
+            self.area.light_control_switch = None
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable light control; the Area's groups evaluate the current state."""
+        was_on = self.is_on
+        await super().async_turn_on(**kwargs)
+        if not was_on:
+            async_dispatcher_send(self.hass, SIGNAL_LIGHT_CONTROL_CHANGED, self.area.id)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable light control."""
+        was_on = self.is_on
+        await super().async_turn_off(**kwargs)
+        if was_on:
+            async_dispatcher_send(self.hass, SIGNAL_LIGHT_CONTROL_CHANGED, self.area.id)
 
 
 class SwitchGroupControlSwitch(SwitchBase):
@@ -452,7 +491,13 @@ class AreaSwitchGroup(AdaptiveSwitchGroup):
 
     def is_control_enabled(self):
         """Check if switch group automation is enabled."""
-        entity_id = f"{SWITCH_DOMAIN}.adaptive_areas_switch_groups_{self.area.slug}_switch_group_control"
+        entity_id = resolve_generated_entity_id(
+            self.hass,
+            AdaptiveAreasFeatureInfoSwitchGroups,
+            SWITCH_DOMAIN,
+            self.area.slug,
+            "switch_group_control",
+        )
         switch_entity = self.hass.states.get(entity_id)
         return bool(switch_entity and switch_entity.state.lower() == STATE_ON)
 

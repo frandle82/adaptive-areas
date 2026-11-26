@@ -5,7 +5,6 @@ import logging
 
 from homeassistant.components.group.light import FORWARDED_ATTRIBUTES, LightGroup
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
-from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
@@ -35,6 +34,7 @@ from custom_components.adaptive_areas.const import (
     LIGHT_GROUP_CATEGORIES,
     LIGHT_GROUP_DEFAULT_ICON,
     LIGHT_GROUP_ICONS,
+    SIGNAL_LIGHT_CONTROL_CHANGED,
     AdaptiveAreasEvents,
     AreaStates,
     LightGroupCategory,
@@ -129,17 +129,18 @@ async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
     if not area.has_feature(AdaptiveAreasFeatures.LIGHT_GROUPS):
         return
 
-    # Check if there are any lights
-    if not area.has_entities(LIGHT_DOMAIN):
-        _LOGGER.debug("%s: No %s entities for area.", area.name, LIGHT_DOMAIN)
-        return
-
-    light_entities = [e["entity_id"] for e in area.entities[LIGHT_DOMAIN]]
+    # Lights found through the Home Assistant Area. For a regular Area they are not a
+    # precondition: explicitly configured, valid group members are authoritative and
+    # need no Home Assistant Area assignment (Option C).
+    light_entities = [e["entity_id"] for e in area.entities.get(LIGHT_DOMAIN, [])]
 
     light_groups = []
 
     # Create light groups
     if area.is_meta():
+        if not light_entities:
+            _LOGGER.debug("%s: No %s entities for area.", area.name, LIGHT_DOMAIN)
+            return
         light_groups.append(
             AdaptiveLightGroup(
                 area, light_entities, translation_key=LightGroupCategory.ALL
@@ -403,12 +404,11 @@ class AreaLightGroup(AdaptiveLightGroup):
         self._active = True
         self.async_on_remove(self._async_deactivate)
         # Enabling the automation is a relevant event: the current state is evaluated.
+        # The Area's own switch reports it, whatever entity ID the registry gave it.
         self.async_on_remove(
-            async_track_state_change_event(
+            async_dispatcher_connect(
                 self.hass,
-                [
-                    f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{self.area.slug}_light_control"
-                ],
+                SIGNAL_LIGHT_CONTROL_CHANGED,
                 self._async_control_switch_changed,
             )
         )
@@ -499,11 +499,9 @@ class AreaLightGroup(AdaptiveLightGroup):
         return BrightnessState.UNKNOWN
 
     @callback
-    @callback
-    def _async_control_switch_changed(self, event) -> None:
-        """Re-evaluate the current state when the automation is switched on."""
-        new_state = event.data.get("new_state")
-        if new_state is not None and new_state.state == STATE_ON and self._active:
+    def _async_control_switch_changed(self, area_id: str) -> None:
+        """Re-evaluate the current state when the Area's automation is switched on."""
+        if area_id == self.area.id and self._active and self.is_control_enabled():
             self._apply_decision_event("automation_enabled")
 
     @callback
@@ -793,15 +791,14 @@ class AreaLightGroup(AdaptiveLightGroup):
     # Control Release
 
     def is_control_enabled(self):
-        """Check if light control is enabled by checking light control switch state."""
-        entity_id = f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{self.area.slug}_light_control"
+        """Return whether the Area's light control switch is on.
 
-        switch_entity = self.hass.states.get(entity_id)
-
-        if not switch_entity:
-            return False
-
-        return switch_entity.state.lower() == STATE_ON
+        The switch registers itself on its Area while it is added to Home Assistant, so
+        the state and its changes always come from the same, actually registered
+        entity. A renamed or suffixed entity ID makes no difference.
+        """
+        switch = getattr(self.area, "light_control_switch", None)
+        return switch is not None and switch.is_on is True
 
     def reset_control(self):
         """Reset control status."""
