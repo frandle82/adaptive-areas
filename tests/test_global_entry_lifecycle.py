@@ -23,6 +23,7 @@ Defects these tests pin (each failed on unchanged 1.7.0-rc.3):
 from __future__ import annotations
 
 import asyncio
+import faulthandler
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -80,6 +81,11 @@ from tests.mocks import MockBinarySensor, MockLight
 # Every test here drives a full GlobalEntry lifecycle. A hang must fail with a stack
 # trace instead of blocking the suite (pytest-timeout ships with the test harness).
 pytestmark = pytest.mark.timeout(90, method="thread")
+
+# Temporary CI diagnosis: the stable job intermittently stops without any test
+# timeout firing. faulthandler's C-level watchdog prints every thread's stack and
+# exits if the whole run is still alive after 12 minutes (a healthy run needs ~3).
+faulthandler.dump_traceback_later(720, exit=True)
 
 LUX = "sensor.global_lux"
 DARK_LUX = "50"
