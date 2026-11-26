@@ -77,6 +77,10 @@ from custom_components.adaptive_areas.migration import (
 from tests.helpers import setup_test_component_platform
 from tests.mocks import MockBinarySensor, MockLight
 
+# Every test here drives a full GlobalEntry lifecycle. A hang must fail with a stack
+# trace instead of blocking the suite (pytest-timeout ships with the test harness).
+pytestmark = pytest.mark.timeout(90, method="thread")
+
 LUX = "sensor.global_lux"
 DARK_LUX = "50"
 BRIGHT_LUX = "150"
@@ -239,7 +243,6 @@ async def _advance(hass: HomeAssistant, seconds: float) -> None:
 # R01, R06, R07 ------------------------------------------------------------------
 
 
-@pytest.mark.timeout(120)
 async def test_r01_cold_start_controls_lights_without_registry_change(hass) -> None:
     """Set up before Home Assistant runs: DARK switches on, BRIGHT switches off.
 
@@ -372,7 +375,6 @@ async def test_r04_suffixed_control_switch_never_reads_a_foreign_entity(hass) ->
     assert _group_calls(calls, "turn_on", _group("hall")) == 1
 
 
-@pytest.mark.timeout(120)
 async def test_r05_switch_registered_after_the_groups_enables_control(hass) -> None:
     """The restored-ON switch arrives after the groups: one ON, no waiting or polling."""
     from custom_components.adaptive_areas import switch as switch_platform
