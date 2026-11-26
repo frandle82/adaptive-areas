@@ -32,13 +32,17 @@ from custom_components.adaptive_areas.const import (
     CONF_AREAS,
     CONF_TYPE,
     AREA_TYPE_META,
-    ADAPTIVE_DEVICE_ID_PREFIX,
     DOMAIN,
     DATA_AREAS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
     MetaAreaIcons,
     MetaAreaType,
+)
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    area_device_identifier,
+    generated_entities_for_area_id,
+    generated_entity_area_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -219,24 +223,46 @@ def refresh_meta_area_sources(hass: HomeAssistant) -> None:
 def entity_belongs_to_area(entity: RegistryEntry, area: AdaptiveArea) -> bool:
     """Return whether an Adaptive Areas registry entity belongs to one Area.
 
-    The generated unique ID is the stable Area-specific identity; the config entry
-    only identifies its current container owner.
+    The owner is the entity's Adaptive Areas device, identified by the stable Area ID.
+    Name parts of unique IDs are not an identity: "bad" is part of "bad_og", and a
+    floor "og" is part of both. A legacy entity without that device has no
+    unambiguous owner and belongs to no Area here.
     """
-    return entity.platform == DOMAIN and f"_{area.slug}_" in f"_{entity.unique_id}_"
+    owner = generated_entity_area_id(area.hass, entity)
+    if owner is not None:
+        return owner == area.id
+    return _legacy_entry_owns(entity, area)
+
+
+def _legacy_entry_owns(entity: RegistryEntry, area: AdaptiveArea) -> bool:
+    """Return whether a device-less generated entity belongs to a legacy entry's Area.
+
+    A legacy entry holds exactly one Area, so the entry itself is the unambiguous owner.
+    In a GlobalEntry such an entity has no unambiguous owner.
+    """
+    entry = area.hass_config
+    return (
+        entity.platform == DOMAIN
+        and entity.device_id is None
+        and entity.config_entry_id == entry.entry_id
+        and CONF_AREAS not in entry.data
+        and CONF_AREAS not in entry.options
+    )
 
 
 def generated_entities_for_area(
     hass: HomeAssistant, area: AdaptiveArea
 ) -> list[RegistryEntry]:
-    """Return generated entities for one Area, scoped independently of owner ID."""
-    registry = entityreg_async_get(hass)
-    return [
+    """Return the generated entities one Area owns in its current config entry."""
+    entities = generated_entities_for_area_id(hass, area.hass_config.entry_id, area.id)
+    entities.extend(
         entity
-        for entity in registry.entities.get_entries_for_config_entry_id(
-            area.hass_config.entry_id
-        )
-        if entity_belongs_to_area(entity, area)
-    ]
+        for entity in entityreg_async_get(
+            hass
+        ).entities.get_entries_for_config_entry_id(area.hass_config.entry_id)
+        if _legacy_entry_owns(entity, area)
+    )
+    return entities
 
 
 def transfer_area_entities_to_container(
@@ -246,12 +272,17 @@ def transfer_area_entities_to_container(
     global_entry_id: str,
     area: AdaptiveArea,
 ) -> list[str]:
-    """Transfer verified Area entity ownership without changing entity identity."""
+    """Transfer verified Area entity ownership without changing entity identity.
+
+    A legacy entry owns exactly one Area, so its generated entities belong to that Area
+    unless their device names another Area; those are left untouched.
+    """
     registry = entityreg_async_get(hass)
     candidates = [
         entity
         for entity in registry.entities.get_entries_for_config_entry_id(old_entry_id)
-        if entity_belongs_to_area(entity, area)
+        if entity.platform == DOMAIN
+        and generated_entity_area_id(hass, entity) in (None, area.id)
     ]
     for entity in candidates:
         conflict = next(
@@ -284,7 +315,7 @@ def transfer_area_devices_to_container(
 ) -> list[str]:
     """Transfer only the stable Adaptive Areas device for one Area."""
     registry = devicereg_async_get(hass)
-    identifier = (DOMAIN, f"{ADAPTIVE_DEVICE_ID_PREFIX}{area_id}")
+    identifier = area_device_identifier(area_id)
     candidates = [
         device
         for device in devicereg_entries_for_config_entry(registry, old_entry_id)

@@ -34,7 +34,11 @@ from homeassistant.util.unit_conversion import (
     UnitlessRatioConverter,
 )
 
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.const import (
+    AdaptiveAreasFeatureInfoHealth,
     AREA_TYPE_EXTERIOR,
     CONF_AREA_HUMIDITY_SENSOR,
     CONF_AREA_TEMPERATURE_SENSOR,
@@ -633,7 +637,12 @@ class AreaEnvironmentEngine:
             else self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE, "")
         )
         self.health_entity = (
-            f"binary_sensor.adaptive_areas_health_{self.area.slug}"
+            resolve_generated_entity_id(
+                area.hass,
+                AdaptiveAreasFeatureInfoHealth,
+                "binary_sensor",
+                self.area.slug,
+            )
             if not self.is_exterior and area.has_feature(CONF_FEATURE_HEALTH)
             else ""
         )

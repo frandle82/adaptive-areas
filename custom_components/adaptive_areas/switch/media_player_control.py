@@ -7,6 +7,9 @@ from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, EntityCategory
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.const import (
     AreaStates,
     AdaptiveAreasEvents,
@@ -30,7 +33,12 @@ class MediaPlayerControlSwitch(SwitchBase):
 
         SwitchBase.__init__(self, area)
 
-        self.media_player_group_id = f"{MEDIA_PLAYER_DOMAIN}.adaptive_areas_media_player_groups_{self.area.slug}_media_player_group"
+        self.media_player_group_id = resolve_generated_entity_id(
+            area.hass,
+            AdaptiveAreasFeatureInfoMediaPlayerGroups,
+            MEDIA_PLAYER_DOMAIN,
+            self.area.slug,
+        )
 
     async def async_added_to_hass(self) -> None:
         """Call when entity about to be added to hass."""

@@ -13,6 +13,9 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.const import (
     CONF_WASP_IN_A_BOX_DELAY,
     CONF_WASP_IN_A_BOX_WASP_DEVICE_CLASSES,
@@ -22,6 +25,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_WASP_IN_A_BOX_WASP_TIMEOUT,
     ONE_MINUTE,
     WASP_IN_A_BOX_BOX_DEVICE_CLASSES,
+    AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoWaspInABox,
     AdaptiveAreasFeatures,
 )
@@ -80,14 +84,26 @@ class AreaWaspInABoxBinarySensor(AdaptiveEntity, BinarySensorEntity):
         )
 
         for device_class in wasp_device_classes:
-            dc_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{self.area.slug}_aggregate_{device_class}"
+            dc_entity_id = resolve_generated_entity_id(
+                self.hass,
+                AdaptiveAreasFeatureInfoAggregates,
+                BINARY_SENSOR_DOMAIN,
+                self.area.slug,
+                device_class,
+            )
             dc_state = self.hass.states.get(dc_entity_id)
             if not dc_state:
                 continue
             self._wasp_sensors.append(dc_entity_id)
 
         for device_class in WASP_IN_A_BOX_BOX_DEVICE_CLASSES:
-            dc_entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{self.area.slug}_aggregate_{device_class}"
+            dc_entity_id = resolve_generated_entity_id(
+                self.hass,
+                AdaptiveAreasFeatureInfoAggregates,
+                BINARY_SENSOR_DOMAIN,
+                self.area.slug,
+                device_class,
+            )
             dc_state = self.hass.states.get(dc_entity_id)
             if not dc_state:
                 continue

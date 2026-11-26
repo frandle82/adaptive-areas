@@ -2,7 +2,6 @@
 
 import logging
 
-from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.media_player import MediaPlayerEntity
 from homeassistant.components.media_player.const import (
     ATTR_MEDIA_CONTENT_ID,
@@ -54,8 +53,7 @@ class AreaAwareMediaPlayer(AdaptiveEntity, MediaPlayerEntity):
     def update_attributes(self):
         """Update entity attributes."""
         self._attr_extra_state_attributes["areas"] = [
-            f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{area.slug}_area_state"
-            for area in self.areas
+            area.area_state_entity_id() for area in self.areas
         ]
         self._attr_extra_state_attributes["entity_id"] = self._tracked_entities
 
@@ -113,7 +111,7 @@ class AreaAwareMediaPlayer(AdaptiveEntity, MediaPlayerEntity):
         active_areas = []
 
         for area in self.areas:
-            area_binary_sensor_name = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{area.slug}_area_state"
+            area_binary_sensor_name = area.area_state_entity_id()
             area_binary_sensor_state = self.hass.states.get(area_binary_sensor_name)
 
             if not area_binary_sensor_state:

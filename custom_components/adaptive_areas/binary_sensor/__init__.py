@@ -52,8 +52,10 @@ from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoHealth,
     AdaptiveAreasFeatureInfoRoomUsage,
+    DOMAIN,
 )
 from custom_components.adaptive_areas.base.entities import BinaryAdaptiveEntity
+from custom_components.adaptive_areas.helpers.entity_identity import generated_ids
 from custom_components.adaptive_areas.helpers.area import (
     generated_entities_for_area,
     get_runtime_areas_for_entry,
@@ -110,6 +112,15 @@ def discover_binary_aggregate_source_groups(
             if entry.domain == BINARY_SENSOR_DOMAIN
         )
 
+    own_aggregates = {
+        generated_ids(
+            AdaptiveAreasFeatureInfoAggregates,
+            BINARY_SENSOR_DOMAIN,
+            area.slug,
+            str(device_class),
+        )[1]
+        for device_class in allowed
+    }
     grouped: dict[str, list[str]] = {}
     for entity_id in sorted(entity_ids):
         state = area.hass.states.get(entity_id)
@@ -121,8 +132,11 @@ def discover_binary_aggregate_source_groups(
         )
         if device_class not in allowed:
             continue
-        if entity_id.startswith(
-            f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_aggregates_{area.slug}_aggregate_"
+        # Never aggregate this Area's own aggregates, whatever their entity ID is.
+        if (
+            entry is not None
+            and entry.platform == DOMAIN
+            and entry.unique_id in own_aggregates
         ):
             continue
         grouped.setdefault(device_class, []).append(entity_id)

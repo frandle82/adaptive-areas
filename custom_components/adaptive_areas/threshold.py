@@ -17,6 +17,9 @@ from homeassistant.helpers.entity import Entity
 
 from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.const import (
     CONF_AGGREGATES_ILLUMINANCE_THRESHOLD,
     CONF_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
@@ -26,6 +29,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_AGGREGATES_ILLUMINANCE_THRESHOLD_HYSTERESIS,
     DEFAULT_AGGREGATES_SENSOR_DEVICE_CLASSES,
     EMPTY_STRING,
+    AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoThrehsold,
 )
 
@@ -88,7 +92,13 @@ def create_illuminance_threshold(
     illuminance_entity_id = (
         illuminance_sensors[0]
         if len(illuminance_sensors) == 1
-        else f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_{area.slug}_aggregate_illuminance"
+        else resolve_generated_entity_id(
+            area.hass,
+            AdaptiveAreasFeatureInfoAggregates,
+            SENSOR_DOMAIN,
+            area.slug,
+            SensorDeviceClass.ILLUMINANCE,
+        )
     )
 
     _LOGGER.debug(
