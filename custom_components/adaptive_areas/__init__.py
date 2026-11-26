@@ -78,6 +78,7 @@ from custom_components.adaptive_areas.const import (
     AdaptiveConfigEntryVersion,
 )
 from custom_components.adaptive_areas.helpers.area import (
+    assign_area_slugs,
     generated_entities_for_area,
     get_adaptive_areas_for_config_entry,
     get_runtime_areas_for_entry,
@@ -174,6 +175,18 @@ def _remove_orphaned_area_devices(
     """
     areas = config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
     if not is_global_entry(config_entry) or not isinstance(areas, dict):
+        return
+    # The persisted configuration decides, never the loaded runtime: an Area skipped
+    # because its Home Assistant Area is missing is still configured. A configuration
+    # that is not fully valid, or a migration that is not complete, removes nothing.
+    if not all(
+        isinstance(config, dict) and config.get(CONF_ID) == area_id
+        for area_id, config in areas.items()
+    ):
+        _LOGGER.warning("Adaptive Areas: invalid Area configuration; no cleanup")
+        return
+    migration = config_entry.options.get(CONF_MIGRATION) or {}
+    if migration and migration.get("migration_phase") != "complete":
         return
     device_registry = async_get_device_registry(hass)
     entity_registry = async_get_entity_registry(hass)
@@ -648,6 +661,8 @@ async def async_setup_entry(  # noqa: C901
             )
             await async_evaluate_config_entry(hass, config_entry)
         _remove_orphaned_area_devices(hass, config_entry)
+        # Stable, entry-unique slugs before children and entities are derived from them.
+        assign_area_slugs(hass, config_entry, adaptive_areas)
 
         hass.data[MODULE_DATA][config_entry.entry_id] = {
             DATA_AREAS: {area.id: area for area in adaptive_areas},

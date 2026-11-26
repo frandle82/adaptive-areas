@@ -966,6 +966,7 @@ class AdaptiveMetaArea(AdaptiveArea):
         # Area. Only an Area of another (legacy) entry needs this Meta Area reloaded.
         from custom_components.adaptive_areas.helpers.area import (
             get_runtime_areas_for_entry,
+            iter_runtime_areas,
         )
 
         if any(
@@ -975,7 +976,7 @@ class AdaptiveMetaArea(AdaptiveArea):
             return
 
         # Handle Global
-        if self.slug == MetaAreaType.GLOBAL:
+        if self.id == MetaAreaType.GLOBAL:
             self.schedule_reload(initial_load)
             return
 
@@ -987,7 +988,10 @@ class AdaptiveMetaArea(AdaptiveArea):
             area_id,
             str(self.child_areas),
         )
-        if area_type == self.slug or area_id in self.child_areas:
+        if area_type == self.id or any(
+            area.id == area_id and area.slug in self.child_areas
+            for area in iter_runtime_areas(self.hass)
+        ):
             self.schedule_reload(initial_load)
 
     def schedule_reload(self, initial_load: bool = False) -> None:

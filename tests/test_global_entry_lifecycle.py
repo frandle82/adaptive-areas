@@ -493,16 +493,18 @@ async def test_r08_device_assignment_after_setup_needs_no_initialisation(hass) -
     assert _group_calls(calls, "turn_off", _group("hall")) == 1
 
 
-async def test_r14_renaming_an_area_moves_nothing_to_another_area(hass) -> None:
-    """A rename keeps every other Area untouched; the renamed Area keeps one set.
+async def test_r14_renaming_areas_and_floors_keeps_every_identity(hass) -> None:
+    """Renaming a Home Assistant Area or floor changes no ID, also after a restart.
 
-    The slug in the generated IDs follows the Home Assistant Area name (unchanged
-    since 1.6.18). The old set is cleaned up as the Area's own, not as anyone else's.
+    1.6.18 and RC.3 derived the generated IDs from the current name, so a rename
+    replaced every entity of the Area (and broke automations referring to them).
+    The slug is now read back from the Area's registered entities.
     """
     await _lux(hass, BRIGHT_LUX)
+    og = fr.async_get(hass).async_create("OG")
     areas = ar.async_get(hass)
-    bad = areas.async_create("Bad")
-    bad_og = areas.async_create("Bad OG")
+    bad = areas.async_create("Bad", floor_id=og.floor_id)
+    bad_og = areas.async_create("Bad OG", floor_id=og.floor_id)
     (lamp_bad, lamp_og), (m_bad, m_og) = await _devices(
         hass, ["bad", "bad_og"], {"bad": bad.id, "bad_og": bad_og.id}
     )
@@ -510,33 +512,63 @@ async def test_r14_renaming_an_area_moves_nothing_to_another_area(hass) -> None:
         {
             bad.id: _area_config(bad.id, "Bad", lamp_bad, m_bad),
             bad_og.id: _area_config(bad_og.id, "Bad OG", lamp_og, m_og),
+            og.floor_id: _meta_config(og.floor_id, "OG"),
         }
     )
     await _setup(hass, entry)
+    # A Meta Area's ALL group exists only from the second setup on (its children's
+    # groups register after it loaded); unchanged since RC.3, compared from here.
+    await _reload(hass, entry)
     registry = er.async_get(hass)
-    og_before = {
-        e.entity_id: (e.id, e.unique_id)
-        for e in registry.entities.values()
-        if e.platform == DOMAIN and "bad_og" in e.entity_id
+    devices = dr.async_get(hass)
+
+    def identities() -> dict:
+        return {
+            e.entity_id: (e.id, e.unique_id, e.device_id, e.config_entry_id)
+            for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        }
+
+    before = identities()
+    device_ids = {
+        device.id
+        for device in dr.async_entries_for_config_entry(devices, entry.entry_id)
     }
     areas.async_update(bad.id, name="Bad EG")
+    fr.async_get(hass).async_update(og.floor_id, name="Obergeschoss")
     await hass.async_block_till_done()
     await _advance(hass, 5)
-    og_after = {
-        e.entity_id: (e.id, e.unique_id)
-        for e in registry.entities.values()
-        if e.platform == DOMAIN and "bad_og" in e.entity_id
-    }
-    assert og_after == og_before
-    renamed = [
+    assert identities() == before
+    # Restart: unload and set up again.
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert identities() == before
+    assert {
+        device.id
+        for device in dr.async_entries_for_config_entry(devices, entry.entry_id)
+    } == device_ids
+    # The device shows the new name; control still uses the same entities.
+    device = next(
+        d
+        for d in dr.async_entries_for_config_entry(devices, entry.entry_id)
+        if area_device_identifier(bad.id) in d.identifiers
+    )
+    assert device.name == "Bad EG"
+    await _enable(hass, _switch("bad"))
+    calls = _record_calls(hass)
+    await _motion(hass, m_bad, STATE_ON)
+    await _lux(hass, DARK_LUX)
+    assert _group_calls(calls, "turn_on", _group("bad")) == 1
+    # Deleting the renamed Area removes exactly its entities.
+    bad_entities = {
         e.entity_id
-        for e in registry.entities.values()
-        if e.platform == DOMAIN
-        and e.config_entry_id == entry.entry_id
-        and e.entity_id.startswith("switch.adaptive_areas_light_groups_bad_")
-        and "bad_og" not in e.entity_id
-    ]
-    assert renamed == [_switch("bad_eg")]
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.device_id == device.id
+    }
+    assert await async_delete_area(hass, bad.id) == {}
+    assert not bad_entities & set(identities())
+    assert set(identities()) == set(before) - bad_entities
 
 
 # R09, R10, R11, R12, R24 ----------------------------------------------------------
@@ -953,3 +985,326 @@ async def test_r24_orphaned_device_with_a_foreign_entity_is_left_alone(hass) -> 
     assert devices.async_get(gone.id) is not None
     assert registry.async_get(own.entity_id) is not None
     assert registry.async_get(foreign.entity_id) is not None
+
+
+# Phase F: identity collisions --------------------------------------------------
+
+
+def _presence(slug: str) -> str:
+    return f"binary_sensor.adaptive_areas_presence_tracking_{slug}_area_state"
+
+
+async def test_area_and_floor_with_the_same_slug_exist_independently(hass) -> None:
+    """Floor "Keller" (ID keller) and Area "Keller" (ID keller_raum) coexist.
+
+    On RC.3 both generated the same unique IDs; the registry refused the second.
+    """
+    keller = fr.async_get(hass).async_create("Keller")
+    areas = ar.async_get(hass)
+    raum = areas.async_create("Keller Raum", floor_id=keller.floor_id)
+    areas.async_update(raum.id, name="Keller")
+    (lamp,), (motion,) = await _devices(hass, ["keller"], {"keller": raum.id})
+    entry = _global_entry(
+        {
+            raum.id: _area_config(raum.id, "Keller", lamp, motion),
+            keller.floor_id: _meta_config(keller.floor_id, "Keller"),
+        }
+    )
+    await _setup(hass, entry)
+    runtime = {a.id: a for a in get_runtime_areas_for_entry(hass, entry)}
+    assert runtime[raum.id].slug != runtime[keller.floor_id].slug
+    for area in runtime.values():
+        owned = generated_entities_for_area(hass, area)
+        assert any(e.entity_id == area.area_state_entity_id() for e in owned)
+        assert _live(hass, area.area_state_entity_id())
+    unique_ids = [
+        e.unique_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    ]
+    assert len(unique_ids) == len(set(unique_ids))
+    await _reload(hass, entry)
+    before = {
+        e.entity_id: e.unique_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    }
+    await _reload(hass, entry)
+    assert {
+        e.entity_id: e.unique_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    } == before
+
+
+async def test_existing_area_keeps_its_ids_and_only_the_newcomer_changes(hass) -> None:
+    """An Area added later with a colliding name leaves the existing Area untouched."""
+    areas = ar.async_get(hass)
+    first = areas.async_create("Bad OG")
+    (lamp_a, lamp_b), (m_a, m_b) = await _devices(hass, ["a", "b"], {"a": first.id})
+    entry = _global_entry({first.id: _area_config(first.id, "Bad OG", lamp_a, m_a)})
+    await _setup(hass, entry)
+    registry = er.async_get(hass)
+    before = {
+        e.entity_id: (e.id, e.unique_id)
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    second = areas.async_create("Bad-OG")
+    registry.async_update_entity(m_b, area_id=second.id)
+    assert second.id != first.id
+    _created, errors = await async_create_area(
+        hass, second.id, _area_config(second.id, "Bad-OG", lamp_b, m_b)
+    )
+    assert errors == {}
+    after = {
+        e.entity_id: (e.id, e.unique_id)
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    assert {k: v for k, v in after.items() if k in before} == before
+    newcomer = next(
+        a for a in get_runtime_areas_for_entry(hass, entry) if a.id == second.id
+    )
+    assert newcomer.slug == second.id
+    assert _live(hass, _presence(second.id))
+    assert _live(hass, _presence("bad_og"))
+    await _enable(hass, _switch(second.id))
+    calls = _record_calls(hass)
+    await _lux(hass, BRIGHT_LUX)
+    await _motion(hass, m_b, STATE_ON)
+    await _lux(hass, DARK_LUX)
+    assert _group_calls(calls, "turn_on", _group(second.id)) == 1
+    assert _group_calls(calls, "turn_on", _group("bad_og")) == 0
+
+
+# Phase F: Area Climate Health input ----------------------------------------------
+
+
+def _climate_area(area_id: str, name: str, motion: str, moisture: str) -> dict:
+    config, errors = validate_area_options(
+        {"type": "interior"},
+        {
+            "include_entities": [motion, moisture],
+            "features": {"environment": {}, "health": {}},
+        },
+    )
+    assert config is not None, errors
+    return {**config, "id": area_id, "name": name}
+
+
+async def _climate_setup(hass, *, foreign_default: bool = False):
+    hall = ar.async_get(hass).async_create("Hall")
+    motion = MockBinarySensor(
+        name="motion_hall", unique_id="motion_hall", device_class="motion"
+    )
+    moisture = MockBinarySensor(
+        name="leak_hall", unique_id="leak_hall", device_class="moisture"
+    )
+    setup_test_component_platform(hass, "binary_sensor", [motion, moisture])
+    assert await async_setup_component(
+        hass, "binary_sensor", {"binary_sensor": {"platform": "test"}}
+    )
+    await hass.async_block_till_done()
+    for entity in (motion, moisture):
+        er.async_get(hass).async_update_entity(entity.entity_id, area_id=hall.id)
+    motion = motion.entity_id
+    if foreign_default:
+        er.async_get(hass).async_get_or_create(
+            "binary_sensor",
+            "foreign",
+            "takes_the_default_health_id",
+            suggested_object_id="adaptive_areas_health_hall_health_problem",
+        )
+        hass.states.async_set(
+            "binary_sensor.adaptive_areas_health_hall_health_problem", STATE_ON
+        )
+    entry = _global_entry(
+        {hall.id: _climate_area(hall.id, "Hall", motion, moisture.entity_id)}
+    )
+    await _setup(hass, entry)
+    return entry, moisture, get_runtime_areas_for_entry(hass, entry)[0]
+
+
+async def test_climate_reads_the_registered_health_sensor(hass) -> None:
+    """A real leak makes the Area's Health sensor ON; Area Climate reports it first."""
+    _entry, moisture, area = await _climate_setup(hass)
+    health = "binary_sensor.adaptive_areas_health_hall_health_problem"
+    assert area.environment.health_entity == health
+    assert area.environment.assessment["health_alert"] is False
+    moisture.turn_on()
+    await hass.async_block_till_done()
+    await _advance(hass, 30)  # Area Climate debounces its evaluation natively.
+    assert hass.states.get(health).state == STATE_ON
+    assert area.environment.assessment["health_alert"] is True
+    assert area.environment.assessment["dominant_decision"] == "health_alert"
+
+
+async def test_climate_follows_a_renamed_health_sensor(hass) -> None:
+    """After a rename and reload, the renamed Health sensor is the input."""
+    entry, moisture, _area = await _climate_setup(hass)
+    er.async_get(hass).async_update_entity(
+        "binary_sensor.adaptive_areas_health_hall_health_problem",
+        new_entity_id="binary_sensor.hall_leak_alarm",
+    )
+    await hass.async_block_till_done()
+    await _reload(hass, entry)
+    area = get_runtime_areas_for_entry(hass, entry)[0]
+    assert area.environment.health_entity == "binary_sensor.hall_leak_alarm"
+    moisture.turn_on()
+    await hass.async_block_till_done()
+    await _advance(hass, 30)  # Area Climate debounces its evaluation natively.
+    assert area.environment.assessment["health_alert"] is True
+
+
+async def test_climate_never_reads_a_foreign_entity_at_the_default_id(hass) -> None:
+    """A foreign ON entity holding the default Health ID raises no alert."""
+    _entry, _moisture, area = await _climate_setup(hass, foreign_default=True)
+    assert area.environment.health_entity.endswith("_health_problem_2")
+    assert area.environment.assessment["health_alert"] is False
+
+
+async def test_climate_without_a_health_sensor_has_no_health_input(hass) -> None:
+    """No distress sensor, no Health entity: no alert and the dimension is unknown."""
+    hall = ar.async_get(hass).async_create("Hall")
+    (_lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    config, _errors = validate_area_options(
+        {"type": "interior"},
+        {"include_entities": [motion], "features": {"environment": {}, "health": {}}},
+    )
+    entry = _global_entry({hall.id: {**config, "id": hall.id, "name": "Hall"}})
+    await _setup(hass, entry)
+    area = get_runtime_areas_for_entry(hass, entry)[0]
+    assert area.environment.health_entity == ""
+    assert area.environment.assessment["health_alert"] is False
+
+
+# Phase F: cleanup safety ---------------------------------------------------------
+
+
+async def _orphan_fixture(hass, **options):
+    hall = ar.async_get(hass).async_create("Hall")
+    (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    entry = _global_entry(
+        {hall.id: _area_config(hall.id, "Hall", lamp, motion)}, **options
+    )
+    entry.add_to_hass(hass)
+    gone = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={area_device_identifier("gone")}
+    )
+    orphan = er.async_get(hass).async_get_or_create(
+        "switch",
+        DOMAIN,
+        "adaptive_areas_light_groups_switch_gone_light_control",
+        config_entry=entry,
+        device_id=gone.id,
+    )
+    return entry, gone, orphan
+
+
+async def test_no_cleanup_during_an_unfinished_migration(hass) -> None:
+    """While a migration is not complete, nothing is removed."""
+    entry, gone, orphan = await _orphan_fixture(
+        hass,
+        **{
+            CONF_MIGRATION: MigrationState(
+                1, MigrationPhase.VERIFY, [], None, []
+            ).as_dict()
+        },
+    )
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None
+
+
+async def test_no_cleanup_with_an_inconsistent_area_configuration(hass) -> None:
+    """An Area entry whose stored ID does not match its key stops the cleanup."""
+    entry, gone, orphan = await _orphan_fixture(hass)
+    areas = dict(entry.options[CONF_AREAS])
+    (key,) = areas
+    areas[key] = {**areas[key], "id": "something_else"}
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_AREAS: areas}
+    )
+    await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None
+
+
+async def test_disabled_generated_entity_survives_reload_and_cleanup(hass) -> None:
+    """A generated entity the user disabled keeps its registry entry and setting."""
+    hall = ar.async_get(hass).async_create("Hall")
+    (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    entry = _global_entry({hall.id: _area_config(hall.id, "Hall", lamp, motion)})
+    await _setup(hass, entry)
+    registry = er.async_get(hass)
+    registry.async_update_entity(
+        _group("hall", "all_lights"), disabled_by=er.RegistryEntryDisabler.USER
+    )
+    await hass.async_block_till_done()
+    await _reload(hass, entry)
+    await _reload(hass, entry)
+    assert (
+        registry.async_get(_group("hall", "all_lights")).disabled_by
+        is er.RegistryEntryDisabler.USER
+    )
+
+
+# Phase F: light sequence, options flow, reload count ----------------------------
+
+
+async def test_dark_bright_dark_sequence_before_and_after_reload(hass) -> None:
+    """dark_on_bright_off: ON, OFF, ON with native forwarding, twice around a reload."""
+    hall = ar.async_get(hass).async_create("Hall")
+    (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    entry = _global_entry({hall.id: _area_config(hall.id, "Hall", lamp, motion)})
+    await _setup(hass, entry)
+    await _enable(hass, _switch("hall"))
+    await _motion(hass, motion, STATE_ON)
+    await _lux(hass, BRIGHT_LUX)
+    calls = _record_calls(hass)
+    for cycle in range(2):
+        for lux, service, lamp_state in (
+            (DARK_LUX, "turn_on", STATE_ON),
+            (BRIGHT_LUX, "turn_off", "off"),
+            (DARK_LUX, "turn_on", STATE_ON),
+        ):
+            calls.clear()
+            await _lux(hass, lux)
+            assert calls == [(service, [_group("hall")]), (service, [lamp])], cycle
+            assert hass.states.get(lamp).state == lamp_state, cycle
+        await _lux(hass, BRIGHT_LUX)
+        await _reload(hass, entry)
+        await _lux(hass, BRIGHT_LUX)
+
+
+async def test_global_entry_offers_no_per_area_options_flow(hass) -> None:
+    """The native "Configure" of the GlobalEntry is not offered (it crashed on RC.3)."""
+    entry = _global_entry({})
+    await _setup(hass, entry)
+    assert entry.supports_options is False
+
+
+async def test_registry_event_for_two_areas_reloads_once(hass) -> None:
+    """A device move between two Areas is one debounced GlobalEntry reload."""
+    areas = ar.async_get(hass)
+    a = areas.async_create("Hall")
+    b = areas.async_create("Office")
+    (lamp_a, lamp_b, spare), (m_a, m_b, _m) = await _devices(
+        hass, ["hall", "office", "spare"], {"hall": a.id, "office": b.id}
+    )
+    registry = er.async_get(hass)
+    registry.async_update_entity(spare, area_id=a.id)
+    entry = _global_entry(
+        {
+            a.id: _area_config(a.id, "Hall", lamp_a, m_a),
+            b.id: _area_config(b.id, "Office", lamp_b, m_b),
+        }
+    )
+    await _setup(hass, entry)
+    with patch.object(
+        hass.config_entries,
+        "async_schedule_reload",
+        wraps=hass.config_entries.async_schedule_reload,
+    ) as reload:
+        registry.async_update_entity(spare, area_id=b.id)
+        await hass.async_block_till_done()
+        await _advance(hass, 5)
+        assert reload.call_count == 1

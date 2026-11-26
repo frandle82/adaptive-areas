@@ -9,7 +9,9 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ID, ATTR_NAME
+from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.core import HomeAssistant
+from homeassistant.util import slugify
 from homeassistant.helpers.area_registry import (
     AreaEntry,
     async_get as areareg_async_get,
@@ -36,6 +38,7 @@ from custom_components.adaptive_areas.const import (
     DATA_AREAS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
+    AdaptiveAreasFeatureInfoPresenceTracking,
     MetaAreaIcons,
     MetaAreaType,
 )
@@ -43,6 +46,7 @@ from custom_components.adaptive_areas.helpers.entity_identity import (
     area_device_identifier,
     generated_entities_for_area_id,
     generated_entity_area_id,
+    generated_ids,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -324,6 +328,79 @@ def transfer_area_devices_to_container(
     for device in candidates:
         registry.async_update_device(device.id, new_config_entry_id=global_entry_id)
     return [device.id for device in candidates]
+
+
+def registered_area_slug(
+    hass: HomeAssistant, config_entry_id: str, area_id: str
+) -> str | None:
+    """Return the slug an Area's registered entities already use, or None.
+
+    Every Area has one presence state entity; its unique ID carries the slug the
+    Area's generated IDs were created with. Reading it back from the Area's own device
+    keeps entity IDs and unique IDs stable when the Area or floor is renamed.
+    """
+    _default, unique_id = generated_ids(
+        AdaptiveAreasFeatureInfoPresenceTracking, BINARY_SENSOR_DOMAIN, "\0"
+    )
+    prefix, suffix = unique_id.split("\0")
+    for entity in generated_entities_for_area_id(hass, config_entry_id, area_id):
+        uid = entity.unique_id
+        if (
+            entity.domain == BINARY_SENSOR_DOMAIN
+            and uid.startswith(prefix)
+            and uid.endswith(suffix)
+            and len(uid) > len(prefix) + len(suffix)
+        ):
+            return uid[len(prefix) : -len(suffix)]
+    return None
+
+
+def assign_area_slugs(
+    hass: HomeAssistant, config_entry: ConfigEntry, areas: list[AdaptiveArea]
+) -> None:
+    """Give every Area of one entry a slug that is stable and unique within it.
+
+    1. An Area keeps the slug its registered entities already use (renames change
+       neither unique IDs nor entity IDs).
+    2. A new Area uses the slug of its name, as before.
+    3. Only if that slug is already taken by another Area of the entry (for example
+       "Keller" as Area and floor with different IDs, or "Bad OG" and "Bad-OG") is the
+       new Area's slug made unique: its ID, then a type suffix, then a counter.
+       Existing identities are never changed.
+    """
+    taken: set[str] = set()
+    pending: list[AdaptiveArea] = []
+    for area in areas:
+        slug = registered_area_slug(hass, config_entry.entry_id, area.id)
+        if slug is not None and slug not in taken:
+            area.slug = slug
+            taken.add(slug)
+        else:
+            pending.append(area)
+    for area in pending:
+        base = slugify(area.name)
+        kind = (
+            "floor"
+            if area.is_meta() and area.floor_id
+            else ("meta" if area.is_meta() else "area")
+        )
+        candidates = [base, slugify(area.id), f"{base}_{kind}"]
+        slug = next((c for c in candidates if c and c not in taken), None)
+        counter = 2
+        while slug is None:
+            if f"{base}_{kind}_{counter}" not in taken:
+                slug = f"{base}_{kind}_{counter}"
+            counter += 1
+        if slug != base:
+            _LOGGER.warning(
+                "Adaptive Areas: Area %s uses the generated ID part '%s' because "
+                "'%s' already belongs to another Area",
+                area.id,
+                slug,
+                base,
+            )
+        area.slug = slug
+        taken.add(slug)
 
 
 def get_area_from_config_entry(
