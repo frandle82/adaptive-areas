@@ -116,6 +116,27 @@ def generated_ids(
     return f"{domain}.{'_'.join(entity_parts)}", "_".join(unique_parts)
 
 
+def registered_generated_entity_id(
+    hass: HomeAssistant,
+    feature_info: type[AdaptiveAreasFeatureInfo] | AdaptiveAreasFeatureInfo,
+    domain: str,
+    slug: str,
+    translation_key: str | None = None,
+    extra_identifiers: Sequence[str] | None = None,
+) -> str | None:
+    """Return the registered entity ID of a generated entity, or None.
+
+    A consumer that must never read another entity at the default ID uses this after
+    the platforms registered their entities.
+    """
+    _default_entity_id, unique_id = generated_ids(
+        feature_info, domain, slug, translation_key, extra_identifiers
+    )
+    return async_get_entity_registry(hass).async_get_entity_id(
+        domain, DOMAIN, unique_id
+    )
+
+
 def resolve_generated_entity_id(
     hass: HomeAssistant,
     feature_info: type[AdaptiveAreasFeatureInfo] | AdaptiveAreasFeatureInfo,
@@ -124,35 +145,16 @@ def resolve_generated_entity_id(
     translation_key: str | None = None,
     extra_identifiers: Sequence[str] | None = None,
 ) -> str:
-    """Return the registered entity ID of a generated entity.
+    """Return the registered entity ID, or the default ID while not registered yet.
 
-    Falls back to the default entity ID while the entity is not registered yet; that is
-    the ID Home Assistant gives it on first registration unless it is already taken.
+    The default is the ID Home Assistant gives the entity on first registration
+    unless it is already taken.
     """
-    default_entity_id, unique_id = generated_ids(
-        feature_info, domain, slug, translation_key, extra_identifiers
-    )
     return (
-        async_get_entity_registry(hass).async_get_entity_id(domain, DOMAIN, unique_id)
-        or default_entity_id
-    )
-
-
-def registered_generated_entity_id(
-    hass: HomeAssistant,
-    feature_info: type[AdaptiveAreasFeatureInfo] | AdaptiveAreasFeatureInfo,
-    domain: str,
-    slug: str,
-    translation_key: str | None = None,
-) -> str | None:
-    """Return the registered entity ID of a generated entity, or None.
-
-    Unlike `resolve_generated_entity_id` there is no fallback: a consumer that must
-    never read another entity at the default ID uses this after registration.
-    """
-    _default_entity_id, unique_id = generated_ids(
-        feature_info, domain, slug, translation_key
-    )
-    return async_get_entity_registry(hass).async_get_entity_id(
-        domain, DOMAIN, unique_id
+        registered_generated_entity_id(
+            hass, feature_info, domain, slug, translation_key, extra_identifiers
+        )
+        or generated_ids(
+            feature_info, domain, slug, translation_key, extra_identifiers
+        )[0]
     )
