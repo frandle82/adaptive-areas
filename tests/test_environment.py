@@ -2454,7 +2454,14 @@ def test_health_warning_has_highest_context_priority(hass: HomeAssistant) -> Non
     """An existing Area Health warning outranks environmental advice."""
     area = _area(hass)
     area.config[CONF_ENABLED_FEATURES][CONF_FEATURE_HEALTH] = {}
-    hass.states.async_set("binary_sensor.adaptive_areas_health_kitchen", STATE_ON)
+    # The registered Health problem sensor of the Area, looked up by its unique ID.
+    health = async_get_entity_registry(hass).async_get_or_create(
+        "binary_sensor",
+        DOMAIN,
+        "adaptive_areas_health_binary_sensor_kitchen_health_problem",
+        suggested_object_id="adaptive_areas_health_kitchen_health_problem",
+    )
+    hass.states.async_set(health.entity_id, STATE_ON)
     _sensor(hass, area, "sensor.co2", 2200, SensorDeviceClass.CO2, "ppm")
     assessment = AreaEnvironmentEngine(area).assessment
 

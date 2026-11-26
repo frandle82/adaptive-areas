@@ -35,7 +35,7 @@ from homeassistant.util.unit_conversion import (
 )
 
 from custom_components.adaptive_areas.helpers.entity_identity import (
-    resolve_generated_entity_id,
+    registered_generated_entity_id,
 )
 from custom_components.adaptive_areas.const import (
     AdaptiveAreasFeatureInfoHealth,
@@ -636,16 +636,7 @@ class AreaEnvironmentEngine:
             if self.is_exterior
             else self.config.get(CONF_ENVIRONMENT_SURFACE_TEMPERATURE, "")
         )
-        self.health_entity = (
-            resolve_generated_entity_id(
-                area.hass,
-                AdaptiveAreasFeatureInfoHealth,
-                "binary_sensor",
-                self.area.slug,
-            )
-            if not self.is_exterior and area.has_feature(CONF_FEATURE_HEALTH)
-            else ""
-        )
+        self.health_entity = self._resolve_health_entity()
         self._humidity_history: deque[tuple[datetime, float]] = deque(maxlen=60)
         self._humidity_warning_since: datetime | None = None
         self._pollutant_history: dict[str, deque[tuple[datetime, datetime, float]]] = {
@@ -674,12 +665,34 @@ class AreaEnvironmentEngine:
         if activate:
             self.async_activate()
 
+    def _resolve_health_entity(self) -> str:
+        """Return this Area's registered Health problem sensor, or "" if there is none.
+
+        The Health feature creates one binary sensor with device class `problem`. It is
+        looked up by unique ID; an unregistered sensor gives no input, never another
+        entity that happens to hold the default entity ID.
+        """
+        if self.is_exterior or not self.area.has_feature(CONF_FEATURE_HEALTH):
+            return ""
+        return (
+            registered_generated_entity_id(
+                self.area.hass,
+                AdaptiveAreasFeatureInfoHealth,
+                "binary_sensor",
+                self.area.slug,
+                "problem",
+            )
+            or ""
+        )
+
     @callback
     def async_activate(self) -> None:
         """Activate runtime listeners and perform the first full evaluation."""
         if self._activated:
             return
         self._activated = True
+        # Activation runs after the platforms registered their entities.
+        self.health_entity = self._resolve_health_entity()
         tracked = {
             entity_id
             for entity_ids in self._sensor_ids.values()

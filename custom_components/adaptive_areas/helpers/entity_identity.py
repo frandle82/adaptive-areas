@@ -136,3 +136,23 @@ def resolve_generated_entity_id(
         async_get_entity_registry(hass).async_get_entity_id(domain, DOMAIN, unique_id)
         or default_entity_id
     )
+
+
+def registered_generated_entity_id(
+    hass: HomeAssistant,
+    feature_info: type[AdaptiveAreasFeatureInfo] | AdaptiveAreasFeatureInfo,
+    domain: str,
+    slug: str,
+    translation_key: str | None = None,
+) -> str | None:
+    """Return the registered entity ID of a generated entity, or None.
+
+    Unlike `resolve_generated_entity_id` there is no fallback: a consumer that must
+    never read another entity at the default ID uses this after registration.
+    """
+    _default_entity_id, unique_id = generated_ids(
+        feature_info, domain, slug, translation_key
+    )
+    return async_get_entity_registry(hass).async_get_entity_id(
+        domain, DOMAIN, unique_id
+    )
