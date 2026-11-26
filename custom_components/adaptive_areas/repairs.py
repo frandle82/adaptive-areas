@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_registry import async_get as async_get_entity_
 from homeassistant.helpers.floor_registry import async_get as async_get_floor_registry
 
 from custom_components.adaptive_areas.const import (
+    CONF_AREAS,
     CONF_DARK_ENTITY,
     CONF_FEATURE_LIGHT,
     CONF_FEATURE_LIGHT_GROUPS,
@@ -296,13 +297,13 @@ def get_missing_entity_summary(
 
 
 def get_configured_entity_references(config_entry: ConfigEntry) -> set[str]:
-    """Return explicit references used by Repair and registry reload checks."""
-    return {
-        entity_id
-        for entity_id, _category in _iter_entity_references(
-            _combined_config(config_entry)
-        )
-    }
+    """Return explicit references of every Area of an entry (Repair checks)."""
+    return configured_entity_references(_combined_config(config_entry))
+
+
+def configured_entity_references(config: dict[str, Any]) -> set[str]:
+    """Return explicit entity references of one configuration (one Area's local config)."""
+    return {entity_id for entity_id, _category in _iter_entity_references(config)}
 
 
 def _enabled_features(config: dict[str, Any]) -> dict[str, Any]:
@@ -508,8 +509,25 @@ def get_feature_configuration_summary(config_entry: ConfigEntry) -> dict[str, An
 
 
 def config_entry_area_exists(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Return whether the regular or meta area backing an entry still exists."""
-    area_id = config_entry.data.get(CONF_ID)
+    """Return whether the regular or meta areas backing an entry still exist.
+
+    A GlobalEntry has no Area of its own: every configured Area must still exist.
+    """
+    areas = config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
+    if isinstance(areas, dict):
+        return not missing_configured_area_ids(hass, areas)
+    return _backing_area_exists(hass, config_entry.data.get(CONF_ID))
+
+
+def missing_configured_area_ids(hass: HomeAssistant, areas: dict) -> list[str]:
+    """Return the configured Area IDs whose Home Assistant Area or floor is gone."""
+    return sorted(
+        str(area_id) for area_id in areas if not _backing_area_exists(hass, area_id)
+    )
+
+
+def _backing_area_exists(hass: HomeAssistant, area_id: Any) -> bool:
+    """Return whether the Home Assistant Area, floor or Meta type of one ID exists."""
     if area_id in {
         MetaAreaType.GLOBAL,
         MetaAreaType.INTERIOR,

@@ -15,12 +15,14 @@ from homeassistant.helpers.device_registry import (
     EVENT_DEVICE_REGISTRY_UPDATED,
     EventDeviceRegistryUpdatedData,
     async_entries_for_area,
+    async_entries_for_config_entry,
     async_get as async_get_device_registry,
 )
 from homeassistant.helpers.area_registry import EVENT_AREA_REGISTRY_UPDATED
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     EventEntityRegistryUpdatedData,
+    async_entries_for_device,
     async_get as async_get_entity_registry,
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -55,7 +57,6 @@ from custom_components.adaptive_areas.const import (
     CONF_ROOM_CATEGORY,
     CONF_PRESENCE_MINUTES_TO_DUE,
     CONF_PRESENCE_SECONDS_TO_DUE,
-    CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_TRACK_ROOM_USAGE,
     CONF_SLEEP_SWITCHES,
     CONF_SLEEP_SWITCHES_ACTION,
@@ -69,18 +70,22 @@ from custom_components.adaptive_areas.const import (
     DATA_AREA_OBJECT,
     DATA_AREAS,
     DATA_TRACKED_LISTENERS,
-    DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
     DEFAULT_ROOM_CATEGORY,
     DEFAULT_PRESENCE_MINUTES_TO_DUE,
+    DOMAIN,
     MODULE_DATA,
     SIGNAL_AREAS_CHANGED,
     AdaptiveConfigEntryVersion,
 )
 from custom_components.adaptive_areas.helpers.area import (
-    entity_belongs_to_area,
+    generated_entities_for_area,
     get_adaptive_areas_for_config_entry,
     get_runtime_areas_for_entry,
 )
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    area_id_from_device_identifiers,
+)
+from custom_components.adaptive_areas.migration import is_global_entry
 from custom_components.adaptive_areas.helpers.light_groups import (
     migrate_light_groups_in_config,
 )
@@ -88,6 +93,7 @@ from custom_components.adaptive_areas.repairs import (
     async_evaluate_config_entry,
     async_evaluate_single_global_entry_migration,
     async_remove_config_entry_issues,
+    missing_configured_area_ids,
 )
 from custom_components.adaptive_areas.services import (
     async_setup_services,
@@ -135,18 +141,69 @@ _REMOVED_MANUAL_POLLUTANT_KEYS = (
 
 
 def _assign_generated_entities_to_areas(
-    hass: HomeAssistant, config_entry: ConfigEntry, areas: list[AdaptiveArea]
+    hass: HomeAssistant, areas: list[AdaptiveArea]
 ) -> None:
-    """Keep generated entity ownership separate from logical HA Area assignment."""
+    """Give generated entities of a regular Area their Home Assistant Area once.
+
+    Ownership comes from the Area's device. Only an entity without a Home Assistant
+    Area is assigned; a user's later assignment is kept. Meta Areas have no Home
+    Assistant Area (their ID is a floor or Meta type), so they are skipped.
+    """
     entity_registry = async_get_entity_registry(hass)
     for adaptive_area in areas:
-        for entity in entity_registry.entities.get_entries_for_config_entry_id(
-            config_entry.entry_id
-        ):
-            if entity_belongs_to_area(entity, adaptive_area):
+        if adaptive_area.is_meta():
+            continue
+        for entity in generated_entities_for_area(hass, adaptive_area):
+            if entity.area_id is None:
                 entity_registry.async_update_entity(
                     entity.entity_id, area_id=adaptive_area.id
                 )
+
+
+def _remove_orphaned_area_devices(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> None:
+    """Remove generated devices and entities of Areas no longer in the GlobalEntry.
+
+    An Area device is identified by its stable Area ID. It is orphaned only when this
+    GlobalEntry owns it and no configured Area has that ID (for example an Area deleted
+    with an earlier version that left its entities behind). Physical devices, other
+    integrations' entities and configured Areas are never touched: a configured Area
+    whose Home Assistant Area is missing keeps its device and entities. A device that
+    also carries an entity of another integration is left alone (ambiguous).
+    """
+    areas = config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
+    if not is_global_entry(config_entry) or not isinstance(areas, dict):
+        return
+    device_registry = async_get_device_registry(hass)
+    entity_registry = async_get_entity_registry(hass)
+    for device in async_entries_for_config_entry(
+        device_registry, config_entry.entry_id
+    ):
+        area_id = area_id_from_device_identifiers(device.identifiers)
+        if area_id is None or area_id in areas:
+            continue
+        entities = async_entries_for_device(
+            entity_registry, device.id, include_disabled_entities=True
+        )
+        if any(
+            entity.platform != DOMAIN or entity.config_entry_id != config_entry.entry_id
+            for entity in entities
+        ):
+            _LOGGER.warning(
+                "Adaptive Areas: device of removed Area %s also holds foreign "
+                "entities; left unchanged",
+                area_id,
+            )
+            continue
+        _LOGGER.info(
+            "Adaptive Areas: removing %d entities of removed Area %s",
+            len(entities),
+            area_id,
+        )
+        for entity in entities:
+            entity_registry.async_remove(entity.entity_id)
+        device_registry.async_remove_device(device.id)
 
 
 def _eligible_primary_sources(
@@ -519,23 +576,13 @@ async def async_setup_entry(  # noqa: C901
             | Event[EventDeviceRegistryUpdatedData]
         ),
     ) -> None:
-        """Reload integration when entity registry is updated."""
+        """Reload integration when entity registry is updated.
+
+        The per-Area event filter already applied that Area's local
+        `reload_on_registry_change` option; a GlobalEntry has no top-level one.
+        """
 
         _async_schedule_repair_evaluation()
-
-        area_data: dict[str, Any] = dict(config_entry.data)
-        if config_entry.options:
-            area_data.update(config_entry.options)
-
-        # Check if disabled
-        if not area_data.get(
-            CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE
-        ):
-            _LOGGER.debug(
-                "%s: Auto-Reloading disabled for this area skipping...",
-                config_entry.title,
-            )
-            return
 
         _LOGGER.debug(
             "%s: Reloading entry due entity registry change",
@@ -559,23 +606,48 @@ async def async_setup_entry(  # noqa: C901
                 return False
 
         adaptive_areas = get_adaptive_areas_for_config_entry(hass, config_entry)
-        if is_container and not adaptive_areas and migration:
+        # An unfinished migration must produce its Areas. A completed migration keeps
+        # its metadata, and a GlobalEntry whose last Area was deleted has no Areas.
+        if (
+            is_container
+            and not adaptive_areas
+            and migration
+            and migration.get("migration_phase") != "complete"
+        ):
             return False
         configured_areas = (
             config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
             if is_container
             else None
         )
+        # A configured Area whose Home Assistant Area or floor was deleted is skipped:
+        # one missing Area must not stop every other Area of the GlobalEntry. Its
+        # configuration and entities are kept, and a Repair issue names the entry.
+        unresolved = (
+            set(configured_areas) - {area.id for area in adaptive_areas}
+            if isinstance(configured_areas, dict)
+            else set()
+        )
+        backing_missing = (
+            set(missing_configured_area_ids(hass, configured_areas))
+            if unresolved
+            else set()
+        )
         if (
             (not is_container and not adaptive_areas)
-            or (
-                isinstance(configured_areas, dict)
-                and len(adaptive_areas) != len(configured_areas)
-            )
+            or unresolved - backing_missing
             or len({area.id for area in adaptive_areas}) != len(adaptive_areas)
         ):
             _LOGGER.error("Unable to set up Adaptive Areas entry: area creation failed")
             return False
+        if backing_missing:
+            _LOGGER.warning(
+                "Adaptive Areas: %d configured Areas are skipped because their "
+                "Home Assistant Area or floor no longer exists",
+                len(backing_missing),
+            )
+            await async_evaluate_config_entry(hass, config_entry)
+        _remove_orphaned_area_devices(hass, config_entry)
 
         hass.data[MODULE_DATA][config_entry.entry_id] = {
             DATA_AREAS: {area.id: area for area in adaptive_areas},
@@ -710,7 +782,7 @@ async def async_setup_entry(  # noqa: C901
                 error=err,
             )
             raise
-        _assign_generated_entities_to_areas(hass, config_entry, adaptive_areas)
+        _assign_generated_entities_to_areas(hass, adaptive_areas)
         _LOGGER.debug(
             "Adaptive Areas [%s]: platform setup: %.0f ms",
             config_entry.title,
@@ -768,6 +840,11 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
             )
         ),
     )
+    if not all_unloaded:
+        # Home Assistant marks the entry FAILED_UNLOAD. Entities that are still loaded
+        # keep their Areas and listeners; nothing is reported as unloaded.
+        _LOGGER.error("Adaptive Areas [%s]: platform unload failed", config_entry.title)
+        return False
 
     for area in areas:
         if area.room_usage is not None:
@@ -777,8 +854,7 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     for tracked_listener in area_data[DATA_TRACKED_LISTENERS]:
         tracked_listener()
 
-    if all_unloaded:
-        data.pop(config_entry.entry_id)
+    data.pop(config_entry.entry_id)
 
     if not data:
         async_unload_services(hass)

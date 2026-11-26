@@ -52,22 +52,30 @@ from custom_components.adaptive_areas.const import (
     CONF_FEATURE_WASP_IN_A_BOX,
     CONF_IGNORE_DIAGNOSTIC_ENTITIES,
     CONF_INCLUDE_ENTITIES,
+    CONF_RELOAD_ON_REGISTRY_CHANGE,
     CONF_TYPE,
     CONFIGURABLE_AREA_STATE_MAP,
     DEFAULT_IGNORE_DIAGNOSTIC_ENTITIES,
+    DEFAULT_RELOAD_ON_REGISTRY_CHANGE,
     ADAPTIVE_AREAS_COMPONENTS,
     ADAPTIVE_AREAS_COMPONENTS_GLOBAL,
     ADAPTIVE_AREAS_COMPONENTS_META,
-    ADAPTIVE_DEVICE_ID_PREFIX,
-    ADAPTIVEAREAS_UNIQUEID_PREFIX,
     META_AREA_GLOBAL,
     AdaptiveAreasEvents,
+    AdaptiveAreasFeatureInfoBLETrackers,
+    AdaptiveAreasFeatureInfoPresenceHold,
+    AdaptiveAreasFeatureInfoPresenceTracking,
+    AdaptiveAreasFeatureInfoWaspInABox,
     MetaAreaAutoReloadSettings,
     MetaAreaType,
 )
 from custom_components.adaptive_areas.helpers.decision_trace import (
     DecisionTrace,
     safe_record,
+)
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    area_id_from_device_identifiers,
+    resolve_generated_entity_id,
 )
 from custom_components.adaptive_areas.helpers.environment import (
     POLLUTANT_NAMES,
@@ -77,9 +85,7 @@ from custom_components.adaptive_areas.helpers.room_usage import RoomUsageEngine
 from custom_components.adaptive_areas.helpers.sources import (
     physical_presence_source_ids,
 )
-from custom_components.adaptive_areas.repairs import (
-    get_configured_entity_references,
-)
+from custom_components.adaptive_areas.repairs import configured_entity_references
 
 # Classes
 
@@ -150,6 +156,8 @@ class AdaptiveArea:
         self.states: list[str] = []
 
         self.loaded_platforms: list[str] = []
+        # The light control switch of this Area while it is added to Home Assistant.
+        self.light_control_switch: Any | None = None
         self.decision_trace = DecisionTrace()
         self.environment: AreaEnvironmentEngine | None = None
         self.room_usage: RoomUsageEngine | None = None
@@ -486,30 +494,55 @@ class AdaptiveArea:
             )
         )
 
+        # Generated presence sources are resolved through the entity registry, so a
+        # renamed or suffixed entity ID is still the tracked source.
         # Append presence_hold switch as a presence_sensor
         if self.has_feature(CONF_FEATURE_PRESENCE_HOLD):
-            presence_hold_switch_id = (
-                f"{SWITCH_DOMAIN}.adaptive_areas_presence_hold_{self.slug}"
+            sensors.append(
+                resolve_generated_entity_id(
+                    self.hass,
+                    AdaptiveAreasFeatureInfoPresenceHold,
+                    SWITCH_DOMAIN,
+                    self.slug,
+                )
             )
-            sensors.append(presence_hold_switch_id)
 
         # Append BLE Tracker monitor as a presence_sensor
         if self.has_feature(CONF_FEATURE_BLE_TRACKERS) and self.feature_config(
             CONF_FEATURE_BLE_TRACKERS
         ).get(CONF_BLE_TRACKER_ENTITIES, []):
-            ble_tracker_sensor_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_ble_trackers_{self.slug}_ble_tracker_monitor"
-            sensors.append(ble_tracker_sensor_id)
+            sensors.append(
+                resolve_generated_entity_id(
+                    self.hass,
+                    AdaptiveAreasFeatureInfoBLETrackers,
+                    BINARY_SENSOR_DOMAIN,
+                    self.slug,
+                )
+            )
 
         # Append Wasp In The Box sensor as presence monitor
         if self.has_feature(CONF_FEATURE_AGGREGATION) and self.has_feature(
             CONF_FEATURE_WASP_IN_A_BOX
         ):
-            wasp_in_the_box_sensor_id = (
-                f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_wasp_in_a_box_{self.slug}"
+            sensors.append(
+                resolve_generated_entity_id(
+                    self.hass,
+                    AdaptiveAreasFeatureInfoWaspInABox,
+                    BINARY_SENSOR_DOMAIN,
+                    self.slug,
+                )
             )
-            sensors.append(wasp_in_the_box_sensor_id)
 
         return sensors
+
+    def area_state_entity_id(self) -> str:
+        """Return the registered entity ID of this Area's presence state entity."""
+        return resolve_generated_entity_id(
+            self.hass,
+            AdaptiveAreasFeatureInfoPresenceTracking,
+            BINARY_SENSOR_DOMAIN,
+            self.slug,
+        )
 
     async def initialize(self, _=None) -> None:
         """Initialize area."""
@@ -569,21 +602,30 @@ class AdaptiveArea:
         def _entity_registry_filter(event_data: EventEntityRegistryUpdatedData) -> bool:
             """Filter entity registry events relevant to this area."""
 
+            if not self._reload_on_registry_change():
+                return False
+
             entity_id = event_data["entity_id"]
 
-            if entity_id in get_configured_entity_references(self.hass_config):
+            # Only this Area's own configuration counts, never another Area's.
+            if entity_id in configured_entity_references(self.config):
                 return True
-
-            # Ignore our own stuff
-            _, entity_part = entity_id.split(".")
-            if entity_part.startswith(ADAPTIVEAREAS_UNIQUEID_PREFIX):
-                return False
 
             action = event_data["action"]
             entity_registry = entityreg_async_get(self.hass)
             entity_entry = entity_registry.async_get(entity_id)
             if entity_entry is not None and self._is_adaptive_area_entity(entity_entry):
-                return False
+                # Our own entities never trigger a reload, except a rename of one of this
+                # Area's entities: consumers resolve the registered ID at setup.
+                from custom_components.adaptive_areas.helpers.area import (
+                    entity_belongs_to_area,
+                )
+
+                return (
+                    action == "update"
+                    and "entity_id" in event_data.get("changes", {})
+                    and entity_belongs_to_area(entity_entry, self)
+                )
 
             def _belongs_to_area() -> bool:
                 if entity_entry is None:
@@ -631,6 +673,14 @@ class AdaptiveArea:
 
         return _entity_registry_filter
 
+    def _reload_on_registry_change(self) -> bool:
+        """Return this Area's own registry reload setting (a local Area option)."""
+        return bool(
+            self.config.get(
+                CONF_RELOAD_ON_REGISTRY_CHANGE, DEFAULT_RELOAD_ON_REGISTRY_CHANGE
+            )
+        )
+
     def _device_belongs_to_area(self, device_id: str) -> bool:
         """Return whether a device's own or inherited Area matches this Area."""
         device_registry = devicereg_async_get(self.hass)
@@ -652,8 +702,19 @@ class AdaptiveArea:
         def _device_registry_filter(event_data: EventDeviceRegistryUpdatedData) -> bool:
             """Filter device registry events relevant to this area."""
 
-            # Ignore our own stuff
-            if event_data["device_id"].startswith(ADAPTIVE_DEVICE_ID_PREFIX):
+            if not self._reload_on_registry_change():
+                return False
+
+            # Ignore our own devices. The event carries the registry device ID, so the
+            # owner is read from the device's identifiers, not from the ID text.
+            device_entry = devicereg_async_get(self.hass).async_get(
+                event_data["device_id"]
+            )
+            if (
+                device_entry is not None
+                and area_id_from_device_identifiers(device_entry.identifiers)
+                is not None
+            ):
                 return False
 
             action = event_data["action"]
@@ -704,8 +765,14 @@ class AdaptiveMetaArea(AdaptiveArea):
 
         # MetaAreas track their children
         for child_area in self.child_areas:
-            entity_id = f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{child_area}_area_state"
-            sensors.append(entity_id)
+            sensors.append(
+                resolve_generated_entity_id(
+                    self.hass,
+                    AdaptiveAreasFeatureInfoPresenceTracking,
+                    BINARY_SENSOR_DOMAIN,
+                    child_area,
+                )
+            )
         return sensors
 
     def get_active_areas(self):
@@ -891,6 +958,20 @@ class AdaptiveMetaArea(AdaptiveArea):
 
         # Ignore if already handling it
         if self.reloading:
+            return
+
+        # An Area of the same config entry (the GlobalEntry) is set up together with this
+        # Meta Area: children are resolved after all Areas exist and sources refresh when
+        # child entities register. Reloading the shared entry here would reload every
+        # Area. Only an Area of another (legacy) entry needs this Meta Area reloaded.
+        from custom_components.adaptive_areas.helpers.area import (
+            get_runtime_areas_for_entry,
+        )
+
+        if any(
+            area.id == area_id
+            for area in get_runtime_areas_for_entry(self.hass, self.hass_config)
+        ):
             return
 
         # Handle Global

@@ -7,7 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.area_registry import async_get as async_get_area_registry
 
@@ -387,7 +387,14 @@ async def async_update_area(
 
 
 async def async_delete_area(hass: HomeAssistant, area_id: str) -> dict[str, str]:
-    """Remove one logical Area while retaining the GlobalEntry."""
+    """Remove one logical Area while retaining the GlobalEntry.
+
+    The update reloads the GlobalEntry once. Its setup removes the device and the
+    generated entities of every Area that is no longer configured, identified by the
+    stable Area ID (see `_remove_orphaned_area_devices`). Other Areas, physical devices
+    and foreign entities are untouched. A failed unload or setup is reported, never
+    treated as a completed deletion.
+    """
     entries = get_global_entries(hass)
     if len(entries) != 1:
         return {"base": "Exactly one GlobalEntry is required"}
@@ -395,9 +402,12 @@ async def async_delete_area(hass: HomeAssistant, area_id: str) -> dict[str, str]
     areas = dict(entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS, {})))
     if area_id not in areas:
         return {"area_id": "Adaptive Area not found"}
+    was_loaded = entry.state is ConfigEntryState.LOADED
     areas.pop(area_id)
     hass.config_entries.async_update_entry(
         entry, options={**entry.options, CONF_AREAS: areas}
     )
     await hass.async_block_till_done()
+    if was_loaded and entry.state is not ConfigEntryState.LOADED:
+        return {"base": f"GlobalEntry reload failed ({entry.state.value})"}
     return {}
