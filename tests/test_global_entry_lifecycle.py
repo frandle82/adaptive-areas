@@ -26,11 +26,10 @@ import asyncio
 from datetime import timedelta
 from unittest.mock import patch
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
     EVENT_CALL_SERVICE,
-    EVENT_HOMEASSISTANT_START,
-    EVENT_HOMEASSISTANT_STARTED,
     EVENT_STATE_CHANGED,
     STATE_ON,
 )
@@ -240,6 +239,7 @@ async def _advance(hass: HomeAssistant, seconds: float) -> None:
 # R01, R06, R07 ------------------------------------------------------------------
 
 
+@pytest.mark.timeout(120)
 async def test_r01_cold_start_controls_lights_without_registry_change(hass) -> None:
     """Set up before Home Assistant runs: DARK switches on, BRIGHT switches off.
 
@@ -263,11 +263,9 @@ async def test_r01_cold_start_controls_lights_without_registry_change(hass) -> N
         "async_schedule_reload",
         wraps=hass.config_entries.async_schedule_reload,
     ) as reload:
-        # Native start order: START (groups begin tracking), then running and STARTED.
-        hass.bus.async_fire(EVENT_HOMEASSISTANT_START)
-        await hass.async_block_till_done()
-        hass.set_state(CoreState.running)
-        hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+        # Native start: Home Assistant fires START, waits for setup work with its own
+        # bounded timeouts, switches to running and fires STARTED.
+        await hass.async_start()
         await hass.async_block_till_done()
         await _advance(hass, 10)
         assert reload.call_count == 0
@@ -374,6 +372,7 @@ async def test_r04_suffixed_control_switch_never_reads_a_foreign_entity(hass) ->
     assert _group_calls(calls, "turn_on", _group("hall")) == 1
 
 
+@pytest.mark.timeout(120)
 async def test_r05_switch_registered_after_the_groups_enables_control(hass) -> None:
     """The restored-ON switch arrives after the groups: one ON, no waiting or polling."""
     from custom_components.adaptive_areas import switch as switch_platform
