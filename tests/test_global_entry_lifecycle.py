@@ -1699,3 +1699,18 @@ async def test_no_cleanup_of_a_device_with_two_area_identifiers(hass) -> None:
     await hass.async_block_till_done()
     assert er.async_get(hass).async_get(orphan.entity_id) is not None
     assert dr.async_get(hass).async_get(gone.id) is not None
+
+
+async def test_area_with_the_id_of_a_configured_floor_is_refused(hass) -> None:
+    """RC.4 decision: an Area and a floor share one key space; nothing is overwritten."""
+    keller = fr.async_get(hass).async_create("Keller")
+    area = ar.async_get(hass).async_create("Keller")
+    assert area.id == keller.floor_id == "keller"
+    entry = _global_entry({keller.floor_id: _meta_config(keller.floor_id, "Keller")})
+    await _setup(hass, entry)
+    before = dict(entry.options)
+    _created, errors = await async_create_area(hass, area.id, {})
+    assert errors == {
+        "area_id": "A floor or Meta Area with this ID is already configured"
+    }
+    assert dict(entry.options) == before

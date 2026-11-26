@@ -173,6 +173,13 @@ async def async_create_area(
         return None, {"area_id": "Unknown Home Assistant area"}
     areas = dict(entry.options.get(CONF_AREAS, entry.data.get(CONF_AREAS, {})))
     if area_id in areas:
+        existing = areas[area_id]
+        if isinstance(existing, Mapping) and existing.get(CONF_TYPE) == AREA_TYPE_META:
+            # Areas and floors share one key space in the stored configuration; an
+            # Area cannot use the ID of a configured floor or Meta Area (RC.4 decision).
+            return None, {
+                "area_id": "A floor or Meta Area with this ID is already configured"
+            }
         return None, {"area_id": "Area is already configured"}
     if updates.get(CONF_TYPE) == AREA_TYPE_META:
         return None, {CONF_TYPE: "Home Assistant areas cannot be Meta Areas"}
