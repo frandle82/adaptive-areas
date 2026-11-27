@@ -428,6 +428,10 @@ class AreaLightGroup(AdaptiveLightGroup):
             self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = (
                 self.manual_override
             )
+            if self.manual_override:
+                self._trace_override(
+                    "state_restored", "manual_override_started", ["override_restored"]
+                )
         else:
             self._attr_is_on = False
 
@@ -666,7 +670,9 @@ class AreaLightGroup(AdaptiveLightGroup):
         decision input with the previous one, so identical inputs never send a second command.
         """
         if self._active_blocking_states() and self.manual_override:
-            self._set_manual_override(False)
+            self._set_manual_override(
+                False, trigger=trigger, reason_codes=["blocking_state_active"]
+            )
         current = self._current_area_state()
         if (
             trigger not in ("presence_activity", "automation_enabled")
@@ -848,18 +854,65 @@ class AreaLightGroup(AdaptiveLightGroup):
         switch = getattr(self.area, "light_control_switch", None)
         return switch is not None and switch.is_on is True
 
-    def reset_control(self):
+    def reset_control(self, trigger: str = "area_state_changed"):
         """Reset control status."""
         self.controlling = True
-        self._set_manual_override(False)
+        self._set_manual_override(
+            False, trigger=trigger, reason_codes=["presence_cleared"]
+        )
         self._attr_extra_state_attributes["controlling"] = self.controlling
         self.schedule_update_ha_state()
         self.logger.debug("%s: Control Reset.", self.name)
 
-    def _set_manual_override(self, enabled: bool) -> None:
-        """Set manual override state and expose it as an entity attribute."""
+    def _set_manual_override(
+        self,
+        enabled: bool,
+        *,
+        trigger: str | None = None,
+        reason_codes: list[str] | None = None,
+    ) -> None:
+        """Set manual override state and expose it as an entity attribute.
+
+        With a trigger, an actual start or end of the override is recorded in the Area's
+        bounded decision trace (no entity or user data), so it is traceable what set it.
+        """
+        changed = bool(self.manual_override) != enabled
         self.manual_override = enabled
         self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = enabled
+        if changed and trigger is not None:
+            decision = "manual_override_started" if enabled else "manual_override_ended"
+            self._trace_override(trigger, decision, reason_codes or [])
+            self.logger.info(
+                "%s: %s (%s)", self.name, decision, ", ".join(reason_codes or [])
+            )
+
+    def _trace_override(
+        self, trigger: str, decision: str, reason_codes: list[str]
+    ) -> None:
+        self.area.trace_decision(
+            feature="light_groups",
+            trigger=trigger,
+            decision=decision,
+            outcome="tracked",
+            reason_codes=reason_codes,
+            target_count=len(getattr(self, "_entity_ids", ()) or ()),
+        )
+
+    @staticmethod
+    def _origin_reason(context) -> str:
+        """Classify a foreign change without identifying data.
+
+        A user id means a person; a parent id means another automation or script; neither
+        means a device report, a physical switch, another integration, or an own call
+        answered after Home Assistant's context window (not attributable by Home Assistant).
+        """
+        if context is None:
+            return "origin_unattributed"
+        if context.user_id is not None:
+            return "origin_user"
+        if context.parent_id is not None:
+            return "origin_automation"
+        return "origin_unattributed"
 
     def handle_group_state_change_primary(self):
         """Handle group state change for primary area state events."""
@@ -871,7 +924,9 @@ class AreaLightGroup(AdaptiveLightGroup):
         )
         self.schedule_update_ha_state()
 
-    def handle_manual_group_state_change(self, new_state=None, own=False) -> bool:
+    def handle_manual_group_state_change(
+        self, new_state=None, own=False, context=None
+    ) -> bool:
         """Handle manual on/off changes common to parent and child groups.
 
         `own` is True when the change was caused by this group's own service call, decided
@@ -885,8 +940,11 @@ class AreaLightGroup(AdaptiveLightGroup):
 
         self.logger.debug("%s: Group controlled by something else.", self.name)
 
+        origin = ["manual_on", self._origin_reason(context)]
         if new_state == STATE_ON:
-            self._set_manual_override(True)
+            self._set_manual_override(
+                True, trigger="group_state_changed", reason_codes=origin
+            )
             self.controlling = True
             return True
 
@@ -894,15 +952,21 @@ class AreaLightGroup(AdaptiveLightGroup):
             # A complete manual switch-off during occupation is a deliberate decision: the
             # override stays until CLEAR or an effective blocker ends it. Presence activity,
             # brightness and activation changes do not switch the group on again meanwhile.
-            self._set_manual_override(True)
+            self._set_manual_override(
+                True,
+                trigger="group_state_changed",
+                reason_codes=["manual_off", self._origin_reason(context)],
+            )
             self.controlling = True
             return True
 
         return False
 
-    def handle_group_state_change_secondary(self, new_state=None, own=False):
+    def handle_group_state_change_secondary(
+        self, new_state=None, own=False, context=None
+    ):
         """Handle group state change for secondary area state events."""
-        if self.handle_manual_group_state_change(new_state, own=own):
+        if self.handle_manual_group_state_change(new_state, own=own, context=context):
             return
 
         # If it was manually controlled in a way we do not override, stop controlling.
@@ -912,7 +976,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         """Handle group state change events."""
         # If area is not occupied, ignore
         if not self.area.is_occupied():
-            self.reset_control()
+            self.reset_control("group_state_changed")
         else:
             origin_event = event.context.origin_event
             new_state = None
@@ -966,10 +1030,14 @@ class AreaLightGroup(AdaptiveLightGroup):
 
             own = self._is_own_context(origin_event.context)
             if self.category == LightGroupCategory.ALL:
-                self.handle_manual_group_state_change(new_state, own=own)
+                self.handle_manual_group_state_change(
+                    new_state, own=own, context=event.context
+                )
                 self.handle_group_state_change_primary()
             else:
-                self.handle_group_state_change_secondary(new_state, own=own)
+                self.handle_group_state_change_secondary(
+                    new_state, own=own, context=event.context
+                )
 
         # Update attribute
         self._attr_extra_state_attributes["controlling"] = self.controlling

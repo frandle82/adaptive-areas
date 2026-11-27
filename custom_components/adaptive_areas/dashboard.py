@@ -51,6 +51,7 @@ from custom_components.adaptive_areas.helpers.area import (
     generated_entities_for_area,
     iter_runtime_areas,
 )
+from custom_components.adaptive_areas.helpers.light_transition import TransitionReason
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
     group_is_blocked,
 )
@@ -600,6 +601,11 @@ TRACE_TRIGGERS = frozenset(
         "primary_environment_source_changed",
         "area_input_changed",
         "environment_changed",
+        # Light groups: setup/reload, automation switched on, own group state, restore.
+        "initial",
+        "automation_enabled",
+        "group_state_changed",
+        "state_restored",
     }
 )
 TRACE_DECISIONS = frozenset(
@@ -612,6 +618,8 @@ TRACE_DECISIONS = frozenset(
         "presence_started",
         "presence_stopped",
         "state_transition",
+        "manual_override_started",
+        "manual_override_ended",
     }
 )
 TRACE_OUTCOMES = frozenset(
@@ -661,6 +669,20 @@ TRACE_REASON_CODES = frozenset(
         "extended_state_inactive",
         "sleep_state_inactive",
         "accented_state_inactive",
+        # Light group command execution (light.py, _run_group_command/_async_schedule_command).
+        "stale_decision",
+        "ownership_conflict",
+        "command_pending",
+        "failed_not_retried",
+        # Manual override lifecycle: origin class of the change, restore.
+        "manual_on",
+        "manual_off",
+        "origin_user",
+        "origin_automation",
+        "origin_unattributed",
+        "override_restored",
+        # Every reason of the shared light transition decision, without drift.
+        *(reason.value for reason in TransitionReason),
     }
 )
 TRACE_STATES = frozenset(
