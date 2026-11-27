@@ -5,6 +5,16 @@
 - Integration version: read `custom_components/adaptive_areas/manifest.json`; do not copy it here.
 - Test baseline: the full suite passes with Home Assistant 2026.8.1 and with the CI-pinned Home Assistant 2026.10.4 (see [TESTING.md](TESTING.md)).
 
+## Phase J: RC.4 field test failed, manual override (2026-11-27)
+
+- 1.7.0-rc.4 was published (`7f9593f`). Its acceptance on Home Assistant OS failed: in "Arbeitszimmer" (global lux sensor, 117/123 lx, accent group `dark_on_bright_off`, occupied and extended) the DARK transition sent no ON. The panel showed "manual override (native light group)"; the user switched nothing by hand. The original light control fault is therefore not proven fixed. The manual override is the central suspect.
+- Proven and fixed: the panel trace lost every light reason through the DTO allowlist (`dashboard.py`), so skipped decisions showed "No reason recorded". The decision itself had the reason (`manual_override` for an active override).
+- Proven, not changed (limit of Home Assistant): own commands are recognised by Context only. `Entity._context` expires after `CONTEXT_RECENT_TIME_SECONDS` (5 s, HA 2026.10.4); a device report later than that carries a fresh Context without parent or user and is treated as an external change, which sets the override. Reproduced in `test_j05_device_answer_after_context_window_is_unattributable`.
+- Proven, not changed (open decision): a stored override survives a restart or reload only by chance. The light platform is set up before the presence platform restores the Area states, and `group_state_changed` runs in an executor thread; if it reads the Area before the restore it sees a free Area and ends the override. Reproduced in about 1 of 5 runs (same on RC.4). Consequence: an override can be carried into a continuing (restored) occupancy and then lasts until the next CLEAR.
+- Not reproduced on RC.4 with Home Assistant's real context handling: own ON/OFF, DARK → BRIGHT → DARK, native ALL and Meta ALL groups, a real nested native light group, device answers within 5 s, unavailable/available, reload with a pending own command, cold start of a GlobalEntry. All pass without an override (`tests/test_light_manual_override_lifecycle.py`).
+- Why the earlier tests did not catch the HAOS fault: `MockLight` is a polled entity and writes its state inside the service call, so every report carries the call's Context; no test modelled a push device, a late report or the panel DTO of a skipped light decision.
+- The actual origin of the HAOS override is not proven. The new trace entries name its origin class; the data still needed is listed in [HANDOVER.md](HANDOVER.md).
+
 ## GlobalEntry lifecycle corrections (after RC.3 field test, 2026-11-26)
 
 - Root cause reproduced with real registries: ownership of generated entities by unique-ID name parts. With a floor "OG" and an Area "Bad OG" (or Areas "Bad" and "Bad OG") a Meta Area's or another Area's platform cleanup removed the live entities of "Bad OG"; each reload toggled them. A device assignment reloads the integration, which explains "light control works only after assigning a device". Fixed by device-based ownership (see [ARCHITECTURE.md](ARCHITECTURE.md)).

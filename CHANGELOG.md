@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+1.7.0-rc.4 was published, but its practical validation on Home Assistant OS failed: the brightness-dependent light control of an Area still did not switch, and its accent group reported a manual override although nothing was switched by hand. The cause of that override is not yet proven. See `docs/CURRENT_STATE.md`.
+
+### Fixed
+
+- The decision trace in the panel lost the reason of every light group decision ("No reason recorded"). The public trace allowlist did not contain the reason codes of the shared light decision (`manual_override`, `no_transition`, `dark_on`, …) nor the triggers `initial` and `automation_enabled`. They are now passed through and labelled in English and German.
+
+### Added
+
+- The decision trace records when a light group's manual override starts (with the change and its origin class: user, other automation or script, or not attributable), when it ends (area clear or blocking state) and when it is restored at setup. No entity, user or context IDs are recorded. Light control behaviour is unchanged.
+
 ## 1.7.0-rc.4 - 2026-11-27
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending; it is not yet proven that the fault seen in the RC.3 field test is fixed on Home Assistant OS.

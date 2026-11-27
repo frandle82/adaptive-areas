@@ -104,6 +104,8 @@ Light groups are tied to area states:
 - **Commands of Adaptive Areas never set an override**, including the group's own commands, their forwarding to members, the automatic all-off at clear, initialisation, restoration after a restart or an outage, and a change that only reports the same state.
 - **A change from outside** (switch, other automation, unknown origin) sets the override while the Area is occupied. An external ON is not read as a wish to switch off.
 - **CLEAR ends the override**, as before. Brightness and blocker rules are unchanged.
+- **Own commands are recognised by their Home Assistant context only.** Home Assistant keeps a call's context on an entity for 5 seconds. A device that reports its new state later (slow cloud or polled integrations, long transitions) reports it with a new context. Neither Home Assistant nor Adaptive Areas can then attribute it, so it counts as a change from outside and sets the override.
+- **The decision trace shows where an override came from.** Its start is recorded with the change (`manual_on` or `manual_off`) and the origin class: a user, another automation or script, or not attributable (device report, physical switch, another integration, or a device answer after the 5-second window). Its end is recorded with the cause (area clear or blocking state); a restored override is recorded at setup. Skipped light decisions show their reason, for example `manual_override`, `no_transition` or `already_on`.
 
 ## 🧠 Usage Examples
 
