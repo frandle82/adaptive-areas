@@ -32,21 +32,14 @@ def meta_status_summary(area: AdaptiveMetaArea) -> dict[str, Any]:
     children = _child_area_objects(area)
     states_by_area: dict[str, set[str]] = {}
     for child in children:
-        entity_id = (
-            f"binary_sensor.adaptive_areas_presence_tracking_{child.slug}_area_state"
-        )
-        state = area.hass.states.get(entity_id)
+        state = area.hass.states.get(child.area_state_entity_id())
         states_by_area[child.id] = (
             set(state.attributes.get(ATTR_STATES, [])) if state is not None else set()
         )
     occupied = {
         child.id
         for child in children
-        if (
-            state := area.hass.states.get(
-                f"binary_sensor.adaptive_areas_presence_tracking_{child.slug}_area_state"
-            )
-        )
+        if (state := area.hass.states.get(child.area_state_entity_id()))
         and state.state == STATE_ON
     }
     mapping = {

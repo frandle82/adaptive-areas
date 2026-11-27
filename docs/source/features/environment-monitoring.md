@@ -14,6 +14,8 @@ Exterior Areas are the central outdoor reference. Their primary temperature and 
 
 Area Health is separate optional feature for smoke, gas, moisture alarms, safety, and problem binary sensors. It replaces no Area Climate measurement. Area Climate performs no generic binary environmental aggregation. Imported legacy Magic Areas `health`/German “Umweltsensoren” configuration is discarded rather than silently enabling Area Health.
 
+When both features are enabled, Area Climate reads the Area's own Health sensor (`binary_sensor.adaptive_areas_health_<area>_health_problem`, found by its unique ID, so a renamed sensor keeps working). `on` raises the `health_alert` notice, which outranks every other recommendation. Without a Health sensor (no tracked device class in the Area) there is no Health input; another entity that happens to hold the default entity ID is never read.
+
 ## Scientific and operational basis
 
 Adaptive Areas combines published formulas and guidance with clearly labelled operational policy. It does not claim compliance with [ANSI/ASHRAE Standard 55](https://www.ashrae.org/technical-resources/bookstore/standard-55-thermal-environmental-conditions-for-human-occupancy) or [ISO 7730:2025](https://www.iso.org/standard/85803.html): ordinary rooms usually lack air speed, mean radiant temperature, clothing, and metabolic-rate inputs. Boundaries marked `Adaptive Areas operational` are deterministic automation rules, not health limits.

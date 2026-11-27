@@ -5,7 +5,6 @@ import logging
 
 from homeassistant.components.group.light import FORWARDED_ATTRIBUTES, LightGroup
 from homeassistant.components.light.const import DOMAIN as LIGHT_DOMAIN
-from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
@@ -22,6 +21,7 @@ from custom_components.adaptive_areas.base.entities import AdaptiveEntity
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
     CONF_EXCLUDE_ENTITIES,
+    DOMAIN,
     EMPTY_STRING,
     EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED,
     LIGHT_GROUP_BLOCKING_STATES,
@@ -35,13 +35,17 @@ from custom_components.adaptive_areas.const import (
     LIGHT_GROUP_CATEGORIES,
     LIGHT_GROUP_DEFAULT_ICON,
     LIGHT_GROUP_ICONS,
+    SIGNAL_LIGHT_CONTROL_CHANGED,
     AdaptiveAreasEvents,
     AreaStates,
     LightGroupCategory,
     AdaptiveAreasFeatureInfoLightGroups,
     AdaptiveAreasFeatures,
 )
-from custom_components.adaptive_areas.helpers.area import get_runtime_areas_for_entry
+from custom_components.adaptive_areas.helpers.area import (
+    get_runtime_areas_for_entry,
+    iter_runtime_areas,
+)
 from custom_components.adaptive_areas.helpers.brightness import BrightnessState
 from custom_components.adaptive_areas.helpers.light_ownership_runtime import (
     excluded_members_by_group,
@@ -74,9 +78,49 @@ ATTR_MANUAL_OVERRIDE = "manual_override"
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the area light config entry."""
+    """Set up the area light config entry.
+
+    Regular Areas come before Meta Areas in the runtime order. The light groups a
+    child creates here are handed to its Meta Areas directly, so a Meta Area's ALL
+    group exists on the very first setup, before the children's groups are in the
+    entity registry.
+    """
+    created: dict[str, list[str]] = {}
     for area in get_runtime_areas_for_entry(hass, config_entry):
-        await _async_setup_area(hass, area, async_add_entities)
+        groups = await _async_setup_area(hass, area, async_add_entities, created)
+        created[area.id] = [_registered_or_default(hass, group) for group in groups]
+
+
+def _registered_or_default(hass, group) -> str:
+    """Return the registered entity ID of a group, or its default before registration."""
+    return (
+        er.async_get(hass).async_get_entity_id(LIGHT_DOMAIN, DOMAIN, group.unique_id)
+        or group.entity_id
+    )
+
+
+def _meta_member_lights(area: AdaptiveArea, created: dict[str, list[str]]) -> list[str]:
+    """Return the members of a Meta Area's ALL group.
+
+    Children set up in this entry contribute the groups they created in this setup.
+    Children of other (legacy) entries are known only through the registry, as before.
+    """
+    excluded = set(area.config.get(CONF_EXCLUDE_ENTITIES, []) or [])
+    child_ids = {
+        child.id
+        for child in iter_runtime_areas(area.hass)
+        if not child.is_meta() and child.slug in getattr(area, "child_areas", [])
+    }
+    members = [
+        entity_id
+        for child_id in sorted(child_ids & set(created))
+        for entity_id in created[child_id]
+    ]
+    if not child_ids <= set(created):
+        members.extend(e["entity_id"] for e in area.entities.get(LIGHT_DOMAIN, []))
+    return [
+        entity_id for entity_id in dict.fromkeys(members) if entity_id not in excluded
+    ]
 
 
 def _configured_group_lights(
@@ -122,24 +166,28 @@ def _configured_group_lights(
     return accepted
 
 
-async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
-    """Set up lights for one runtime Area."""
+async def _async_setup_area(
+    hass, area: AdaptiveArea, async_add_entities, created: dict[str, list[str]]
+) -> list:
+    """Set up lights for one runtime Area and return the groups it created."""
 
     # Check feature availability
     if not area.has_feature(AdaptiveAreasFeatures.LIGHT_GROUPS):
-        return
+        return []
 
-    # Check if there are any lights
-    if not area.has_entities(LIGHT_DOMAIN):
-        _LOGGER.debug("%s: No %s entities for area.", area.name, LIGHT_DOMAIN)
-        return
-
-    light_entities = [e["entity_id"] for e in area.entities[LIGHT_DOMAIN]]
+    # Lights found through the Home Assistant Area. For a regular Area they are not a
+    # precondition: explicitly configured, valid group members are authoritative and
+    # need no Home Assistant Area assignment (Option C).
+    light_entities = [e["entity_id"] for e in area.entities.get(LIGHT_DOMAIN, [])]
 
     light_groups = []
 
     # Create light groups
     if area.is_meta():
+        light_entities = _meta_member_lights(area, created)
+        if not light_entities:
+            _LOGGER.debug("%s: No %s entities for area.", area.name, LIGHT_DOMAIN)
+            return []
         light_groups.append(
             AdaptiveLightGroup(
                 area, light_entities, translation_key=LightGroupCategory.ALL
@@ -204,6 +252,7 @@ async def _async_setup_area(hass, area: AdaptiveArea, async_add_entities):
         cleanup_removed_entries(
             area.hass, light_groups, area.adaptive_entities[LIGHT_DOMAIN]
         )
+    return light_groups
 
 
 class AdaptiveLightGroup(AdaptiveEntity, LightGroup):
@@ -403,12 +452,11 @@ class AreaLightGroup(AdaptiveLightGroup):
         self._active = True
         self.async_on_remove(self._async_deactivate)
         # Enabling the automation is a relevant event: the current state is evaluated.
+        # The Area's own switch reports it, whatever entity ID the registry gave it.
         self.async_on_remove(
-            async_track_state_change_event(
+            async_dispatcher_connect(
                 self.hass,
-                [
-                    f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{self.area.slug}_light_control"
-                ],
+                SIGNAL_LIGHT_CONTROL_CHANGED,
                 self._async_control_switch_changed,
             )
         )
@@ -499,11 +547,9 @@ class AreaLightGroup(AdaptiveLightGroup):
         return BrightnessState.UNKNOWN
 
     @callback
-    @callback
-    def _async_control_switch_changed(self, event) -> None:
-        """Re-evaluate the current state when the automation is switched on."""
-        new_state = event.data.get("new_state")
-        if new_state is not None and new_state.state == STATE_ON and self._active:
+    def _async_control_switch_changed(self, area_id: str) -> None:
+        """Re-evaluate the current state when the Area's automation is switched on."""
+        if area_id == self.area.id and self._active and self.is_control_enabled():
             self._apply_decision_event("automation_enabled")
 
     @callback
@@ -793,15 +839,14 @@ class AreaLightGroup(AdaptiveLightGroup):
     # Control Release
 
     def is_control_enabled(self):
-        """Check if light control is enabled by checking light control switch state."""
-        entity_id = f"{SWITCH_DOMAIN}.adaptive_areas_light_groups_{self.area.slug}_light_control"
+        """Return whether the Area's light control switch is on.
 
-        switch_entity = self.hass.states.get(entity_id)
-
-        if not switch_entity:
-            return False
-
-        return switch_entity.state.lower() == STATE_ON
+        The switch registers itself on its Area while it is added to Home Assistant, so
+        the state and its changes always come from the same, actually registered
+        entity. A renamed or suffixed entity ID makes no difference.
+        """
+        switch = getattr(self.area, "light_control_switch", None)
+        return switch is not None and switch.is_on is True
 
     def reset_control(self):
         """Reset control status."""

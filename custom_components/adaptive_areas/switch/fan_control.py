@@ -17,6 +17,9 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_track_state_change_event
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.const import (
     CONF_FAN_GROUPS_REQUIRED_STATE,
     CONF_FAN_GROUPS_SETPOINT,
@@ -26,6 +29,7 @@ from custom_components.adaptive_areas.const import (
     DEFAULT_FAN_GROUPS_TRACKED_DEVICE_CLASS,
     AreaStates,
     AdaptiveAreasEvents,
+    AdaptiveAreasFeatureInfoAggregates,
     AdaptiveAreasFeatureInfoFanGroups,
     AdaptiveAreasFeatures,
 )
@@ -54,7 +58,13 @@ class FanControlSwitch(SwitchBase):
             CONF_FAN_GROUPS_TRACKED_DEVICE_CLASS,
             DEFAULT_FAN_GROUPS_TRACKED_DEVICE_CLASS,
         )
-        self.tracked_entity_id = f"{SENSOR_DOMAIN}.adaptive_areas_aggregates_{self.area.slug}_aggregate_{tracked_device_class}"
+        self.tracked_entity_id = resolve_generated_entity_id(
+            area.hass,
+            AdaptiveAreasFeatureInfoAggregates,
+            SENSOR_DOMAIN,
+            self.area.slug,
+            tracked_device_class,
+        )
 
         self.setpoint = float(
             self.area.feature_config(AdaptiveAreasFeatures.FAN_GROUPS).get(
@@ -81,13 +91,14 @@ class FanControlSwitch(SwitchBase):
                     )
                 )
             )
-        self.async_on_remove(
-            async_track_state_change_event(
-                self.hass,
-                [self.tracked_entity_id],
-                self.aggregate_sensor_state_changed,
+        if self.tracked_entity_id:
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass,
+                    [self.tracked_entity_id],
+                    self.aggregate_sensor_state_changed,
+                )
             )
-        )
 
     async def aggregate_sensor_state_changed(
         self, event: Event[EventStateChangedData]
@@ -128,8 +139,11 @@ class FanControlSwitch(SwitchBase):
             )
             return
 
-        fan_group_entity_id = (
-            f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
+        fan_group_entity_id = resolve_generated_entity_id(
+            self.area.hass,
+            AdaptiveAreasFeatureInfoFanGroups,
+            FAN_DOMAIN,
+            self.area.slug,
         )
 
         if self.area.environment is not None and not self.area.is_exterior():
@@ -195,8 +209,11 @@ class FanControlSwitch(SwitchBase):
         request_active = any(
             request != "none" for request in (ventilation_request, circulation_request)
         )
-        fan_group_entity_id = (
-            f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
+        fan_group_entity_id = resolve_generated_entity_id(
+            self.area.hass,
+            AdaptiveAreasFeatureInfoFanGroups,
+            FAN_DOMAIN,
+            self.area.slug,
         )
         fan_group_state = self.hass.states.get(fan_group_entity_id)
         if request_active:
@@ -229,10 +246,15 @@ class FanControlSwitch(SwitchBase):
         trigger: str = "aggregate_sensor_changed",
     ) -> None:
         """Run a fan action and record its safe result."""
-        fan_group_entity_id = (
-            f"{FAN_DOMAIN}.adaptive_areas_fan_groups_{self.area.slug}_fan_group"
+        fan_group_entity_id = resolve_generated_entity_id(
+            self.area.hass,
+            AdaptiveAreasFeatureInfoFanGroups,
+            FAN_DOMAIN,
+            self.area.slug,
         )
-        targets = entity_ids or [fan_group_entity_id]
+        targets = entity_ids or ([fan_group_entity_id] if fan_group_entity_id else [])
+        if not targets:
+            return
         try:
             await self.hass.services.async_call(
                 FAN_DOMAIN,

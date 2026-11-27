@@ -16,6 +16,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.components.climate.const import ATTR_PRESET_MODE
+from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.floor_registry import async_get as async_get_floor_registry
 
@@ -39,7 +40,11 @@ from custom_components.adaptive_areas.const import (
     CONF_CLIMATE_CONTROL_ENTITY_ID,
     CONF_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
     DEFAULT_CLIMATE_CONTROL_OCCUPANCY_THRESHOLD,
+    AdaptiveAreasFeatureInfoLightGroups,
     AreaStates,
+)
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
 )
 from custom_components.adaptive_areas.light import ATTR_MANUAL_OVERRIDE
 from custom_components.adaptive_areas.helpers.area import (
@@ -732,6 +737,29 @@ def build_decision_trace(area: AdaptiveArea, limit: int = 20) -> dict[str, Any]:
     }
 
 
+def _light_group_entity_id(hass: HomeAssistant, area: AdaptiveArea, category) -> str:
+    """Return the registered entity ID of one of the Area's light groups."""
+    return resolve_generated_entity_id(
+        hass,
+        AdaptiveAreasFeatureInfoLightGroups,
+        LIGHT_DOMAIN,
+        area.slug,
+        str(category),
+    )
+
+
+def _live_state(hass: HomeAssistant, entity_id: str) -> State | None:
+    """Return the state of a loaded entity, or None.
+
+    A registry entry without a loaded entity keeps a restored placeholder state
+    (`restored: true`). Such a group does not exist at runtime and is not controllable.
+    """
+    state = hass.states.get(entity_id)
+    if state is None or state.attributes.get("restored") is True:
+        return None
+    return state
+
+
 def light_group_diagnostics(
     hass: HomeAssistant, area: AdaptiveArea
 ) -> list[dict[str, Any]]:
@@ -744,8 +772,8 @@ def light_group_diagnostics(
     groups: list[dict[str, Any]] = []
     for category in LIGHT_GROUP_CATEGORIES:
         configured = [str(item) for item in (feature.get(category) or [])]
-        entity_id = f"light.adaptive_areas_light_groups_{area.slug}_{category}"
-        state = hass.states.get(entity_id)
+        entity_id = _light_group_entity_id(hass, area, category)
+        state = _live_state(hass, entity_id)
         activation = feature.get(
             LIGHT_GROUP_ACTIVATION[category],
             LIGHT_GROUP_ACTIVATION_DEFAULTS[category],
@@ -768,8 +796,8 @@ def light_group_diagnostics(
                 ),
             }
         )
-    all_entity_id = f"light.adaptive_areas_light_groups_{area.slug}_all_lights"
-    all_state = hass.states.get(all_entity_id)
+    all_entity_id = _light_group_entity_id(hass, area, LightGroupCategory.ALL)
+    all_state = _live_state(hass, all_entity_id)
     all_members = [
         str(item)
         for category in LIGHT_GROUP_CATEGORIES
@@ -863,8 +891,19 @@ def build_light_runtime_status(
             "control_path": {
                 "group_active": group_active,
                 "groups": groups,
+                # The Area's actual light control switch, as the groups read it.
+                "control_switch": _light_control_switch(area),
             },
         },
+    }
+
+
+def _light_control_switch(area: AdaptiveArea) -> dict[str, Any]:
+    """Return the registered light control switch of an Area and whether it is on."""
+    switch = getattr(area, "light_control_switch", None)
+    return {
+        "entity_id": switch.entity_id if switch is not None else None,
+        "enabled": bool(switch is not None and switch.is_on),
     }
 
 

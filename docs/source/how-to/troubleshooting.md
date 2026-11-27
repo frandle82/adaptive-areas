@@ -41,6 +41,30 @@ silently delete or rewrite configuration. Reconfigure or remove the affected
 Adaptive Areas entry after reviewing its automations. The issue disappears
 automatically after the corrected entry is loaded again.
 
+### Area identity, renames and deletion
+
+Every Adaptive Areas Area has one device, identified by the stable Home Assistant
+Area, floor or Meta ID. That device owns the Area's generated entities.
+
+- Renaming a Home Assistant Area or floor keeps all entity IDs and unique IDs;
+  only the device name changes. Automations keep working.
+- If a new Area would generate the same ID part as an existing one (for example
+  an Area and a floor both named "Keller"), only the new Area uses a different ID
+  part (its Area ID); a warning is logged.
+- Deleting an Area in the Adaptive Areas panel removes its device and generated
+  entities. Physical devices and other integrations' entities are never removed.
+- On setup, devices of Areas that are no longer configured are removed with their
+  generated entities. Nothing is removed while a migration is unfinished, while
+  the stored Area configuration is inconsistent, or when such a device also holds
+  an entity of another integration. Generated entities without an Area device
+  are left unchanged.
+- An Area whose Home Assistant Area or floor was deleted is skipped; it keeps its
+  configuration and entities, and a Repair issue is raised.
+- An Area and a floor with the same technical ID (for example both `keller`)
+  cannot both be configured; creating the second is refused.
+- The GlobalEntry has no "Configure" dialog; its Areas are configured in the
+  Adaptive Areas panel.
+
 ### System Health
 
 Home Assistant's **System information** view includes a concise Adaptive Areas

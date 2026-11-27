@@ -60,3 +60,16 @@ Record a new decision here only after it is accepted. Include context, decision,
 - The difference to 1.6.18 is intended and accepted. The code is not changed to match 1.6.18.
 - Meta-Area brightness, decided and closed: at least one relevant DARK child gives DARK; all relevant children BRIGHT give BRIGHT; no DARK and at least one UNKNOWN give UNKNOWN; no relevant children give UNKNOWN. A relevant child without a brightness source is UNKNOWN and is never ignored or treated as BRIGHT. A BRIGHT child together with other relevant UNKNOWN children gives UNKNOWN. Exactly one relevant BRIGHT child gives BRIGHT (test `test_exactly_one_relevant_bright_child_is_bright`).
 - Public illuminance threshold entity: unchanged, Variant B (see above).
+
+## GlobalEntry identity and lifecycle (after RC.3 field test, 2026-11-26)
+
+- Ownership of generated entities is the Area's Adaptive Areas device (stable Area ID). Unique-ID name parts are not used. No unique-ID or entity-ID migration.
+- Consumers of generated entities resolve the registered entity ID by unique ID; the light control switch is read as the Area's runtime object. No parallel registry.
+- Deleting an Area removes its generated entities and device during the following setup; devices of Areas no longer configured are removed the same way (one rule, idempotent). Device-less generated entities in a GlobalEntry and devices that also hold foreign entities are left unchanged.
+- A missing Home Assistant Area or floor skips that Area and raises `missing_area`; configuration and entities are kept.
+- Phase F: the slug of an Area is read back from its registered presence state entity, so renames keep all IDs; a new Area whose slug is taken uses its Area ID (then a type suffix, then a counter). No migration: existing registered IDs are reused as they are.
+- Phase F: Area Climate reads the registered Health sensor by unique ID, without fallback to a default ID.
+- Phase F: the per-Area options flow is not offered for the GlobalEntry (`async_supports_options_flow`).
+- Decided for RC.4 (2026-11-26): no schema migration of `options[areas]`. An Area and a floor with the same technical ID cannot both be configured; creating such an Area is refused with an explicit message, nothing is overwritten. Different IDs with equal names or slugs are supported.
+- Phase H (2026-11-27): a structurally invalid stored Area configuration stops the GlobalEntry setup (explicit error, no cleanup) instead of being skipped; a missing Home Assistant Area is still skipped as before. Registry cleanup runs only at the end of a successful setup. Generated-entity resolution never returns a foreign entity's ID.
+- Global weather entity (2026-11-26): stored and shown since the GlobalEntry (`3777868`, after 1.6.18), never read at runtime, no documented function (classification D). Kept unchanged; product decision deferred.

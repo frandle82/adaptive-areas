@@ -8,11 +8,13 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
 from custom_components.adaptive_areas.const import (
-    DOMAIN,
-    ADAPTIVE_DEVICE_ID_PREFIX,
-    ADAPTIVEAREAS_UNIQUEID_PREFIX,
     META_AREAS,
     AdaptiveAreasFeatureInfo,
+)
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    area_device_identifier,
+    generated_ids,
+    generated_translation_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,21 +65,22 @@ class AdaptiveEntity(RestoreEntity):
 
         # Allow supplying of additional translation key parts
         # for dealing with device_classes
-        translation_key_parts = []
-        feature_translation_key = self.feature_info.translation_keys[domain]
-        if feature_translation_key:
-            translation_key_parts.append(feature_translation_key)
-        if translation_key:
-            translation_key_parts.append(translation_key)
-        self._attr_translation_key = "_".join(translation_key_parts)
+        self._attr_translation_key = generated_translation_key(
+            self.feature_info, domain, translation_key
+        )
         self._attr_translation_placeholders = {}
 
         # Resolve icon
         self._attr_icon = self.feature_info.icons.get(domain, None)
 
-        # Resolve entity id & unique id
-        self.entity_id = self._generate_entity_id(domain)
-        self._attr_unique_id = self._generaete_unique_id(domain)
+        # Resolve entity id & unique id from the one shared identity rule.
+        self.entity_id, self._attr_unique_id = generated_ids(
+            self.feature_info,
+            domain,
+            self.area.slug,
+            translation_key,
+            self._extra_identifiers,
+        )
 
         _LOGGER.debug(
             "%s: Initializing entity. (entity_id: %s, unique id: %s, translation_key: %s)",
@@ -86,49 +89,6 @@ class AdaptiveEntity(RestoreEntity):
             self._attr_unique_id,
             self._attr_translation_key,
         )
-
-    def _generate_entity_id(self, domain: str) -> str:
-        if not self.feature_info:
-            raise NotImplementedError(f"{self.name}: Feature info not set.")
-
-        entity_id_parts = [
-            ADAPTIVEAREAS_UNIQUEID_PREFIX,
-            self.feature_info.id,
-            self.area.slug,
-        ]
-
-        if (
-            self._attr_translation_key
-            and self._attr_translation_key != self.feature_info.id
-        ):
-            entity_id_parts.append(self._attr_translation_key)
-
-        if self._extra_identifiers:
-            entity_id_parts.extend(self._extra_identifiers)
-
-        entity_id = "_".join(entity_id_parts)
-
-        return f"{domain}.{entity_id}"
-
-    def _generaete_unique_id(self, domain: str, extra_parts: list | None = None):
-        # Format: adaptiveareas_feature_domain_areaname_name
-        if not self.feature_info:
-            raise NotImplementedError(f"{self.name}: Feature info not set.")
-
-        unique_id_parts = [
-            ADAPTIVEAREAS_UNIQUEID_PREFIX,
-            self.feature_info.id,
-            domain,
-            self.area.slug,
-        ]
-
-        if self._attr_translation_key:
-            unique_id_parts.append(self._attr_translation_key)
-
-        if self._extra_identifiers:
-            unique_id_parts.extend(self._extra_identifiers)
-
-        return "_".join(unique_id_parts)
 
     @property
     def should_poll(self) -> bool:
@@ -139,10 +99,8 @@ class AdaptiveEntity(RestoreEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, f"{ADAPTIVE_DEVICE_ID_PREFIX}{self.area.id}")
-            },
+            # The stable Area ID is the device identity; it owns the generated entities.
+            identifiers={area_device_identifier(self.area.id)},
             name=self.area.name,
             manufacturer="Adaptive Areas",
             model="Adaptive Area",

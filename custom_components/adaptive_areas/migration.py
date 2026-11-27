@@ -13,7 +13,6 @@ from homeassistant.helpers.device_registry import (
 )
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
-from homeassistant.util import slugify
 
 from custom_components.adaptive_areas.const import (
     CONF_AREAS,
@@ -544,23 +543,33 @@ async def async_activate_global_entry(hass: HomeAssistant, entry: ConfigEntry) -
         raise MigrationTransferError("global entry activation failed") from err
 
 
-def _generated_area_id(entry: ConfigEntry, unique_id: str) -> str | None:
-    """Return the one configured Area that a generated entity belongs to, if unambiguous.
+def _generated_area_id(
+    hass: HomeAssistant, entry: ConfigEntry, device_id: str | None
+) -> str | None:
+    """Return the configured Area that owns a generated entity's device, if any.
 
-    Uses the same slug rule as ``entity_belongs_to_area``.
+    Uses the same device identity as ``entity_belongs_to_area``: the device identifier
+    carries the stable Area ID. Name parts of unique IDs are never used.
     """
+    from custom_components.adaptive_areas.helpers.entity_identity import (
+        area_id_from_device_identifiers,
+    )
+
+    if device_id is None:
+        return None
+    device = async_get_device_registry(hass).async_get(device_id)
+    if device is None:
+        return None
+    area_id = area_id_from_device_identifiers(device.identifiers)
     areas = entry.options.get(CONF_AREAS) or {}
-    matches = [
-        area_id
-        for area_id, config in areas.items()
-        if isinstance(config, dict)
-        and f"_{slugify(config.get('name', area_id))}_" in f"_{unique_id}_"
-    ]
-    return matches[0] if len(matches) == 1 else None
+    return area_id if area_id in areas else None
 
 
 def _area_identity_holds(
-    entry: ConfigEntry, saved: dict[str, Any], current_area_id: str | None
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    saved: dict[str, Any],
+    current_area_id: str | None,
 ) -> bool:
     """Return whether the entity's Area is unchanged or legitimately assigned after the snapshot.
 
@@ -573,7 +582,7 @@ def _area_identity_holds(
     return (
         saved["area_id"] is None
         and current_area_id is not None
-        and current_area_id == _generated_area_id(entry, saved["unique_id"])
+        and current_area_id == _generated_area_id(hass, entry, saved["device_id"])
     )
 
 
@@ -609,7 +618,7 @@ def verify_global_entry(
         elif any(
             getattr(current, field) != saved[field]
             for field in ("device_id", "name", "disabled_by", "hidden_by")
-        ) or not _area_identity_holds(entry, saved, current.area_id):
+        ) or not _area_identity_holds(hass, entry, saved, current.area_id):
             errors.append(f"entity identity mismatch: {saved['entity_id']}")
     device_registry = async_get_device_registry(hass)
     for saved in snapshot.devices:

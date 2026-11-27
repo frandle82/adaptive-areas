@@ -9,7 +9,12 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ID, ATTR_NAME
+from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.core import HomeAssistant
+from homeassistant.util import slugify
 from homeassistant.helpers.area_registry import (
     AreaEntry,
     async_get as areareg_async_get,
@@ -32,13 +37,29 @@ from custom_components.adaptive_areas.const import (
     CONF_AREAS,
     CONF_TYPE,
     AREA_TYPE_META,
-    ADAPTIVE_DEVICE_ID_PREFIX,
     DOMAIN,
     DATA_AREAS,
     DATA_AREA_OBJECT,
     MODULE_DATA,
+    AdaptiveAreasFeatureInfoBLETrackers,
+    AdaptiveAreasFeatureInfoClimateControl,
+    AdaptiveAreasFeatureInfoEnvironment,
+    AdaptiveAreasFeatureInfoFanGroups,
+    AdaptiveAreasFeatureInfoLightGroups,
+    AdaptiveAreasFeatureInfoMediaPlayerGroups,
+    AdaptiveAreasFeatureInfoPresenceHold,
+    AdaptiveAreasFeatureInfoPresenceTracking,
+    AdaptiveAreasFeatureInfoRoomUsage,
+    AdaptiveAreasFeatureInfoWaspInABox,
+    LightGroupCategory,
     MetaAreaIcons,
     MetaAreaType,
+)
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    area_device_identifier,
+    generated_entities_for_area_id,
+    generated_entity_area_id,
+    generated_ids,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,7 +124,20 @@ def get_adaptive_area_for_config_entry(
 ) -> AdaptiveArea | None:
     """Return adaptive area object for given config entry."""
 
-    config = area_config or {**config_entry.data, **config_entry.options}
+    # Only a missing configuration falls back to the legacy entry; an explicitly given
+    # (even empty) one is used as it is and must be valid.
+    config = (
+        area_config
+        if area_config is not None
+        else {**config_entry.data, **config_entry.options}
+    )
+    if (
+        not isinstance(config, dict)
+        or not config.get(ATTR_ID)
+        or not config.get(ATTR_NAME)
+    ):
+        _LOGGER.error("Adaptive Areas: Area configuration without ID or name")
+        return None
     area_id = config[ATTR_ID]
     area_name = config[ATTR_NAME]
 
@@ -168,19 +202,43 @@ def get_adaptive_areas_for_config_entry(
     if not isinstance(areas, dict):
         area = get_adaptive_area_for_config_entry(hass, config_entry)
         return [area] if area is not None else []
+    invalid = invalid_area_config_ids(areas)
+    if invalid:
+        _LOGGER.error(
+            "Adaptive Areas: %d stored Area configurations are invalid and are not "
+            "set up: %s",
+            len(invalid),
+            ", ".join(invalid),
+        )
+    # Structure is checked before any value is read.
     ordered_areas = sorted(
-        areas.items(),
-        key=lambda item: (item[1].get(CONF_TYPE) == AREA_TYPE_META, item[0]),
+        (
+            (area_id, config)
+            for area_id, config in areas.items()
+            if area_id not in invalid
+        ),
+        key=lambda item: (item[1].get(CONF_TYPE) == AREA_TYPE_META, str(item[0])),
     )
     return [
         area
         for _area_id, area_config in ordered_areas
-        if isinstance(area_config, dict)
-        and (
-            area := get_adaptive_area_for_config_entry(hass, config_entry, area_config)
-        )
+        if (area := get_adaptive_area_for_config_entry(hass, config_entry, area_config))
         is not None
     ]
+
+
+def invalid_area_config_ids(areas: dict) -> list[str]:
+    """Return the keys of stored Area configurations that are structurally invalid.
+
+    A valid entry is a non-empty mapping with a name and an `id` equal to its key.
+    """
+    return sorted(
+        str(area_id)
+        for area_id, config in areas.items()
+        if not isinstance(config, dict)
+        or config.get(ATTR_ID) != area_id
+        or not config.get(ATTR_NAME)
+    )
 
 
 def get_runtime_areas_for_entry(
@@ -219,24 +277,46 @@ def refresh_meta_area_sources(hass: HomeAssistant) -> None:
 def entity_belongs_to_area(entity: RegistryEntry, area: AdaptiveArea) -> bool:
     """Return whether an Adaptive Areas registry entity belongs to one Area.
 
-    The generated unique ID is the stable Area-specific identity; the config entry
-    only identifies its current container owner.
+    The owner is the entity's Adaptive Areas device, identified by the stable Area ID.
+    Name parts of unique IDs are not an identity: "bad" is part of "bad_og", and a
+    floor "og" is part of both. A legacy entity without that device has no
+    unambiguous owner and belongs to no Area here.
     """
-    return entity.platform == DOMAIN and f"_{area.slug}_" in f"_{entity.unique_id}_"
+    owner = generated_entity_area_id(area.hass, entity)
+    if owner is not None:
+        return owner == area.id
+    return _legacy_entry_owns(entity, area)
+
+
+def _legacy_entry_owns(entity: RegistryEntry, area: AdaptiveArea) -> bool:
+    """Return whether a device-less generated entity belongs to a legacy entry's Area.
+
+    A legacy entry holds exactly one Area, so the entry itself is the unambiguous owner.
+    In a GlobalEntry such an entity has no unambiguous owner.
+    """
+    entry = area.hass_config
+    return (
+        entity.platform == DOMAIN
+        and entity.device_id is None
+        and entity.config_entry_id == entry.entry_id
+        and CONF_AREAS not in entry.data
+        and CONF_AREAS not in entry.options
+    )
 
 
 def generated_entities_for_area(
     hass: HomeAssistant, area: AdaptiveArea
 ) -> list[RegistryEntry]:
-    """Return generated entities for one Area, scoped independently of owner ID."""
-    registry = entityreg_async_get(hass)
-    return [
+    """Return the generated entities one Area owns in its current config entry."""
+    entities = generated_entities_for_area_id(hass, area.hass_config.entry_id, area.id)
+    entities.extend(
         entity
-        for entity in registry.entities.get_entries_for_config_entry_id(
-            area.hass_config.entry_id
-        )
-        if entity_belongs_to_area(entity, area)
-    ]
+        for entity in entityreg_async_get(
+            hass
+        ).entities.get_entries_for_config_entry_id(area.hass_config.entry_id)
+        if _legacy_entry_owns(entity, area)
+    )
+    return entities
 
 
 def transfer_area_entities_to_container(
@@ -246,12 +326,17 @@ def transfer_area_entities_to_container(
     global_entry_id: str,
     area: AdaptiveArea,
 ) -> list[str]:
-    """Transfer verified Area entity ownership without changing entity identity."""
+    """Transfer verified Area entity ownership without changing entity identity.
+
+    A legacy entry owns exactly one Area, so its generated entities belong to that Area
+    unless their device names another Area; those are left untouched.
+    """
     registry = entityreg_async_get(hass)
     candidates = [
         entity
         for entity in registry.entities.get_entries_for_config_entry_id(old_entry_id)
-        if entity_belongs_to_area(entity, area)
+        if entity.platform == DOMAIN
+        and generated_entity_area_id(hass, entity) in (None, area.id)
     ]
     for entity in candidates:
         conflict = next(
@@ -284,7 +369,7 @@ def transfer_area_devices_to_container(
 ) -> list[str]:
     """Transfer only the stable Adaptive Areas device for one Area."""
     registry = devicereg_async_get(hass)
-    identifier = (DOMAIN, f"{ADAPTIVE_DEVICE_ID_PREFIX}{area_id}")
+    identifier = area_device_identifier(area_id)
     candidates = [
         device
         for device in devicereg_entries_for_config_entry(registry, old_entry_id)
@@ -293,6 +378,120 @@ def transfer_area_devices_to_container(
     for device in candidates:
         registry.async_update_device(device.id, new_config_entry_id=global_entry_id)
     return [device.id for device in candidates]
+
+
+def _slug_templates() -> list[tuple[str, str, str]]:
+    """Return (domain, prefix, suffix) of generated unique IDs with a fixed form.
+
+    Only entities whose unique ID is fully known apart from the slug are listed, so
+    the slug can be cut out exactly. The presence state entity comes first: every
+    Area has one.
+    """
+    fixed: list[tuple[Any, str, str | None]] = [
+        (AdaptiveAreasFeatureInfoPresenceTracking, BINARY_SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoLightGroups, SWITCH_DOMAIN, None),
+        *(
+            (AdaptiveAreasFeatureInfoLightGroups, LIGHT_DOMAIN, str(category))
+            for category in LightGroupCategory
+        ),
+        (AdaptiveAreasFeatureInfoPresenceHold, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoBLETrackers, BINARY_SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoWaspInABox, BINARY_SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoClimateControl, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoFanGroups, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoMediaPlayerGroups, SWITCH_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoEnvironment, SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoRoomUsage, SENSOR_DOMAIN, None),
+        (AdaptiveAreasFeatureInfoRoomUsage, BINARY_SENSOR_DOMAIN, None),
+    ]
+    templates = []
+    for feature_info, domain, translation_key in fixed:
+        _default, unique_id = generated_ids(feature_info, domain, "\0", translation_key)
+        prefix, suffix = unique_id.split("\0")
+        templates.append((domain, prefix, suffix))
+    return templates
+
+
+def registered_area_slug(
+    hass: HomeAssistant, config_entry_id: str, area_id: str
+) -> str | None:
+    """Return the slug an Area's registered entities already use, or None.
+
+    The unique IDs of the Area's own entities (found through its device) carry the
+    slug they were created with. Reading it back keeps entity IDs and unique IDs
+    stable when the Area or floor is renamed. One missing entity does not change the
+    identity: any entity of the device with a fixed unique-ID form is enough.
+    """
+    entities = generated_entities_for_area_id(hass, config_entry_id, area_id)
+    for domain, prefix, suffix in _slug_templates():
+        for entity in entities:
+            uid = entity.unique_id
+            if (
+                entity.domain == domain
+                and uid.startswith(prefix)
+                and uid.endswith(suffix)
+                and len(uid) > len(prefix) + len(suffix)
+            ):
+                return uid[len(prefix) : -len(suffix)]
+    return None
+
+
+def assign_area_slugs(
+    hass: HomeAssistant, config_entry: ConfigEntry, areas: list[AdaptiveArea]
+) -> None:
+    """Give every Area of one entry a slug that is stable and unique within it.
+
+    1. An Area keeps the slug its registered entities already use (renames change
+       neither unique IDs nor entity IDs).
+    2. A new Area uses the slug of its name, as before.
+    3. Only if that slug is already taken by another Area of the entry (for example
+       "Keller" as Area and floor with different IDs, or "Bad OG" and "Bad-OG") is the
+       new Area's slug made unique: its ID, then a type suffix, then a counter.
+       Existing identities are never changed.
+    """
+    taken: set[str] = set()
+    # A configured Area that is not loaded now (its Home Assistant Area or floor is
+    # missing) keeps its registered identity reserved: no other Area may take it.
+    loaded_ids = {area.id for area in areas}
+    configured = config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
+    if isinstance(configured, dict):
+        for area_id in configured:
+            if area_id not in loaded_ids and (
+                slug := registered_area_slug(hass, config_entry.entry_id, area_id)
+            ):
+                taken.add(slug)
+    pending: list[AdaptiveArea] = []
+    for area in areas:
+        slug = registered_area_slug(hass, config_entry.entry_id, area.id)
+        if slug is not None and slug not in taken:
+            area.slug = slug
+            taken.add(slug)
+        else:
+            pending.append(area)
+    for area in pending:
+        base = slugify(area.name)
+        kind = (
+            "floor"
+            if area.is_meta() and area.floor_id
+            else ("meta" if area.is_meta() else "area")
+        )
+        candidates = [base, slugify(area.id), f"{base}_{kind}"]
+        slug = next((c for c in candidates if c and c not in taken), None)
+        counter = 2
+        while slug is None:
+            if f"{base}_{kind}_{counter}" not in taken:
+                slug = f"{base}_{kind}_{counter}"
+            counter += 1
+        if slug != base:
+            _LOGGER.warning(
+                "Adaptive Areas: Area %s uses the generated ID part '%s' because "
+                "'%s' already belongs to another Area",
+                area.id,
+                slug,
+                base,
+            )
+        area.slug = slug
+        taken.add(slug)
 
 
 def get_area_from_config_entry(

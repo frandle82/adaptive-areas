@@ -134,9 +134,7 @@ def _presence_summary(area: AdaptiveArea) -> dict[str, Any]:
     )
     config = area.config
     control_sources = config.get(CONF_PRESENCE_CONTROL_ENTITIES, [])
-    presence_entity = area.hass.states.get(
-        f"binary_sensor.adaptive_areas_presence_tracking_{area.slug}_area_state"
-    )
+    presence_entity = area.hass.states.get(area.area_state_entity_id())
     runtime_attributes = presence_entity.attributes if presence_entity else {}
     return {
         "configured_source_count": runtime_attributes.get(

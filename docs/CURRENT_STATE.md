@@ -5,6 +5,15 @@
 - Integration version: read `custom_components/adaptive_areas/manifest.json`; do not copy it here.
 - Test baseline: the full suite passes with Home Assistant 2026.8.1 and with the CI-pinned Home Assistant 2026.10.4 (see [TESTING.md](TESTING.md)).
 
+## GlobalEntry lifecycle corrections (after RC.3 field test, 2026-11-26)
+
+- Root cause reproduced with real registries: ownership of generated entities by unique-ID name parts. With a floor "OG" and an Area "Bad OG" (or Areas "Bad" and "Bad OG") a Meta Area's or another Area's platform cleanup removed the live entities of "Bad OG"; each reload toggled them. A device assignment reloads the integration, which explains "light control works only after assigning a device". Fixed by device-based ownership (see [ARCHITECTURE.md](ARCHITECTURE.md)).
+- Also fixed: groups from configured members outside the Home Assistant Area; light control switch read through its composed ID; Area deletion left registry entries; per-Area `reload_on_registry_change` ignored; one missing Home Assistant Area failed the GlobalEntry; false `missing_area` Repair for the GlobalEntry; extra GlobalEntry reload at Home Assistant start; failed platform unload reported as success; last-Area deletion of a migrated entry failed setup; migration verification by name parts.
+- Phase F (2026-11-26): Area Climate reads the registered Health sensor (the input was never read before); renames keep entity and unique IDs; colliding slugs of different Areas are made unique for the newcomer only; the GlobalEntry's broken per-Area options flow is no longer offered; the registry cleanup is skipped during unfinished migrations and for inconsistent stored configuration.
+- Phase H (2026-11-27): invalid stored Area configurations are refused explicitly; orphan cleanup moved to the end of a successful setup; identities of unloaded configured Areas are reserved; no fallback to foreign entities at default IDs. Meta ALL with a foreign entity at a child group's default ID and renamed child groups verified without code change.
+- Phase G (2026-11-26): Meta Area ALL groups exist on the first setup; identity survives removed single registry entries; further cleanup guards; R26 covered with a native group helper in a GlobalEntry. Not changed by decision: an Area and a floor with the same ID cannot both be configured (no schema migration for RC.4). Weather entity has no runtime consumer.
+- Not verified on a real Home Assistant instance. Test plan: [HANDOVER.md](HANDOVER.md).
+
 ## Implementation direction
 
 The Dashboard 2.0 panel covers area configuration, light control (runtime status, light groups; policy-only control was removed in Phase 2, see below) and climate control (feature toggle, climate configuration, runtime status). The panel has read endpoints and administrator-gated configuration mutation endpoints.

@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+Corrections after the RC.3 field test. Not verified on a Home Assistant instance yet.
+
+### Fixed
+
+- Generated entities belong to an Area through its Adaptive Areas device, identified by the stable Area ID. Before, name parts of unique IDs decided ownership: "Bad" owned the entities of "Bad OG", and a floor "OG" owned those of every "… OG" Area. A Meta Area's cleanup then removed its children's live entities, so every reload switched them between present and absent. This made light control appear to "work again" after a device assignment, which reloads the integration.
+- Explicitly configured light group members create their groups even when no light is assigned to the Home Assistant Area.
+- Light groups read the Area's actual light control switch. A renamed switch, or one that Home Assistant gave a suffix such as `_2`, enables and disables the automation; another entity with the default ID is never read.
+- Presence Hold, BLE tracker, Wasp in a Box, Meta child states, fan, media player and switch groups, the illuminance threshold source and the dashboard resolve generated entities through the entity registry instead of composed entity IDs.
+- Platform cleanup compares unique IDs, so renamed generated entities are no longer removed.
+- Deleting an Area removes its generated entities and its device from the registries. Physical devices, other Areas and entities of other integrations are not touched. Leftovers of Areas deleted with an earlier version are removed on the next setup; generated entities without an Area device are left unchanged.
+- A deleted Home Assistant Area or floor no longer stops the whole GlobalEntry. The other Areas run; the affected Area keeps its configuration and entities, and the `missing_area` Repair names the entry.
+- The GlobalEntry no longer raises a false `missing_area` Repair issue.
+- `reload_on_registry_change` and the registry reload references are read per Area.
+- Starting Home Assistant no longer reloads the GlobalEntry a second time.
+- A failed platform unload is reported as failed; Area deletion then reports an error.
+- Deleting the last Area of a migrated GlobalEntry keeps the entry loaded.
+- Migration verification identifies Areas by device, not by name parts.
+- Area Climate reads the Area's actual Health sensor (`…_health_problem`, by unique ID). Before, it read `binary_sensor.adaptive_areas_health_<area>`, which never exists, so a Health alarm never raised `health_alert`. Areas with Area Climate and Area Health enabled now show this notice when the Health sensor is on.
+- Renaming a Home Assistant Area or floor no longer changes entity IDs or unique IDs. The Area keeps the ID part its registered entities already use. Before (also in 1.6.18), a rename replaced all entities of the Area, so automations lost them.
+- Two Areas whose names produce the same ID part (for example an Area and a floor both named "Keller", with different IDs) no longer share unique IDs. The Area added later uses its Area ID as ID part; existing Areas keep theirs.
+- The GlobalEntry no longer offers the per-Area "Configure" dialog, which failed with an error. Its Areas are configured in the Adaptive Areas panel; legacy entries keep their options flow.
+- Automatic removal of a removed Area's device and entities is skipped while a migration is unfinished, when the stored Area configuration or the global options are incomplete or inconsistent, and when a device's ownership is ambiguous (several Area identifiers or several config entries).
+- A Meta Area's ALL light group exists on the first setup. Before, it appeared only after a second setup because the Meta Area read its children's groups from the registry before they were registered.
+- An Area keeps its identity when single generated entities were removed from the registry; any of its remaining entities carries the ID part.
+- Creating an Area whose ID belongs to a configured floor or Meta Area is refused with an explicit message.
+- A structurally invalid stored Area configuration (not a mapping, empty, missing name, or an `id` that differs from its key) stops the GlobalEntry setup with an error naming the Area; nothing is set up as if it were valid and nothing is removed. An explicitly empty Area configuration is no longer mistaken for the entry's own data.
+- Devices and entities of removed Areas are removed only at the end of a successful setup; a failed unload, a failed Area initialisation or a failed platform setup removes nothing.
+- A configured Area whose Home Assistant Area is temporarily missing keeps its identity reserved; a new Area can no longer take over its registered entities.
+- Internal references never fall back to another entity that holds a generated entity's default ID (for example a leftover entity holding the Presence Hold ID); such a source is skipped until the real entity is registered.
+
+### Known limitations
+
+- An Area and a floor with the same technical ID cannot both be configured in the GlobalEntry (one key space in the stored configuration). No schema migration in RC.4.
+- The global weather entity is stored and shown in the panel but has no runtime consumer.
+
+### Added
+
+- The dashboard light status reports the actual light control switch (`control_path.control_switch`: entity ID and whether it is on). A light group whose registry entry has no loaded entity is shown as not present.
+
 ## 1.7.0-rc.3 - 2026-11-25
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending.

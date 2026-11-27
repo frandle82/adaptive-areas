@@ -2,6 +2,74 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase H, Merge-Vorbereitung, 2026-11-27)
+
+- PR #2 (`fix/global-entry-lifecycle`). Squash-Merge vorgesehen, Titel `fix: correct global entry identity and lifecycle`. Kein Merge, keine Version, kein Tag, kein Release.
+- Phase H: ungültige gespeicherte Bereichskonfigurationen werden ausdrücklich abgewiesen; Registry-Bereinigung erst am Ende eines erfolgreichen Setups; Identität nicht geladener, konfigurierter Bereiche reserviert; kein Rückfall auf fremde Entitäten an Standard-IDs. Meta-ALL mit fremder Entität an einer Standard-ID und umbenannten Kindgruppen ohne Codeänderung belegt.
+- Stable-CI-Hänger: Ursache war der Testaufbau von R05 (siehe [TESTING.md](TESTING.md)), behoben.
+- Beta-Job: `homeassistant==2026.12.0b2` gegen `pytest-homeassistant-custom-component==0.13.375` (pinnt 2026.10.4), Installationsabbruch vor Testbeginn; für RC.4 freigegebene Ausnahme.
+- HAOS-Abnahme zusätzlich: ein Testbereich mit ungültiger Konfiguration ist nicht vorgesehen; nach Löschung eines Testbereichs bei fehlerhaftem Setup bleiben Entitäten bis zum nächsten erfolgreichen Setup erhalten.
+
+## Fortsetzungspunkt (Phase G, RC.4-Vorbereitung, 2026-11-26)
+
+- Branch `fix/global-entry-lifecycle`; Pull Request nach `main` (Squash-Merge vorgesehen, nicht ausgeführt). Keine Versionsänderung, kein Tag, kein Release.
+- Phase G: Meta-Area-ALL beim ersten Setup, Identität bei fehlenden Einzeleinträgen, weitere Schutzbedingungen der Bereinigung, R26 mit nativem Group-Helper, Fehlermeldung bei Bereichs-ID einer Etage. Entscheidung: keine Schema-Migration für RC.4. Wetter-Entität: ohne Laufzeitverbraucher, zurückgestellt.
+- Release Notes RC.4: `CHANGELOG.md` „Unreleased“.
+- Graphify: vollständiger isolierter Neuaufbau auf `d008bee` (Code-AST, semantische Extraktion von 69 Dokumenten und 11 Bildern, 9 lokale Knowledge-Dateien getrennt ausgewiesen), Konsistenz geprüft (eindeutige IDs, keine hängenden Kanten in `graph.json`, keine Datei mit verlorener semantischer Abdeckung) und übernommen. Sicherung des alten Graphen mit Prüfsummen unter `graphify-out/2026-11-26-before-phase-g-101482c/`. `graphify-out/` bleibt unversioniert; nichts im Repository hängt davon ab. Community-Namen sind aus dominantem Modul und zentralem Knoten abgeleitet.
+- HAOS-Abnahme (Installation erst nach Freigabe; destruktive Schritte nur mit eigens angelegtem Testbereich):
+  1. Vollständiges HAOS-Backup.
+  2. Diagnoseexport der GlobalEntry.
+  3. Liste der Entity-IDs, Unique-IDs und Geräte von Adaptive Areas sichern.
+  4. Verwaiste und `unavailable` Entitäten notieren.
+  5. RC.4 installieren.
+  6. HA vollständig neu starten.
+  7. Automatische Registry-Bereinigung prüfen: Log „removing … entities of removed Area“; nur Entitäten bereits gelöschter Bereiche dürfen fehlen.
+  8. Alle EG- und OG-Bereiche: Entitäten vollständig, keine `_2`.
+  9. Meta-Area-ALL-Gruppen (Etagen, Interior, Global) vorhanden, Mitglieder = Gruppen der Kindbereiche; ein neu angelegter Testbereich mit Etage erzeugt die Etagen-ALL-Gruppe ohne zweiten Reload.
+  10. Dashboard Licht-Status: `control_switch` zeigt den tatsächlichen Schalter.
+  11. Arbeitszimmer: DARK → ON (genau ein Einschalten).
+  12. Arbeitszimmer: BRIGHT → OFF.
+  13. Arbeitszimmer: DARK → ON.
+  14. Mehrere Reloads ohne Gerätezuordnung, Schritte 11–13 wiederholen.
+  15. Vollständiger Neustart, Schritte 11–13 wiederholen.
+  16. Testbereich umbenennen: Entity-IDs unverändert.
+  17. Testbereich löschen und erneut anlegen: Entitäten und Gerät entfernt, danach dieselben IDs.
+  18. Automationen mit Adaptive-Areas-Entitäten unverändert funktionsfähig.
+  19. Area Climate mit Area Health: Health-Sensor auslösen → `health_alert`.
+  20. Übrige Punkte des Plans aus Phase E/F (unten).
+
+## Fortsetzungspunkt (Phase F, 2026-11-26)
+
+- Branch `fix/global-entry-lifecycle`, lokal, nicht gepusht. Die ersten beiden Commits des Branches (`280616a`, `866b50a`) sind einzeln nicht grün (bekannt, unverändert); alle späteren Commits sind einzeln grün. Squash-Merge empfohlen, nicht ausgeführt.
+- Phase F: Health-Eingang von Area Climate, stabile Slugs bei Umbenennung, Slug-Kollisionen, Schutzbedingungen der Bereinigung, Options Flow der GlobalEntry. Offene Entscheidung: Bereich und Etage mit identischer ID (gemeinsamer Schlüsselraum in `options[areas]`).
+- Qualitätssicherung auf `90d14e4`: Backend 1030 bestanden (RC.3: 995), Coverage 91 %, Frontend-Harness 404/404, `pre-commit run --all-files` in sauberem Worktree bestanden (keine Hook-Änderung), JSON-Validierung und `git diff --check` sauber. Nicht ausgeführt: Hassfest und HACS (kein Docker lokal; laufen in `validation.yaml`), MkDocs-Build (`mkdocs` nicht installiert), Beta-Suite (siehe [TESTING.md](TESTING.md)).
+- Graphify: isolierter Code-Graph (AST, ohne semantische Dokumentenschicht, kein Gemini-Schlüssel) auf `90d14e4` im Scratchpad erzeugt, enthält alle neuen Identitäts- und Lifecycle-Funktionen. Nicht nach `graphify-out/` übernommen, weil der bestehende Graph (`101482c`) eine semantische Schicht enthält, die sonst verloren ginge. Vollständiger Neuaufbau mit semantischer Extraktion: Freigabe offen.
+- HAOS-Praxistest (zuerst mit einem eigens angelegten Testbereich; keine produktiven Bereiche löschen):
+  1. Vollständiges HA-Backup. Diagnose der GlobalEntry exportieren.
+  2. Liste aller `adaptive_areas`-Entitäten mit Entity-ID und Unique-ID sichern (Einstellungen → Entitäten, Filter Integration; oder `.storage/core.entity_registry` aus dem Backup). Bereiche und Etagen mit EG/OG-Namensteilen und gleichnamige Bereiche/Etagen notieren.
+  3. Update einspielen, HA vollständig neu starten. Entitätsliste vergleichen: keine geänderten Entity-/Unique-IDs, keine neuen `_2`; nur Entitäten bereits gelöschter Bereiche dürfen fehlen (im Log: „removing … entities of removed Area“). Die Liste der entfernten Entitäten prüfen.
+  4. Je Bereich mit Lichtgruppe: Dashboard Licht-Status → `control_switch` zeigt den tatsächlichen Schalter und `enabled`. Anwesenheit, Lux BRIGHT → DARK: genau ein Einschalten; DARK → BRIGHT (`dark_on_bright_off`): genau ein Ausschalten; erneut DARK: ein Einschalten (Logbuch/Traces). Keine Gerätezuordnung.
+  5. Integration zweimal neu laden und HA einmal neu starten; Schritt 4 jeweils wiederholen.
+  6. Testbereich umbenennen (HA-Bereich), danach Reload und Neustart: Entity-IDs unverändert, Gerätename neu.
+  7. Testbereich im Panel löschen: Gerät und Entitäten weg; Lampen, Sensoren und Fremd-Entitäten unverändert. Testbereich neu anlegen: dieselben Entity-IDs, keine Duplikate.
+  8. Area Climate mit Area Health: Health-Sensor des Bereichs auslösen (z. B. Wasser-Sensor) → Area-Climate-Hinweis `health_alert`.
+  9. Ergebnisse und Abweichungen mit Diagnose-Export dokumentieren.
+
+## Fortsetzungspunkt (GlobalEntry-Lebenszyklus nach RC.3, 2026-11-26)
+
+- Branch `fix/global-entry-lifecycle` (lokal, nicht gepusht). Keine Versionsänderung, kein Tag, kein Release.
+- Ursache des Praxisfehlers (automatisiert reproduziert, nicht auf HAOS bestätigt): Eigentümerzuordnung über Namensteile der Unique-ID. Details: [CURRENT_STATE.md](CURRENT_STATE.md), Regeln: [ARCHITECTURE.md](ARCHITECTURE.md) „Area identity and lifecycle“.
+- Tests: `tests/test_global_entry_lifecycle.py`, 13 davon schlagen auf RC.3 fehl.
+- Graphify: Graph auf `101482c`, Code danach wesentlich geändert (neues Modul `helpers/entity_identity.py`). Aktualisierung vorgeschlagen, nicht ausgeführt.
+- HAOS-Praxistest:
+  1. Vor dem Update: Diagnose der GlobalEntry exportieren; Liste der `adaptive_areas`-Entitäten mit Zustand `unavailable` notieren.
+  2. Update einspielen, HA neu starten. Prüfen: keine Entität eines Bereichs „… OG/EG“ fehlt; verwaiste Entitäten gelöschter Bereiche sind entfernt; keine neuen `_2`-Entitäten.
+  3. Je Bereich mit Lichtgruppe: Schalter „Light control“ an; Anwesenheit auslösen; Lux unter `turn_on_below` → genau ein Einschalten der Gruppe; Lux über `turn_off_above` (Modus `dark_on_bright_off`/`turn_off`) → genau ein Ausschalten. Ohne Gerätezuordnung.
+  4. Integration zweimal neu laden, Schritt 3 wiederholen.
+  5. Einen Testbereich anlegen und löschen: Entitäten und Gerät verschwinden aus Einstellungen → Entitäten/Geräte, andere Bereiche unverändert.
+  6. Dashboard Licht-Status: `control_switch` zeigt den tatsächlichen Schalter.
+  7. Optional: einen Lichtsteuerungsschalter umbenennen und Schritt 3 wiederholen.
+
 ## Fortsetzungspunkt (Phase 8.1, 2026-11-25)
 
 - Commits: 7738c9e (translation keys), 400a8a4 (mode matrix and meta lifecycle), c4ebf07 (docs), 5d99d98 (dynamic group membership). Keine Versionsänderung, kein Release, kein Push.

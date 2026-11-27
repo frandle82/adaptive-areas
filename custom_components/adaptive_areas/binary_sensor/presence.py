@@ -39,6 +39,9 @@ from custom_components.adaptive_areas.helpers.brightness import (
     BrightnessState,
     area_brightness,
 )
+from custom_components.adaptive_areas.helpers.entity_identity import (
+    resolve_generated_entity_id,
+)
 from custom_components.adaptive_areas.helpers.meta_summary import meta_area_summary
 from custom_components.adaptive_areas.helpers.sources import (
     entity_device_class,
@@ -1214,8 +1217,11 @@ class MetaAreaStateBinarySensor(AreaStateBinarySensor):
         child_state_lists: list[list[str]] = []
 
         for area_slug in child_areas:
-            area_entity_id: str = (
-                f"{BINARY_SENSOR_DOMAIN}.adaptive_areas_presence_tracking_{area_slug}_area_state"
+            area_entity_id: str = resolve_generated_entity_id(
+                self.hass,
+                AdaptiveAreasFeatureInfoPresenceTracking,
+                BINARY_SENSOR_DOMAIN,
+                area_slug,
             )
             area_state = self.hass.states.get(area_entity_id)
 
