@@ -22,8 +22,6 @@ Defects these tests pin (each failed on unchanged 1.7.0-rc.3):
 
 from __future__ import annotations
 
-import asyncio
-import faulthandler
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -31,7 +29,6 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
     EVENT_CALL_SERVICE,
-    EVENT_STATE_CHANGED,
     STATE_ON,
 )
 from homeassistant.core import CoreState, HomeAssistant, State
@@ -77,15 +74,6 @@ from custom_components.adaptive_areas.migration import (
 )
 from tests.helpers import setup_test_component_platform
 from tests.mocks import MockBinarySensor, MockLight
-
-# Every test here drives a full GlobalEntry lifecycle. A hang must fail with a stack
-# trace instead of blocking the suite (pytest-timeout ships with the test harness).
-pytestmark = pytest.mark.timeout(90, method="thread")
-
-# Temporary CI diagnosis: the stable job intermittently stops without any test
-# timeout firing. faulthandler's C-level watchdog prints every thread's stack and
-# exits if the whole run is still alive after 12 minutes (a healthy run needs ~3).
-faulthandler.dump_traceback_later(720, exit=True)
 
 LUX = "sensor.global_lux"
 DARK_LUX = "50"
@@ -382,32 +370,44 @@ async def test_r04_suffixed_control_switch_never_reads_a_foreign_entity(hass) ->
 
 
 async def test_r05_switch_registered_after_the_groups_enables_control(hass) -> None:
-    """The restored-ON switch arrives after the groups: one ON, no waiting or polling."""
-    from custom_components.adaptive_areas import switch as switch_platform
+    """The restored-ON switch registers after the groups: one ON, no waiting or polling.
+
+    The groups are live while the Area has no light control switch (it is removed
+    through its real entity platform). The switch then registers again through the
+    same platform, restores ON, and the groups switch on exactly once. Nothing waits
+    across tasks: an earlier version gated the platform setup on an event, which could
+    leave the shielded setup task alive past the test's event loop.
+    """
+    from homeassistant.helpers.entity_platform import async_get_platforms
+
+    from custom_components.adaptive_areas.switch import LightControlSwitch
 
     await _lux(hass, DARK_LUX)
     hall = ar.async_get(hass).async_create("Hall")
     (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
     await _motion(hass, motion, STATE_ON)
-    mock_restore_cache(hass, [State(_switch("hall"), STATE_ON)])
-    group_added = asyncio.Event()
-
-    def _watch(event) -> None:
-        if event.data["entity_id"] == _group("hall"):
-            group_added.set()
-
-    hass.bus.async_listen(EVENT_STATE_CHANGED, _watch)
-    original = switch_platform._async_setup_area
-
-    async def _late(hass_, area, add_entities) -> None:
-        await group_added.wait()
-        await original(hass_, area, add_entities)
-
-    calls = _record_calls(hass)
     entry = _global_entry({hall.id: _area_config(hall.id, "Hall", lamp, motion)})
-    with patch.object(switch_platform, "_async_setup_area", _late):
-        await _setup(hass, entry)
+    await _setup(hass, entry)
+    area = get_runtime_areas_for_entry(hass, entry)[0]
+    platform = next(
+        p for p in async_get_platforms(hass, DOMAIN) if p.domain == "switch"
+    )
+    await platform.async_remove_entity(_switch("hall"))
+    await hass.async_block_till_done()
+    assert area.light_control_switch is None
+    assert _live(hass, _group("hall"))
+
+    mock_restore_cache(hass, [State(_switch("hall"), STATE_ON)])
+    calls = _record_calls(hass)
+    await _lux(hass, BRIGHT_LUX)
+    await _lux(hass, DARK_LUX)
+    assert _group_calls(calls, "turn_on", _group("hall")) == 0  # no switch, no control
+
+    await platform.async_add_entities([LightControlSwitch(area)])
+    await hass.async_block_till_done()
+    assert area.light_control_switch is not None and area.light_control_switch.is_on
     assert _group_calls(calls, "turn_on", _group("hall")) == 1
+    assert ("turn_on", [lamp]) in calls
 
 
 # R08, R13, R14 ---------------------------------------------------------------------
