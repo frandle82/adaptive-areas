@@ -91,13 +91,14 @@ class FanControlSwitch(SwitchBase):
                     )
                 )
             )
-        self.async_on_remove(
-            async_track_state_change_event(
-                self.hass,
-                [self.tracked_entity_id],
-                self.aggregate_sensor_state_changed,
+        if self.tracked_entity_id:
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass,
+                    [self.tracked_entity_id],
+                    self.aggregate_sensor_state_changed,
+                )
             )
-        )
 
     async def aggregate_sensor_state_changed(
         self, event: Event[EventStateChangedData]
@@ -251,7 +252,9 @@ class FanControlSwitch(SwitchBase):
             FAN_DOMAIN,
             self.area.slug,
         )
-        targets = entity_ids or [fan_group_entity_id]
+        targets = entity_ids or ([fan_group_entity_id] if fan_group_entity_id else [])
+        if not targets:
+            return
         try:
             await self.hass.services.async_call(
                 FAN_DOMAIN,

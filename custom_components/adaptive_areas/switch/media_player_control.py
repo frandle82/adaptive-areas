@@ -78,7 +78,7 @@ class MediaPlayerControlSwitch(SwitchBase):
         # pylint: disable-next=unused-variable
         new_states, lost_states = states_tuple
 
-        if AreaStates.CLEAR in new_states:
+        if AreaStates.CLEAR in new_states and self.media_player_group_id:
             _LOGGER.debug("%s: Area clear, turning off media players.", self.name)
             try:
                 await self.hass.services.async_call(

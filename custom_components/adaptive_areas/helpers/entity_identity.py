@@ -147,14 +147,18 @@ def resolve_generated_entity_id(
 ) -> str:
     """Return the registered entity ID, or the default ID while not registered yet.
 
-    The default is the ID Home Assistant gives the entity on first registration
-    unless it is already taken.
+    The default is the ID Home Assistant gives the entity on first registration. If
+    another entity already holds it, Home Assistant will give ours a different ID, so
+    "" (no entity) is returned: a consumer must never read or control a foreign entity.
     """
-    return (
-        registered_generated_entity_id(
-            hass, feature_info, domain, slug, translation_key, extra_identifiers
-        )
-        or generated_ids(
-            feature_info, domain, slug, translation_key, extra_identifiers
-        )[0]
+    registered = registered_generated_entity_id(
+        hass, feature_info, domain, slug, translation_key, extra_identifiers
     )
+    if registered:
+        return registered
+    default_entity_id, _unique_id = generated_ids(
+        feature_info, domain, slug, translation_key, extra_identifiers
+    )
+    if async_get_entity_registry(hass).async_get(default_entity_id) is not None:
+        return ""
+    return default_entity_id

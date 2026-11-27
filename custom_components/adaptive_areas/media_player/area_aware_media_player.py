@@ -53,7 +53,9 @@ class AreaAwareMediaPlayer(AdaptiveEntity, MediaPlayerEntity):
     def update_attributes(self):
         """Update entity attributes."""
         self._attr_extra_state_attributes["areas"] = [
-            area.area_state_entity_id() for area in self.areas
+            entity_id
+            for area in self.areas
+            if (entity_id := area.area_state_entity_id())
         ]
         self._attr_extra_state_attributes["entity_id"] = self._tracked_entities
 

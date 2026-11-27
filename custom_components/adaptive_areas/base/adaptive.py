@@ -533,7 +533,9 @@ class AdaptiveArea:
                 )
             )
 
-        return sensors
+        # An unresolvable generated source (its default ID held by another entity) is
+        # not a source; a foreign entity is never tracked.
+        return [sensor for sensor in sensors if sensor]
 
     def area_state_entity_id(self) -> str:
         """Return the registered entity ID of this Area's presence state entity."""
@@ -763,7 +765,7 @@ class AdaptiveMetaArea(AdaptiveArea):
 
         sensors: list[str] = []
 
-        # MetaAreas track their children
+        # MetaAreas track their children (an unresolvable child entity is skipped)
         for child_area in self.child_areas:
             sensors.append(
                 resolve_generated_entity_id(
@@ -773,7 +775,7 @@ class AdaptiveMetaArea(AdaptiveArea):
                     child_area,
                 )
             )
-        return sensors
+        return [sensor for sensor in sensors if sensor]
 
     def get_active_areas(self):
         """Return areas that are occupied."""

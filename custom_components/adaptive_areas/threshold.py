@@ -101,6 +101,9 @@ def create_illuminance_threshold(
         )
     )
 
+    if not illuminance_entity_id:
+        return None
+
     _LOGGER.debug(
         "Creating illuminance threhsold sensor for area '%s': Threhsold: %d, Hysteresis: %d (%d%%)",
         area.slug,
