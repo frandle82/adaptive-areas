@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.7.0-rc.4 - 2026-11-27
 
-Corrections after the RC.3 field test. Not verified on a Home Assistant instance yet.
+Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending; it is not yet proven that the fault seen in the RC.3 field test is fixed on Home Assistant OS.
+
+Changes compared with 1.7.0-rc.3: corrections of the GlobalEntry entity identity and lifecycle after the RC.3 field test. No stored schema migration, no entity ID or unique ID migration.
 
 ### Fixed
 
@@ -32,14 +34,24 @@ Corrections after the RC.3 field test. Not verified on a Home Assistant instance
 - A configured Area whose Home Assistant Area is temporarily missing keeps its identity reserved; a new Area can no longer take over its registered entities.
 - Internal references never fall back to another entity that holds a generated entity's default ID (for example a leftover entity holding the Presence Hold ID); such a source is skipped until the real entity is registered.
 
+### Added
+
+- The dashboard light status reports the actual light control switch (`control_path.control_switch`: entity ID and whether it is on). A light group whose registry entry has no loaded entity is shown as not present.
+- Regression tests with real registries and a GlobalEntry (R01–R28), including a real native light group (group helper) whose membership changes at runtime.
+
+### Upgrade notes
+
+- Make a Home Assistant backup before installing.
+- Existing entity IDs and unique IDs are kept; automations need no change.
+- Leftover devices and entities of Areas deleted with an earlier version are removed on the first successful setup when their ownership is unambiguous. Check the entity list for unexpected `_2` entities and unavailable entities after the update.
+- Rollback means restoring the backup or installing 1.7.0-rc.3.
+
 ### Known limitations
 
 - An Area and a floor with the same technical ID cannot both be configured in the GlobalEntry (one key space in the stored configuration). No schema migration in RC.4.
 - The global weather entity is stored and shown in the panel but has no runtime consumer.
-
-### Added
-
-- The dashboard light status reports the actual light control switch (`control_path.control_switch`: entity ID and whether it is on). A light group whose registry entry has no loaded entity is shown as not present.
+- Validation against the Home Assistant 2026.12 beta is blocked by an upstream dependency conflict between Home Assistant 2026.12.0b2 and the test harness (`pytest-homeassistant-custom-component` 0.13.375 pins Home Assistant 2026.10.4); no beta test ran.
+- The practical acceptance on Home Assistant OS (`docs/HANDOVER.md`) is pending.
 
 ## 1.7.0-rc.3 - 2026-11-25
 
