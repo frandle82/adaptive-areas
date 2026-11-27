@@ -450,6 +450,16 @@ def assign_area_slugs(
        Existing identities are never changed.
     """
     taken: set[str] = set()
+    # A configured Area that is not loaded now (its Home Assistant Area or floor is
+    # missing) keeps its registered identity reserved: no other Area may take it.
+    loaded_ids = {area.id for area in areas}
+    configured = config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS))
+    if isinstance(configured, dict):
+        for area_id in configured:
+            if area_id not in loaded_ids and (
+                slug := registered_area_slug(hass, config_entry.entry_id, area_id)
+            ):
+                taken.add(slug)
     pending: list[AdaptiveArea] = []
     for area in areas:
         slug = registered_area_slug(hass, config_entry.entry_id, area.id)
