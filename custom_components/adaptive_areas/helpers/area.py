@@ -124,7 +124,20 @@ def get_adaptive_area_for_config_entry(
 ) -> AdaptiveArea | None:
     """Return adaptive area object for given config entry."""
 
-    config = area_config or {**config_entry.data, **config_entry.options}
+    # Only a missing configuration falls back to the legacy entry; an explicitly given
+    # (even empty) one is used as it is and must be valid.
+    config = (
+        area_config
+        if area_config is not None
+        else {**config_entry.data, **config_entry.options}
+    )
+    if (
+        not isinstance(config, dict)
+        or not config.get(ATTR_ID)
+        or not config.get(ATTR_NAME)
+    ):
+        _LOGGER.error("Adaptive Areas: Area configuration without ID or name")
+        return None
     area_id = config[ATTR_ID]
     area_name = config[ATTR_NAME]
 
@@ -189,19 +202,43 @@ def get_adaptive_areas_for_config_entry(
     if not isinstance(areas, dict):
         area = get_adaptive_area_for_config_entry(hass, config_entry)
         return [area] if area is not None else []
+    invalid = invalid_area_config_ids(areas)
+    if invalid:
+        _LOGGER.error(
+            "Adaptive Areas: %d stored Area configurations are invalid and are not "
+            "set up: %s",
+            len(invalid),
+            ", ".join(invalid),
+        )
+    # Structure is checked before any value is read.
     ordered_areas = sorted(
-        areas.items(),
-        key=lambda item: (item[1].get(CONF_TYPE) == AREA_TYPE_META, item[0]),
+        (
+            (area_id, config)
+            for area_id, config in areas.items()
+            if area_id not in invalid
+        ),
+        key=lambda item: (item[1].get(CONF_TYPE) == AREA_TYPE_META, str(item[0])),
     )
     return [
         area
         for _area_id, area_config in ordered_areas
-        if isinstance(area_config, dict)
-        and (
-            area := get_adaptive_area_for_config_entry(hass, config_entry, area_config)
-        )
+        if (area := get_adaptive_area_for_config_entry(hass, config_entry, area_config))
         is not None
     ]
+
+
+def invalid_area_config_ids(areas: dict) -> list[str]:
+    """Return the keys of stored Area configurations that are structurally invalid.
+
+    A valid entry is a non-empty mapping with a name and an `id` equal to its key.
+    """
+    return sorted(
+        str(area_id)
+        for area_id, config in areas.items()
+        if not isinstance(config, dict)
+        or config.get(ATTR_ID) != area_id
+        or not config.get(ATTR_NAME)
+    )
 
 
 def get_runtime_areas_for_entry(

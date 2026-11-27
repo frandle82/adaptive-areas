@@ -82,6 +82,7 @@ from custom_components.adaptive_areas.helpers.area import (
     assign_area_slugs,
     generated_entities_for_area,
     get_adaptive_areas_for_config_entry,
+    invalid_area_config_ids,
     get_runtime_areas_for_entry,
 )
 from custom_components.adaptive_areas.helpers.entity_identity import (
@@ -180,10 +181,7 @@ def _remove_orphaned_area_devices(
     # The persisted configuration decides, never the loaded runtime: an Area skipped
     # because its Home Assistant Area is missing is still configured. A configuration
     # that is not fully valid, or a migration that is not complete, removes nothing.
-    if not all(
-        isinstance(config, dict) and config.get(CONF_ID) == area_id
-        for area_id, config in areas.items()
-    ):
+    if invalid_area_config_ids(areas):
         _LOGGER.warning("Adaptive Areas: invalid Area configuration; no cleanup")
         return
     migration = config_entry.options.get(CONF_MIGRATION) or {}
@@ -666,6 +664,21 @@ async def async_setup_entry(  # noqa: C901
             if unresolved
             else set()
         )
+        # A structurally invalid stored Area is never treated as a missing Home
+        # Assistant Area: the entry does not set up (and removes nothing).
+        invalid = (
+            set(invalid_area_config_ids(configured_areas))
+            if isinstance(configured_areas, dict)
+            else set()
+        )
+        backing_missing -= invalid
+        if invalid:
+            _LOGGER.error(
+                "Unable to set up Adaptive Areas entry: invalid stored Area "
+                "configuration for %s",
+                ", ".join(sorted(invalid)),
+            )
+            return False
         if (
             (not is_container and not adaptive_areas)
             or unresolved - backing_missing
