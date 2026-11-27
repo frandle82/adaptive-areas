@@ -71,4 +71,5 @@ Record a new decision here only after it is accepted. Include context, decision,
 - Phase F: Area Climate reads the registered Health sensor by unique ID, without fallback to a default ID.
 - Phase F: the per-Area options flow is not offered for the GlobalEntry (`async_supports_options_flow`).
 - Decided for RC.4 (2026-11-26): no schema migration of `options[areas]`. An Area and a floor with the same technical ID cannot both be configured; creating such an Area is refused with an explicit message, nothing is overwritten. Different IDs with equal names or slugs are supported.
+- Phase H (2026-11-27): a structurally invalid stored Area configuration stops the GlobalEntry setup (explicit error, no cleanup) instead of being skipped; a missing Home Assistant Area is still skipped as before. Registry cleanup runs only at the end of a successful setup. Generated-entity resolution never returns a foreign entity's ID.
 - Global weather entity (2026-11-26): stored and shown since the GlobalEntry (`3777868`, after 1.6.18), never read at runtime, no documented function (classification D). Kept unchanged; product decision deferred.

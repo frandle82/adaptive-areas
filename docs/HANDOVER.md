@@ -2,6 +2,14 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase H, Merge-Vorbereitung, 2026-11-27)
+
+- PR #2 (`fix/global-entry-lifecycle`). Squash-Merge vorgesehen, Titel `fix: correct global entry identity and lifecycle`. Kein Merge, keine Version, kein Tag, kein Release.
+- Phase H: ungültige gespeicherte Bereichskonfigurationen werden ausdrücklich abgewiesen; Registry-Bereinigung erst am Ende eines erfolgreichen Setups; Identität nicht geladener, konfigurierter Bereiche reserviert; kein Rückfall auf fremde Entitäten an Standard-IDs. Meta-ALL mit fremder Entität an einer Standard-ID und umbenannten Kindgruppen ohne Codeänderung belegt.
+- Stable-CI-Hänger: Ursache war der Testaufbau von R05 (siehe [TESTING.md](TESTING.md)), behoben.
+- Beta-Job: `homeassistant==2026.12.0b2` gegen `pytest-homeassistant-custom-component==0.13.375` (pinnt 2026.10.4), Installationsabbruch vor Testbeginn; für RC.4 freigegebene Ausnahme.
+- HAOS-Abnahme zusätzlich: ein Testbereich mit ungültiger Konfiguration ist nicht vorgesehen; nach Löschung eines Testbereichs bei fehlerhaftem Setup bleiben Entitäten bis zum nächsten erfolgreichen Setup erhalten.
+
 ## Fortsetzungspunkt (Phase G, RC.4-Vorbereitung, 2026-11-26)
 
 - Branch `fix/global-entry-lifecycle`; Pull Request nach `main` (Squash-Merge vorgesehen, nicht ausgeführt). Keine Versionsänderung, kein Tag, kein Release.

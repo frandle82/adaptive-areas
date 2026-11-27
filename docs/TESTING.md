@@ -82,7 +82,7 @@ Where each light requirement is checked. "Gap" names what is not covered by an a
 
 ## GlobalEntry lifecycle (after RC.3, Phase F)
 
-`tests/test_global_entry_lifecycle.py` (44 tests) runs a real GlobalEntry with the real entity, device, area, floor and issue registries, the test light and binary sensor platforms and native `light`/`switch` service calls. Light assertions use the recorded `call_service` events: the call on the group entity and its native forwarding to the lamp. No internal decision function is called directly.
+`tests/test_global_entry_lifecycle.py` (57 tests) runs a real GlobalEntry with the real entity, device, area, floor and issue registries, the test light and binary sensor platforms and native `light`/`switch` service calls. Light assertions use the recorded `call_service` events: the call on the group entity and its native forwarding to the lamp. No internal decision function is called directly.
 
 Results: RC.3 = `2298f59`, Phase E = `8009f9d`, now = branch head. F = fails, P = passes.
 
@@ -129,3 +129,5 @@ Verified 2026-11-26 on the branch head: see the Phase F report in [HANDOVER.md](
 
 Parallel runs: `-n 4` with and without `--cov` pass in the repository and in a separate worktree (Phase G, 1039 tests, 92 % coverage). Two earlier hangs followed aborted runs with leftover worker processes and were not reproducible; no lifecycle leak was found (listener counts are asserted in R18).
 On `3acee62` (end of Phase F) 7 of the 44 tests fail: the Meta ALL, removed-entity, two cleanup-guard and floor-ID tests, plus R14 and the slug-collision test, which compare identities from the first setup and therefore depend on the Meta ALL fix.
+
+Stable CI stall (Phase H, 2026-11-27): the stable job stopped after `tests/test_frontend_translations.py` in 4 of 8 runs while every local run passed. Cause, reproduced locally with a live process and the stack of `asyncio.Runner.close()`: the former R05 gated the switch platform setup on an `asyncio.Event` set by a light group state change. Home Assistant runs platform setups shielded, so depending on timing that setup task outlived the test and the pytest-asyncio runner waited for it forever. Outside every per-test timeout, and the progress dots of the file were still buffered, so the log showed the stall before the file. R05 now removes and re-adds the switch through its real entity platform, without cross-task waiting. Production code was not involved. The temporary diagnostics (file-wide thread timeout, faulthandler watchdog, conftest task report) were removed again.

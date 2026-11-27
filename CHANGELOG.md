@@ -27,6 +27,10 @@ Corrections after the RC.3 field test. Not verified on a Home Assistant instance
 - A Meta Area's ALL light group exists on the first setup. Before, it appeared only after a second setup because the Meta Area read its children's groups from the registry before they were registered.
 - An Area keeps its identity when single generated entities were removed from the registry; any of its remaining entities carries the ID part.
 - Creating an Area whose ID belongs to a configured floor or Meta Area is refused with an explicit message.
+- A structurally invalid stored Area configuration (not a mapping, empty, missing name, or an `id` that differs from its key) stops the GlobalEntry setup with an error naming the Area; nothing is set up as if it were valid and nothing is removed. An explicitly empty Area configuration is no longer mistaken for the entry's own data.
+- Devices and entities of removed Areas are removed only at the end of a successful setup; a failed unload, a failed Area initialisation or a failed platform setup removes nothing.
+- A configured Area whose Home Assistant Area is temporarily missing keeps its identity reserved; a new Area can no longer take over its registered entities.
+- Internal references never fall back to another entity that holds a generated entity's default ID (for example a leftover entity holding the Presence Hold ID); such a source is skipped until the real entity is registered.
 
 ### Known limitations
 
