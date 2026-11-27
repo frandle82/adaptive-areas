@@ -1721,3 +1721,279 @@ async def test_area_with_the_id_of_a_configured_floor_is_refused(hass) -> None:
         "area_id": "A floor or Meta Area with this ID is already configured"
     }
     assert dict(entry.options) == before
+
+
+# Phase H: structurally invalid stored Area configurations -------------------------
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [None, "kitchen", ["kitchen"], {}, {"id": "other", "name": "Other"}],
+    ids=["none", "string", "list", "empty", "id_mismatch"],
+)
+async def test_invalid_stored_area_is_refused_and_removes_nothing(
+    hass, caplog, broken
+) -> None:
+    """Invalid stored Area entries stop the setup explicitly; no registry cleanup.
+
+    A valid Area and an orphaned Area device are present as well: nothing is set up
+    as if it were valid, and nothing is removed.
+    """
+    entry, gone, orphan = await _orphan_fixture(hass)
+    areas = dict(entry.options[CONF_AREAS])
+    areas["broken"] = broken
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_AREAS: areas}
+    )
+    await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert "invalid stored Area configuration for broken" in caplog.text
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None
+    assert get_runtime_areas_for_entry(hass, entry) == []
+
+
+async def test_explicit_empty_area_config_is_not_the_entry_config(hass) -> None:
+    """An explicitly empty Area configuration is invalid, never the entry's own data."""
+    from custom_components.adaptive_areas.helpers.area import (
+        get_adaptive_area_for_config_entry,
+    )
+
+    hall = ar.async_get(hass).async_create("Hall")
+    legacy = MockConfigEntry(
+        domain=DOMAIN, data={"id": hall.id, "name": "Hall", "type": "interior"}
+    )
+    legacy.add_to_hass(hass)
+    assert get_adaptive_area_for_config_entry(hass, legacy, {}) is None
+    area = get_adaptive_area_for_config_entry(hass, legacy)
+    assert area is not None and area.id == hall.id
+
+
+# Phase H: Meta ALL members when a child group's default entity ID is taken --------
+
+
+async def test_meta_all_never_references_a_foreign_entity_at_a_default_id(hass) -> None:
+    """A foreign light holds a child group's default ID before the first setup.
+
+    The child group gets the ID Home Assistant assigns (`_2`); the floor's ALL group
+    references that group, never the foreign light, already on the first setup and
+    after a reload. A manual OFF on the floor group reaches only the Areas' lamps.
+    """
+    await _lux(hass, BRIGHT_LUX)
+    og = fr.async_get(hass).async_create("OG")
+    areas = ar.async_get(hass)
+    hall = areas.async_create("Hall", floor_id=og.floor_id)
+    office = areas.async_create("Office", floor_id=og.floor_id)
+    (lamp_h, lamp_o), (m_h, m_o) = await _devices(
+        hass, ["hall", "office"], {"hall": hall.id, "office": office.id}
+    )
+    foreign_id = _group("hall")
+    er.async_get(hass).async_get_or_create(
+        "light", "foreign", "takes_the_default_id", suggested_object_id=foreign_id[6:]
+    )
+    hass.states.async_set(foreign_id, STATE_ON)
+    entry = _global_entry(
+        {
+            hall.id: _area_config(hall.id, "Hall", lamp_h, m_h),
+            office.id: _area_config(office.id, "Office", lamp_o, m_o),
+            og.floor_id: _meta_config(og.floor_id, "OG"),
+            "global": _meta_config("global", "Global"),
+        }
+    )
+    await _setup(hass, entry)
+    real = _group("hall") + "_2"
+
+    def members(meta_slug: str) -> set[str]:
+        return set(
+            hass.states.get(_group(meta_slug, "all_lights")).attributes["entity_id"]
+        )
+
+    for cycle in range(2):
+        assert _live(hass, real), cycle
+        for meta in ("og", "global"):
+            assert foreign_id not in members(meta), (cycle, meta)
+            assert real in members(meta), (cycle, meta)
+        calls = _record_calls(hass)
+        for lamp in (lamp_h, lamp_o):
+            await hass.services.async_call(
+                "light", "turn_on", {"entity_id": lamp}, blocking=True
+            )
+        await hass.services.async_call(
+            "light",
+            "turn_off",
+            {"entity_id": _group("og", "all_lights")},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+        touched = {t for _svc, targets in calls for t in targets}
+        assert foreign_id not in touched, cycle
+        assert hass.states.get(foreign_id).state == STATE_ON, cycle
+        assert hass.states.get(lamp_h).state == "off", cycle
+        assert hass.states.get(lamp_o).state == "off", cycle
+        await _reload(hass, entry)
+
+
+async def test_meta_all_follows_a_renamed_child_group(hass) -> None:
+    """A renamed child group stays a member of its Meta Areas after a reload."""
+    og = fr.async_get(hass).async_create("OG")
+    hall = ar.async_get(hass).async_create("Hall", floor_id=og.floor_id)
+    (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    entry = _global_entry(
+        {
+            hall.id: _area_config(hall.id, "Hall", lamp, motion),
+            og.floor_id: _meta_config(og.floor_id, "OG"),
+        }
+    )
+    await _setup(hass, entry)
+    er.async_get(hass).async_update_entity(
+        _group("hall"), new_entity_id="light.hall_ceiling"
+    )
+    await hass.async_block_till_done()
+    await _reload(hass, entry)
+    members = set(hass.states.get(_group("og", "all_lights")).attributes["entity_id"])
+    assert "light.hall_ceiling" in members
+    assert _group("hall") not in members
+
+
+# Phase H: registry cleanup only at a successful lifecycle boundary ----------------
+
+
+async def test_failed_platform_setup_removes_nothing_and_a_retry_cleans_up(
+    hass,
+) -> None:
+    """A failing platform setup keeps orphans; the next successful setup removes them."""
+    entry, gone, orphan = await _orphan_fixture(hass)
+    with patch.object(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        side_effect=RuntimeError("platform setup failed"),
+    ):
+        await async_setup_component(hass, DOMAIN, {})
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert er.async_get(hass).async_get(orphan.entity_id) is None
+    assert dr.async_get(hass).async_get(gone.id) is None
+
+
+async def test_failed_area_initialisation_removes_nothing(hass) -> None:
+    """An Area that fails to initialise stops the setup before any registry cleanup."""
+    from custom_components.adaptive_areas.base.adaptive import AdaptiveArea
+
+    entry, gone, orphan = await _orphan_fixture(hass)
+    with patch.object(
+        AdaptiveArea, "initialize", side_effect=RuntimeError("initialise failed")
+    ):
+        await async_setup_component(hass, DOMAIN, {})
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert er.async_get(hass).async_get(orphan.entity_id) is not None
+    assert dr.async_get(hass).async_get(gone.id) is not None
+
+
+async def test_area_deletion_with_failing_setup_reports_and_keeps_entities(
+    hass,
+) -> None:
+    """Deletion is persisted, but a failing setup is reported and removes nothing.
+
+    The deleted Area's entities are removed by the next successful setup.
+    """
+    areas = ar.async_get(hass)
+    hall = areas.async_create("Hall")
+    office = areas.async_create("Office")
+    (lamp_h, lamp_o), (m_h, m_o) = await _devices(
+        hass, ["hall", "office"], {"hall": hall.id, "office": office.id}
+    )
+    entry = _global_entry(
+        {
+            hall.id: _area_config(hall.id, "Hall", lamp_h, m_h),
+            office.id: _area_config(office.id, "Office", lamp_o, m_o),
+        }
+    )
+    await _setup(hass, entry)
+    hall_entities = {e for e in _registered(hass, entry) if "_hall" in e}
+    with patch.object(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        side_effect=RuntimeError("platform setup failed"),
+    ):
+        errors = await async_delete_area(hass, hall.id)
+    assert errors and "base" in errors
+    assert hall.id not in entry.options[CONF_AREAS]
+    assert hall_entities <= _registered(hass, entry)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert not hall_entities & _registered(hass, entry)
+
+
+# Phase H: identity edge cases -----------------------------------------------------
+
+
+async def test_foreign_entity_at_a_presence_source_default_id_is_never_tracked(
+    hass,
+) -> None:
+    """A foreign ON switch holds the Presence Hold default ID before the first setup.
+
+    The Area is not occupied by it, and its light is not switched; after the first
+    setup the real Presence Hold switch (suffixed) is the tracked source.
+    """
+    await _lux(hass, DARK_LUX)
+    hall = ar.async_get(hass).async_create("Hall")
+    (lamp,), (motion,) = await _devices(hass, ["hall"], {"hall": hall.id})
+    foreign = "switch.adaptive_areas_presence_hold_hall"
+    er.async_get(hass).async_get_or_create(
+        "switch", "foreign", "holds_the_default", suggested_object_id=foreign[7:]
+    )
+    hass.states.async_set(foreign, STATE_ON)
+    config = _area_config(hall.id, "Hall", lamp, motion)
+    config["features"]["presence_hold"] = {}
+    entry = _global_entry({hall.id: config})
+    mock_restore_cache(hass, [State(_switch("hall"), STATE_ON)])
+    calls = _record_calls(hass)
+    await _setup(hass, entry)
+    area = get_runtime_areas_for_entry(hass, entry)[0]
+    assert foreign not in area.get_presence_sensors()
+    assert not area.is_occupied()
+    assert _group_calls(calls, "turn_on", _group("hall")) == 0
+    await _reload(hass, entry)
+    area = get_runtime_areas_for_entry(hass, entry)[0]
+    assert foreign + "_2" in area.get_presence_sensors()
+    assert foreign not in area.get_presence_sensors()
+
+
+async def test_unloaded_configured_area_keeps_its_identity_reserved(hass) -> None:
+    """A newcomer never takes the ID part of a configured Area that is not loaded."""
+    areas = ar.async_get(hass)
+    bad = areas.async_create("Bad")
+    newcomer = areas.async_create("Bad.")  # slug "bad", ID "bad_2"
+    (lamp_a, lamp_b), (m_a, m_b) = await _devices(
+        hass, ["a", "b"], {"a": bad.id, "b": newcomer.id}
+    )
+    entry = _global_entry({bad.id: _area_config(bad.id, "Bad", lamp_a, m_a)})
+    await _setup(hass, entry)
+    registry = er.async_get(hass)
+    owned_before = {
+        e.entity_id: (e.unique_id, e.device_id)
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    areas.async_delete(bad.id)  # "Bad" stays configured but cannot load
+    await hass.async_block_till_done()
+    await _advance(hass, 5)
+    _created, errors = await async_create_area(
+        hass, newcomer.id, _area_config(newcomer.id, "Bad.", lamp_b, m_b)
+    )
+    assert errors == {}
+    (loaded,) = get_runtime_areas_for_entry(hass, entry)
+    assert loaded.id == newcomer.id and loaded.slug != "bad"
+    after = {
+        e.entity_id: (e.unique_id, e.device_id)
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    assert {k: after.get(k) for k in owned_before} == owned_before
