@@ -693,7 +693,6 @@ async def async_setup_entry(  # noqa: C901
                 len(backing_missing),
             )
             await async_evaluate_config_entry(hass, config_entry)
-        _remove_orphaned_area_devices(hass, config_entry)
         # Stable, entry-unique slugs before children and entities are derived from them.
         assign_area_slugs(hass, config_entry, adaptive_areas)
 
@@ -831,6 +830,9 @@ async def async_setup_entry(  # noqa: C901
             )
             raise
         _assign_generated_entities_to_areas(hass, adaptive_areas)
+        # Final registry cleanup only at the successful end of setup: a failed setup
+        # (or a failed unload before it) never removes anything.
+        _remove_orphaned_area_devices(hass, config_entry)
         _LOGGER.debug(
             "Adaptive Areas [%s]: platform setup: %.0f ms",
             config_entry.title,
