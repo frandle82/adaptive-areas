@@ -674,6 +674,7 @@ TRACE_REASON_CODES = frozenset(
         "ownership_conflict",
         "command_pending",
         "failed_not_retried",
+        "group_unavailable",
         # Manual override lifecycle: origin class of the change, restore.
         "manual_on",
         "manual_off",

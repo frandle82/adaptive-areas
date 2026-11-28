@@ -443,6 +443,7 @@
       "ownership_conflict": "Light ownership conflict",
       "command_pending": "Command already pending",
       "failed_not_retried": "Earlier command failed, not repeated",
+      "group_unavailable": "Group unavailable (for example before Home Assistant has started), nothing sent",
       "already_on": "Already on",
       "already_off": "Already off",
       "control_disabled": "Light automation off",

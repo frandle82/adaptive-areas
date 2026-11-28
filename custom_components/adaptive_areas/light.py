@@ -11,6 +11,7 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
 )
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -798,12 +799,15 @@ class AreaLightGroup(AdaptiveLightGroup):
                 **({"exception_class": exception_class} if exception_class else {}),
             )
 
-        if (
-            not self._active
-            or seq != self._decision_seq
-            or self.hass.states.get(self.entity_id) is None
-        ):
+        group_state = self.hass.states.get(self.entity_id)
+        if not self._active or seq != self._decision_seq or group_state is None:
             trace("skipped", "stale_decision")
+            return
+        if group_state.state == STATE_UNAVAILABLE:
+            # Home Assistant skips an unavailable entity in a service call without an error
+            # (a native group is unavailable until Home Assistant has started). Nothing would
+            # be switched, so the call is not reported as executed.
+            trace("skipped", "group_unavailable")
             return
         if not self.is_control_enabled() or not self.controlling:
             trace("skipped", "control_disabled")
