@@ -706,18 +706,36 @@ class AreaLightGroup(AdaptiveLightGroup):
         decision = initial_decision(self._group_config(), current)
         missing = self._missing_initial_input(decision)
         if missing is not None:
-            self._trace_group(
-                feature="light_groups",
-                trigger="initial",
-                decision="no_action",
-                outcome="skipped",
-                reason_codes=["initial_pending", missing],
-                target_count=len(self._entity_ids),
-            )
+            reason_codes = ["initial_pending", missing]
+            if not self._is_last_group_trace(reason_codes):
+                # One entry per missing input: repeats would push other decisions out of
+                # the bounded trace.
+                self._trace_group(
+                    feature="light_groups",
+                    trigger="initial",
+                    decision="no_action",
+                    outcome="skipped",
+                    reason_codes=reason_codes,
+                    target_count=len(self._entity_ids),
+                )
             return False
         self._initial_done = True
         self._decision_previous = current
         return self._dispatch_decision(decision, "initial")
+
+    def _is_last_group_trace(self, reason_codes: list[str]) -> bool:
+        """Whether this group's newest trace entry is an initial entry with these reasons."""
+        trace = getattr(self.area, "decision_trace", None)
+        entries = trace.export() if hasattr(trace, "export") else None
+        if not isinstance(entries, list):
+            return False
+        for entry in reversed(entries):
+            if entry.get("group") == str(self.category):
+                return (
+                    entry.get("trigger") == "initial"
+                    and entry.get("reason_codes") == reason_codes
+                )
+        return False
 
     def _missing_initial_input(self, decision) -> str | None:
         """Return the first input the initial decision still lacks, or None."""

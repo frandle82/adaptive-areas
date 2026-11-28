@@ -632,3 +632,96 @@ async def test_l35_failed_setup_rolls_back_presence_timers(
     assert entry.state is ConfigEntryState.SETUP_ERROR
     assert started
     assert _presence_handles(hass) == []
+
+
+# Phase K: pending trace, disabled automation, unload with a pending evaluation ---------
+
+
+async def test_repeated_initial_pending_is_traced_once(
+    hass: HomeAssistant, hass_storage
+) -> None:
+    """An open initial decision adds one trace entry per missing input, not per event."""
+    entry = await _setup(hass, hass_storage, lux=DARK, motion=STATE_UNAVAILABLE)
+    try:
+        for value in (BRIGHT, DARK, BRIGHT, DARK):
+            await _lux(hass, value)
+        pending = [i for i in _initial(hass) if "initial_pending" in i[2]]
+        assert (
+            pending.count(
+                ("no_action", "skipped", ["initial_pending", "unknown_input"])
+            )
+            == 1
+        )
+        assert _completed(hass) == []
+    finally:
+        await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_reload_with_automation_off_switches_nothing(
+    hass: HomeAssistant, hass_storage
+) -> None:
+    """Disabled automation: a reload completes the initial decision as automation_off."""
+    entry = await _setup(hass, hass_storage, lux=DARK, switch=STATE_OFF)
+    try:
+        calls = Calls(hass)
+        for _reload in range(2):
+            assert await hass.config_entries.async_reload(entry.entry_id)
+            await hass.async_block_till_done()
+        assert calls.plain() == []
+        assert _completed(hass) == [("no_action", "skipped", ["automation_off"])]
+        assert _groups(hass)[GROUP].is_control_enabled() is False
+    finally:
+        await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_automation_enabled_before_the_group_is_available_gives_one_on(
+    hass: HomeAssistant, hass_storage
+) -> None:
+    """Switch turned on while the group is unavailable: one ON once it is available."""
+    calls: Calls | None = None
+
+    async def _before_start() -> None:
+        nonlocal calls
+        calls = Calls(hass)
+        await hass.services.async_call(
+            "switch", "turn_on", {ATTR_ENTITY_ID: SWITCH}, blocking=True
+        )
+        await hass.async_block_till_done()
+        assert hass.states.get(GROUP).state == STATE_UNAVAILABLE
+        assert calls.plain() == []
+
+    entry = await _setup(
+        hass, hass_storage, lux=DARK, switch=STATE_OFF, before_start=_before_start
+    )
+    try:
+        assert calls is not None and calls.booleans() == ["input_boolean.turn_on"]
+        assert len(_completed(hass)) == 1
+        hass.states.async_set(MOTION, STATE_ON, {"device_class": "motion", "seq": 1})
+        await hass.async_block_till_done()
+        assert calls.booleans() == ["input_boolean.turn_on"]
+    finally:
+        await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_unload_right_after_a_presence_report_leaves_nothing_running(
+    hass: HomeAssistant, hass_storage, freezer
+) -> None:
+    """A presence evaluation scheduled just before the unload never runs afterwards."""
+    entry = await _setup(hass, hass_storage)
+    events: list[str] = []
+    unsubscribe = async_dispatcher_connect(
+        hass,
+        EVENT_ADAPTIVEAREAS_AREA_STATE_CHANGED,
+        callback(lambda area_id, _states: events.append(area_id)),
+    )
+    try:
+        await _extended(hass, freezer)
+        hass.states.async_set(MOTION, STATE_OFF, {"device_class": "motion"})
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+        events.clear()
+        assert _presence_handles(hass) == []
+        await _advance(hass, freezer, 30)
+        assert events == []
+    finally:
+        unsubscribe()
