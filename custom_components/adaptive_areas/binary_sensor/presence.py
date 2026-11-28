@@ -491,11 +491,15 @@ class AreaStateTrackerEntity(BinaryAdaptiveEntity):
             self._pending_activity_reason = activity_reason
         if self._remove_update_callback is not None:
             return
-        self.hass.async_create_task(self._run_scheduled_update())
+        # The pending evaluation belongs to this entity: removal cancels it (see
+        # _cleanup_timers), so it never runs, and never starts a timer, after unload.
+        task = self.hass.async_create_task(self._run_scheduled_update())
+        self._remove_update_callback = task.cancel
 
     async def _run_scheduled_update(self) -> None:
         """Run after Home Assistant has delivered all listeners for the event."""
         await asyncio.sleep(0)
+        self._remove_update_callback = None
         reason = self._pending_activity_reason
         self._pending_activity_reason = None
         self._update_state()
