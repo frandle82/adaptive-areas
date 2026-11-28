@@ -6,11 +6,15 @@
 
 ### Fixed
 
+- Light group listeners (group state, Area state and presence activity) ran in Home Assistant's executor threads because they were not marked as callbacks, and read and wrote the group's override and decision state from there. They now run on the event loop. Light control rules are unchanged.
+- An automatic light command to a light group that is unavailable (a native group is unavailable until Home Assistant has started) was traced as executed, although Home Assistant skips such a call without an error. It is now traced as skipped with the reason `group_unavailable`.
+- The origin classes of a manual override claimed more than a Home Assistant Context proves. They are now `origin_user_account` (a call under a user account: frontend, app, API or voice assistant), `origin_parent_context` (a derived context, for example an automation, script or scene) and `origin_unattributed` (also an automation with a time or sun trigger).
 - The decision trace in the panel lost the reason of every light group decision ("No reason recorded"). The public trace allowlist did not contain the reason codes of the shared light decision (`manual_override`, `no_transition`, `dark_on`, …) nor the triggers `initial` and `automation_enabled`. They are now passed through and labelled in English and German.
 
 ### Added
 
-- The decision trace records when a light group's manual override starts (with the change and its origin class: user, other automation or script, or not attributable), when it ends (area clear or blocking state) and when it is restored at setup. No entity, user or context IDs are recorded. Light control behaviour is unchanged.
+- The light diagnosis in the panel shows each light group on its own: entity ID, state, automatic control, manual override and its last traced decision with the reason. An override of the ALL group no longer looks like an override of the accent group. Light group entries of the decision trace name their group category.
+- The decision trace records when a light group's manual override starts (with the change and its origin class: user account, derived context, or not attributable), when it ends (area clear or blocking state) and when it is restored at setup. No entity, user or context IDs are recorded. Light control behaviour is unchanged.
 
 ## 1.7.0-rc.4 - 2026-11-27
 

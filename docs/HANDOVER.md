@@ -2,6 +2,15 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase J.2, exakte Template-Leuchte, 2026-11-27)
+
+- Testleuchte auf HAOS ist ein Template-Helfer auf `input_boolean.licht`. Nachgebaut mit nativen Integrationen (`tests/test_light_template_helper.py`, ConfigEntry über den echten Config Flow und YAML). RC.4 schaltet damit in allen Szenarien korrekt; der HAOS-Fehler ist mit dieser Kette nicht reproduzierbar.
+- Behoben: Licht-Listener liefen in Executor-Threads (keine Callbacks) – jetzt im Event-Loop. Trace: Befehl an nicht verfügbare Gruppe heißt `group_unavailable` statt „ausgeführt“. Ursprungsklassen umbenannt (`origin_user_account`, `origin_parent_context`, `origin_unattributed`). Panel zeigt je Lichtgruppe Zustand, Automatik, Übersteuerung und letzte Entscheidung.
+- Wahrscheinlichster HAOS-Pfad (nicht bewiesen): eine echte frühere Bedienung von Helfer oder Lampe bei belegtem Bereich setzt die Übersteuerung; auf einem echten System bleibt sie über jeden Neustart und jedes Neuladen (z. B. Speichern eines Bereichs, Gerätezuordnung) erhalten, bis CLEAR eintritt. Mit erweiterter Anwesenheit kann das lange dauern.
+- Offene Entscheidungen: Lebensdauer gespeicherter Übersteuerung; verlorenes EIN vor dem HA-Start (siehe DECISIONS.md).
+- Benötigte HAOS-Daten mit dem Branch-Stand: Ereignisprotokoll des Arbeitszimmers (Eintrag „Manuelle Übersteuerung begonnen“ mit Auslöser und Ursprung, oder „wiederhergestellt“), Gruppenzeilen der Lichtdiagnose, Logbuch von `input_boolean.licht` und `light.test_leuchte` zum Beginn, Zeitpunkte von Neustarts/Neuladen.
+- Graphify nicht aktualisiert (Graph auf `020d90b`).
+
 ## Fortsetzungspunkt (Phase J, HAOS-Regression RC.4, 2026-11-27)
 
 - RC.4 ist veröffentlicht (`7f9593f`). Die HAOS-Abnahme ist fehlgeschlagen: Arbeitszimmer schaltet bei DARK nicht ein, Dashboard meldet „Manuell gesetzt (native Lichtgruppe)“ ohne manuelle Bedienung. Der ursprüngliche Lichtfehler ist nicht nachweislich behoben; 1.7.0 bleibt gesperrt.
