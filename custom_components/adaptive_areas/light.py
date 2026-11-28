@@ -490,6 +490,7 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     # State Change Handling
 
+    @callback
     def area_state_changed(self, area_id, states_tuple):
         """Handle area state change event."""
         if area_id != self.area.id:
@@ -510,6 +511,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         # Handle light category
         return self.state_change_secondary(states_tuple)
 
+    @callback
     def area_presence_activity(self, area_id: str, reason: str) -> bool:
         """Re-evaluate real-area child lights without resetting manual control."""
         if area_id != self.area.id or self.category == LightGroupCategory.ALL:
@@ -581,7 +583,7 @@ class AreaLightGroup(AdaptiveLightGroup):
             )
             self.controlling = True
             self._attr_extra_state_attributes["controlling"] = True
-            self.schedule_update_ha_state()
+            self.async_write_ha_state()
 
         if AreaStates.CLEAR in new_states:
             self.reset_control()
@@ -861,7 +863,7 @@ class AreaLightGroup(AdaptiveLightGroup):
             False, trigger=trigger, reason_codes=["presence_cleared"]
         )
         self._attr_extra_state_attributes["controlling"] = self.controlling
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
         self.logger.debug("%s: Control Reset.", self.name)
 
     def _set_manual_override(
@@ -922,7 +924,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         self.controlling = any(
             child_group.controlling for child_group in self._child_groups
         )
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
 
     def handle_manual_group_state_change(
         self, new_state=None, own=False, context=None
@@ -972,6 +974,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         # If it was manually controlled in a way we do not override, stop controlling.
         self.controlling = False
 
+    @callback
     def group_state_changed(self, event):
         """Handle group state change events."""
         # If area is not occupied, ignore
@@ -1042,6 +1045,6 @@ class AreaLightGroup(AdaptiveLightGroup):
         # Update attribute
         self._attr_extra_state_attributes["controlling"] = self.controlling
         self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = self.manual_override
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
 
         return True

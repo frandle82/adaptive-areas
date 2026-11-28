@@ -32,7 +32,7 @@ class OwnRequest:
 
 
 def _locked(func):
-    """Serialize registry access: group decisions may run in executor threads."""
+    """Serialize registry access (defensive; group listeners run on the event loop)."""
 
     def _wrapper(*args, **kwargs):
         with _LOCK:
