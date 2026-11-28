@@ -10,6 +10,7 @@
 - RC.4 failed its HAOS acceptance. The exact template test light works in tests already on RC.4; the actual HAOS cause is still not proven.
 - Implemented (decisions A, B, C in DECISIONS.md): manual override is a runtime state only (no restore at restart or reload); the initial decision completes only when its inputs exist and is never replayed; Meta presence evaluations and timers end with the unload. No automatic retry.
 - Unchanged: Context limit for device reports later than 5 s; group-specific diagnosis and origin classes of J.2.
+- Phase K (final check before RC.5): every access to the own request registry and every `call_soon` runs on the event loop (callbacks and coroutines only; no executor entry point); a setup ownership conflict blocks, replays nothing, and the next regular event decides again; an open initial decision is traced once per missing input; `controlling` is runtime only, the light control switch restores its own state and stays authoritative. Interface comparison with RC.4: CHANGELOG, "Interface compared with 1.7.0-rc.4".
 - Tests: `tests/test_light_lifecycle.py` (L01–L36), template chain in `tests/test_light_template_helper.py` (L37–L41). Not verified on a real Home Assistant instance; RC.5 acceptance plan in HANDOVER.md.
 
 ## Phase J.2: exact reproduction of the HAOS test light (2026-11-27)

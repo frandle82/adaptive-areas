@@ -8,7 +8,7 @@ Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchi
 - RC.4 hat die HAOS-Abnahme nicht bestanden; die exakte Template-Leuchte funktioniert im Test schon unter RC.4; die HAOS-Ursache ist nicht bewiesen.
 - Umgesetzt: Übersteuerung nur noch Laufzeitzustand (kein Restore bei Neustart oder Reload, Reload beendet sie bewusst); Initialentscheidung erst bei vorhandenen Eingaben, einmal pro Setup, ohne Wiederholung; Meta-Präsenz beendet ausstehende Auswertung und Timer beim Unload.
 - Tests: `tests/test_light_lifecycle.py` (L01–L36), `tests/test_light_template_helper.py`.
-- PR-Entwurf, RC.5-Release-Notes und HAOS-Abnahmeplan: siehe Abschlussbericht Phase J.3 (nicht versioniert); vor RC.5 echte GitHub-CI abwarten.
+- HAOS-Abnahmeplan: [RC5_PRACTICAL_TEST_PLAN.md](RC5_PRACTICAL_TEST_PLAN.md). PR-Entwurf und RC.5-Release-Notes liegen lokal (nicht versioniert) unter `.agents/knowledge/notes/rc5-release/`; vor RC.5 echte GitHub-CI abwarten.
 
 ## Fortsetzungspunkt (Phase J.2, exakte Template-Leuchte, 2026-11-27)
 

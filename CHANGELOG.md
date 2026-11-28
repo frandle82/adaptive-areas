@@ -4,6 +4,13 @@
 
 1.7.0-rc.4 was published, but its practical validation on Home Assistant OS failed: the brightness-dependent light control of an Area still did not switch, and its accent group reported a manual override although nothing was switched by hand. The cause of that override is not yet proven. See `docs/CURRENT_STATE.md`.
 
+### Interface compared with 1.7.0-rc.4
+
+- Unchanged: entity IDs, unique IDs, devices, config entries and options, services, events and dispatcher signals, WebSocket command types and parameters, translations in `translations/` and `strings.json`, manifest, dependencies and CI.
+- Extended (backward compatible): `get_light_runtime_status` `control_path.groups[]` gains `controlling`, `manual_override` and `last_decision`; decision trace entries (WebSocket and diagnostics export) gain `group`; new trace triggers `initial`, `automation_enabled`, `group_state_changed`, new decisions `manual_override_started` and `manual_override_ended`, new reason codes (all `TransitionReason` values, `stale_decision`, `ownership_conflict`, `command_pending`, `failed_not_retried`, `group_unavailable`, `initial_pending`, `control_switch_unknown`, `manual_on`, `manual_off`, `origin_user_account`, `origin_parent_context`, `origin_unattributed`); new panel texts in `dashboard_texts/`.
+- No trace code of 1.7.0-rc.4 was removed. The codes `origin_user`, `origin_automation`, `override_restored` and `state_restored` existed only on the unreleased development branch and were renamed or removed before any release.
+- Behaviour: the light group attributes `manual_override` and `controlling` keep their names but are no longer restored after a restart or reload (see Changed). The light control switch keeps restoring its own state.
+
 ### Changed
 
 - A manual override of a light group now lasts for the current setup only. It is no longer restored after a Home Assistant restart or an integration reload, also when the Area is still occupied. A reload ends an override on purpose; the regular initial decision then applies to the current state. Within a running setup the override rules are unchanged.
