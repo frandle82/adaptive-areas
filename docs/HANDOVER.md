@@ -2,6 +2,40 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase J.3, deterministischer Lifecycle, 2026-11-28)
+
+- Branch `fix/light-manual-override-lifecycle`, nur lokale Commits; kein Push, kein PR, keine Version.
+- RC.4 hat die HAOS-Abnahme nicht bestanden; die exakte Template-Leuchte funktioniert im Test schon unter RC.4; die HAOS-Ursache ist nicht bewiesen.
+- Umgesetzt: Übersteuerung nur noch Laufzeitzustand (kein Restore bei Neustart oder Reload, Reload beendet sie bewusst); Initialentscheidung erst bei vorhandenen Eingaben, einmal pro Setup, ohne Wiederholung; Meta-Präsenz beendet ausstehende Auswertung und Timer beim Unload.
+- Tests: `tests/test_light_lifecycle.py` (L01–L36), `tests/test_light_template_helper.py`.
+- HAOS-Abnahmeplan: [RC5_PRACTICAL_TEST_PLAN.md](RC5_PRACTICAL_TEST_PLAN.md). PR-Entwurf und RC.5-Release-Notes liegen lokal (nicht versioniert) unter `.agents/knowledge/notes/rc5-release/`; vor RC.5 echte GitHub-CI abwarten.
+
+## Fortsetzungspunkt (Phase J.2, exakte Template-Leuchte, 2026-11-27)
+
+- Testleuchte auf HAOS ist ein Template-Helfer auf `input_boolean.licht`. Nachgebaut mit nativen Integrationen (`tests/test_light_template_helper.py`, ConfigEntry über den echten Config Flow und YAML). RC.4 schaltet damit in allen Szenarien korrekt; der HAOS-Fehler ist mit dieser Kette nicht reproduzierbar.
+- Behoben: Licht-Listener liefen in Executor-Threads (keine Callbacks) – jetzt im Event-Loop. Trace: Befehl an nicht verfügbare Gruppe heißt `group_unavailable` statt „ausgeführt“. Ursprungsklassen umbenannt (`origin_user_account`, `origin_parent_context`, `origin_unattributed`). Panel zeigt je Lichtgruppe Zustand, Automatik, Übersteuerung und letzte Entscheidung.
+- Wahrscheinlichster HAOS-Pfad (nicht bewiesen): eine echte frühere Bedienung von Helfer oder Lampe bei belegtem Bereich setzt die Übersteuerung; auf einem echten System bleibt sie über jeden Neustart und jedes Neuladen (z. B. Speichern eines Bereichs, Gerätezuordnung) erhalten, bis CLEAR eintritt. Mit erweiterter Anwesenheit kann das lange dauern.
+- Offene Entscheidungen: Lebensdauer gespeicherter Übersteuerung; verlorenes EIN vor dem HA-Start (siehe DECISIONS.md).
+- Benötigte HAOS-Daten mit dem Branch-Stand: Ereignisprotokoll des Arbeitszimmers (Eintrag „Manuelle Übersteuerung begonnen“ mit Auslöser und Ursprung, oder „wiederhergestellt“), Gruppenzeilen der Lichtdiagnose, Logbuch von `input_boolean.licht` und `light.test_leuchte` zum Beginn, Zeitpunkte von Neustarts/Neuladen.
+- Graphify nicht aktualisiert (Graph auf `020d90b`).
+
+## Fortsetzungspunkt (Phase J, HAOS-Regression RC.4, 2026-11-27)
+
+- RC.4 ist veröffentlicht (`7f9593f`). Die HAOS-Abnahme ist fehlgeschlagen: Arbeitszimmer schaltet bei DARK nicht ein, Dashboard meldet „Manuell gesetzt (native Lichtgruppe)“ ohne manuelle Bedienung. Der ursprüngliche Lichtfehler ist nicht nachweislich behoben; 1.7.0 bleibt gesperrt.
+- Branch `fix/light-manual-override-lifecycle` (von `7f9593f`), nur lokale Commits. Kein Push, kein PR, keine Version, kein Tag.
+- Behoben (nachgewiesen): Trace-Begründungen der Lichtentscheidungen gingen in der DTO-Allowlist verloren („Keine Begründung aufgezeichnet“). Neu: Beginn, Ende und Wiederherstellung einer Übersteuerung stehen im Trace, mit Ursprungsklasse (Benutzer / Automation / nicht zuordenbar).
+- Nicht nachgewiesen: die Ursache der HAOS-Übersteuerung. Mit HA-eigener Context-Weitergabe erzeugt RC.4 in keiner reproduzierten Kette eine falsche Übersteuerung. Nachgewiesene Mechanismen, die sie erklären können: (1) Geräterückmeldung später als 5 s nach dem eigenen Befehl (HA-Context-Fenster); (2) eine gespeicherte Übersteuerung überlebt Neustart/Reload je nach Thread-Wettlauf und hält dann bis zum nächsten CLEAR. Beide sind offene Entscheidungen in [DECISIONS.md](DECISIONS.md).
+- Benötigte HAOS-Daten (nach Installation des Branch-Stands nur mit Freigabe; ohne Zugangsdaten):
+  1. HAOS- und Home-Assistant-Core-Version.
+  2. Integration und Gerätetyp von `light.test_leuchte` (z. B. Zigbee2MQTT, ZHA, Hue, Tuya, ESPHome, `switch_as_x`, Template), Übergangszeit (`transition`).
+  3. Diagnoseexport der GlobalEntry (enthält `decision_trace`).
+  4. Entity-IDs der Akzentgruppe, der ALL-Gruppe und des Lichtsteuerungsschalters; Zustand und Attribute (`manual_override`, `controlling`) beider Gruppen und der Lampe.
+  5. Dashboard-Ereignisprotokoll nach erneutem Auftreten mit dem Branch-Stand: Eintrag „Manuelle Übersteuerung begonnen“ und dessen Ursprung.
+  6. Logbuch-/Verlaufseintrag der Lampe zum Zeitpunkt des Beginns (wer hat geschaltet, „ausgelöst durch“).
+  7. Andere Automationen, Szenen, Sprachassistenten oder Integrationen (z. B. Adaptive Lighting, HomeKit), die dieselbe Lampe schalten.
+  8. Log mit `custom_components.adaptive_areas.light: debug` um einen Helligkeitswechsel.
+- Graphify: nicht aktualisiert, weil die Ursache nicht nachgewiesen ist (Graph steht auf `020d90b`, HEAD weicht ab).
+
 ## Fortsetzungspunkt (Phase H, Merge-Vorbereitung, 2026-11-27)
 
 - PR #2 (`fix/global-entry-lifecycle`). Squash-Merge vorgesehen, Titel `fix: correct global entry identity and lifecycle`. Kein Merge, keine Version, kein Tag, kein Release.

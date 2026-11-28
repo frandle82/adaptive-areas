@@ -2475,6 +2475,33 @@ async function d07Regression(browser) {
   }
 }
 
+// D08 (Phase J.2): each light group shows its own override, automatic control and last
+// decision; an override of the ALL group does not mark the accent group as overridden.
+async function d08Regression(browser) {
+  const fixture = JSON.stringify(JSON.parse(readFileSync(join(FIXTURES, "get_light_runtime_status.control_path.admin.json"), "utf8")));
+  for (const language of ["en", "de"]) {
+    await browser.evaluate(mountCode({ admin: true, language }));
+    await waitFor(browser, `${text()}.length > 40`);
+    const out = await browser.evaluate(`(() => {
+      const p = document.querySelector("adaptive-areas-panel");
+      const t = p._t;
+      const c = ${fixture};
+      const groups = c.light.control_path.groups;
+      const accent = groups.find((g) => g.category === "accent_lights");
+      Object.assign(accent, { controlling: true, manual_override: false, last_decision: { decision: "turn_on", outcome: "executed", trigger: "area_state_changed", reason_codes: ["action_executed"], timestamp: null } });
+      const all = groups.find((g) => g.category === "all_lights");
+      Object.assign(all, { entity_id: all.entity_id || "light.adaptive_areas_light_groups_kitchen_all_lights", state: "on", controlling: true, manual_override: true, last_decision: null });
+      c.light.override = { mode: "MANUAL", groups: [all.entity_id] };
+      p._data.lightRuntime = c;
+      const html = p._lightRuntimeStatus(t);
+      const count = (needle) => html.split(needle).length - 1;
+      return { active: count(t.lxGroupOverrideActive), inactive: count(t.lxGroupOverrideInactive), accentId: html.includes(accent.entity_id), decision: html.includes(p._map("decision", "turn_on")), none: html.includes(t.lxGroupNoDecision), auto: html.includes(t.lxGroupAutoOn) };
+    })()`);
+    check(`D08 ${language}: only the ALL group is shown as overridden`, out.active === 1 && out.inactive === 1, language);
+    check(`D08 ${language}: a group shows its entity id, automatic control and last decision`, out.accentId && out.auto && out.decision && out.none, language);
+  }
+}
+
 // D02 / D03 / D01 (form): feature sections follow the local draft at once; no save happens.
 async function d02d03Regression(browser) {
   await browser.evaluate(mountCode({ admin: true, language: "en" }));
@@ -2535,6 +2562,7 @@ try {
   } else {
     await regression(browser);
     await d07Regression(browser);
+    await d08Regression(browser);
     await d02d03Regression(browser);
     await d05Regression(browser);
     check("no JavaScript errors", browser.errors.length === 0, browser.errors.slice(0, 3).join(" | "));

@@ -11,6 +11,7 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
 )
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -60,6 +61,7 @@ from custom_components.adaptive_areas.helpers.light_transition import (
     AreaState,
     GroupConfig,
     TransitionAction,
+    TransitionReason,
     initial_decision,
     transition_decision,
 )
@@ -408,35 +410,13 @@ class AreaLightGroup(AdaptiveLightGroup):
         return self._icon
 
     async def async_added_to_hass(self) -> None:
-        """Restore state and setup listeners."""
-        # Get last state
-        last_state = await self.async_get_last_state()
+        """Set up listeners; every setup generation starts without a manual override.
 
-        if last_state:
-            self.logger.debug(
-                "%s: State restored [state=%s]", self.name, last_state.state
-            )
-            self._attr_is_on = last_state.state == STATE_ON
-
-            if "controlling" in last_state.attributes:
-                controlling = last_state.attributes["controlling"]
-                self.controlling = controlling
-                self._attr_extra_state_attributes["controlling"] = self.controlling
-            self.manual_override = bool(
-                last_state.attributes.get(ATTR_MANUAL_OVERRIDE, False)
-            )
-            self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = (
-                self.manual_override
-            )
-        else:
-            self._attr_is_on = False
-
-        self.schedule_update_ha_state()
-
-        # Setup state change listeners
+        A stored `manual_override` or `controlling` attribute is never read back: the
+        override is a runtime state of the current setup generation (restart and reload
+        start without it). The group state itself comes from its members.
+        """
         await self._setup_listeners()
-        self._apply_initial_decision()
-
         await super().async_added_to_hass()
 
         if self.category == LightGroupCategory.ALL:
@@ -445,7 +425,8 @@ class AreaLightGroup(AdaptiveLightGroup):
                 for child_group in self._child_groups
                 if child_group.entity_id
             ]
-            self.schedule_update_ha_state()
+            self.async_write_ha_state()
+        self._apply_initial_decision()
 
     async def _setup_listeners(self, _=None) -> None:
         """Set up listeners for area state chagne."""
@@ -486,6 +467,7 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     # State Change Handling
 
+    @callback
     def area_state_changed(self, area_id, states_tuple):
         """Handle area state change event."""
         if area_id != self.area.id:
@@ -506,12 +488,15 @@ class AreaLightGroup(AdaptiveLightGroup):
         # Handle light category
         return self.state_change_secondary(states_tuple)
 
+    @callback
     def area_presence_activity(self, area_id: str, reason: str) -> bool:
         """Re-evaluate real-area child lights without resetting manual control."""
         if area_id != self.area.id or self.category == LightGroupCategory.ALL:
             return False
+        if not self._initial_done:
+            return self._apply_initial_decision()
         if not self.is_control_enabled():
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger="presence_activity",
                 decision="no_action",
@@ -548,8 +533,15 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     @callback
     def _async_control_switch_changed(self, area_id: str) -> None:
-        """Re-evaluate the current state when the Area's automation is switched on."""
-        if area_id == self.area.id and self._active and self.is_control_enabled():
+        """Re-evaluate the current state when the Area's automation is switched on.
+
+        The switch also reports its registration; an open initial decision is then retried.
+        """
+        if area_id != self.area.id or not self._active:
+            return
+        if not self._initial_done:
+            self._apply_initial_decision()
+        elif self.is_control_enabled():
             self._apply_decision_event("automation_enabled")
 
     @callback
@@ -577,10 +569,12 @@ class AreaLightGroup(AdaptiveLightGroup):
             )
             self.controlling = True
             self._attr_extra_state_attributes["controlling"] = True
-            self.schedule_update_ha_state()
+            self.async_write_ha_state()
 
         if AreaStates.CLEAR in new_states:
             self.reset_control()
+            if not self._initial_done:
+                return self._apply_initial_decision()
             # The ALL group owns the CLEAR OFF; this only records the new decision input.
             self._decision_previous = self._current_area_state()
             return False
@@ -666,7 +660,12 @@ class AreaLightGroup(AdaptiveLightGroup):
         decision input with the previous one, so identical inputs never send a second command.
         """
         if self._active_blocking_states() and self.manual_override:
-            self._set_manual_override(False)
+            self._set_manual_override(
+                False, trigger=trigger, reason_codes=["blocking_state_active"]
+            )
+        if not self._initial_done:
+            # No transition before the initial decision: it decides from the current state.
+            return self._apply_initial_decision()
         current = self._current_area_state()
         if (
             trigger not in ("presence_activity", "automation_enabled")
@@ -692,20 +691,66 @@ class AreaLightGroup(AdaptiveLightGroup):
         self._pending_action = None
         self._failed_action = None
 
-    def _apply_initial_decision(self) -> None:
-        """Once per instance (setup or reload): decide from the current valid state only."""
+    def _apply_initial_decision(self) -> bool:
+        """Take the one initial decision of this setup generation once its inputs exist.
+
+        While an input is missing (the native group is not available yet, the light control
+        switch is not registered, presence is unknown, or the decision needs an unknown
+        brightness) the decision stays open; the next event of this group tries again with
+        the then current state. Nothing decided earlier is kept or replayed. A valid
+        NO_ACTION, ON or OFF completes it, at most once per instance (setup or reload).
+        """
         if self._initial_done:
-            return
-        self._initial_done = True
+            return False
         current = self._current_area_state()
         decision = initial_decision(self._group_config(), current)
+        missing = self._missing_initial_input(decision)
+        if missing is not None:
+            reason_codes = ["initial_pending", missing]
+            if not self._is_last_group_trace(reason_codes):
+                # One entry per missing input: repeats would push other decisions out of
+                # the bounded trace.
+                self._trace_group(
+                    feature="light_groups",
+                    trigger="initial",
+                    decision="no_action",
+                    outcome="skipped",
+                    reason_codes=reason_codes,
+                    target_count=len(self._entity_ids),
+                )
+            return False
+        self._initial_done = True
         self._decision_previous = current
-        self._dispatch_decision(decision, "initial")
+        return self._dispatch_decision(decision, "initial")
+
+    def _is_last_group_trace(self, reason_codes: list[str]) -> bool:
+        """Whether this group's newest trace entry is an initial entry with these reasons."""
+        trace = getattr(self.area, "decision_trace", None)
+        entries = trace.export() if hasattr(trace, "export") else None
+        if not isinstance(entries, list):
+            return False
+        for entry in reversed(entries):
+            if entry.get("group") == str(self.category):
+                return (
+                    entry.get("trigger") == "initial"
+                    and entry.get("reason_codes") == reason_codes
+                )
+        return False
+
+    def _missing_initial_input(self, decision) -> str | None:
+        """Return the first input the initial decision still lacks, or None."""
+        if not self.available:
+            return "group_unavailable"
+        if getattr(self.area, "light_control_switch", None) is None:
+            return "control_switch_unknown"
+        if decision.reason is TransitionReason.UNKNOWN_INPUT:
+            return TransitionReason.UNKNOWN_INPUT.value
+        return None
 
     def _dispatch_decision(self, decision, trigger: str) -> bool:
         """Hand one decision to the loop; NO_ACTION is traced and sends nothing."""
         if decision.action is TransitionAction.NO_ACTION:
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger=trigger,
                 decision="no_action",
@@ -714,9 +759,7 @@ class AreaLightGroup(AdaptiveLightGroup):
                 target_count=len(self._entity_ids),
             )
             return False
-        self.hass.loop.call_soon_threadsafe(
-            self._async_schedule_command, decision.action, trigger
-        )
+        self.hass.loop.call_soon(self._async_schedule_command, decision.action, trigger)
         return True
 
     @callback
@@ -730,7 +773,7 @@ class AreaLightGroup(AdaptiveLightGroup):
             return
         if self._pending_action == action.value or self._failed_action == action.value:
             # A failed command is not repeated by a later event for the same action.
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger=trigger,
                 decision=(
@@ -780,7 +823,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         def trace(
             outcome: str, reason: str, exception_class: str | None = None
         ) -> None:
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger=trigger,
                 decision=decision_name,
@@ -790,12 +833,15 @@ class AreaLightGroup(AdaptiveLightGroup):
                 **({"exception_class": exception_class} if exception_class else {}),
             )
 
-        if (
-            not self._active
-            or seq != self._decision_seq
-            or self.hass.states.get(self.entity_id) is None
-        ):
+        group_state = self.hass.states.get(self.entity_id)
+        if not self._active or seq != self._decision_seq or group_state is None:
             trace("skipped", "stale_decision")
+            return
+        if group_state.state == STATE_UNAVAILABLE:
+            # Home Assistant skips an unavailable entity in a service call without an error
+            # (a native group is unavailable until Home Assistant has started). Nothing would
+            # be switched, so the call is not reported as executed.
+            trace("skipped", "group_unavailable")
             return
         if not self.is_control_enabled() or not self.controlling:
             trace("skipped", "control_disabled")
@@ -848,18 +894,75 @@ class AreaLightGroup(AdaptiveLightGroup):
         switch = getattr(self.area, "light_control_switch", None)
         return switch is not None and switch.is_on is True
 
-    def reset_control(self):
+    def reset_control(self, trigger: str = "area_state_changed"):
         """Reset control status."""
         self.controlling = True
-        self._set_manual_override(False)
+        self._set_manual_override(
+            False, trigger=trigger, reason_codes=["presence_cleared"]
+        )
         self._attr_extra_state_attributes["controlling"] = self.controlling
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
         self.logger.debug("%s: Control Reset.", self.name)
 
-    def _set_manual_override(self, enabled: bool) -> None:
-        """Set manual override state and expose it as an entity attribute."""
+    def _set_manual_override(
+        self,
+        enabled: bool,
+        *,
+        trigger: str | None = None,
+        reason_codes: list[str] | None = None,
+    ) -> None:
+        """Set manual override state and expose it as an entity attribute.
+
+        With a trigger, an actual start or end of the override is recorded in the Area's
+        bounded decision trace (no entity or user data), so it is traceable what set it.
+        """
+        changed = bool(self.manual_override) != enabled
         self.manual_override = enabled
         self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = enabled
+        if changed and trigger is not None:
+            decision = "manual_override_started" if enabled else "manual_override_ended"
+            self._trace_override(trigger, decision, reason_codes or [])
+            self.logger.info(
+                "%s: %s (%s)", self.name, decision, ", ".join(reason_codes or [])
+            )
+
+    def _trace_group(self, **kwargs) -> None:
+        """Record a decision of this group in the Area trace, tagged with its category."""
+        category = getattr(self, "category", None)
+        if category:
+            kwargs["group"] = str(category)
+        self.area.trace_decision(**kwargs)
+
+    def _trace_override(
+        self, trigger: str, decision: str, reason_codes: list[str]
+    ) -> None:
+        self._trace_group(
+            feature="light_groups",
+            trigger=trigger,
+            decision=decision,
+            outcome="tracked",
+            reason_codes=reason_codes,
+            target_count=len(getattr(self, "_entity_ids", ()) or ()),
+        )
+
+    @staticmethod
+    def _origin_reason(context) -> str:
+        """Classify a foreign change by what its Context proves, without identifying data.
+
+        A user id proves a call under a Home Assistant user account (frontend, app, API
+        token or voice assistant), not that a person acted. A parent id proves only that
+        the Context was derived from another one (for example an automation, script or
+        scene started by an event). Without either, it is not attributable: a device report, a
+        physical switch, another integration, an automation without a triggering Context
+        (time or sun trigger) or an own call answered after Home Assistant's context window.
+        """
+        if context is None:
+            return "origin_unattributed"
+        if context.user_id is not None:
+            return "origin_user_account"
+        if context.parent_id is not None:
+            return "origin_parent_context"
+        return "origin_unattributed"
 
     def handle_group_state_change_primary(self):
         """Handle group state change for primary area state events."""
@@ -869,9 +972,11 @@ class AreaLightGroup(AdaptiveLightGroup):
         self.controlling = any(
             child_group.controlling for child_group in self._child_groups
         )
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
 
-    def handle_manual_group_state_change(self, new_state=None, own=False) -> bool:
+    def handle_manual_group_state_change(
+        self, new_state=None, own=False, context=None
+    ) -> bool:
         """Handle manual on/off changes common to parent and child groups.
 
         `own` is True when the change was caused by this group's own service call, decided
@@ -885,8 +990,11 @@ class AreaLightGroup(AdaptiveLightGroup):
 
         self.logger.debug("%s: Group controlled by something else.", self.name)
 
+        origin = ["manual_on", self._origin_reason(context)]
         if new_state == STATE_ON:
-            self._set_manual_override(True)
+            self._set_manual_override(
+                True, trigger="group_state_changed", reason_codes=origin
+            )
             self.controlling = True
             return True
 
@@ -894,25 +1002,35 @@ class AreaLightGroup(AdaptiveLightGroup):
             # A complete manual switch-off during occupation is a deliberate decision: the
             # override stays until CLEAR or an effective blocker ends it. Presence activity,
             # brightness and activation changes do not switch the group on again meanwhile.
-            self._set_manual_override(True)
+            self._set_manual_override(
+                True,
+                trigger="group_state_changed",
+                reason_codes=["manual_off", self._origin_reason(context)],
+            )
             self.controlling = True
             return True
 
         return False
 
-    def handle_group_state_change_secondary(self, new_state=None, own=False):
+    def handle_group_state_change_secondary(
+        self, new_state=None, own=False, context=None
+    ):
         """Handle group state change for secondary area state events."""
-        if self.handle_manual_group_state_change(new_state, own=own):
+        if self.handle_manual_group_state_change(new_state, own=own, context=context):
             return
 
         # If it was manually controlled in a way we do not override, stop controlling.
         self.controlling = False
 
+    @callback
     def group_state_changed(self, event):
         """Handle group state change events."""
+        # The group's first available state (after Home Assistant has started) can complete
+        # an open initial decision; afterwards this does nothing.
+        self._apply_initial_decision()
         # If area is not occupied, ignore
         if not self.area.is_occupied():
-            self.reset_control()
+            self.reset_control("group_state_changed")
         else:
             origin_event = event.context.origin_event
             new_state = None
@@ -966,14 +1084,18 @@ class AreaLightGroup(AdaptiveLightGroup):
 
             own = self._is_own_context(origin_event.context)
             if self.category == LightGroupCategory.ALL:
-                self.handle_manual_group_state_change(new_state, own=own)
+                self.handle_manual_group_state_change(
+                    new_state, own=own, context=event.context
+                )
                 self.handle_group_state_change_primary()
             else:
-                self.handle_group_state_change_secondary(new_state, own=own)
+                self.handle_group_state_change_secondary(
+                    new_state, own=own, context=event.context
+                )
 
         # Update attribute
         self._attr_extra_state_attributes["controlling"] = self.controlling
         self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = self.manual_override
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()
 
         return True

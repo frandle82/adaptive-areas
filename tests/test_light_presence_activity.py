@@ -53,6 +53,7 @@ def activity_group(hass: HomeAssistant, monkeypatch):
     # Lifecycle and decision state of a set-up group (commands run on the loop).
     group._active = True
     group.schedule_update_ha_state = Mock()
+    group.async_write_ha_state = Mock()
     group._clear_tasks = set()
     group._decision_previous = None
     group._decision_seq = 0

@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+1.7.0-rc.4 was published, but its practical validation on Home Assistant OS failed: the brightness-dependent light control of an Area still did not switch, and its accent group reported a manual override although nothing was switched by hand. The cause of that override is not yet proven. See `docs/CURRENT_STATE.md`.
+
+### Interface compared with 1.7.0-rc.4
+
+- Unchanged: entity IDs, unique IDs, devices, config entries and options, services, events and dispatcher signals, WebSocket command types and parameters, translations in `translations/` and `strings.json`, manifest, dependencies and CI.
+- Extended (backward compatible): `get_light_runtime_status` `control_path.groups[]` gains `controlling`, `manual_override` and `last_decision`; decision trace entries (WebSocket and diagnostics export) gain `group`; new trace triggers `initial`, `automation_enabled`, `group_state_changed`, new decisions `manual_override_started` and `manual_override_ended`, new reason codes (all `TransitionReason` values, `stale_decision`, `ownership_conflict`, `command_pending`, `failed_not_retried`, `group_unavailable`, `initial_pending`, `control_switch_unknown`, `manual_on`, `manual_off`, `origin_user_account`, `origin_parent_context`, `origin_unattributed`); new panel texts in `dashboard_texts/`.
+- No trace code of 1.7.0-rc.4 was removed. The codes `origin_user`, `origin_automation`, `override_restored` and `state_restored` existed only on the unreleased development branch and were renamed or removed before any release.
+- Behaviour: the light group attributes `manual_override` and `controlling` keep their names but are no longer restored after a restart or reload (see Changed). The light control switch keeps restoring its own state.
+
+### Changed
+
+- A manual override of a light group now lasts for the current setup only. It is no longer restored after a Home Assistant restart or an integration reload, also when the Area is still occupied. A reload ends an override on purpose; the regular initial decision then applies to the current state. Within a running setup the override rules are unchanged.
+
+### Fixed
+
+- The initial light decision after a start or reload was lost when the native light group was not available yet (before Home Assistant has started), and it was taken although the light control switch, the presence or a needed brightness were still unknown. It now completes once its inputs exist and decides from the state at that moment; nothing earlier is replayed and a failed call is not repeated. The trace shows `initial_pending` with the missing input meanwhile.
+- Unloading the integration while a Meta Area was extended left a clear timer of its presence entity running; a pending evaluation started by the removal of a child ran after the Meta Area's own cleanup. It is now cancelled with the entity.
+- The trace reason of an automatic call reads "Service call sent (device state not confirmed)": a returned call is no proof that the device switched.
+- Light group listeners (group state, Area state and presence activity) ran in Home Assistant's executor threads because they were not marked as callbacks, and read and wrote the group's override and decision state from there. They now run on the event loop. Light control rules are unchanged.
+- An automatic light command to a light group that is unavailable (a native group is unavailable until Home Assistant has started) was traced as executed, although Home Assistant skips such a call without an error. It is now traced as skipped with the reason `group_unavailable`.
+- The origin classes of a manual override claimed more than a Home Assistant Context proves. They are now `origin_user_account` (a call under a user account: frontend, app, API or voice assistant), `origin_parent_context` (a derived context, for example an automation, script or scene) and `origin_unattributed` (also an automation with a time or sun trigger).
+- The decision trace in the panel lost the reason of every light group decision ("No reason recorded"). The public trace allowlist did not contain the reason codes of the shared light decision (`manual_override`, `no_transition`, `dark_on`, …) nor the triggers `initial` and `automation_enabled`. They are now passed through and labelled in English and German.
+
+### Added
+
+- The light diagnosis in the panel shows each light group on its own: entity ID, state, automatic control, manual override and its last traced decision with the reason. An override of the ALL group no longer looks like an override of the accent group. Light group entries of the decision trace name their group category.
+- The decision trace records when a light group's manual override starts (with the change and its origin class: user account, derived context, or not attributable), when it ends (area clear or blocking state) and when it is restored at setup. No entity, user or context IDs are recorded. Light control behaviour is unchanged.
+
 ## 1.7.0-rc.4 - 2026-11-27
 
 Pre-release for practical validation. This is not a stable release. Practical validation on a Home Assistant instance is still pending; it is not yet proven that the fault seen in the RC.3 field test is fixed on Home Assistant OS.

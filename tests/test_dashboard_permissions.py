@@ -174,6 +174,8 @@ async def test_admin_decision_trace_is_newest_first_and_limited(
         "from",
         "to",
         "exception_class",
+        # Light group category of a light_groups entry (None for other features).
+        "group",
     }
 
 
