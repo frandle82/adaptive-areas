@@ -61,6 +61,7 @@ from custom_components.adaptive_areas.helpers.light_transition import (
     AreaState,
     GroupConfig,
     TransitionAction,
+    TransitionReason,
     initial_decision,
     transition_decision,
 )
@@ -492,6 +493,8 @@ class AreaLightGroup(AdaptiveLightGroup):
         """Re-evaluate real-area child lights without resetting manual control."""
         if area_id != self.area.id or self.category == LightGroupCategory.ALL:
             return False
+        if not self._initial_done:
+            return self._apply_initial_decision()
         if not self.is_control_enabled():
             self._trace_group(
                 feature="light_groups",
@@ -530,8 +533,15 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     @callback
     def _async_control_switch_changed(self, area_id: str) -> None:
-        """Re-evaluate the current state when the Area's automation is switched on."""
-        if area_id == self.area.id and self._active and self.is_control_enabled():
+        """Re-evaluate the current state when the Area's automation is switched on.
+
+        The switch also reports its registration; an open initial decision is then retried.
+        """
+        if area_id != self.area.id or not self._active:
+            return
+        if not self._initial_done:
+            self._apply_initial_decision()
+        elif self.is_control_enabled():
             self._apply_decision_event("automation_enabled")
 
     @callback
@@ -563,6 +573,8 @@ class AreaLightGroup(AdaptiveLightGroup):
 
         if AreaStates.CLEAR in new_states:
             self.reset_control()
+            if not self._initial_done:
+                return self._apply_initial_decision()
             # The ALL group owns the CLEAR OFF; this only records the new decision input.
             self._decision_previous = self._current_area_state()
             return False
@@ -651,6 +663,9 @@ class AreaLightGroup(AdaptiveLightGroup):
             self._set_manual_override(
                 False, trigger=trigger, reason_codes=["blocking_state_active"]
             )
+        if not self._initial_done:
+            # No transition before the initial decision: it decides from the current state.
+            return self._apply_initial_decision()
         current = self._current_area_state()
         if (
             trigger not in ("presence_activity", "automation_enabled")
@@ -676,15 +691,43 @@ class AreaLightGroup(AdaptiveLightGroup):
         self._pending_action = None
         self._failed_action = None
 
-    def _apply_initial_decision(self) -> None:
-        """Once per instance (setup or reload): decide from the current valid state only."""
+    def _apply_initial_decision(self) -> bool:
+        """Take the one initial decision of this setup generation once its inputs exist.
+
+        While an input is missing (the native group is not available yet, the light control
+        switch is not registered, presence is unknown, or the decision needs an unknown
+        brightness) the decision stays open; the next event of this group tries again with
+        the then current state. Nothing decided earlier is kept or replayed. A valid
+        NO_ACTION, ON or OFF completes it, at most once per instance (setup or reload).
+        """
         if self._initial_done:
-            return
-        self._initial_done = True
+            return False
         current = self._current_area_state()
         decision = initial_decision(self._group_config(), current)
+        missing = self._missing_initial_input(decision)
+        if missing is not None:
+            self._trace_group(
+                feature="light_groups",
+                trigger="initial",
+                decision="no_action",
+                outcome="skipped",
+                reason_codes=["initial_pending", missing],
+                target_count=len(self._entity_ids),
+            )
+            return False
+        self._initial_done = True
         self._decision_previous = current
-        self._dispatch_decision(decision, "initial")
+        return self._dispatch_decision(decision, "initial")
+
+    def _missing_initial_input(self, decision) -> str | None:
+        """Return the first input the initial decision still lacks, or None."""
+        if not self.available:
+            return "group_unavailable"
+        if getattr(self.area, "light_control_switch", None) is None:
+            return "control_switch_unknown"
+        if decision.reason is TransitionReason.UNKNOWN_INPUT:
+            return TransitionReason.UNKNOWN_INPUT.value
+        return None
 
     def _dispatch_decision(self, decision, trigger: str) -> bool:
         """Hand one decision to the loop; NO_ACTION is traced and sends nothing."""
@@ -966,6 +1009,9 @@ class AreaLightGroup(AdaptiveLightGroup):
     @callback
     def group_state_changed(self, event):
         """Handle group state change events."""
+        # The group's first available state (after Home Assistant has started) can complete
+        # an open initial decision; afterwards this does nothing.
+        self._apply_initial_decision()
         # If area is not occupied, ignore
         if not self.area.is_occupied():
             self.reset_control("group_state_changed")

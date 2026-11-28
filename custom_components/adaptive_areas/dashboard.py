@@ -674,6 +674,8 @@ TRACE_REASON_CODES = frozenset(
         "command_pending",
         "failed_not_retried",
         "group_unavailable",
+        "initial_pending",
+        "control_switch_unknown",
         # Manual override lifecycle: origin class of the change, restore.
         "manual_on",
         "manual_off",
