@@ -690,6 +690,10 @@ TRACE_STATES = frozenset(
     {"clear", "occupied", "extended", "dark", "bright", "sleep", "accented"}
 )
 _EXCEPTION_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+# Light group categories a trace entry may name (no entity ids).
+TRACE_GROUPS = frozenset(
+    str(category) for category in [*LIGHT_GROUP_CATEGORIES, LightGroupCategory.ALL]
+)
 _TRACE_MAX_TARGETS = 1000
 
 
@@ -742,6 +746,56 @@ def _trace_entry(entry: dict[str, Any]) -> dict[str, Any]:
             if isinstance(exception, str) and _EXCEPTION_NAME.match(exception)
             else None
         ),
+        "group": _allowed_group(entry.get("group")),
+    }
+
+
+def _allowed_group(value: Any) -> str | None:
+    """Return a light group category of a trace entry, or None."""
+    return value if isinstance(value, str) and value in TRACE_GROUPS else None
+
+
+def _last_group_decision(area: AdaptiveArea, category: str) -> dict[str, Any] | None:
+    """Return the newest traced decision of one light group, or None.
+
+    Read from the Area's bounded in-memory trace; an older decision may have left it.
+    """
+    trace = getattr(area, "decision_trace", None)
+    if trace is None:
+        return None
+    for entry in reversed(trace.export()):
+        if entry.get("feature") == "light_groups" and entry.get("group") == category:
+            public = _trace_entry(entry)
+            return {
+                key: public[key]
+                for key in (
+                    "timestamp",
+                    "trigger",
+                    "decision",
+                    "outcome",
+                    "reason_codes",
+                )
+            }
+    return None
+
+
+def _group_runtime(
+    area: AdaptiveArea, category: str, state: State | None
+) -> dict[str, Any]:
+    """Runtime view of one group from its own attributes and the trace (no new state)."""
+    attributes = state.attributes if state is not None else {}
+    return {
+        "controlling": (
+            attributes.get("controlling")
+            if isinstance(attributes.get("controlling"), bool)
+            else None
+        ),
+        "manual_override": (
+            attributes.get(ATTR_MANUAL_OVERRIDE)
+            if isinstance(attributes.get(ATTR_MANUAL_OVERRIDE), bool)
+            else None
+        ),
+        "last_decision": _last_group_decision(area, str(category)),
     }
 
 
@@ -817,6 +871,7 @@ def light_group_diagnostics(
                 "ownership_blocked": bool(
                     state is not None and group_is_blocked(hass, entity_id, configured)
                 ),
+                **_group_runtime(area, category, state),
             }
         )
     all_entity_id = _light_group_entity_id(hass, area, LightGroupCategory.ALL)
@@ -843,6 +898,7 @@ def light_group_diagnostics(
                 all_state is not None
                 and group_is_blocked(hass, all_entity_id, all_members)
             ),
+            **_group_runtime(area, LightGroupCategory.ALL, all_state),
         }
     )
     return groups

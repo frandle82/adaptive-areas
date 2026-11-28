@@ -28,6 +28,7 @@ class DecisionTrace:
         from_state: str | None = None,
         to_state: str | None = None,
         exception_class: str | None = None,
+        group: str | None = None,
     ) -> None:
         """Append a structured entry without accepting identifying target data."""
         entry: dict[str, Any] = {
@@ -46,6 +47,8 @@ class DecisionTrace:
             entry["to"] = str(to_state)
         if exception_class is not None:
             entry["exception_class"] = str(exception_class)
+        if group is not None:
+            entry["group"] = str(group)
         self._entries.append(entry)
 
     def export(self) -> list[dict[str, Any]]:

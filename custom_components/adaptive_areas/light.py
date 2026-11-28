@@ -518,7 +518,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         if area_id != self.area.id or self.category == LightGroupCategory.ALL:
             return False
         if not self.is_control_enabled():
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger="presence_activity",
                 decision="no_action",
@@ -714,7 +714,7 @@ class AreaLightGroup(AdaptiveLightGroup):
     def _dispatch_decision(self, decision, trigger: str) -> bool:
         """Hand one decision to the loop; NO_ACTION is traced and sends nothing."""
         if decision.action is TransitionAction.NO_ACTION:
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger=trigger,
                 decision="no_action",
@@ -739,7 +739,7 @@ class AreaLightGroup(AdaptiveLightGroup):
             return
         if self._pending_action == action.value or self._failed_action == action.value:
             # A failed command is not repeated by a later event for the same action.
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger=trigger,
                 decision=(
@@ -789,7 +789,7 @@ class AreaLightGroup(AdaptiveLightGroup):
         def trace(
             outcome: str, reason: str, exception_class: str | None = None
         ) -> None:
-            self.area.trace_decision(
+            self._trace_group(
                 feature="light_groups",
                 trigger=trigger,
                 decision=decision_name,
@@ -892,10 +892,17 @@ class AreaLightGroup(AdaptiveLightGroup):
                 "%s: %s (%s)", self.name, decision, ", ".join(reason_codes or [])
             )
 
+    def _trace_group(self, **kwargs) -> None:
+        """Record a decision of this group in the Area trace, tagged with its category."""
+        category = getattr(self, "category", None)
+        if category:
+            kwargs["group"] = str(category)
+        self.area.trace_decision(**kwargs)
+
     def _trace_override(
         self, trigger: str, decision: str, reason_codes: list[str]
     ) -> None:
-        self.area.trace_decision(
+        self._trace_group(
             feature="light_groups",
             trigger=trigger,
             decision=decision,
