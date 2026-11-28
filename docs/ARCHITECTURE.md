@@ -40,6 +40,8 @@ The JavaScript panel is presentation and configuration UI. Python runtime object
 - Lifecycle order of a GlobalEntry setup: validate stored configuration → build and initialise Areas → assign slugs → platform setup → assign Home Assistant Areas of generated entities → remove orphaned Area devices. The registry cleanup is the last step and runs only after everything before it succeeded. Platforms clean up only entities the Area owns, compared by unique ID.
 - Unload reports a failed platform unload as failed and then keeps the runtime. Area deletion updates the options once; the resulting reload performs the registry cleanup.
 - Meta Areas of the GlobalEntry do not reload the entry when one of its Areas loads; children are resolved after all Areas exist and sources refresh on entity registration.
+- Light group lifecycle (Phase J.3): a light group never restores `manual_override` or `controlling`; both start as "no override, controlling" in every setup generation. Its listeners (`group_state_changed`, `area_state_changed`, `area_presence_activity`, the control switch signal) are callbacks on the event loop. The initial decision (`_apply_initial_decision`) is completed once per instance, only when the native group is available, `area.light_control_switch` is registered and the decision is not `unknown_input`; until then each of these existing events tries again with the current state. No timer, queue or extra listener is involved.
+- Presence entities own their pending same-loop evaluation (`_remove_update_callback`) and their clear timer; `_cleanup_timers` cancels both on removal, also in the setup rollback, so no evaluation of an unloaded Area runs later.
 
 ## Compatibility boundaries
 

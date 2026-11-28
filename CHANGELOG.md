@@ -4,8 +4,15 @@
 
 1.7.0-rc.4 was published, but its practical validation on Home Assistant OS failed: the brightness-dependent light control of an Area still did not switch, and its accent group reported a manual override although nothing was switched by hand. The cause of that override is not yet proven. See `docs/CURRENT_STATE.md`.
 
+### Changed
+
+- A manual override of a light group now lasts for the current setup only. It is no longer restored after a Home Assistant restart or an integration reload, also when the Area is still occupied. A reload ends an override on purpose; the regular initial decision then applies to the current state. Within a running setup the override rules are unchanged.
+
 ### Fixed
 
+- The initial light decision after a start or reload was lost when the native light group was not available yet (before Home Assistant has started), and it was taken although the light control switch, the presence or a needed brightness were still unknown. It now completes once its inputs exist and decides from the state at that moment; nothing earlier is replayed and a failed call is not repeated. The trace shows `initial_pending` with the missing input meanwhile.
+- Unloading the integration while a Meta Area was extended left a clear timer of its presence entity running; a pending evaluation started by the removal of a child ran after the Meta Area's own cleanup. It is now cancelled with the entity.
+- The trace reason of an automatic call reads "Service call sent (device state not confirmed)": a returned call is no proof that the device switched.
 - Light group listeners (group state, Area state and presence activity) ran in Home Assistant's executor threads because they were not marked as callbacks, and read and wrote the group's override and decision state from there. They now run on the event loop. Light control rules are unchanged.
 - An automatic light command to a light group that is unavailable (a native group is unavailable until Home Assistant has started) was traced as executed, although Home Assistant skips such a call without an error. It is now traced as skipped with the reason `group_unavailable`.
 - The origin classes of a manual override claimed more than a Home Assistant Context proves. They are now `origin_user_account` (a call under a user account: frontend, app, API or voice assistant), `origin_parent_context` (a derived context, for example an automation, script or scene) and `origin_unattributed` (also an automation with a time or sun trigger).

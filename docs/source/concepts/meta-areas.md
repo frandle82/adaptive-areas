@@ -44,3 +44,5 @@ Meta-Areas are powerful when used as part of a layered automation approach — w
 A Meta-Area's dark and bright state follows its child Areas. It is dark when any child Area is dark. It is bright only when every child Area is bright. A child with unknown brightness, or a child without a state, never makes the Meta-Area bright.
 
 The existing Meta-Area presence entity also publishes child summaries. These include child, occupied, clear, dark, sleeping, extended, and accented Area counts. Cleaning-enabled children are summarized through due, soon-due, and overdue counts and Area lists plus a deterministic most-due result. Global, Interior, Exterior, and floor Meta-Areas all use their existing child hierarchy; no summary entity is added.
+
+When the integration is unloaded or reloaded, every Meta-Area presence entity stops its clear and extended timers and any pending evaluation, including one started by the removal of its children. Nothing of an unloaded Area runs later or affects the next setup.

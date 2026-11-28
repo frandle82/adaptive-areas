@@ -5,6 +5,13 @@
 - Integration version: read `custom_components/adaptive_areas/manifest.json`; do not copy it here.
 - Test baseline: the full suite passes with Home Assistant 2026.8.1 and with the CI-pinned Home Assistant 2026.10.4 (see [TESTING.md](TESTING.md)).
 
+## Phase J.3: deterministic light lifecycle (2026-11-28)
+
+- RC.4 failed its HAOS acceptance. The exact template test light works in tests already on RC.4; the actual HAOS cause is still not proven.
+- Implemented (decisions A, B, C in DECISIONS.md): manual override is a runtime state only (no restore at restart or reload); the initial decision completes only when its inputs exist and is never replayed; Meta presence evaluations and timers end with the unload. No automatic retry.
+- Unchanged: Context limit for device reports later than 5 s; group-specific diagnosis and origin classes of J.2.
+- Tests: `tests/test_light_lifecycle.py` (L01–L36), template chain in `tests/test_light_template_helper.py` (L37–L41). Not verified on a real Home Assistant instance; RC.5 acceptance plan in HANDOVER.md.
+
 ## Phase J.2: exact reproduction of the HAOS test light (2026-11-27)
 
 - The HAOS test light is a template light helper (template config entry) on `input_boolean.licht`, no physical device. Reproduced with the native `input_boolean`, `template` (real config flow, and the equivalent YAML), `light` and an Adaptive Areas GlobalEntry with "Arbeitszimmer" and Meta "global" (`tests/test_light_template_helper.py`).

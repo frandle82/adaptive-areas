@@ -2,6 +2,14 @@
 
 Status: Schritt 3 **technisch abgenommen** (unabhängige Prüfung des Prüfarchivs v3, 2026-11-20: ZIP und Manifest bestätigt, 124/124 Browser-Prüfungen unter Chromium, Harness-Korrektur bestätigt, Bewertung 9,0/10; die 584 Python-Tests wurden dort mangels Home Assistant nicht erneut ausgeführt). Schritt 4 (Monitoring) abgeschlossen; Schritt 5 (Analyse) abgeschlossen; Schritt 6 im Implementierungsstand abgeschlossen; Review-Korrekturen V01–V03 bearbeitet, Fortsetzung siehe „Fortsetzungspunkt“.
 
+## Fortsetzungspunkt (Phase J.3, deterministischer Lifecycle, 2026-11-28)
+
+- Branch `fix/light-manual-override-lifecycle`, nur lokale Commits; kein Push, kein PR, keine Version.
+- RC.4 hat die HAOS-Abnahme nicht bestanden; die exakte Template-Leuchte funktioniert im Test schon unter RC.4; die HAOS-Ursache ist nicht bewiesen.
+- Umgesetzt: Übersteuerung nur noch Laufzeitzustand (kein Restore bei Neustart oder Reload, Reload beendet sie bewusst); Initialentscheidung erst bei vorhandenen Eingaben, einmal pro Setup, ohne Wiederholung; Meta-Präsenz beendet ausstehende Auswertung und Timer beim Unload.
+- Tests: `tests/test_light_lifecycle.py` (L01–L36), `tests/test_light_template_helper.py`.
+- PR-Entwurf, RC.5-Release-Notes und HAOS-Abnahmeplan: siehe Abschlussbericht Phase J.3 (nicht versioniert); vor RC.5 echte GitHub-CI abwarten.
+
 ## Fortsetzungspunkt (Phase J.2, exakte Template-Leuchte, 2026-11-27)
 
 - Testleuchte auf HAOS ist ein Template-Helfer auf `input_boolean.licht`. Nachgebaut mit nativen Integrationen (`tests/test_light_template_helper.py`, ConfigEntry über den echten Config Flow und YAML). RC.4 schaltet damit in allen Szenarien korrekt; der HAOS-Fehler ist mit dieser Kette nicht reproduzierbar.
