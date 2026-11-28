@@ -687,9 +687,23 @@ async def test_light_group_listeners_run_on_the_event_loop(
     Deterministic: on RC.4 both listeners ran in Home Assistant's executor (they were not
     callbacks) and read and wrote the group's override and decision state from there.
     """
-    threads: dict[str, set[bool]] = {"group_state": set(), "area_state": set()}
+    threads: dict[str, set[bool]] = {
+        "group_state": set(),
+        "area_state": set(),
+        "registry_write": set(),
+        "registry_read": set(),
+    }
     own_context = aa_light.AreaLightGroup._is_own_context
     decide = aa_light.AreaLightGroup._apply_decision_event
+    register, lookup = aa_light.new_light_group_context, aa_light.request_for_context
+
+    def _register(*args, **kwargs):
+        threads["registry_write"].add(threading.get_ident() == hass.loop_thread_id)
+        return register(*args, **kwargs)
+
+    def _lookup(*args, **kwargs):
+        threads["registry_read"].add(threading.get_ident() == hass.loop_thread_id)
+        return lookup(*args, **kwargs)
 
     def _own(self, context):
         threads["group_state"].add(threading.get_ident() == hass.loop_thread_id)
@@ -701,11 +715,21 @@ async def test_light_group_listeners_run_on_the_event_loop(
 
     monkeypatch.setattr(aa_light.AreaLightGroup, "_is_own_context", _own)
     monkeypatch.setattr(aa_light.AreaLightGroup, "_apply_decision_event", _decide)
+    monkeypatch.setattr(aa_light, "new_light_group_context", _register)
+    monkeypatch.setattr(aa_light, "request_for_context", _lookup)
     entry = await _setup(hass, hass_storage)
     try:
         await _lux(hass, DARK)
         await _lux(hass, BRIGHT)
-        assert threads == {"group_state": {True}, "area_state": {True}}
+        # Presence activity (same Area state, new report) runs the decision path too.
+        hass.states.async_set(MOTION, STATE_ON, {"device_class": "motion", "seq": 1})
+        await hass.async_block_till_done()
+        assert threads == {
+            "group_state": {True},
+            "area_state": {True},
+            "registry_write": {True},
+            "registry_read": {True},
+        }
     finally:
         await hass.config_entries.async_unload(entry.entry_id)
 

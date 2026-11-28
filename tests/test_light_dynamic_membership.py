@@ -167,7 +167,9 @@ async def _enable(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
 
-async def _run(hass: HomeAssistant, steps: list[Step]) -> tuple[list[list[dict]], dict]:
+async def _run(
+    hass: HomeAssistant, steps: list[Step], initial_members: list[str] | None = None
+) -> tuple[list[list[dict]], dict]:
     """Set up three Areas, run the steps; return the light events per step and listener counts."""
     await setup_mock_entities(
         hass,
@@ -186,7 +188,7 @@ async def _run(hass: HomeAssistant, steps: list[Step]) -> tuple[list[list[dict]]
     )
     for key in AREA:
         hass.states.async_set(MOTION[key], STATE_OFF, {"device_class": "motion"})
-    hass.states.async_set(NESTED, STATE_OFF, {"entity_id": [LAMP_A]})
+    hass.states.async_set(NESTED, STATE_OFF, {"entity_id": initial_members or [LAMP_A]})
     entries = _entries()
     calls: list[dict] = []
     unsubscribe = hass.bus.async_listen(EVENT_CALL_SERVICE, lambda e: _record(e, calls))
@@ -319,6 +321,27 @@ async def test_removing_the_conflict_restores_regular_control(
     per, _ = await _run(hass, steps)
     assert NESTED not in _auto_targets(per[2], "turn_on")
     assert _auto_targets(per[5], "turn_on").count(NESTED) == 1
+
+
+async def test_conflict_at_setup_blocks_then_a_regular_event_decides_again(
+    hass: HomeAssistant,
+) -> None:
+    """Shared-light safety test: the conflict exists at setup and is removed later.
+
+    While it exists A's group is not switched. Removing it replays nothing; the next
+    regular occupation decides again and switches A's group on once.
+    """
+    steps = [
+        _dark_step(hass),
+        _occupy("a"),
+        _membership([LAMP_A]),
+        _free("a"),
+        _occupy("a"),
+    ]
+    per, _ = await _run(hass, steps, initial_members=[LAMP_A, LIGHT_B])
+    assert NESTED not in _auto_targets(per[1], "turn_on")
+    assert _auto_targets(per[2]) == []
+    assert _auto_targets(per[4], "turn_on").count(NESTED) == 1
 
 
 async def test_all_off_respects_the_actual_ownership(hass: HomeAssistant) -> None:
