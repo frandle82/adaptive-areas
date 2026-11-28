@@ -733,7 +733,7 @@ async def test_override_start_and_end_are_traced_with_origin(
 
 
 async def test_user_origin_is_classified(hass: HomeAssistant) -> None:
-    """A user switch-off while occupied is traced as origin_user."""
+    """A user switch-off while occupied is traced as origin_user_account."""
     _entry, _lamp = await _setup(hass)
     try:
         await _motion(hass, STATE_ON)
@@ -752,7 +752,7 @@ async def test_user_origin_is_classified(hass: HomeAssistant) -> None:
         entries = build_decision_trace(_area(hass))["entries"]
         started = [e for e in entries if e["decision"] == "manual_override_started"]
         assert started
-        assert set(started[0]["reason_codes"]) == {"manual_off", "origin_user"}
+        assert set(started[0]["reason_codes"]) == {"manual_off", "origin_user_account"}
     finally:
         await shutdown_integration(hass, [])
 

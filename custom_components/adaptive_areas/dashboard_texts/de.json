@@ -452,9 +452,9 @@
       "blocking_state_active": "Blockierender Zustand aktiv",
       "manual_on": "Von anderer Stelle eingeschaltet",
       "manual_off": "Von anderer Stelle ausgeschaltet",
-      "origin_user": "Ursprung: Benutzer",
-      "origin_automation": "Ursprung: andere Automation oder Skript",
-      "origin_unattributed": "Ursprung: nicht zuordenbar (Gerät, Schalter, Integration oder verspätete Geräterückmeldung)",
+      "origin_user_account": "Ursprung: Aufruf unter einem Benutzerkonto (Oberfläche, App, API oder Sprachassistent)",
+      "origin_parent_context": "Ursprung: abgeleiteter Context (zum Beispiel Automation, Skript oder Szene; nicht gesichert)",
+      "origin_unattributed": "Ursprung: nicht zuordenbar (Gerät, Schalter, Integration, Automation ohne auslösenden Context oder verspätete Geräterückmeldung)",
       "override_restored": "Übersteuerung nach Neustart wiederhergestellt"
     },
     "issue": {

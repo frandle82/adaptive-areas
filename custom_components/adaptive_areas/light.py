@@ -906,18 +906,21 @@ class AreaLightGroup(AdaptiveLightGroup):
 
     @staticmethod
     def _origin_reason(context) -> str:
-        """Classify a foreign change without identifying data.
+        """Classify a foreign change by what its Context proves, without identifying data.
 
-        A user id means a person; a parent id means another automation or script; neither
-        means a device report, a physical switch, another integration, or an own call
-        answered after Home Assistant's context window (not attributable by Home Assistant).
+        A user id proves a call under a Home Assistant user account (frontend, app, API
+        token or voice assistant), not that a person acted. A parent id proves only that
+        the Context was derived from another one (for example an automation, script or
+        scene started by an event). Without either, it is not attributable: a device report, a
+        physical switch, another integration, an automation without a triggering Context
+        (time or sun trigger) or an own call answered after Home Assistant's context window.
         """
         if context is None:
             return "origin_unattributed"
         if context.user_id is not None:
-            return "origin_user"
+            return "origin_user_account"
         if context.parent_id is not None:
-            return "origin_automation"
+            return "origin_parent_context"
         return "origin_unattributed"
 
     def handle_group_state_change_primary(self):

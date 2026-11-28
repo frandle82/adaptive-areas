@@ -678,8 +678,8 @@ TRACE_REASON_CODES = frozenset(
         # Manual override lifecycle: origin class of the change, restore.
         "manual_on",
         "manual_off",
-        "origin_user",
-        "origin_automation",
+        "origin_user_account",
+        "origin_parent_context",
         "origin_unattributed",
         "override_restored",
         # Every reason of the shared light transition decision, without drift.
