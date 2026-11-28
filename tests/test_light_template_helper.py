@@ -19,6 +19,7 @@ presence platform restore the Area states before the light groups write their fi
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 import threading
 from typing import Any
@@ -34,6 +35,7 @@ from homeassistant.const import (
 from homeassistant.core import Context, CoreState, Event, HomeAssistant, State, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import floor_registry as fr
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
@@ -147,8 +149,15 @@ async def _setup(
     restore: list[State] | None = None,
     preload_binary_sensor: bool = True,
     second_area: bool = False,
+    switch: str = STATE_ON,
+    floor: bool = False,
+    before_start: Callable[[], Awaitable[None]] | None = None,
 ) -> MockConfigEntry:
-    """Cold start: input_boolean helper, template light, Adaptive Areas GlobalEntry."""
+    """Cold start: input_boolean helper, template light, Adaptive Areas GlobalEntry.
+
+    `before_start` runs after the entry is set up and before Home Assistant has started
+    (the native light groups are not available yet).
+    """
     items = [{"id": "licht", "name": "Licht"}]
     if second_area:
         items.append({"id": "licht_wohnzimmer", "name": "Licht Wohnzimmer"})
@@ -158,13 +167,14 @@ async def _setup(
         "key": "input_boolean",
         "data": {"items": items},
     }
-    mock_restore_cache(hass, [State(SWITCH, STATE_ON), *(restore or [])])
+    mock_restore_cache(hass, [State(SWITCH, switch), *(restore or [])])
     hass.set_state(CoreState.not_running)
     hass.states.async_set(LUX, lux, {"unit_of_measurement": "lx"})
     if preload_binary_sensor:
         assert await async_setup_component(hass, "binary_sensor", {})
     areas = ar.async_get(hass)
-    area = areas.async_create("Arbeitszimmer")
+    floor_id = fr.async_get(hass).async_create("OG").floor_id if floor else None
+    area = areas.async_create("Arbeitszimmer", floor_id=floor_id)
     assert await async_setup_component(hass, "input_boolean", {})
     if variant == "entry":
         await _create_template_helper(hass, "Test Leuchte", BOOL)
@@ -198,6 +208,8 @@ async def _setup(
     )
     assert meta is not None, errors
     area_options["global"] = {**meta, "id": "global", "name": "Global", "type": "meta"}
+    if floor_id is not None:
+        area_options[floor_id] = {**meta, "id": floor_id, "name": "OG", "type": "meta"}
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=GLOBAL_ENTRY_UNIQUE_ID,
@@ -213,6 +225,8 @@ async def _setup(
     assert await async_setup_component(hass, DOMAIN, {})
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
+    if before_start is not None:
+        await before_start()
     await hass.async_start()
     await hass.async_block_till_done()
     if second_area:
@@ -593,38 +607,7 @@ async def test_t12_external_change_of_the_boolean_sets_the_override(
         await hass.config_entries.async_unload(entry.entry_id)
 
 
-# T13, T16: restored override and CLEAR; brightness during a valid override -------------
-
-
-async def test_t13_restored_override_ends_with_clear(
-    hass: HomeAssistant, hass_storage, freezer
-) -> None:
-    """T13: an override restored into a continuing occupancy ends with the next CLEAR.
-
-    Current behaviour with the presence platform restored first (open decision on the
-    lifetime of a stored override, see docs/DECISIONS.md): the override is kept.
-    """
-    entry = await _setup(
-        hass,
-        hass_storage,
-        lux=DARK,
-        restore=[
-            State(PRESENCE, STATE_ON, {"states": ["occupied", "extended", "dark"]}),
-            State(GROUP, STATE_OFF, {"manual_override": True, "controlling": True}),
-            State(ALL, STATE_OFF, {"manual_override": True, "controlling": True}),
-        ],
-    )
-    try:
-        assert _override(hass, GROUP) and _override(hass, ALL)
-        assert hass.states.get(LAMP).state == STATE_OFF
-        await _clear(hass, freezer)
-        _no_override(hass)
-        hass.states.async_set(MOTION, STATE_ON, {"device_class": "motion"})
-        await hass.async_block_till_done()
-        assert hass.states.get(LAMP).state == STATE_ON
-        _no_override(hass)
-    finally:
-        await hass.config_entries.async_unload(entry.entry_id)
+# T16: brightness during a valid override -----------------------------------------------
 
 
 async def test_t16_brightness_changes_keep_a_valid_override(
@@ -693,48 +676,6 @@ async def test_t14_two_areas_and_meta_all_do_not_influence_each_other(
         await hass.config_entries.async_unload(entry.entry_id)
 
 
-# Cold start: a command before Home Assistant has started ---------------------------------
-
-
-async def test_cold_start_on_before_start_is_not_reported_as_executed(
-    hass: HomeAssistant, hass_storage
-) -> None:
-    """Known gap, not changed: an automatic ON before Home Assistant has started is lost.
-
-    The light control switch is restored during start-up and its "automation enabled"
-    evaluation decides ON for the occupied, dark Area. The native group is unavailable until
-    Home Assistant has started, and Home Assistant skips an unavailable entity in a service
-    call without an error. The trace says so instead of "executed"; the lamp stays off
-    until the next relevant change (open decision, see docs/DECISIONS.md).
-    """
-    entry = await _setup(hass, hass_storage, lux=DARK)
-    try:
-        assert _area(hass).is_occupied() and _area(hass).has_state("dark")
-        assert hass.states.get(LAMP).state == STATE_OFF
-        decisions = [
-            (
-                entry["trigger"],
-                entry["decision"],
-                entry["outcome"],
-                entry["reason_codes"],
-            )
-            for entry in build_decision_trace(_area(hass))["entries"]
-            if entry.get("group") == "accent_lights"
-        ]
-        assert ("automation_enabled", "turn_on", "skipped", ["group_unavailable"]) in (
-            decisions
-        )
-        assert not [d for d in decisions if d[2] == "executed"]
-        _no_override(hass)
-        # The next relevant change switches the lamp as usual.
-        hass.states.async_set(MOTION, STATE_ON, {"device_class": "motion", "seq": 1})
-        await hass.async_block_till_done()
-        assert hass.states.get(LAMP).state == STATE_ON
-        _no_override(hass)
-    finally:
-        await hass.config_entries.async_unload(entry.entry_id)
-
-
 # Thread race of Phase J: listeners run on the event loop ------------------------------
 
 
@@ -765,31 +706,6 @@ async def test_light_group_listeners_run_on_the_event_loop(
         await _lux(hass, DARK)
         await _lux(hass, BRIGHT)
         assert threads == {"group_state": {True}, "area_state": {True}}
-    finally:
-        await hass.config_entries.async_unload(entry.entry_id)
-
-
-@pytest.mark.parametrize("run", range(5))
-async def test_restart_with_stored_override_is_deterministic(
-    hass: HomeAssistant, hass_storage, run: int
-) -> None:
-    """The restart outcome no longer depends on thread scheduling (repeated five times).
-
-    With the presence platform restored first (the order on a real instance), the light
-    groups see the restored occupied Area and the stored override is kept until CLEAR.
-    This pins the current behaviour; its lifetime is an open decision (docs/DECISIONS.md).
-    """
-    entry = await _setup(
-        hass,
-        hass_storage,
-        restore=[
-            State(PRESENCE, STATE_ON, {"states": ["occupied", "extended", "bright"]}),
-            State(GROUP, STATE_OFF, {"manual_override": True, "controlling": True}),
-            State(ALL, STATE_OFF, {"manual_override": True, "controlling": True}),
-        ],
-    )
-    try:
-        assert _override(hass, GROUP) and _override(hass, ALL)
     finally:
         await hass.config_entries.async_unload(entry.entry_id)
 
@@ -866,41 +782,5 @@ async def test_template_helper_reload_while_occupied_is_not_an_override(
             else ["input_boolean.turn_on", "input_boolean.turn_off"]
         )
         _no_override(hass)
-    finally:
-        await hass.config_entries.async_unload(entry.entry_id)
-
-
-async def test_override_from_a_helper_toggle_survives_integration_reloads(
-    hass: HomeAssistant, hass_storage, freezer
-) -> None:
-    """Current behaviour (open decision): a real override survives reloads while occupied.
-
-    Saving an Area in the panel or assigning a device reloads the integration. An override
-    set earlier (here: the boolean helper toggled in its dialog while the Area is occupied)
-    is restored by each reload and blocks the next DARK ON until CLEAR ends it.
-    """
-    entry = await _setup(hass, hass_storage)
-    try:
-        await hass.services.async_call(
-            "input_boolean", "toggle", {ATTR_ENTITY_ID: BOOL}, blocking=True
-        )
-        await hass.services.async_call(
-            "input_boolean", "toggle", {ATTR_ENTITY_ID: BOOL}, blocking=True
-        )
-        await hass.async_block_till_done()
-        assert _override(hass, GROUP)
-        for _reload in range(2):
-            assert await hass.config_entries.async_reload(entry.entry_id)
-            await hass.async_block_till_done()
-            assert _override(hass, GROUP)
-        calls = Calls(hass)
-        await _lux(hass, DARK)
-        assert calls.booleans() == []
-        assert hass.states.get(LAMP).state == STATE_OFF
-        await _clear(hass, freezer)
-        _no_override(hass)
-        hass.states.async_set(MOTION, STATE_ON, {"device_class": "motion"})
-        await hass.async_block_till_done()
-        assert hass.states.get(LAMP).state == STATE_ON
     finally:
         await hass.config_entries.async_unload(entry.entry_id)

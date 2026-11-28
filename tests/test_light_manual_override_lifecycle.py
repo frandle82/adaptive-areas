@@ -443,14 +443,14 @@ async def test_j17_external_automation_sets_the_override(hass: HomeAssistant) ->
 # J14/J22/J23: restore.
 
 
-@pytest.mark.parametrize("motion_state", [STATE_OFF])
+@pytest.mark.parametrize("motion_state", [STATE_OFF, STATE_ON])
 async def test_j22_j23_restored_override(
     hass: HomeAssistant, motion_state: str
 ) -> None:
     """J22/J23: a stored override; restart with a free / occupied Area.
 
-    Free Area at restart: the override does not carry into the next occupancy.
-    Occupied Area at restart: the override of the continuing occupancy is kept (rule).
+    Phase J.3 rule: the override is a runtime state of one setup generation and is never
+    restored, whether the Area is free or occupied at the restart.
     """
     mock_restore_cache(
         hass,
@@ -461,13 +461,11 @@ async def test_j22_j23_restored_override(
     )
     _entry, _lamp = await _setup(hass, occupied=motion_state == STATE_ON)
     try:
-        if motion_state == STATE_OFF:
-            assert _override(hass) is False
-            await _motion(hass, STATE_ON)
-            await _lux(hass, DARK_LUX)
-            assert hass.states.get(LAMP).state == STATE_ON
-        else:
-            assert _override(hass) is True
+        assert _override(hass) is False
+        assert _override(hass, ALL_GROUP) is False
+        await _motion(hass, STATE_ON)
+        await _lux(hass, DARK_LUX)
+        assert hass.states.get(LAMP).state == STATE_ON
     finally:
         await shutdown_integration(hass, [])
 

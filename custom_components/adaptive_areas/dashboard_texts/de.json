@@ -454,8 +454,7 @@
       "manual_off": "Von anderer Stelle ausgeschaltet",
       "origin_user_account": "Ursprung: Aufruf unter einem Benutzerkonto (Oberfläche, App, API oder Sprachassistent)",
       "origin_parent_context": "Ursprung: abgeleiteter Context (zum Beispiel Automation, Skript oder Szene; nicht gesichert)",
-      "origin_unattributed": "Ursprung: nicht zuordenbar (Gerät, Schalter, Integration, Automation ohne auslösenden Context oder verspätete Geräterückmeldung)",
-      "override_restored": "Übersteuerung nach Neustart wiederhergestellt"
+      "origin_unattributed": "Ursprung: nicht zuordenbar (Gerät, Schalter, Integration, Automation ohne auslösenden Context oder verspätete Geräterückmeldung)"
     },
     "issue": {
       "diagnostics_unavailable": "Einige Diagnosedaten sind nicht verfügbar.",
@@ -476,8 +475,7 @@
       "other": "Anderer Auslöser",
       "initial": "Einrichtung oder Neuladen",
       "automation_enabled": "Lichtautomatik eingeschaltet",
-      "group_state_changed": "Lichtgruppe geändert",
-      "state_restored": "Zustand wiederhergestellt"
+      "group_state_changed": "Lichtgruppe geändert"
     },
     "state": {
       "clear": "Frei",

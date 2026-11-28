@@ -454,8 +454,7 @@
       "manual_off": "Switched off by something else",
       "origin_user_account": "Origin: a call under a user account (frontend, app, API or voice assistant)",
       "origin_parent_context": "Origin: a derived context (for example an automation, script or scene; not proven)",
-      "origin_unattributed": "Origin: not attributable (device, switch, integration, automation without a triggering context, or late device answer)",
-      "override_restored": "Override restored after restart"
+      "origin_unattributed": "Origin: not attributable (device, switch, integration, automation without a triggering context, or late device answer)"
     },
     "issue": {
       "diagnostics_unavailable": "Some diagnostics are unavailable.",
@@ -476,8 +475,7 @@
       "other": "Other trigger",
       "initial": "Setup or reload",
       "automation_enabled": "Light automation switched on",
-      "group_state_changed": "Light group changed",
-      "state_restored": "State restored"
+      "group_state_changed": "Light group changed"
     },
     "state": {
       "clear": "Clear",

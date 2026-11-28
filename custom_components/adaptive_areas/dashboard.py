@@ -605,7 +605,6 @@ TRACE_TRIGGERS = frozenset(
         "initial",
         "automation_enabled",
         "group_state_changed",
-        "state_restored",
     }
 )
 TRACE_DECISIONS = frozenset(
@@ -681,7 +680,6 @@ TRACE_REASON_CODES = frozenset(
         "origin_user_account",
         "origin_parent_context",
         "origin_unattributed",
-        "override_restored",
         # Every reason of the shared light transition decision, without drift.
         *(reason.value for reason in TransitionReason),
     }

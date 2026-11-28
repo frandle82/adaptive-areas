@@ -409,39 +409,13 @@ class AreaLightGroup(AdaptiveLightGroup):
         return self._icon
 
     async def async_added_to_hass(self) -> None:
-        """Restore state and setup listeners."""
-        # Get last state
-        last_state = await self.async_get_last_state()
+        """Set up listeners; every setup generation starts without a manual override.
 
-        if last_state:
-            self.logger.debug(
-                "%s: State restored [state=%s]", self.name, last_state.state
-            )
-            self._attr_is_on = last_state.state == STATE_ON
-
-            if "controlling" in last_state.attributes:
-                controlling = last_state.attributes["controlling"]
-                self.controlling = controlling
-                self._attr_extra_state_attributes["controlling"] = self.controlling
-            self.manual_override = bool(
-                last_state.attributes.get(ATTR_MANUAL_OVERRIDE, False)
-            )
-            self._attr_extra_state_attributes[ATTR_MANUAL_OVERRIDE] = (
-                self.manual_override
-            )
-            if self.manual_override:
-                self._trace_override(
-                    "state_restored", "manual_override_started", ["override_restored"]
-                )
-        else:
-            self._attr_is_on = False
-
-        self.schedule_update_ha_state()
-
-        # Setup state change listeners
+        A stored `manual_override` or `controlling` attribute is never read back: the
+        override is a runtime state of the current setup generation (restart and reload
+        start without it). The group state itself comes from its members.
+        """
         await self._setup_listeners()
-        self._apply_initial_decision()
-
         await super().async_added_to_hass()
 
         if self.category == LightGroupCategory.ALL:
@@ -450,7 +424,8 @@ class AreaLightGroup(AdaptiveLightGroup):
                 for child_group in self._child_groups
                 if child_group.entity_id
             ]
-            self.schedule_update_ha_state()
+            self.async_write_ha_state()
+        self._apply_initial_decision()
 
     async def _setup_listeners(self, _=None) -> None:
         """Set up listeners for area state chagne."""
