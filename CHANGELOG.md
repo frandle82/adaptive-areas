@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.7.0-rc.5 - 2026-11-28
+
+Pre-release for practical validation. This is not a stable release. RC.5 contains
+verified lifecycle fixes and improved diagnostics, but the original Home Assistant OS
+regression seen with RC.4 has not yet been proven fixed on a real installation.
 
 1.7.0-rc.4 was published, but its practical validation on Home Assistant OS failed: the brightness-dependent light control of an Area still did not switch, and its accent group reported a manual override although nothing was switched by hand. The cause of that override is not yet proven. See `docs/CURRENT_STATE.md`.
 
@@ -27,8 +31,17 @@
 
 ### Added
 
-- The light diagnosis in the panel shows each light group on its own: entity ID, state, automatic control, manual override and its last traced decision with the reason. An override of the ALL group no longer looks like an override of the accent group. Light group entries of the decision trace name their group category.
-- The decision trace records when a light group's manual override starts (with the change and its origin class: user account, derived context, or not attributable), when it ends (area clear or blocking state) and when it is restored at setup. No entity, user or context IDs are recorded. Light control behaviour is unchanged.
+- The light diagnosis in the panel shows each light group on its own: its actual entity ID, state, automatic control, group-specific manual override and its last traced decision with the full reason. An override of the ALL group no longer looks like an override of the accent group. Light group entries of the decision trace name their group category.
+- The decision trace records when a light group's manual override starts (with the change and its more precise origin class: user account, derived context, or not attributable) and when it ends (area clear or blocking state). No entity, user or context IDs are recorded.
+- Additional lifecycle regression tests cover deterministic native light-group initialization, setup-generation-scoped overrides, pending initial decisions, failed calls, reloads, setup rollback and Meta Area presence cleanup.
+- `docs/RC5_PRACTICAL_TEST_PLAN.md` defines the Home Assistant OS acceptance procedure for RC.5.
+
+### Known limitations
+
+- The original Home Assistant OS light-control regression is not yet proven fixed. The exact template light already works with RC.4 in the automated test environment, so practical validation on the affected installation is still required.
+- A delayed device response without an attributable Home Assistant Context can still be treated as an external change.
+- Beta CI is blocked before test execution by an external dependency conflict: Home Assistant 2026.12.0b2 conflicts with `pytest-homeassistant-custom-component` 0.13.375, which pins Home Assistant 2026.10.4. Beta compatibility is therefore not claimed.
+- Practical Home Assistant OS acceptance is pending; RC.5 is not approved for stable production use.
 
 ## 1.7.0-rc.4 - 2026-11-27
 
