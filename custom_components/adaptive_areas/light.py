@@ -741,9 +741,7 @@ class AreaLightGroup(AdaptiveLightGroup):
                 target_count=len(self._entity_ids),
             )
             return False
-        self.hass.loop.call_soon_threadsafe(
-            self._async_schedule_command, decision.action, trigger
-        )
+        self.hass.loop.call_soon(self._async_schedule_command, decision.action, trigger)
         return True
 
     @callback
